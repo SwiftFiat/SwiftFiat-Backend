@@ -1,0 +1,11 @@
+version: '3'
+
+services:
+  postgres:
+    container_name: swiftfiat_postgres
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=${DB_USERNAME}
+      - POSTGRES_PASSWORD=${DB_PASSWORD}
+    ports:
+      - '${DB_PORT}:${DB_PORT}'
