@@ -1,0 +1,44 @@
+### SwiftFiat Backend
+
+#### Setting up Environment Variables, Declaring SERVER_PORT, and Using CompileDaemon
+
+To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and use CompileDaemon for automatic code compilation, follow these steps:
+
+1. **Create an Environment File:**
+   - Create a new file named `.env` in the root directory of the project.
+
+2. **Declare SERVER_PORT:**
+   - Within the `.env` file, declare the SERVER_PORT variable. This variable will define the port on which the server will listen for incoming connections.
+
+     ```
+     SERVER_PORT=3000
+     ```
+
+   Replace `3000` with the desired port number.
+
+3. **Install CompileDaemon:**
+   - Install CompileDaemon using the following command:
+
+     ```
+     go get github.com/githubnemo/CompileDaemon
+     ```
+
+4. **Run CompileDaemon:**
+   - Run CompileDaemon with the command:
+
+     ```
+     CompileDaemon -command="./your-executable"
+     ```
+
+   Replace `./your-executable` with the command to execute your SwiftFiat Backend server. For example:
+
+     ```
+     CompileDaemon -command="./swiftfiat-backend"
+     ```
+
+   This command will continuously monitor your project files for changes and automatically recompile and restart your server whenever a change is detected.
+
+5. **Usage:**
+   - The declared SERVER_PORT environment variable will be used by the SwiftFiat Backend to determine the port for hosting the server.
+
+By following these steps, you can easily set up the necessary environment variables, declare the SERVER_PORT, and use CompileDaemon for automatic code compilation in the SwiftFiat Backend project.
