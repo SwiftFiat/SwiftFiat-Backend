@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -21,8 +23,14 @@ func NewServer(envPath string) *Server {
 
 func (s *Server) Start(port int) {
 
+	dr := models.ErrorResponse{
+		Status:  "success",
+		Message: "Welcome to SwiftFiat!",
+		Version: utils.REVISION,
+	}
+
 	s.router.GET("/", func(ctx *gin.Context) {
-		ctx.JSON(http.StatusOK, gin.H{"message": "Welcome to SwiftFiat!"})
+		ctx.JSON(http.StatusOK, dr)
 	})
 
 	/// Register Object Routers Below
