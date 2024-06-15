@@ -51,10 +51,10 @@ jobs:
     runs-on: self-hosted 
     steps:
       - name: Pull docker image
-        run: docker pull 654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend:latest
+        run: sudo docker pull 654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend:latest
 
       - name: Delete old container
-        run: docker rm -f swiftfiat-backend 
+        run: sudo docker rm -f swiftfiat-backend 
 
       - name: Run docker container          
-        run: docker run -d -p 9000:9000 --name swiftfiat-backend  654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend
+        run: sudo docker run -d -p 9000:9000 --name swiftfiat-backend  654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend
