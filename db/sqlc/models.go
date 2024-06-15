@@ -38,6 +38,7 @@ type User struct {
 	HashedPin      sql.NullString `json:"hashed_pin"`
 	PhoneNumber    string         `json:"phone_number"`
 	Role           string         `json:"role"`
+	Verified       bool           `json:"verified"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`

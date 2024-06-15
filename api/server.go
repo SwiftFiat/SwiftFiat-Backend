@@ -18,15 +18,16 @@ var TokenController *utils.JWTToken
 type Server struct {
 	router  *gin.Engine
 	queries *db.Queries
+	config  *utils.Config
 }
 
 func NewServer(envPath string) *Server {
-	config, err := utils.LoadConfig(envPath)
+	c, err := utils.LoadConfig(envPath)
 	if err != nil {
 		panic(fmt.Sprintf("Could not load config: %v", err))
 	}
 
-	conn, err := sql.Open(config.DBDriver, utils.GetDBSource(config, config.DBName))
+	conn, err := sql.Open(c.DBDriver, utils.GetDBSource(c, c.DBName))
 	if err != nil {
 		panic(fmt.Sprintf("Could not load DB: %v", err))
 	}
@@ -37,6 +38,7 @@ func NewServer(envPath string) *Server {
 	return &Server{
 		router:  g,
 		queries: q,
+		config:  c,
 	}
 }
 
