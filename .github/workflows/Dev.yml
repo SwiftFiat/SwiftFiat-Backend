@@ -45,3 +45,15 @@ jobs:
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
         echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> '$GITHUB_OUTPUT'
+
+  deploy:
+    needs: build
+    runs-on: self-hosted 
+      - name: Pull docker image
+        run: docker pull 654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend:latest
+
+      - name: Delete old container
+        run: docker rm -f swiftfiat-backend 
+
+      - name: Run docker container          
+        run: docker run -d -p 9000:9000 --name swiftfiat-backend  654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend
