@@ -49,6 +49,7 @@ jobs:
   deploy:
     needs: build
     runs-on: self-hosted 
+    steps:
       - name: Pull docker image
         run: docker pull 654654418959.dkr.ecr.us-east-1.amazonaws.com/swiftfiat-backend:latest
 
