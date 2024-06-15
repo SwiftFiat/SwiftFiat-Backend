@@ -22,7 +22,7 @@ type SmsNotification struct {
 	Config      *utils.Config `json:"config"`
 }
 
-func (s *SmsNotification) sendSMS() error {
+func (s *SmsNotification) SendSMS() error {
 
 	AwsRegion := s.Config.AWSRegion
 	AccessKeyID := s.Config.AWSAccessKeyID

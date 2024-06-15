@@ -8,6 +8,7 @@ CREATE TABLE "users" (
     "hashed_pin" VARCHAR(256),
     "phone_number" VARCHAR(50) UNIQUE NOT NULL,
     "role" VARCHAR(10) NOT NULL,
+    "verified" BOOLEAN NOT NULL DEFAULT FALSE,
     "created_at" timestamptz NOT NULL DEFAULT (now()),
     "updated_at" timestamptz NOT NULL DEFAULT (now()),
     "deleted_at" timestamptz

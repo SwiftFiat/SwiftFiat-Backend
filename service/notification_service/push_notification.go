@@ -22,7 +22,7 @@ type PushNotification struct {
 	Config       *utils.Config `json:"config"`
 }
 
-func (p *PushNotification) sendPush() error {
+func (p *PushNotification) SendPush() error {
 	AwsRegion := p.Config.AWSRegion
 	AccessKeyID := p.Config.AWSAccessKeyID
 	SecretAccessKey := p.Config.AWSSecretAccessKey
@@ -48,6 +48,7 @@ func (p *PushNotification) sendPush() error {
 		// Print the error, cast err to awserr.Error to get the Code and
 		// Message from an error.
 		fmt.Println(err.Error())
+		panic(err)
 		return err
 	}
 
