@@ -37,15 +37,15 @@ jobs:
       run: |
         echo "${{ secrets.ENV }}" > .env   
 
-    - name: Build, tag, and push image to AWS ECR public
+    - name: Build, tag, and push docker image to Amazon ECR Public
       env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-        IMAGE_TAG: latest
+          REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
+          REGISTRY_ALIAS: q0v6o6u9
+          REPOSITORY: ${{ secrets.ECR_REPO }}
+          IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_ENV
+        docker build -f Dockerfile -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
+        docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
 
 
   deploy:
