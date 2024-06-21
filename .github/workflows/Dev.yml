@@ -32,7 +32,7 @@ jobs:
       uses: aws-actions/amazon-ecr-login@v1
       with:
            registry-type: public
-           
+
     - name: Creating env file and make build
       run: |
         echo "${{ secrets.ENV }}" > .env   
@@ -41,7 +41,7 @@ jobs:
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
-        IMAGE_TAG: latest
+        IMAGE_TAG: ${{ github.sha }}
       run: |
         docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
         docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
