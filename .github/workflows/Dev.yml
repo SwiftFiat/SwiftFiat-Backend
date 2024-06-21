@@ -27,17 +27,17 @@ jobs:
          role-session-name: GitHub_to_AWS_via_FederatedOIDC
          aws-region: ${{ secrets.AWS_REGION }}
 
-    - name: Login to Amazon ECR public
-      run: |
-        aws ecr-public get-login-password --region ${{ secrets.AWS_REGION }} | docker login --username AWS --password-stdin public.ecr.aws
-
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+    
     - name: Creating env file and make build
       run: |
         echo "${{ secrets.ENV }}" > .env   
 
     - name: Build, tag, and push image to AWS ECR public
       env:
-        ECR_REGISTRY: public.ecr.aws
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
         ECR_REPOSITORY: ${{ secrets.ECR_REPO }}
         IMAGE_TAG: latest
       run: |
