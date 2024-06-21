@@ -1,4 +1,4 @@
-package api_models
+package models
 
 import db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 

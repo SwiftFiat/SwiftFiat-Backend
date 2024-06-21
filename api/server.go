@@ -34,6 +34,9 @@ func NewServer(envPath string) *Server {
 
 	q := db.New(conn)
 	g := gin.Default()
+	g.Use(CORSMiddleware())
+
+	TokenController = utils.NewJWTToken(c)
 
 	return &Server{
 		router:  g,

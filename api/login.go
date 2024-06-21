@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"net/http"
 
-	models "github.com/SwiftFiat/SwiftFiat-Backend/api/api_models"
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"

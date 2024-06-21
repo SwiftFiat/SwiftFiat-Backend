@@ -1,4 +1,4 @@
-package api_models
+package models
 
 import (
 	"time"
