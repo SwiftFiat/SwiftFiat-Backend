@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	models "github.com/SwiftFiat/SwiftFiat-Backend/api/api_models"
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/service/notification_service"
 	"github.com/gin-gonic/gin"
