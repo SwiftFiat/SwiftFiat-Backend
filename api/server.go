@@ -44,7 +44,7 @@ func NewServer(envPath string) *Server {
 
 func (s *Server) Start(port int) {
 
-	dr := models.ErrorResponse{
+	dr := models.SuccessResponse{
 		Status:  "success",
 		Message: "Welcome to SwiftFiat!",
 		Version: utils.REVISION,
