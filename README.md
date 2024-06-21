@@ -11,10 +11,33 @@ To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and 
    - Within the `.env` file, declare the SERVER_PORT variable. This variable will define the port on which the server will listen for incoming connections.
 
      ```
-     SERVER_PORT=3000
+      # ACCESS
+      SERVER_PORT=9000
+
+      # AUTHENTICATION - Credentials
+      TOKEN_TTL="1800"
+      SIGNING_KEY=<32-Bit-Length>
+
+      # DATABASE INFORMATION
+      DB_USERNAME=
+      DB_PASSWORD=
+      DB_HOST=
+      DB_NAME=
+      DB_PORT=
+      DB_DRIVER=postgres
+
+      # ADMINISTRATION - Default Admin User
+      ADMIN_USERNAME="<<ADMIN_USERNAME>>"
+      ADMIN_EMAIL="<<ADMIN_EMAIL>>"
+      ADMIN_PASSWORD="<<ADMIN_PASSWORD>>"
+
+      # AWS KEYS
+      AWS_SECRET_ACCESS_KEY=
+      AWS_ACCESS_KEY=
+      AWS_REGION=
      ```
 
-   Replace `3000` with the desired port number.
+   Replace `VALUES` with the desired  `INPUTS`
 
 3. **Install CompileDaemon:**
    - Install CompileDaemon using the following command:
