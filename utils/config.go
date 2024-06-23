@@ -14,6 +14,8 @@ type Config struct {
 	DBPort             string `mapstructure:"DB_PORT"`
 	DBDriver           string `mapstructure:"DB_DRIVER"`
 	DBName             string `mapstructure:"DB_NAME"`
+	BrandName          string `mapstructure:"BRAND_NAME"`
+	PinPointAppID      string `mapstructure:"BRAND_NAME"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {

@@ -31,6 +31,19 @@ func (a *Auth) register(ctx *gin.Context) {
 		Role:        models.USER,
 	}
 
+	em := service.OtpNotification{
+		Channel:     "EMAIL",
+		PhoneNumber: arg.PhoneNumber,
+		Email:       arg.Email,
+		Config:      a.server.config,
+	}
+
+	err = em.SendOTP()
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, err.Error())
+		return
+	}
+
 	newUser, err := a.server.queries.CreateUser(context.Background(), arg)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
@@ -51,19 +64,6 @@ func (a *Auth) register(ctx *gin.Context) {
 	// 	PhoneNumber: newUser.PhoneNumber,
 	// 	Config:      a.server.config,
 	// }
-
-	em := service.EmailNotification{
-		Message: "Your OTP is 3349",
-		Email:   "johnpaulmuoneme@gmail.com",
-		Subject: "Account OTP",
-		Config:  a.server.config,
-	}
-
-	err = em.SendEmail()
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "error sending OTP"})
-		return
-	}
 
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
 }
@@ -108,13 +108,14 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		return
 	}
 
-	sms := service.SmsNotification{
-		Message:     "Your OTP is 5439",
+	otp := service.OtpNotification{
+		Channel:     "EMAIL",
 		PhoneNumber: newUser.PhoneNumber,
+		Email:       newUser.Email,
 		Config:      a.server.config,
 	}
 
-	err = sms.SendSMS()
+	err = otp.SendOTP()
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "error sending OTP"})
 		return
