@@ -41,12 +41,12 @@ func (e *EmailNotification) SendEmail() error {
 	svc := ses.New(sess)
 
 	// Set the sender and recipient email addresses
-	from := ""
+	from := e.Config.OTPSourceMail
 	to := e.Email
 
 	// Set the email subject and body
-	subject := "Test email from AWS SES"
-	body := "This is a test email sent from AWS SES"
+	subject := "OTP"
+	body := e.Message
 
 	// Send the email
 	result, err := svc.SendEmail(&ses.SendEmailInput{
@@ -57,7 +57,7 @@ func (e *EmailNotification) SendEmail() error {
 		},
 		Message: &ses.Message{
 			Body: &ses.Body{
-				Text: &ses.Content{
+				Html: &ses.Content{
 					Charset: aws.String("UTF-8"),
 					Data:    aws.String(body),
 				},
@@ -70,7 +70,7 @@ func (e *EmailNotification) SendEmail() error {
 		Source: aws.String(from),
 	})
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Print the response from AWS SES

@@ -32,10 +32,14 @@ type UserResponse struct {
 	LastName    string    `json:"last_name"`
 	Email       string    `json:"email"`
 	PhoneNumber string    `json:"phone_number"`
-	Username    string    `json:"username"`
 	Verified    bool      `json:"verified"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+type UserWithToken struct {
+	User  *UserResponse `json:"user"`
+	Token string        `json:"token"`
 }
 
 const (
