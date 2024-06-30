@@ -15,7 +15,6 @@ type Config struct {
 	DBDriver           string `mapstructure:"DB_DRIVER"`
 	DBName             string `mapstructure:"DB_NAME"`
 	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
-	PinPointAppID      string `mapstructure:"BRAND_NAME"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {
