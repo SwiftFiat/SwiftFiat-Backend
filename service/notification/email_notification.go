@@ -8,6 +8,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/aws/aws-sdk-go/aws"
@@ -73,8 +74,7 @@ func (e *EmailNotification) SendEmail() error {
 		return err
 	}
 
-	// Print the response from AWS SES
-	fmt.Println(result)
+	log.Default().Output(0, fmt.Sprintf("%v", result))
 
 	return nil
 }

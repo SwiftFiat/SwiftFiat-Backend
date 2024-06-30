@@ -9,7 +9,6 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	service "github.com/SwiftFiat/SwiftFiat-Backend/service/notification"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
@@ -98,19 +97,6 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 			fmt.Println("pq error:", pqErr.Code.Name())
 		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	otp := service.OtpNotification{
-		Channel:     service.EMAIL,
-		PhoneNumber: newUser.PhoneNumber,
-		Email:       newUser.Email,
-		Config:      a.server.config,
-	}
-
-	err = otp.SendOTP()
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "error sending OTP"})
 		return
 	}
 
