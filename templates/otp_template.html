@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OTP Verification</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        .otp-container {
+            background-color: #f0f0f0;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            display: inline-block;
+        }
+        .otp-text {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        .otp-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #333;
+            padding: 10px 20px;
+            background-color: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body>
+    <div class="otp-container">
+        <div class="otp-text">Your One-Time Password (OTP) is:</div>
+        <div class="otp-value">{{ .OTP }}</div>
+    </div>
+</body>
+</html>
