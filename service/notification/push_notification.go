@@ -49,7 +49,7 @@ func (p *PushNotification) SendPush() error {
 		// Message from an error.
 		fmt.Println(err.Error())
 		panic(err)
-		return err
+
 	}
 
 	// Pretty-print the response data.

@@ -8,7 +8,8 @@ import (
 
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
-	service "github.com/SwiftFiat/SwiftFiat-Backend/service/notification_service"
+	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/service/notification"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
@@ -37,7 +38,7 @@ func (a *Auth) register(ctx *gin.Context) {
 			if pqErr.Code == "23505" {
 				// 23505 --> Violated Unique Constraints
 				// TODO: Make these constants
-				ctx.JSON(http.StatusBadRequest, gin.H{"error": "user already exists"})
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("user already exists"))
 				return
 			}
 			fmt.Println("pq error:", pqErr.Code.Name())
@@ -46,26 +47,18 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
-	// sms := service.SmsNotification{
-	// 	Message:     "Your OTP is 5439",
-	// 	PhoneNumber: newUser.PhoneNumber,
-	// 	Config:      a.server.config,
-	// }
-
-	em := service.EmailNotification{
-		Message: "Your OTP is 3349",
-		Email:   "johnpaulmuoneme@gmail.com",
-		Subject: "Account OTP",
-		Config:  a.server.config,
-	}
-
-	err = em.SendEmail()
+	token, err := TokenController.CreateToken(newUser.ID)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "error sending OTP"})
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
+	userWT := models.UserWithToken{
+		User:  models.UserResponse{}.ToUserResponse(&newUser),
+		Token: token,
+	}
+
+	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
 }
 
 func (a *Auth) registerAdmin(ctx *gin.Context) {
@@ -108,13 +101,14 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		return
 	}
 
-	sms := service.SmsNotification{
-		Message:     "Your OTP is 5439",
+	otp := service.OtpNotification{
+		Channel:     service.EMAIL,
 		PhoneNumber: newUser.PhoneNumber,
+		Email:       newUser.Email,
 		Config:      a.server.config,
 	}
 
-	err = sms.SendSMS()
+	err = otp.SendOTP()
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "error sending OTP"})
 		return

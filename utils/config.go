@@ -14,6 +14,7 @@ type Config struct {
 	DBPort             string `mapstructure:"DB_PORT"`
 	DBDriver           string `mapstructure:"DB_DRIVER"`
 	DBName             string `mapstructure:"DB_NAME"`
+	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {
