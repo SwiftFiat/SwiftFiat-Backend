@@ -30,10 +30,10 @@ type OtpNotification struct {
 	Config      *utils.Config `json:"config"`
 }
 
-func (o *OtpNotification) SendOTP() error {
+func (o *OtpNotification) SendOTP(otp string) error {
 
 	otpTemplate, err := getTemplate(OTPData{
-		OTP: utils.GenerateOTP(),
+		OTP: otp,
 	})
 	if err != nil {
 		return err
