@@ -6,16 +6,16 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func GetActiveUser(ctx *gin.Context) (int64, error) {
-	value, exists := ctx.Get("user_id")
+func GetActiveUser(ctx *gin.Context) (TokenObject, error) {
+	value, exists := ctx.Get("user")
 	if !exists {
-		return 0, fmt.Errorf("error occurred, not authorized to access this resource")
+		return TokenObject{}, fmt.Errorf("error occurred, not authorized to access this resource")
 	}
 
-	userId, ok := value.(int64)
+	user, ok := value.(TokenObject)
 	if !ok {
-		return 0, fmt.Errorf("an error occurred")
+		return TokenObject{}, fmt.Errorf("an error occurred")
 	}
 
-	return userId, nil
+	return user, nil
 }

@@ -16,6 +16,7 @@ type RegisterUserParams struct {
 	LastName    string `json:"last_name" binding:"required"`
 	Email       string `json:"email" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
+	Password    string `json:"password" binding:"required"`
 }
 
 type RegisterAdminParams struct {
@@ -47,3 +48,7 @@ const (
 	USER         = "user"
 	CUSTOMER_REP = "customer_rep"
 )
+
+type UserOTPParams struct {
+	OTP string `json:"otp"`
+}

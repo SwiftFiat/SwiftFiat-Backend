@@ -20,7 +20,7 @@ func (a Auth) router(server *Server) {
 	serverGroup.POST("login", a.login)
 	serverGroup.POST("register", a.register)
 	serverGroup.POST("register-admin", a.registerAdmin)
-	// serverGroup.POST("verify-otp", a.verifyOTP)
+	serverGroup.POST("verify-otp", AuthenticatedMiddleware(), a.verifyOTP)
 	serverGroup.GET("otp", AuthenticatedMiddleware(), a.sendOTP)
 }
 
