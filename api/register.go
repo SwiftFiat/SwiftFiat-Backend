@@ -9,6 +9,7 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
@@ -19,7 +20,13 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&user)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	hashedPassword, err := utils.GenerateHashValue(user.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -28,13 +35,17 @@ func (a *Auth) register(ctx *gin.Context) {
 		LastName:    sql.NullString{String: user.LastName, Valid: true},
 		Email:       user.Email,
 		PhoneNumber: user.PhoneNumber,
-		Role:        models.USER,
+		HashedPassword: sql.NullString{
+			Valid:  true,
+			String: hashedPassword,
+		},
+		Role: models.USER,
 	}
 
 	newUser, err := a.server.queries.CreateUser(context.Background(), arg)
 	if err != nil {
 		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == "23505" {
+			if pqErr.Code == db.DuplicateEntry {
 				// 23505 --> Violated Unique Constraints
 				// TODO: Make these constants
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError("user already exists"))
@@ -46,7 +57,11 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
-	token, err := TokenController.CreateToken(newUser.ID)
+	token, err := TokenController.CreateToken(utils.TokenObject{
+		UserID:   newUser.ID,
+		Verified: newUser.Verified,
+		Role:     newUser.Role,
+	})
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

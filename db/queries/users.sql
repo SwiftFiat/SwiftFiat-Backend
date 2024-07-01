@@ -4,8 +4,9 @@ INSERT INTO users (
     last_name,
     email,
     phone_number,
+    hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5) RETURNING *;
+) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
@@ -46,6 +47,10 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpdateUserLastName :one
 UPDATE users SET last_name = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
+-- name: UpdateUserVerification :one
+UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
 -- name: DeleteUser :exec
