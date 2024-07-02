@@ -23,14 +23,18 @@ func AuthenticatedMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		userId, err := TokenController.VerifyToken(tokenSplit[1])
+		user, err := TokenController.VerifyToken(tokenSplit[1])
 		if err != nil {
 			ctx.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
 			ctx.Abort()
 			return
 		}
 
-		ctx.Set("user_id", userId)
+		ctx.Set("user_id", user.UserID)
+		ctx.Set("user_role", user.Role)
+		ctx.Set("user_verified", user.Verified)
+		/// Accessible User Across the App
+		ctx.Set("user", user)
 		ctx.Next()
 	}
 }

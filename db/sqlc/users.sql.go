@@ -17,16 +17,18 @@ INSERT INTO users (
     last_name,
     email,
     phone_number,
+    hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5) RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
-	FirstName   sql.NullString `json:"first_name"`
-	LastName    sql.NullString `json:"last_name"`
-	Email       string         `json:"email"`
-	PhoneNumber string         `json:"phone_number"`
-	Role        string         `json:"role"`
+	FirstName      sql.NullString `json:"first_name"`
+	LastName       sql.NullString `json:"last_name"`
+	Email          string         `json:"email"`
+	PhoneNumber    string         `json:"phone_number"`
+	HashedPassword sql.NullString `json:"hashed_password"`
+	Role           string         `json:"role"`
 }
 
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
@@ -35,6 +37,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		arg.LastName,
 		arg.Email,
 		arg.PhoneNumber,
+		arg.HashedPassword,
 		arg.Role,
 	)
 	var i User
@@ -417,6 +420,38 @@ type UpdateUserPinParams struct {
 
 func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (User, error) {
 	row := q.db.QueryRowContext(ctx, updateUserPin, arg.HashedPin, arg.UpdatedAt, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateUserVerification = `-- name: UpdateUserVerification :one
+UPDATE users SET verified = $1, updated_at = $2
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+`
+
+type UpdateUserVerificationParams struct {
+	Verified  bool      `json:"verified"`
+	UpdatedAt time.Time `json:"updated_at"`
+	ID        int64     `json:"id"`
+}
+
+func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVerificationParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserVerification, arg.Verified, arg.UpdatedAt, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,

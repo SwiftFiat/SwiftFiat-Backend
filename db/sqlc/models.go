@@ -9,6 +9,16 @@ import (
 	"time"
 )
 
+type Otp struct {
+	ID        int64     `json:"id"`
+	UserID    int32     `json:"user_id"`
+	Otp       string    `json:"otp"`
+	Expired   bool      `json:"expired"`
+	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type Referral struct {
 	ID          int64     `json:"id"`
 	UserID      int32     `json:"user_id"`
