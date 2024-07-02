@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	_ "github.com/lib/pq"
@@ -33,11 +34,20 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	token, err := TokenController.CreateToken(dbUser.ID)
+	token, err := TokenController.CreateToken(utils.TokenObject{
+		UserID:   dbUser.ID,
+		Verified: dbUser.Verified,
+		Role:     dbUser.Role,
+	})
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"token": token})
+	userWT := models.UserWithToken{
+		User:  models.UserResponse{}.ToUserResponse(&dbUser),
+		Token: token,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
