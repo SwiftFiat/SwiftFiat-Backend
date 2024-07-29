@@ -52,3 +52,16 @@ const (
 type UserOTPParams struct {
 	OTP string `json:"otp"`
 }
+
+type ForgotPasswordParams struct {
+	Email string `json:"email" binding:"required"`
+}
+
+type VerifyOTPPasswordParams struct {
+	Email string `json:"email" binding:"required"`
+	OTP   string `json:"otp" binding:"required"`
+}
+
+type ChangePasswordParams struct {
+	Password string `json:"password" binding:"required"`
+}
