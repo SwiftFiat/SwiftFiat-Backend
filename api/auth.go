@@ -314,7 +314,12 @@ func (a *Auth) verifyOTP(ctx *gin.Context) {
 	}
 
 	/// User OTP Exists
-	if dbOTP.Otp != otp.OTP {
+	/// If User OTP is Expired --> Returns false
+	ok := utils.CompareOTP(otp.OTP, utils.OTPObject{
+		OTP:    dbOTP.Otp,
+		Expiry: dbOTP.ExpiresAt,
+	})
+	if !ok {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
 		return
 	}
