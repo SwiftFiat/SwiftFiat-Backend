@@ -12,7 +12,7 @@ type SuccessResponse struct {
 type ErrorResponse struct {
 	Status  string   `json:"status"`
 	Message string   `json:"message"`
-	Errors  []string `json:"errors"`
+	Errors  []string `json:"errors,omitempty"`
 	Version string   `json:"version"`
 }
 
@@ -28,7 +28,7 @@ func NewSuccess(msg string, data interface{}) *SuccessResponse {
 	return &SuccessResponse{
 		Status:  "successful",
 		Message: msg,
-		Data:    &data,
+		Data:    data,
 		Version: utils.REVISION,
 	}
 }

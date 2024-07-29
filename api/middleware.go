@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"strings"
 
+	_ "github.com/SwiftFiat/SwiftFiat-Backend/service/security"
 	"github.com/gin-gonic/gin"
 )
 
@@ -29,6 +30,10 @@ func AuthenticatedMiddleware() gin.HandlerFunc {
 			ctx.Abort()
 			return
 		}
+
+		// TODO: Add Cache Layer Validation for Password Changes etc.
+		// https://stackoverflow.com/questions/21978658/invalidating-json-web-tokens
+		// e.g security.CacheInstance.Get(string(rune(user.UserID)))
 
 		ctx.Set("user_id", user.UserID)
 		ctx.Set("user_role", user.Role)
