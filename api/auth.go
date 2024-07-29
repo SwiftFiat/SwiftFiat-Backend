@@ -98,7 +98,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	user := new(models.UserPasscodeLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and password"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and passcode"))
 		return
 	}
 
@@ -111,8 +111,8 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		return
 	}
 
-	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPassword.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
+	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPasscode.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or passcode"))
 		return
 	}
 
@@ -450,7 +450,7 @@ func (a *Auth) verifyOTPPassword(ctx *gin.Context) {
 func (a *Auth) changePassword(ctx *gin.Context) {
 	newPassword := new(models.ChangePasswordParams)
 
-	err := ctx.BindJSON(&newPassword)
+	err := ctx.ShouldBindJSON(&newPassword)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'password'"))
 		return
@@ -491,7 +491,7 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 func (a *Auth) createPasscode(ctx *gin.Context) {
 	newPasscode := new(models.CreatePasscodeParams)
 
-	err := ctx.BindJSON(&newPasscode)
+	err := ctx.ShouldBindJSON(&newPasscode)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'passcode'"))
 		return
@@ -532,7 +532,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 func (a *Auth) createPin(ctx *gin.Context) {
 	newPin := new(models.CreatePinParams)
 
-	err := ctx.BindJSON(&newPin)
+	err := ctx.ShouldBindJSON(&newPin)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
 		return
@@ -567,5 +567,5 @@ func (a *Auth) createPin(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
 }
