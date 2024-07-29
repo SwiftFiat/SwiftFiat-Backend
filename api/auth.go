@@ -25,16 +25,23 @@ type Auth struct {
 func (a Auth) router(server *Server) {
 	a.server = server
 
-	serverGroup := server.router.Group("/auth")
-	serverGroup.GET("test", a.testAuth)
-	serverGroup.POST("login", a.login)
-	serverGroup.POST("register", a.register)
-	serverGroup.POST("register-admin", a.registerAdmin)
-	serverGroup.GET("otp", AuthenticatedMiddleware(), a.sendOTP)
-	serverGroup.POST("verify-otp", AuthenticatedMiddleware(), a.verifyOTP)
-	serverGroup.POST("forgot-password", a.forgotPassword)
-	serverGroup.POST("verify-otp-password", a.verifyOTPPassword)
-	serverGroup.POST("change-password", AuthenticatedMiddleware(), a.changePassword)
+	// serverGroupV1 := server.router.Group("/auth")
+	serverGroupV1 := server.router.Group("/api/v1/auth")
+	serverGroupV1.GET("test", a.testAuth)
+	serverGroupV1.POST("login", a.login)
+	serverGroupV1.POST("login-passcode", a.loginWithPasscode)
+	serverGroupV1.POST("register", a.register)
+	serverGroupV1.POST("register-admin", a.registerAdmin)
+	serverGroupV1.GET("otp", AuthenticatedMiddleware(), a.sendOTP)
+	serverGroupV1.POST("verify-otp", AuthenticatedMiddleware(), a.verifyOTP)
+	serverGroupV1.POST("forgot-password", a.forgotPassword)
+	serverGroupV1.POST("verify-otp-password", a.verifyOTPPassword)
+	serverGroupV1.POST("change-password", AuthenticatedMiddleware(), a.changePassword)
+	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
+	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
+
+	serverGroupV2 := server.router.Group("/api/v2/auth")
+	serverGroupV2.GET("test", a.testAuth)
 }
 
 func (a Auth) testAuth(ctx *gin.Context) {
@@ -51,13 +58,13 @@ func (a *Auth) login(ctx *gin.Context) {
 	user := new(models.UserLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and password"))
 		return
 	}
 
 	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), user.Email)
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect Email or Password"})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
 		return
 	} else if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -65,7 +72,47 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	if err = utils.VerifyHashValue(user.Password, dbUser.HashedPassword.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Incorrect Email or Password"})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
+		return
+	}
+
+	token, err := TokenController.CreateToken(utils.TokenObject{
+		UserID:   dbUser.ID,
+		Verified: dbUser.Verified,
+		Role:     dbUser.Role,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	userWT := models.UserWithToken{
+		User:  models.UserResponse{}.ToUserResponse(&dbUser),
+		Token: token,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+}
+
+func (a *Auth) loginWithPasscode(ctx *gin.Context) {
+	user := new(models.UserPasscodeLoginParams)
+
+	if err := ctx.ShouldBindJSON(user); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and password"))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), user.Email)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPassword.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
 		return
 	}
 
@@ -439,4 +486,86 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
+}
+
+func (a *Auth) createPasscode(ctx *gin.Context) {
+	newPasscode := new(models.CreatePasscodeParams)
+
+	err := ctx.BindJSON(&newPasscode)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'passcode'"))
+		return
+	}
+
+	hashedPasscode, err := utils.GenerateHashValue(newPasscode.Passcode)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updateParams := db.UpdateUserPasscodeeParams{
+		HashedPasscode: sql.NullString{String: hashedPasscode, Valid: true},
+		ID:             activeUser.UserID,
+	}
+
+	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
+		return
+	} else if err != nil {
+		log.Default().Output(6, fmt.Sprintf("error: %v", err.Error()))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error performing password update"))
+		return
+	}
+
+	userResponse := models.UserResponse{}.ToUserResponse(&user)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
+}
+
+func (a *Auth) createPin(ctx *gin.Context) {
+	newPin := new(models.CreatePinParams)
+
+	err := ctx.BindJSON(&newPin)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
+		return
+	}
+
+	hashedPin, err := utils.GenerateHashValue(newPin.Pin)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updateParams := db.UpdateUserPinParams{
+		HashedPin: sql.NullString{String: hashedPin, Valid: true},
+		ID:        activeUser.UserID,
+	}
+
+	user, err := a.server.queries.UpdateUserPin(context.Background(), updateParams)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
+		return
+	} else if err != nil {
+		log.Default().Output(6, fmt.Sprintf("error: %v", err.Error()))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error performing password update"))
+		return
+	}
+
+	userResponse := models.UserResponse{}.ToUserResponse(&user)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
 }

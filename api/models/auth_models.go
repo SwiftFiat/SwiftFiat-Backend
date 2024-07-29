@@ -11,6 +11,11 @@ type UserLoginParams struct {
 	Password string `json:"password" binding:"required"`
 }
 
+type UserPasscodeLoginParams struct {
+	Email    string `json:"email" binding:"required"`
+	Passcode string `json:"passcode" binding:"required"`
+}
+
 type RegisterUserParams struct {
 	FirstName   string `json:"first_name" binding:"required"`
 	LastName    string `json:"last_name" binding:"required"`
@@ -64,4 +69,12 @@ type VerifyOTPPasswordParams struct {
 
 type ChangePasswordParams struct {
 	Password string `json:"password" binding:"required"`
+}
+
+type CreatePasscodeParams struct {
+	Passcode string `json:"passcode" binding:"required"`
+}
+
+type CreatePinParams struct {
+	Pin string `json:"pin" binding:"required"`
 }
