@@ -44,6 +44,10 @@ func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
 		return "", err
 	}
 
+	// TODO: Add Cache Layer Validation for Password Changes etc.
+	// https://stackoverflow.com/questions/21978658/invalidating-json-web-tokens
+	// e.g security.CacheInstance.Insert(string(rune(user.UserID)))
+
 	return string(tokenString), nil
 }
 
