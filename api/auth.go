@@ -64,11 +64,11 @@ func (a *Auth) profile(ctx *gin.Context) {
 
 	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user does not exist"))
 		return
 	}
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred verifying your OTP %v", err.Error())))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
 
