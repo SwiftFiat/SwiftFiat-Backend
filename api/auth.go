@@ -39,6 +39,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("change-password", AuthenticatedMiddleware(), a.changePassword)
 	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
+	serverGroupV1.GET("profile", AuthenticatedMiddleware(), a.profile)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -52,6 +53,26 @@ func (a Auth) testAuth(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, dr)
+}
+
+func (a *Auth) profile(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		return
+	}
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred verifying your OTP %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", models.UserResponse{}.ToUserResponse(&dbUser)))
 }
 
 func (a *Auth) login(ctx *gin.Context) {
