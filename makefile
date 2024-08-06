@@ -1,5 +1,5 @@
 start: # start-server
-	CompileDaemon -command="./Swiftfiat-Backend"
+	CompileDaemon -command="./Swiftfiat-Backend" -color=true
 
 test: # run tests
 	go test -v -cover ./...

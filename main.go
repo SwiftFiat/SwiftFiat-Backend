@@ -8,6 +8,8 @@ import (
 
 func main() {
 
+	// fmt.Println(string(27) + "[35mColored.")
+
 	cache := security.NewCache()
 	cache.Start()
 
