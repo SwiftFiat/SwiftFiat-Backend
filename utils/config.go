@@ -2,6 +2,10 @@ package utils
 
 import "github.com/spf13/viper"
 
+var (
+	EnvPath string = "."
+)
+
 type Config struct {
 	ServerPort         int    `mapstructure:"SERVER_PORT"`
 	SigningKey         string `mapstructure:"SIGNING_KEY"`

@@ -40,9 +40,25 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
 	serverGroupV1.GET("profile", AuthenticatedMiddleware(), a.profile)
+	serverGroupV1.GET("user", a.getUserID)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
+}
+
+// / This is a test function for easy conversion from type ID -> dbID (i.e int64)
+func (a *Auth) getUserID(ctx *gin.Context) {
+	request := struct {
+		Id models.ID `json:"id" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{"userID": int64(request.Id)})
 }
 
 func (a Auth) testAuth(ctx *gin.Context) {

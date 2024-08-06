@@ -63,7 +63,7 @@ func NewServer(envPath string) *Server {
 	}
 }
 
-func (s *Server) Start(port int) {
+func (s *Server) Start() {
 
 	dr := models.SuccessResponse{
 		Status:  "success",
@@ -78,5 +78,5 @@ func (s *Server) Start(port int) {
 	/// Register Object Routers Below
 	Auth{}.router(s)
 
-	s.router.Run(fmt.Sprintf(":%v", port))
+	s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 }
