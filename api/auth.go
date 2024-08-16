@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	api_strings "github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -17,6 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 type Auth struct {
@@ -55,7 +56,8 @@ func (a *Auth) getUserID(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
@@ -96,7 +98,8 @@ func (a *Auth) login(ctx *gin.Context) {
 	user := new(models.UserLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(api_strings.InvalidPhoneEmailInput))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhoneEmailInput))
 		return
 	}
 
@@ -136,15 +139,16 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	user := new(models.UserPasscodeLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and passcode"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhoneEmailInput))
 		return
 	}
 
 	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), user.Email)
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or password"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or passcode"))
 		return
 	} else if err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -160,6 +164,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		Role:     dbUser.Role,
 	})
 	if err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -183,7 +188,8 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -205,7 +211,7 @@ func (a *Auth) register(ctx *gin.Context) {
 			if pqErr.Code == db.DuplicateEntry {
 				// 23505 --> Violated Unique Constraints
 				// TODO: Make these constants
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("user already exists"))
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserDetailsAlreadyCreated))
 				return
 			}
 			fmt.Println("pq error:", pqErr.Code.Name())
@@ -315,12 +321,12 @@ func (a *Auth) sendOTP(ctx *gin.Context) {
 		Config:      a.server.config,
 	}
 
-	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
-	log.Default().Output(0, fmt.Sprintf("FetchedOTP Expiry: %v", resp.ExpiresAt.Local()))
+	a.server.logger.Log(logrus.DebugLevel, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
 
 	err = em.SendOTP(resp.Otp)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), nil))
@@ -518,11 +524,11 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 
 	user, err := a.server.queries.UpdateUserPassword(context.Background(), updateParams)
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 		return
 	} else if err != nil {
-		log.Default().Output(6, fmt.Sprintf("error: %v", err.Error()))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error performing password update"))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -559,11 +565,11 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 		return
 	} else if err != nil {
-		log.Default().Output(6, fmt.Sprintf("error: %v", err.Error()))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error performing password update"))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -603,8 +609,8 @@ func (a *Auth) createPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
 		return
 	} else if err != nil {
-		log.Default().Output(6, fmt.Sprintf("error: %v", err.Error()))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error performing password update"))
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
