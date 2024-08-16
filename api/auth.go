@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"time"
 
+	api_strings "github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -95,7 +96,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	user := new(models.UserLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email and password"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(api_strings.InvalidPhoneEmailInput))
 		return
 	}
 
