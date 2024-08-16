@@ -8,6 +8,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -23,6 +24,7 @@ type Server struct {
 	router  *gin.Engine
 	queries *db.Queries
 	config  *utils.Config
+	logger  *logging.Logger
 }
 
 func NewServer(envPath string) *Server {
@@ -52,8 +54,9 @@ func NewServer(envPath string) *Server {
 
 	q := db.New(conn)
 	g := gin.Default()
+	l := logging.NewLogger()
 	g.Use(CORSMiddleware())
-	g.Use(gin.Logger())
+	g.Use(l.LoggingMiddleWare())
 
 	TokenController = utils.NewJWTToken(c)
 
@@ -61,6 +64,7 @@ func NewServer(envPath string) *Server {
 		router:  g,
 		queries: q,
 		config:  c,
+		logger:  l,
 	}
 }
 

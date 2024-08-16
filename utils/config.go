@@ -19,6 +19,8 @@ type Config struct {
 	DBDriver           string `mapstructure:"DB_DRIVER"`
 	DBName             string `mapstructure:"DB_NAME"`
 	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
+	Papertrail         string `mapstructure:"PAPERTRAIL"`
+	PapertrailAppName  string `mapstructure:"PAPERTRAIL_APP_NAME"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {

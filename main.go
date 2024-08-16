@@ -10,9 +10,11 @@ func main() {
 
 	// fmt.Println(string(27) + "[35mColored.")
 
+	// Set up token cache
 	cache := security.NewCache()
 	cache.Start()
 
+	// Set up server
 	server := api.NewServer(utils.EnvPath)
 	server.Start()
 }
