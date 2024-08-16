@@ -186,6 +186,19 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
+	validate := validator.New()
+	err = validate.Var(user.Email, "email")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidEmail))
+		return
+	}
+
+	err = validate.Var(user.PhoneNumber, "e164")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhone))
+		return
+	}
+
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
