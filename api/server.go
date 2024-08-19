@@ -9,6 +9,8 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -21,10 +23,11 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router  *gin.Engine
-	queries *db.Queries
-	config  *utils.Config
-	logger  *logging.Logger
+	router   *gin.Engine
+	queries  *db.Queries
+	config   *utils.Config
+	logger   *logging.Logger
+	provider *provider.ProviderService
 }
 
 func NewServer(envPath string) *Server {
@@ -55,16 +58,23 @@ func NewServer(envPath string) *Server {
 	q := db.New(conn)
 	g := gin.Default()
 	l := logging.NewLogger()
+	p := provider.NewProviderService()
+
+	// Set up KYC service
+	kp := kyc.NewKYCProvider()
+	p.AddProvider(kp)
+
 	g.Use(CORSMiddleware())
 	g.Use(l.LoggingMiddleWare())
 
 	TokenController = utils.NewJWTToken(c)
 
 	return &Server{
-		router:  g,
-		queries: q,
-		config:  c,
-		logger:  l,
+		router:   g,
+		queries:  q,
+		config:   c,
+		logger:   l,
+		provider: p,
 	}
 }
 

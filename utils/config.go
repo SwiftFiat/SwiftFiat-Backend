@@ -42,3 +42,23 @@ func LoadConfig(path string) (config *Config, err error) {
 
 	return config, nil
 }
+
+func LoadCustomConfig(path string, val interface{}) (err error) {
+	viper.AddConfigPath(path)
+	viper.SetConfigName(".env")
+	viper.SetConfigType("env")
+
+	viper.AutomaticEnv()
+
+	err = viper.ReadInConfig()
+	if err != nil {
+		return err
+	}
+
+	err = viper.Unmarshal(val)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
