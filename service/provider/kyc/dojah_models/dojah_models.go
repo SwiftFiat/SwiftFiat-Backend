@@ -12,6 +12,28 @@ type BVNEntity struct {
 	PhoneNumber2 string `json:"phone_number2"`
 }
 
-type Response struct {
+type SelfieVerification struct {
+	ConfidenceValue float64 `json:"confidence_value"`
+	Match           bool    `json:"match"`
+}
+
+// Define the struct for the main JSON object
+type NINEntity struct {
+	FirstName          string             `json:"first_name"`
+	LastName           string             `json:"last_name"`
+	MiddleName         string             `json:"middle_name"`
+	Gender             string             `json:"gender"`
+	Image              string             `json:"image"`
+	PhoneNumber        string             `json:"phone_number"`
+	DateOfBirth        string             `json:"date_of_birth"`
+	NIN                string             `json:"nin"`
+	SelfieVerification SelfieVerification `json:"selfie_verification"`
+}
+
+type NINResponse struct {
+	Entity NINEntity `json:"entity"`
+}
+
+type BVNResponse struct {
 	Entity BVNEntity `json:"entity"`
 }

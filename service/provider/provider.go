@@ -20,8 +20,7 @@ type BaseProvider struct {
 }
 
 // Request Processing
-func (p *BaseProvider) MakeRequest(method, endpoint string, body interface{}, extraHeaders map[string]string) (*http.Response, error) {
-	url := p.BaseURL + endpoint
+func (p *BaseProvider) MakeRequest(method, url string, body interface{}, extraHeaders map[string]string) (*http.Response, error) {
 
 	var req *http.Request
 	var err error

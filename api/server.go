@@ -65,7 +65,7 @@ func NewServer(envPath string) *Server {
 	p.AddProvider(kp)
 
 	g.Use(CORSMiddleware())
-	g.Use(l.LoggingMiddleWare())
+	// g.Use(l.LoggingMiddleWare())
 
 	TokenController = utils.NewJWTToken(c)
 
@@ -92,6 +92,7 @@ func (s *Server) Start() {
 
 	/// Register Object Routers Below
 	Auth{}.router(s)
+	KYC{}.router(s)
 
 	s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 }
