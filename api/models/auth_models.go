@@ -40,6 +40,7 @@ type UserResponse struct {
 	PhoneNumber string    `json:"phone_number"`
 	Verified    bool      `json:"verified"`
 	HasPin      bool      `json:"has_pin"`
+	HasPasscode bool      `json:"has_passcode"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

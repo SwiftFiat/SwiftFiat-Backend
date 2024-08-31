@@ -11,6 +11,7 @@ func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 		PhoneNumber: user.PhoneNumber,
 		Verified:    user.Verified,
 		HasPin:      user.HashedPin.Valid,
+		HasPasscode: user.HashedPasscode.Valid,
 		CreatedAt:   user.CreatedAt,
 		UpdatedAt:   user.UpdatedAt,
 	}
