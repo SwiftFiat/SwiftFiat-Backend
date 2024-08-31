@@ -65,7 +65,7 @@ func NewServer(envPath string) *Server {
 	p.AddProvider(kp)
 
 	g.Use(CORSMiddleware())
-	// g.Use(l.LoggingMiddleWare())
+	g.Use(l.LoggingMiddleWare())
 
 	TokenController = utils.NewJWTToken(c)
 
