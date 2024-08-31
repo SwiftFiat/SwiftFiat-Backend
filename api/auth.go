@@ -13,8 +13,6 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/service/notification"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -44,40 +42,10 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
 	serverGroupV1.GET("profile", AuthenticatedMiddleware(), a.profile)
-	serverGroupV1.POST("verify-bvn", AuthenticatedMiddleware(), a.verifyBVN)
 	serverGroupV1.GET("user", a.getUserID)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
-}
-
-func (a *Auth) verifyBVN(ctx *gin.Context) {
-	request := struct {
-		BVN string `json:"bvn" binding:"required"`
-	}{}
-
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if provider, exists := a.server.provider.GetProvider(provider.Dojah); exists {
-		kycProvider, ok := provider.(*kyc.DOJAHProvider)
-		if ok {
-			verified, err := kycProvider.VerifyBVN("22222222222")
-			if err != nil {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-				return
-			}
-			// Use the verification result
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", verified))
-			return
-		}
-	}
-
-	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 }
 
 // / This is a test function for easy conversion from type ID -> dbID (i.e int64)
