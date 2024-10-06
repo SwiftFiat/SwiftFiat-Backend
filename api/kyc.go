@@ -1,12 +1,16 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -20,35 +24,143 @@ func (k KYC) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
+	serverGroupV1.GET("/", AuthenticatedMiddleware(), k.getUserKyc)
 	serverGroupV1.POST("validate-bvn", AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", AuthenticatedMiddleware(), k.validateNIN)
 }
 
+func (k *KYC) getUserKyc(ctx *gin.Context) {
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", models.ToUserKYCInformation(&userKyc)))
+}
+
 func (k *KYC) validateBVN(ctx *gin.Context) {
 	request := struct {
-		BVN       string `json:"bvn" binding:"required"`
-		FirstName string `json:"first_name" binding:"required"`
-		LastName  string `json:"last_name" binding:"required"`
-		DOB       string `json:"dob" binding:"required"`
+		BVN string `json:"bvn" binding:"required"`
+		DOB string `json:"dob"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		k.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidBVNInput))
+		return
+	}
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	/// Check if user exists
+	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	/// check varification status
+	if !dbUser.Verified {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
 	}
 
 	if provider, exists := k.server.provider.GetProvider(provider.Dojah); exists {
 		kycProvider, ok := provider.(*kyc.DOJAHProvider)
 		if ok {
-			verified, err := kycProvider.ValidateBVN(request.BVN, request.FirstName, request.LastName, request.DOB)
+			verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, nil)
 			if err != nil {
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 				return
 			}
-			// Use the verification result
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", verified))
+
+			/// check verification data status
+			if verificationData.FirstName.Status || verificationData.LastName.Status || verificationData.DOB.Status {
+
+				/// Check for User's KYC file or create one if it doesn't exist
+				userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+				if err == sql.ErrNoRows {
+					userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
+						UserID: int32(activeUser.UserID),
+						Tier:   0,
+					})
+					if err == sql.ErrNoRows {
+						ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+						return
+					} else if err != nil {
+						ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+						return
+					}
+				} else if err != nil {
+					ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+					return
+				}
+
+				// Determine gender first
+				/// Default user's gender to male unless explicitly specified
+				/// Suggested by Joel SwiftFiat => 06/Oct/'24 - 5:41pm
+				genderString := "male"
+				if userKyc.Gender.Valid {
+					genderString = userKyc.Gender.String
+				}
+
+				args := db.UpdateKYCLevel1Params{
+					ID: userKyc.ID,
+					FullName: sql.NullString{
+						String: dbUser.FirstName.String + " " + dbUser.LastName.String,
+						Valid:  dbUser.FirstName.Valid && dbUser.LastName.Valid,
+					},
+					PhoneNumber: sql.NullString{
+						String: dbUser.PhoneNumber,
+						Valid:  true,
+					},
+					Email: sql.NullString{
+						String: dbUser.Email,
+						Valid:  true,
+					},
+					Bvn: sql.NullString{
+						String: verificationData.BVN,
+						Valid:  verificationData.BVN != "",
+					},
+					SelfieUrl: sql.NullString{
+						String: "https://www.example.com",
+						Valid:  true,
+					},
+					Gender: sql.NullString{
+						String: genderString,
+						Valid:  true,
+					},
+				}
+				kyc, err := k.server.queries.UpdateKYCLevel1(ctx, args)
+				if err != nil {
+					ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+					return
+				}
+				ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
+				return
+			}
+
+			ctx.JSON(http.StatusOK, basemodels.NewError("BVN Validation Failure, please try again later"))
 			return
 		}
 	}
@@ -67,7 +179,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		k.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidNINInput))
 		return
 	}
 
