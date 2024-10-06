@@ -8,4 +8,8 @@ const (
 	InvalidPhoneEmailInput    = "please enter a valid email and password"
 	IncorrectEmailPass        = "incorrect email or password"
 	ServerError               = "a server error occurred, please try again later"
+
+	/// KYC Related Strings
+	InvalidBVNInput = "invalid bvn input, please check submitted information"
+	InvalidNINInput = "invalid nin input, please check submitted information"
 )
