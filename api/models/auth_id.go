@@ -20,7 +20,7 @@ var (
 func init() {
 	c, err := utils.LoadConfig(utils.EnvPath)
 	if err != nil {
-		panic(fmt.Errorf("Could not load config: %v", err))
+		panic(fmt.Errorf("could not load config: %v", err))
 	}
 	hd.Salt = c.SigningKey
 	hd.MinLength = 32

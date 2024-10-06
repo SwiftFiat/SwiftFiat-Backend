@@ -47,7 +47,7 @@ func NewKYCProvider() *DOJAHProvider {
 	}
 }
 
-func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name string, dob string) (*dojahmodels.BVNEntity, error) {
+func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name string, dob *string) (*dojahmodels.BVNEntity, error) {
 	// Implementation for BVN verification
 	// This would use the BaseProvider's fields to make the actual HTTP request
 	// ...
@@ -69,7 +69,9 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	params.Add("bvn", bvn)
 	params.Add("first name", first_name)
 	params.Add("last name", last_name)
-	params.Add("dob", dob)
+	if dob != nil {
+		params.Add("dob", *dob)
+	}
 	base.RawQuery = params.Encode()
 
 	resp, err := p.MakeRequest("GET", base.String(), nil, requiredHeaders)

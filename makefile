@@ -1,6 +1,12 @@
 start: # start-server
 	CompileDaemon -command="./Swiftfiat-Backend" -color=true
 
+start_d:
+	CompileDaemon \
+  		-command="dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./Swiftfiat-Backend" \
+  		-build="go build -gcflags=all=-N" \
+  		-color=true
+
 test: # run tests
 	go test -v -cover ./...
 
