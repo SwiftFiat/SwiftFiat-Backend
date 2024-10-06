@@ -7,7 +7,40 @@ package db
 import (
 	"database/sql"
 	"time"
+
+	"github.com/sqlc-dev/pqtype"
 )
+
+type Kyc struct {
+	ID                    int64                 `json:"id"`
+	UserID                int32                 `json:"user_id"`
+	Tier                  int32                 `json:"tier"`
+	DailyTransferLimitNgn sql.NullString        `json:"daily_transfer_limit_ngn"`
+	WalletBalanceLimitNgn sql.NullString        `json:"wallet_balance_limit_ngn"`
+	Status                string                `json:"status"`
+	VerificationDate      sql.NullTime          `json:"verification_date"`
+	FullName              sql.NullString        `json:"full_name"`
+	PhoneNumber           sql.NullString        `json:"phone_number"`
+	Email                 sql.NullString        `json:"email"`
+	Bvn                   sql.NullString        `json:"bvn"`
+	Nin                   sql.NullString        `json:"nin"`
+	Gender                sql.NullString        `json:"gender"`
+	SelfieUrl             sql.NullString        `json:"selfie_url"`
+	IDType                sql.NullString        `json:"id_type"`
+	IDNumber              sql.NullString        `json:"id_number"`
+	IDImageUrl            sql.NullString        `json:"id_image_url"`
+	State                 sql.NullString        `json:"state"`
+	Lga                   sql.NullString        `json:"lga"`
+	HouseNumber           sql.NullString        `json:"house_number"`
+	StreetName            sql.NullString        `json:"street_name"`
+	NearestLandmark       sql.NullString        `json:"nearest_landmark"`
+	ProofOfAddressType    sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl     sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate    sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt             time.Time             `json:"created_at"`
+	UpdatedAt             time.Time             `json:"updated_at"`
+	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
+}
 
 type Otp struct {
 	ID        int64     `json:"id"`
