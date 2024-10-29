@@ -77,7 +77,7 @@ func (a Auth) testAuth(ctx *gin.Context) {
 func (a *Auth) profile(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
@@ -108,7 +108,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
 		return
 	} else if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logrus.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -124,7 +124,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		Role:     dbUser.Role,
 	})
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logrus.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
