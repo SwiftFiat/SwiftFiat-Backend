@@ -12,4 +12,5 @@ const (
 	/// KYC Related Strings
 	InvalidBVNInput = "invalid bvn input, please check submitted information"
 	InvalidNINInput = "invalid nin input, please check submitted information"
+	UserNoKYC       = "user does not have KYC information"
 )

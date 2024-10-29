@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -39,7 +40,7 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoKYC))
 		return
 	} else if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -51,8 +52,9 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 
 func (k *KYC) validateBVN(ctx *gin.Context) {
 	request := struct {
-		BVN string `json:"bvn" binding:"required"`
-		DOB string `json:"dob"`
+		BVN    string `json:"bvn" binding:"required"`
+		Gender string `json:"gender"`
+		DOB    string `json:"dob"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -90,9 +92,30 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		if ok {
 			verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, nil)
 			if err != nil {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to KYC Provider Error: %s", err)))
 				return
 			}
+			/// Log Verification DATA
+			k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
+
+			/// FirstName does not match First Name on BVN
+			if !verificationData.FirstName.Status {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
+				return
+			}
+
+			/// LastName does not match Last Name on BVN
+			if !verificationData.LastName.Status {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
+				return
+			}
+
+			/// DOB does not match DOB on BVN
+			/// TODO: SKIP the DOB for now
+			// if !verificationData.DOB.Status {
+			// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
+			// 	return
+			// }
 
 			/// check verification data status
 			if verificationData.FirstName.Status || verificationData.LastName.Status || verificationData.DOB.Status {
@@ -120,8 +143,8 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 				/// Default user's gender to male unless explicitly specified
 				/// Suggested by Joel SwiftFiat => 06/Oct/'24 - 5:41pm
 				genderString := "male"
-				if userKyc.Gender.Valid {
-					genderString = userKyc.Gender.String
+				if request.Gender != "" {
+					genderString = request.Gender
 				}
 
 				args := db.UpdateKYCLevel1Params{
@@ -153,7 +176,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 				}
 				kyc, err := k.server.queries.UpdateKYCLevel1(ctx, args)
 				if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
 					return
 				}
 				ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
