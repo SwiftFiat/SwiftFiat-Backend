@@ -95,14 +95,14 @@ BEGIN
     -- Check Tier 2 requirements (must meet Tier 1 first)
     can_be_tier_2 := (
         can_be_tier_1 AND
-        NEW.id_type IS NOT NULL AND
-        NEW.id_number IS NOT NULL AND
-        NEW.id_image_url IS NOT NULL AND
-        NEW.state IS NOT NULL AND
-        NEW.lga IS NOT NULL AND
-        NEW.house_number IS NOT NULL AND
-        NEW.street_name IS NOT NULL AND
-        NEW.nearest_landmark IS NOT NULL AND
+        -- NEW.id_type IS NOT NULL AND
+        -- NEW.id_number IS NOT NULL AND
+        -- NEW.id_image_url IS NOT NULL AND
+        -- NEW.state IS NOT NULL AND
+        -- NEW.lga IS NOT NULL AND
+        -- NEW.house_number IS NOT NULL AND
+        -- NEW.street_name IS NOT NULL AND
+        -- NEW.nearest_landmark IS NOT NULL AND
         -- Ensure both BVN and NIN are provided for Tier 2
         NEW.bvn IS NOT NULL AND 
         NEW.nin IS NOT NULL
@@ -115,7 +115,7 @@ BEGIN
         NEW.proof_of_address_url IS NOT NULL AND
         NEW.proof_of_address_date IS NOT NULL AND
         -- Check if proof of address is not older than 3 months
-        NEW.proof_of_address_date >= (CURRENT_DATE - INTERVAL '3 months')
+        NEW.proof_of_address_date >= (CURRENT_DATE - INTERVAL '6 months')
     );
 
     -- Update tier and corresponding limits

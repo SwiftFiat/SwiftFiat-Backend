@@ -56,6 +56,14 @@ SET
 WHERE id = $1 
 RETURNING *;
 
+-- name: UpdateKYCNIN :one
+UPDATE kyc 
+SET 
+    nin = $2,
+    updated_at = now()
+WHERE id = $1 
+RETURNING *;
+
 -- name: UpdateKYCLevel2 :one
 UPDATE kyc 
 SET 
