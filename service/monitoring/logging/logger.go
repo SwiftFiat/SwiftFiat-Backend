@@ -35,6 +35,7 @@ func NewLogger() *Logger {
 	}
 
 	log := logrus.New()
+	log.SetLevel(logrus.DebugLevel)
 	log.SetFormatter(&logrus.JSONFormatter{PrettyPrint: true})
 
 	hook, err := logrusSyslog.NewSyslogHook("udp", c.Papertrail, syslog.LOG_INFO, c.PapertrailAppName)
