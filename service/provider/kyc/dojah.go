@@ -82,8 +82,8 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Debug(resp)
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		logging.NewLogger().Error("resp", resp)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
 	// Decode the response body
