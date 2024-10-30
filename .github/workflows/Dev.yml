@@ -51,7 +51,7 @@ jobs:
 
   deploy:
     needs: Build
-    runs-on: self-hosted 
+    runs-on: [self-hosted, dev]
     steps:
       - name: Pull docker image
         run: sudo docker pull public.ecr.aws/q0v6o6u9/swiftfiat-backend
