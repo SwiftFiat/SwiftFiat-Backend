@@ -8,7 +8,8 @@ import (
 )
 
 const (
-	Dojah = "DOJAH"
+	Dojah    = "DOJAH"
+	Reloadly = "RELOADLY"
 )
 
 // BaseProvider contains common fields and methods
