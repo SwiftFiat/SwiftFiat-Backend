@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -64,6 +65,11 @@ func NewServer(envPath string) *Server {
 	kp := kyc.NewKYCProvider()
 	p.AddProvider(kp)
 
+	// Set up GiftCard service
+	gp := giftcards.NewGiftCardProvider()
+	p.AddProvider(gp)
+
+	/// Add Middleware
 	g.Use(CORSMiddleware())
 	g.Use(l.LoggingMiddleWare())
 
@@ -93,6 +99,7 @@ func (s *Server) Start() {
 	/// Register Object Routers Below
 	Auth{}.router(s)
 	KYC{}.router(s)
+	GiftCard{}.router(s)
 
 	s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 }
