@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
 )
 
 const (
@@ -25,6 +27,18 @@ func (p *BaseProvider) MakeRequest(method, url string, body interface{}, extraHe
 
 	var req *http.Request
 	var err error
+
+	requestLog := struct {
+		Method string
+		URL    string
+		Body   interface{}
+	}{
+		Method: method,
+		URL:    url,
+		Body:   body,
+	}
+
+	logging.NewLogger().Info("External Request", requestLog)
 
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
