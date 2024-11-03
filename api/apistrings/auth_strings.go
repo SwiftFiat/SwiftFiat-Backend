@@ -2,6 +2,7 @@ package apistrings
 
 const (
 	UserNotFound              = "user or account does not exist"
+	UserNotVerified           = "you have not verified your account yet"
 	UserDetailsAlreadyCreated = "email or phone number already exists"
 	InvalidPhone              = "invalid phone number, please use a standard phone number"
 	InvalidEmail              = "invalid email address, please check submitted email address"

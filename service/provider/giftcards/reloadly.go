@@ -3,9 +3,10 @@ package giftcards
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
@@ -17,6 +18,7 @@ import (
 type ReloadlyProvider struct {
 	provider.BaseProvider
 	config *GiftCardConfig
+	token  reloadlymodels.TokenApiResponse
 }
 
 type GiftCardConfig struct {
@@ -24,6 +26,7 @@ type GiftCardConfig struct {
 	GiftCardID      string `mapstructure:"GIFTCARD_APP_ID"`
 	GiftCardKey     string `mapstructure:"GIFTCARD_KEY"`
 	GiftCardBaseUrl string `mapstructure:"GIFTCARD_BASE_URL"`
+	GiftCardAuthUrl string `mapstructure:"GIFTCARD_AUTH_URL"`
 }
 
 func NewGiftCardProvider() *ReloadlyProvider {
@@ -48,57 +51,46 @@ func NewGiftCardProvider() *ReloadlyProvider {
 	}
 }
 
-// BuildProductsURL constructs the URL for the products endpoint with the given parameters
-func BuildProductsURL(baseURL string, params reloadlymodels.ProductQueryParams) string {
-	base := baseURL
-	base += "/api/v1/products"
-
-	// Create query parameters
-	queryParams := url.Values{}
-
-	// Add pagination parameters
-	queryParams.Add("size", strconv.Itoa(params.Size))
-	queryParams.Add("page", strconv.Itoa(params.Page))
-
-	// Add filters if they are not empty
-	if params.ProductName != "" {
-		queryParams.Add("productName", params.ProductName)
+func BuildProductsURL(baseURL string, params reloadlymodels.ProductQueryParams) (*url.URL, error) {
+	base, err := url.Parse(baseURL)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 
-	if params.CountryCode != "" {
-		queryParams.Add("countryCode", params.CountryCode)
+	// Path params
+	base.Path += "/products"
+
+	// Build query parameters in specific order
+	queryParams := []string{
+		fmt.Sprintf("size=%d", params.Size),
+		fmt.Sprintf("page=%d", params.Page),
+		fmt.Sprintf("includeRange=%t", params.IncludeRange),
+		fmt.Sprintf("includeFixed=%t", params.IncludeFixed),
 	}
 
-	if params.ProductCategoryID > 0 {
-		queryParams.Add("productCategoryId", strconv.Itoa(params.ProductCategoryID))
-	}
+	// Join parameters with & to create the final query string
+	base.RawQuery = strings.Join(queryParams, "&")
 
-	// Add boolean flags
-	queryParams.Add("includeRange", strconv.FormatBool(params.IncludeRange))
-	queryParams.Add("includeFixed", strconv.FormatBool(params.IncludeFixed))
-
-	// Encode and return the full URL
-	return base + "?" + queryParams.Encode()
+	return base, nil
 }
 
-func (r *ReloadlyProvider) GetAllGiftCards() ([]reloadlymodels.Product, error) {
-	var requiredHeaders = make(map[string]string)
-	requiredHeaders["AppId"] = r.config.GiftCardID
-	requiredHeaders["Authorization"] = r.config.GiftCardKey
+func (r *ReloadlyProvider) GetAllGiftCards(params reloadlymodels.ProductQueryParams) (interface{}, error) {
 
-	params := reloadlymodels.ProductQueryParams{
-		Size:              10,
-		Page:              1,
-		ProductName:       "Amazon",
-		CountryCode:       "US",
-		ProductCategoryID: 2,
-		IncludeRange:      true,
-		IncludeFixed:      true,
+	token, err := r.GetToken()
+	if err != nil {
+		return nil, err
 	}
 
-	url := BuildProductsURL(r.BaseURL, params)
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
+	requiredHeaders["Authorization"] = "Bearer " + token
 
-	resp, err := r.MakeRequest("GET", url, nil, requiredHeaders)
+	url, err := BuildProductsURL(r.BaseURL, params)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.MakeRequest("GET", url.String(), nil, requiredHeaders)
 	if err != nil {
 		return nil, err
 	}
@@ -106,16 +98,64 @@ func (r *ReloadlyProvider) GetAllGiftCards() ([]reloadlymodels.Product, error) {
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("resp", resp)
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		logging.NewLogger().Error("resp", string(respBody))
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
 	// Decode the response body
-	var products []reloadlymodels.Product
+	var products interface{}
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&products)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing products: %w", err)
 	}
 	return products, nil
+}
+
+func (r *ReloadlyProvider) GetToken() (string, error) {
+
+	if r.token.AccessToken != "" {
+		tokenExpiry := time.Now().Add(time.Duration(r.token.ExpiresIn) * time.Second)
+		if time.Now().After(tokenExpiry) {
+			return r.token.AccessToken, nil
+		}
+	}
+
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["Accept"] = "application/json"
+	requiredHeaders["Content-Type"] = "application/json"
+
+	url := r.config.GiftCardAuthUrl
+	request := reloadlymodels.AuthConfig{
+		ClientID:     r.config.GiftCardID,
+		ClientSecret: r.config.GiftCardKey,
+		GrantType:    "client_credentials",
+		Audience:     r.config.GiftCardBaseUrl,
+	}
+
+	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		logging.NewLogger().Error("resp", string(respBody))
+		return "", fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var apiResponse reloadlymodels.TokenApiResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&apiResponse)
+	if err != nil {
+		return "", fmt.Errorf("error parsing products: %w", err)
+	}
+
+	/// Set AccessToken
+	r.token = apiResponse
+	return apiResponse.AccessToken, nil
 }
