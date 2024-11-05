@@ -74,7 +74,7 @@ func BuildProductsURL(baseURL string, params reloadlymodels.ProductQueryParams) 
 	return base, nil
 }
 
-func (r *ReloadlyProvider) GetAllGiftCards(params reloadlymodels.ProductQueryParams) (interface{}, error) {
+func (r *ReloadlyProvider) GetAllGiftCards(params reloadlymodels.ProductQueryParams) (reloadlymodels.GiftCardCollection, error) {
 
 	token, err := r.GetToken()
 	if err != nil {
@@ -104,13 +104,66 @@ func (r *ReloadlyProvider) GetAllGiftCards(params reloadlymodels.ProductQueryPar
 	}
 
 	// Decode the response body
-	var products interface{}
+	var products reloadlymodels.PageResponse[reloadlymodels.GiftCardCollectionElement]
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&products)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing products: %w", err)
 	}
-	return products, nil
+
+	var brand_collection reloadlymodels.BrandCollection
+
+	err = reloadlymodels.ParseIntoBrandCollection(products.Content, &brand_collection)
+	if err != nil {
+		return nil, err
+	}
+	return products.Content, nil
+}
+
+func (r *ReloadlyProvider) GetAllGiftCardBrands(params reloadlymodels.ProductQueryParams) (reloadlymodels.BrandCollection, error) {
+
+	token, err := r.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
+	requiredHeaders["Authorization"] = "Bearer " + token
+
+	url, err := BuildProductsURL(r.BaseURL, params)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := r.MakeRequest("GET", url.String(), nil, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := ioutil.ReadAll(resp.Body)
+		logging.NewLogger().Error("resp", string(respBody))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var products reloadlymodels.PageResponse[reloadlymodels.GiftCardCollectionElement]
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&products)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing products: %w", err)
+	}
+
+	var brand_collection reloadlymodels.BrandCollection
+
+	err = reloadlymodels.ParseIntoBrandCollection(products.Content, &brand_collection)
+	if err != nil {
+		return nil, err
+	}
+	return brand_collection, nil
 }
 
 func (r *ReloadlyProvider) GetToken() (string, error) {
