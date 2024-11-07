@@ -401,9 +401,8 @@ SET
     phone_number = $3,
     email = $4,
     bvn = $5,
-    nin = $6,
-    gender = $7,
-    selfie_url = $8,
+    gender = $6,
+    selfie_url = $7,
     updated_at = now()
 WHERE id = $1 
 RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
@@ -415,7 +414,6 @@ type UpdateKYCLevel1Params struct {
 	PhoneNumber sql.NullString `json:"phone_number"`
 	Email       sql.NullString `json:"email"`
 	Bvn         sql.NullString `json:"bvn"`
-	Nin         sql.NullString `json:"nin"`
 	Gender      sql.NullString `json:"gender"`
 	SelfieUrl   sql.NullString `json:"selfie_url"`
 }
@@ -427,7 +425,6 @@ func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params
 		arg.PhoneNumber,
 		arg.Email,
 		arg.Bvn,
-		arg.Nin,
 		arg.Gender,
 		arg.SelfieUrl,
 	)

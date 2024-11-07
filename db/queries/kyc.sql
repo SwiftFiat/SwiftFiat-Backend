@@ -49,9 +49,8 @@ SET
     phone_number = $3,
     email = $4,
     bvn = $5,
-    nin = $6,
-    gender = $7,
-    selfie_url = $8,
+    gender = $6,
+    selfie_url = $7,
     updated_at = now()
 WHERE id = $1 
 RETURNING *;
