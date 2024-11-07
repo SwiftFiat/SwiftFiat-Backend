@@ -63,17 +63,14 @@ SET
 WHERE id = $1 
 RETURNING *;
 
--- name: UpdateKYCLevel2 :one
+-- name: UpdateKYCAddress :one
 UPDATE kyc 
 SET 
-    id_type = $2,
-    id_number = $3,
-    id_image_url = $4,
-    state = $5,
-    lga = $6,
-    house_number = $7,
-    street_name = $8,
-    nearest_landmark = $9,
+    state = $2,
+    lga = $3,
+    house_number = $4,
+    street_name = $5,
+    nearest_landmark = $6,
     updated_at = now()
 WHERE id = $1 
 RETURNING *;

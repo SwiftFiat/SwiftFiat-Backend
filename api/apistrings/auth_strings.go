@@ -11,7 +11,8 @@ const (
 	ServerError               = "a server error occurred, please try again later"
 
 	/// KYC Related Strings
-	InvalidBVNInput = "invalid bvn input, please check submitted information"
-	InvalidNINInput = "invalid nin input, please check submitted information"
-	UserNoKYC       = "user does not have KYC information"
+	InvalidBVNInput     = "invalid bvn input, please check submitted information"
+	InvalidNINInput     = "invalid nin input, please check submitted information"
+	InvalidAddressInput = "invalid address input, please check submitted information"
+	UserNoKYC           = "user does not have KYC information"
 )
