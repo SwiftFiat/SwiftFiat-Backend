@@ -174,11 +174,25 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 						Valid:  true,
 					},
 				}
-				kyc, err := k.server.queries.UpdateKYCLevel1(ctx, args)
+
+				tx, err := k.server.queries.DB.Begin()
+				if err != nil {
+					panic(err)
+				}
+				defer tx.Rollback()
+
+				kyc, err := k.server.queries.WithTx(tx).UpdateKYCLevel1(ctx, args)
 				if err != nil {
 					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
 					return
 				}
+
+				err = tx.Commit()
+				if err != nil {
+					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+					return
+				}
+
 				ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
 				return
 			}
