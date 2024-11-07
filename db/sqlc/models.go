@@ -52,6 +52,16 @@ type Otp struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type ProofOfAddressImage struct {
+	ID        int32        `json:"id"`
+	UserID    int32        `json:"user_id"`
+	Filename  string       `json:"filename"`
+	ProofType string       `json:"proof_type"`
+	ImageData []byte       `json:"image_data"`
+	CreatedAt sql.NullTime `json:"created_at"`
+	UpdatedAt sql.NullTime `json:"updated_at"`
+}
+
 type Referral struct {
 	ID          int64     `json:"id"`
 	UserID      int32     `json:"user_id"`

@@ -1,9 +1,11 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
+	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	_ "github.com/SwiftFiat/SwiftFiat-Backend/service/security"
 	"github.com/gin-gonic/gin"
 )
@@ -12,21 +14,21 @@ func AuthenticatedMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
 		if token == "" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": "Unuathorized Request"})
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unuathorized Request"))
 			ctx.Abort()
 			return
 		}
 
 		tokenSplit := strings.Split(token, " ")
 		if len(tokenSplit) != 2 || strings.ToLower(tokenSplit[0]) != "bearer" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": "Invalid token, expects bearer token"})
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid token, expects bearer token"))
 			ctx.Abort()
 			return
 		}
 
 		user, err := TokenController.VerifyToken(tokenSplit[1])
 		if err != nil {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": err.Error()})
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
 			ctx.Abort()
 			return
 		}

@@ -85,3 +85,15 @@ func (id *ID) Scan(value interface{}) error {
 func (id ID) Value() (driver.Value, error) {
 	return int64(id), nil
 }
+
+// ParseIDFromString parses a string into an ID object.
+func ParseIDFromString(s string) (ID, error) {
+	result, err := dbHash.DecodeInt64WithError(s)
+	if err != nil {
+		return 0, err
+	}
+	if len(result) == 0 {
+		return 0, errors.New("invalid ID")
+	}
+	return ID(result[0]), nil
+}
