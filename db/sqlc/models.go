@@ -53,13 +53,15 @@ type Otp struct {
 }
 
 type ProofOfAddressImage struct {
-	ID        int32        `json:"id"`
-	UserID    int32        `json:"user_id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	ImageData []byte       `json:"image_data"`
-	CreatedAt sql.NullTime `json:"created_at"`
-	UpdatedAt sql.NullTime `json:"updated_at"`
+	ID         int32        `json:"id"`
+	UserID     int32        `json:"user_id"`
+	Filename   string       `json:"filename"`
+	ProofType  string       `json:"proof_type"`
+	ImageData  []byte       `json:"image_data"`
+	CreatedAt  sql.NullTime `json:"created_at"`
+	UpdatedAt  sql.NullTime `json:"updated_at"`
+	Verified   bool         `json:"verified"`
+	VerifiedAt sql.NullTime `json:"verified_at"`
 }
 
 type Referral struct {

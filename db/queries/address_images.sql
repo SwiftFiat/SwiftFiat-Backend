@@ -1,7 +1,7 @@
 -- name: InsertNewProofImage :one
 INSERT INTO proof_of_address_images (user_id, filename, proof_type, image_data)
 VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, filename, proof_type, created_at;
+RETURNING *;
 
 -- name: GetProofImage :one
 SELECT id, user_id, filename, proof_type, image_data, created_at
