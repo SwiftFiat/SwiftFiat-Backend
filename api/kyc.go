@@ -27,7 +27,7 @@ func (k KYC) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
-	serverGroupV1.GET("/", AuthenticatedMiddleware(), k.getUserKyc)
+	serverGroupV1.GET("", AuthenticatedMiddleware(), k.getUserKyc)
 	serverGroupV1.POST("validate-bvn", AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", AuthenticatedMiddleware(), k.validateNIN)
 	serverGroupV1.POST("update-address", AuthenticatedMiddleware(), k.updateAddress)

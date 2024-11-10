@@ -1,9 +1,11 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -27,7 +29,48 @@ func (g GiftCard) router(server *Server) {
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
 	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
 	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
+
+	/// Add a process to keep retrieving GiftCards and storing in the DB, so that GiftCards can simply be retrieved
+	/// by calling the DB instead of talking to Reloadly
+
+	/// Register Health Check Task
+	g.server.taskScheduler.AddTask(
+		"retrieve-gift-cards",
+		"Get Gift Cards",
+		func(ctx context.Context) error {
+			// Perform health check
+			g.server.logger.Info("Fetching Gift Cards...")
+			return nil
+		},
+		5*time.Second, // Run every 5 minutes
+	)
+
+	// g.server.taskScheduler.ScheduleTask(
+	// 	"retrieve-gift-cards",
+	// 	5*time.Second,
+	// )
 }
+
+// func (g *GiftCard) fetchAndStoreCards(context.Context) {
+// 	if provider, exists := g.server.provider.GetProvider(provider.Reloadly); exists {
+// 		reloadlyProvider, ok := provider.(*giftcards.ReloadlyProvider)
+// 		if ok {
+// 			params := reloadlymodels.ProductQueryParams{
+// 				Size:         size,
+// 				Page:         page,
+// 				IncludeRange: includeRange,
+// 				IncludeFixed: includeFixed,
+// 			}
+// 			giftCards, err := reloadlyProvider.GetAllGiftCards(params)
+// 			if err != nil {
+// 				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to GiftCard Provider Error: %s", err)))
+// 				return
+// 			}
+// 			/// Log GiftCard DATA
+// 			g.server.logger.Log(logrus.InfoLevel, "GiftCardData: ", giftCards)
+// 		}
+// 	}
+// }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	// Fetch Query Params and parse
