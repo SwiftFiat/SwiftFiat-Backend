@@ -55,7 +55,7 @@ func (q *Queries) GetProofImage(ctx context.Context, id int32) (GetProofImageRow
 const insertNewProofImage = `-- name: InsertNewProofImage :one
 INSERT INTO proof_of_address_images (user_id, filename, proof_type, image_data)
 VALUES ($1, $2, $3, $4)
-RETURNING id, user_id, filename, proof_type, created_at
+RETURNING id, user_id, filename, proof_type, image_data, created_at, updated_at, verified, verified_at
 `
 
 type InsertNewProofImageParams struct {
@@ -65,28 +65,24 @@ type InsertNewProofImageParams struct {
 	ImageData []byte `json:"image_data"`
 }
 
-type InsertNewProofImageRow struct {
-	ID        int32        `json:"id"`
-	UserID    int32        `json:"user_id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	CreatedAt sql.NullTime `json:"created_at"`
-}
-
-func (q *Queries) InsertNewProofImage(ctx context.Context, arg InsertNewProofImageParams) (InsertNewProofImageRow, error) {
+func (q *Queries) InsertNewProofImage(ctx context.Context, arg InsertNewProofImageParams) (ProofOfAddressImage, error) {
 	row := q.db.QueryRowContext(ctx, insertNewProofImage,
 		arg.UserID,
 		arg.Filename,
 		arg.ProofType,
 		arg.ImageData,
 	)
-	var i InsertNewProofImageRow
+	var i ProofOfAddressImage
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Filename,
 		&i.ProofType,
+		&i.ImageData,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.Verified,
+		&i.VerifiedAt,
 	)
 	return i, err
 }

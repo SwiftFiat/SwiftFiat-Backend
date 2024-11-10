@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -32,7 +33,8 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.POST("validate-nin", AuthenticatedMiddleware(), k.validateNIN)
 	serverGroupV1.POST("update-address", AuthenticatedMiddleware(), k.updateAddress)
 	serverGroupV1.POST("submit-utility", AuthenticatedMiddleware(), k.submitUtility)
-	serverGroupV1.GET("retrieve-utilities/:id", AuthenticatedMiddleware(), k.retrieveProofOfAddress)
+	serverGroupV1.POST("upload-address-proof", AuthenticatedMiddleware(), k.uploadProofOfAddress)
+	serverGroupV1.GET("retrieve-address-proof/:id", AuthenticatedMiddleware(), k.retrieveProofOfAddress)
 }
 
 func (k *KYC) getUserKyc(ctx *gin.Context) {
@@ -484,7 +486,100 @@ func (k *KYC) submitUtility(ctx *gin.Context) {
 	}))
 }
 
-// Retrieve Proof of Address by User ID (GET) - Admin
+func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
+	// Get the form data (file)
+	file, header, err := ctx.Request.FormFile("file")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("file is required"))
+		return
+	}
+	defer file.Close()
+
+	// Get the proof type from the form
+	proofType := ctx.PostForm("proof_type")
+	if proofType == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("proof_type is required"))
+		return
+	}
+
+	allowedProofTypes := []string{"utility_bill", "bank_statement", "tenancy_agreement"}
+
+	// Normalize the input string
+	normalizedProofType := strings.ToLower(strings.ReplaceAll(proofType, " ", "_"))
+
+	// Check if proof type is valid
+	isValidProofType := false
+	for _, allowedType := range allowedProofTypes {
+		if allowedType == normalizedProofType {
+			isValidProofType = true
+			break
+		}
+	}
+
+	if !isValidProofType {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid proof_type. Must be one of: utility_bill, bank_statement, tenancy_agreement"))
+		return
+	}
+
+	// Check file size
+	if header.Size > 5*1024*1024 {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File size exceeds 5MB"))
+		return
+	}
+
+	// Ensure the file type is PNG
+	if header.Header.Get("Content-Type") != "image/png" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File type must be PNG"))
+		return
+	}
+
+	// Read the image data
+	imageData, err := io.ReadAll(file)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Error parsing file"))
+		return
+	}
+
+	// Prepare the filename (use the form field or default to "proof_image.png")
+	filename := ctx.DefaultPostForm("filename", fmt.Sprintf("%v %v.png", proofType, time.Now().UTC()))
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	/// check varification status
+	if !activeUser.Verified {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
+		return
+	}
+
+	// Insert into the database
+	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
+		UserID:    int32(activeUser.UserID),
+		Filename:  filename,
+		ProofType: proofType,
+		ImageData: imageData,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address %s", err)))
+		return
+	}
+
+	// Respond with success
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
+		"id":         models.ID(proof.ID),
+		"user_id":    models.ID(proof.UserID),
+		"filename":   proof.Filename,
+		"proof_type": proof.ProofType,
+		"created_at": proof.CreatedAt.Time,
+		"verified":   proof.Verified,
+	}))
+}
+
+// Retrieve Proof of Address by Proof ID (GET) - Admin
 func (k *KYC) retrieveProofOfAddress(c *gin.Context) {
 	// Retrieve the ID from the URL
 	id := c.Param("id")
