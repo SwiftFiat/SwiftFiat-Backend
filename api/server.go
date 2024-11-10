@@ -9,6 +9,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/tasks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
@@ -24,11 +25,12 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router   *gin.Engine
-	queries  *db.Store
-	config   *utils.Config
-	logger   *logging.Logger
-	provider *provider.ProviderService
+	router        *gin.Engine
+	queries       *db.Store
+	config        *utils.Config
+	logger        *logging.Logger
+	taskScheduler *tasks.TaskScheduler
+	provider      *provider.ProviderService
 }
 
 func NewServer(envPath string) *Server {
@@ -74,13 +76,15 @@ func NewServer(envPath string) *Server {
 	g.Use(l.LoggingMiddleWare())
 
 	TokenController = utils.NewJWTToken(c)
+	t := tasks.NewTaskScheduler(l)
 
 	return &Server{
-		router:   g,
-		queries:  q,
-		config:   c,
-		logger:   l,
-		provider: p,
+		router:        g,
+		queries:       q,
+		config:        c,
+		logger:        l,
+		taskScheduler: t,
+		provider:      p,
 	}
 }
 

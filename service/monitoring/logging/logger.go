@@ -84,12 +84,28 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 			l.Log(logrus.DebugLevel, "error unmarshalling responseBody")
 		}
 
-		l.WithFields(logrus.Fields{
+		var debug bool
+
+		mode := gin.Mode()
+		if mode == gin.DebugMode {
+			debug = true
+		} else {
+			debug = false
+		}
+
+		fields := logrus.Fields{
 			"method":        c.Request.Method,
 			"path":          c.Request.URL.Path,
 			"status":        statusCode,
 			"duration":      duration,
+			"request":       requestBody,
 			"response_body": responseJson,
-		}).Info("Request-Response")
+		}
+
+		if debug {
+			fields["request_header"] = c.Request.Header
+		}
+
+		l.WithFields(fields).Info("Request-Response")
 	}
 }

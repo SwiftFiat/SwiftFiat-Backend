@@ -14,7 +14,7 @@ func AuthenticatedMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
 		if token == "" {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unuathorized Request"))
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unuathorized Request, token is empty"))
 			ctx.Abort()
 			return
 		}
