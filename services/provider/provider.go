@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 )
 
 const (

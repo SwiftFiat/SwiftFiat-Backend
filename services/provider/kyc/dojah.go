@@ -7,9 +7,9 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
-	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc/dojah_models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc/dojah_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 

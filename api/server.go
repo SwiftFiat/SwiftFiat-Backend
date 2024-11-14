@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"log"
@@ -8,11 +9,12 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/tasks"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/kyc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -31,6 +33,7 @@ type Server struct {
 	logger        *logging.Logger
 	taskScheduler *tasks.TaskScheduler
 	provider      *provider.ProviderService
+	redis         *services.RedisService
 }
 
 func NewServer(envPath string) *Server {
@@ -78,6 +81,22 @@ func NewServer(envPath string) *Server {
 	TokenController = utils.NewJWTToken(c)
 	t := tasks.NewTaskScheduler(l)
 
+	// Log Redis connection details (remove in production)
+	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
+
+	// Initialize Redis
+	redisConfig := &services.RedisConfig{
+		Host:     c.RedisHost,
+		Port:     c.RedisPort,
+		Password: c.RedisPassword,
+		DB:       0,
+	}
+
+	r, err := services.NewRedisService(redisConfig)
+	if err != nil {
+		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
+	}
+
 	return &Server{
 		router:        g,
 		queries:       q,
@@ -85,10 +104,11 @@ func NewServer(envPath string) *Server {
 		logger:        l,
 		taskScheduler: t,
 		provider:      p,
+		redis:         r,
 	}
 }
 
-func (s *Server) Start() {
+func (s *Server) Start() error {
 
 	dr := models.SuccessResponse{
 		Status:  "success",
@@ -105,5 +125,30 @@ func (s *Server) Start() {
 	KYC{}.router(s)
 	GiftCard{}.router(s)
 
-	s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
+	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
+	return err
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	// Create a channel to track cleanup completion
+	done := make(chan struct{})
+	var shutdownErr error
+
+	go func() {
+		// Close Redis connection with context awareness
+		if err := s.redis.Close(); err != nil {
+			s.logger.Error("Error closing Redis connection", "error", err)
+			shutdownErr = err
+		}
+
+		close(done)
+	}()
+
+	// Wait for either context cancellation or cleanup completion
+	select {
+	case <-ctx.Done():
+		return fmt.Errorf("shutdown timed out: %v", ctx.Err())
+	case <-done:
+		return shutdownErr
+	}
 }

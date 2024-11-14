@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 )
 
 // Task represents a scheduled task

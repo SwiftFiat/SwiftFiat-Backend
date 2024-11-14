@@ -21,6 +21,9 @@ type Config struct {
 	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
 	Papertrail         string `mapstructure:"PAPERTRAIL"`
 	PapertrailAppName  string `mapstructure:"PAPERTRAIL_APP_NAME"`
+	RedisHost          string `mapstructure:"REDIS_HOST"`
+	RedisPort          string `mapstructure:"REDIS_PORT"`
+	RedisPassword      string `mapstructure:"REDIS_PASSWORD"`
 }
 
 func LoadConfig(path string) (config *Config, err error) {

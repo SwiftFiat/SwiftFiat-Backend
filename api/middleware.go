@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	_ "github.com/SwiftFiat/SwiftFiat-Backend/service/security"
+	_ "github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	"github.com/gin-gonic/gin"
 )
 
