@@ -527,9 +527,19 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		return
 	}
 
-	// Ensure the file type is PNG
-	if header.Header.Get("Content-Type") != "image/png" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File type must be PNG"))
+	// Ensure the file type is PNG, JPG, or JPEG
+	allowedContentTypes := []string{"image/png", "image/jpeg", "image/jpg"}
+	fileContentType := header.Header.Get("Content-Type")
+	isValidContentType := false
+	for _, allowedType := range allowedContentTypes {
+		if fileContentType == allowedType {
+			isValidContentType = true
+			break
+		}
+	}
+
+	if !isValidContentType {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File type must be PNG, JPG, or JPEG"))
 		return
 	}
 
