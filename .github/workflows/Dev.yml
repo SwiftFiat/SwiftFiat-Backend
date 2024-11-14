@@ -53,14 +53,17 @@ jobs:
     needs: Build
     runs-on: [self-hosted, dev]
     steps:
-      - name: Pull docker image
-        run: sudo docker pull public.ecr.aws/q0v6o6u9/swiftfiat-backend
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Delete old container
-        run: sudo docker rm -f swiftfiat-backend 
+      - name: Remove old containers
+        run: |
+          sudo docker-compose -f docker-compose.yml down
 
-      - name: Run docker container          
-        run: sudo docker run -d -p 9000:9000 --name swiftfiat-backend public.ecr.aws/q0v6o6u9/swiftfiat-backend
+      - name: Start services with Docker Compose
+        run: |
+          sudo docker-compose up -d --build
 
-      - name: clean up space 
-        run: sudo docker system prune -a -f  
+      - name: Clean up unused Docker images and containers
+        run: |
+          sudo docker system prune -a -f
