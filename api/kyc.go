@@ -522,8 +522,8 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	// Check file size
-	if header.Size > 5*1024*1024 {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File size exceeds 5MB"))
+	if header.Size > 15*1024*1024 {
+		ctx.JSON(http.StatusRequestEntityTooLarge, basemodels.NewError("File size exceeds 15MB"))
 		return
 	}
 
