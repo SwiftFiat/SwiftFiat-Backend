@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards/reloadly_models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 

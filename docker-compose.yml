@@ -9,3 +9,28 @@ services:
       - POSTGRES_PASSWORD=${DB_PASSWORD}
     ports:
       - '${DB_PORT}:${DB_PORT}'
+
+  bitgo:
+    container_name: swiftfiat_bitgo
+    image: bitgo/express:latest
+    ports:
+      - '${BITGO_PORT}:${BITGO_PORT}'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3080/api/v2/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
+  redis:
+    container_name: swiftfiat_redis
+    image: redis:alpine
+    ports:
+      - '${REDIS_PORT}:${REDIS_PORT}'
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+
+volumes:
+  redis_data:

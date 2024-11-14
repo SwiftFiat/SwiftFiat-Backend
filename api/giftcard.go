@@ -1,17 +1,15 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/service/provider/giftcards/reloadly_models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -29,26 +27,6 @@ func (g GiftCard) router(server *Server) {
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
 	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
 	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
-
-	/// Add a process to keep retrieving GiftCards and storing in the DB, so that GiftCards can simply be retrieved
-	/// by calling the DB instead of talking to Reloadly
-
-	/// Register Health Check Task
-	g.server.taskScheduler.AddTask(
-		"retrieve-gift-cards",
-		"Get Gift Cards",
-		func(ctx context.Context) error {
-			// Perform health check
-			g.server.logger.Info("Fetching Gift Cards...")
-			return nil
-		},
-		5*time.Second, // Run every 5 minutes
-	)
-
-	// g.server.taskScheduler.ScheduleTask(
-	// 	"retrieve-gift-cards",
-	// 	5*time.Second,
-	// )
 }
 
 // func (g *GiftCard) fetchAndStoreCards(context.Context) {

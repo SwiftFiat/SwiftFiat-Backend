@@ -31,11 +31,12 @@ func NewCache() *Cache {
 	return &CacheInstance
 }
 
-func (cm *Cache) Start() {
+func (cm *Cache) Start() error {
 	// Create a cache with a default expiration time of 5 minutes, and which
 	// purges expired items every 10 minutes
 	c := cache.New(5*time.Minute, 10*time.Minute)
 	cm.c = c
+	return nil
 }
 
 func (cm *Cache) Insert(k string, x interface{}) {
@@ -49,4 +50,9 @@ func (cm *Cache) Get(key string) (interface{}, error) {
 	}
 
 	return nil, fmt.Errorf("value not found")
+}
+
+func (cm *Cache) Stop() error {
+	cm.c.Flush()
+	return nil
 }
