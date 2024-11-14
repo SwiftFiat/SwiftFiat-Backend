@@ -13,54 +13,27 @@ permissions:
   contents: read
 
 jobs:
-  Build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
-
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-         role-session-name: GitHub_to_AWS_via_FederatedOIDC
-         aws-region: ${{ secrets.AWS_REGION }}
-
-    - name: Login to Amazon ECR Public
-      id: login-ecr-public
-      uses: aws-actions/amazon-ecr-login@v1
-      with:
-           registry-type: public
-
-    - name: Creating env file and make build
-      run: |
-        echo "${{ secrets.STAGING_ENV }}" > .env   
-        cat .env
-
-    - name: Build, tag, and push docker image to Amazon ECR Public
-      env:
-         REGISTRY: ${{ steps.login-ecr-public.outputs.registry }}
-         REGISTRY_ALIAS: q0v6o6u9
-         REPOSITORY: ${{ secrets.STAGING_ECR_REPO }}
-         IMAGE_TAG: latest
-      run: |
-         docker build -f Dockerfile -t $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG .
-         docker push $REGISTRY/$REGISTRY_ALIAS/$REPOSITORY:$IMAGE_TAG
-
-
   deploy:
-    needs: Build
+    #needs: Build
     runs-on: [self-hosted, staging]
     steps:
-      - name: Pull docker image
-        run: sudo docker pull public.ecr.aws/q0v6o6u9/swift-staging
+      - name: Checkout code
+        uses: actions/checkout@v3
 
-      - name: Delete old container
-        run: sudo docker rm -f swiftfiat-backend 
+      - name: Creating env file and make build
+        run: |
+          echo "${{ secrets.ENV }}" > .env   
+          cat .env
+    
 
-      - name: Run docker container          
-        run: sudo docker run -d -p 9000:9000 --name swiftfiat-backend public.ecr.aws/q0v6o6u9/swift-staging
+      - name: Remove old containers
+        run: |
+          sudo docker-compose -f docker-compose.yml down
 
-      - name: clean up space 
-        run: sudo docker system prune -a -f  
+      - name: Start services with Docker Compose
+        run: |
+          sudo docker-compose up -d --build
+
+      - name: Clean up unused Docker images and containers
+        run: |
+          sudo docker system prune -a -f
