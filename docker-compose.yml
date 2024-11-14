@@ -1,14 +1,15 @@
 version: '3'
 
 services:
-  postgres:
-    container_name: swiftfiat_postgres
-    image: postgres:15-alpine
-    environment:
-      - POSTGRES_USER=${DB_USERNAME}
-      - POSTGRES_PASSWORD=${DB_PASSWORD}
+  swift-api:
+    container_name: swiftfiat_api
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - '${DB_PORT}:${DB_PORT}'
+      - "9000:9000"
+    depends_on:
+      - redis
 
   bitgo:
     container_name: swiftfiat_bitgo
@@ -27,7 +28,7 @@ services:
     image: redis:alpine
     ports:
       - '${REDIS_PORT}:${REDIS_PORT}'
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes 
     volumes:
       - redis_data:/data
     restart: unless-stopped
