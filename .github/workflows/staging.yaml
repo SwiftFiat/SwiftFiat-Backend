@@ -22,7 +22,7 @@ jobs:
 
       - name: Creating env file and make build
         run: |
-          echo "${{ secrets.ENV }}" > .env   
+          echo "${{ secrets.STAGING_ENV }}" > .env   
           cat .env
     
 
