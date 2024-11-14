@@ -10,6 +10,8 @@ services:
       - "9000:9000"
     depends_on:
       - redis
+    networks:
+      - swiftfiat-network
 
   bitgo:
     container_name: swiftfiat_bitgo
@@ -22,16 +24,24 @@ services:
       timeout: 10s
       retries: 3
     restart: unless-stopped
+    networks:
+      - swiftfiat-network
 
   redis:
     container_name: swiftfiat_redis
     image: redis:alpine
     ports:
       - "6379:6379"
-    command: redis-server --appendonly yes 
+    command: redis-server --appendonly yes --protected-mode no  # Disable protected mode for Docker network access
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    networks:
+      - swiftfiat-network
 
 volumes:
   redis_data:
+
+networks:
+  swiftfiat-network:
+    driver: bridge
