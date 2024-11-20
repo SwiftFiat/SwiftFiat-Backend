@@ -1,5 +1,19 @@
 ### SwiftFiat Backend
 
+#### Folder Structure
+
+API - Api related calls and grouping - responses etc.
+Services - Feature based functions - Business Logic
+Providers - Third party functionality
+DB - Database LOGIC
+Models - Public Structs for Standard Use
+Utils - Public utility functions
+Templates - Visual templates for messaging (emails, push, sms)
+
+NOTE: The current folder structure may not be EXACTLY this way, but it should eventually be restructured to look this way
+NB: Sub-folders are not accounted for in this overview structure
+
+
 #### Setting up Environment Variables, Declaring SERVER_PORT, and Using CompileDaemon
 
 To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and use CompileDaemon for automatic code compilation, follow these steps:
