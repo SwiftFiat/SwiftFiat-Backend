@@ -1,14 +1,18 @@
 package transaction
 
-import "github.com/google/uuid"
+import (
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
+)
 
 type Transaction struct {
 	ID            string
 	FromAccountID uuid.UUID
 	ToAccountID   uuid.UUID
-	Amount        int64
+	Amount        decimal.Decimal
 	Currency      string
-	// other fields...
+	Description   string
+	Type          string
 }
 
 type LedgerEntries struct {
@@ -19,5 +23,5 @@ type LedgerEntries struct {
 
 type Entry struct {
 	AccountID uuid.UUID
-	Amount    int64
+	Amount    decimal.Decimal
 }

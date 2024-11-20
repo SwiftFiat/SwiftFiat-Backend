@@ -17,9 +17,7 @@ services:
     container_name: swiftfiat_bitgo
     image: bitgo/express:latest
     ports:
-      - '${BITGO_PORT}:${BITGO_PORT}'
-    environment:
-      - ACCESS_TOKEN=${BITGO_ACCESS_KEY}
+      - "3080:3080"
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3080/api/v2/ping"]
       interval: 30s
