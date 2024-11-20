@@ -46,13 +46,13 @@ m_fup: # migreate-force up
 m_down: # migrate-down
 	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" down $(count)
 
-# Start PostgreSQL container in detached mode
-p_up: # postrgres-up: create postgres server -dispatch
-	docker-compose up -d
+# Start services - PostgreSQL | Bitgo | Redis containers in detached mode
+s_up: # 
+	docker-compose -f docker-compose.services.yml up -d
 
-# Stop and remove PostgreSQL container
-p_down: # postrgres-up: delete postgres server -dispatch
-	docker-compose down
+# Stop and remove services - PostgreSQL | Bitgo | Redis container
+s_down: # 
+	docker-compose -f docker-compose.services.yml down
 
 container_name ?= swiftfiat_postgres
 

@@ -8,6 +8,8 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -15,11 +17,20 @@ import (
 )
 
 type Wallet struct {
-	server *Server
+	server             *Server
+	walletService      *wallet.WalletService
+	transactionService *transaction.TransactionService
 }
 
 func (w Wallet) router(server *Server) {
 	w.server = server
+	w.walletService = wallet.NewWalletService(w.server.queries, w.server.logger)
+	w.transactionService = transaction.NewTransactionService(
+		w.server.queries,
+		nil,
+		w.walletService,
+		w.server.logger,
+	)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
@@ -27,7 +38,6 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("", AuthenticatedMiddleware(), w.getUserWallets)
 	serverGroupV1.GET("transactions", AuthenticatedMiddleware(), w.getTransactions)
 	serverGroupV1.POST("transactions", AuthenticatedMiddleware(), w.insertTransactions)
-
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {

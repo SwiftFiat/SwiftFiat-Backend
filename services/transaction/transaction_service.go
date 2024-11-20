@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type TransactionService struct {
@@ -17,6 +18,15 @@ type TransactionService struct {
 	currencyClient *currency.CurrencyService
 	walletClient   *wallet.WalletService
 	logger         *logging.Logger
+}
+
+func NewTransactionService(store *db.Store, currencyClient *currency.CurrencyService, walletClient *wallet.WalletService, logger *logging.Logger) *TransactionService {
+	return &TransactionService{
+		store:          store,
+		currencyClient: currencyClient,
+		walletClient:   walletClient,
+		logger:         logger,
+	}
 }
 
 func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transaction) error {
@@ -46,12 +56,11 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 			return fmt.Errorf("get exchange rate: %w", err)
 		}
 		// TODO: Have a function that performs multiplication like Mul instead of direct aug
-		amount = tx.Amount * rate
+		amount = tx.Amount.Mul(rate)
 	}
 
 	// Check sufficient balance
-	// TODO perform less_than comparison in int64, not string
-	if fromAccount.Balance.String < string(tx.Amount) {
+	if fromAccount.Balance.LessThan(tx.Amount) {
 		return ErrInsufficientFunds
 	}
 
@@ -76,7 +85,7 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 	}
 
 	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, tx.FromAccountID, -1*(tx.Amount)); err != nil {
+	if err := s.updateBalance(ctx, dbTx, tx.FromAccountID, tx.Amount.Neg()); err != nil {
 		return fmt.Errorf("update from account balance: %w", err)
 	}
 
@@ -95,16 +104,75 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 }
 
 func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, tx Transaction) error {
-	// TODO -> Implement transaction
+	// Convert decimal amount to string for storage
+	amountStr := tx.Amount.String()
+
+	params := db.CreateWalletTransactionParams{
+		Type: tx.Type,
+		FromAccountID: uuid.NullUUID{
+			UUID:  tx.FromAccountID,
+			Valid: tx.FromAccountID.URN() != "",
+		},
+		ToAccountID: uuid.NullUUID{
+			UUID:  tx.ToAccountID,
+			Valid: tx.ToAccountID.URN() != "",
+		},
+		Amount:   amountStr,
+		Currency: tx.Currency,
+		Description: sql.NullString{
+			String: tx.Description,
+			Valid:  tx.Description != "",
+		},
+	}
+
+	if _, err := s.store.WithTx(dbTx).CreateWalletTransaction(ctx, params); err != nil {
+		return fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	return nil
 }
 
 func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.Tx, le LedgerEntries) error {
-	// TODO -> Implement ledge creation
+	// Create debit entry
+	debitParams := db.CreateWalletLedgerEntryParams{
+		TransactionID: uuid.MustParse(le.TransactionID),
+		AccountID:     le.Debit.AccountID,
+		Type:          "debit",
+		Amount:        le.Debit.Amount.String(),
+	}
+
+	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+		return fmt.Errorf("failed to create debit entry: %w", err)
+	}
+
+	// Create credit entry
+	creditParams := db.CreateWalletLedgerEntryParams{
+		TransactionID: uuid.MustParse(le.TransactionID),
+		AccountID:     le.Credit.AccountID,
+		Type:          "credit",
+		Amount:        le.Credit.Amount.String(),
+	}
+
+	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {
+		return fmt.Errorf("failed to create credit entry: %w", err)
+	}
+
 	return nil
 }
 
-func (s *TransactionService) updateBalance(ctx context.Context, dbTx *sql.Tx, accId uuid.UUID, amt int64) error {
-	// TODO -> Implement balance update
+// QUE: Should this be a Wallet Service function??
+func (s *TransactionService) updateBalance(ctx context.Context, dbTx *sql.Tx, accId uuid.UUID, amt decimal.Decimal) error {
+	params := db.UpdateWalletBalanceParams{
+		ID: accId,
+		Balance: sql.NullString{
+			String: amt.String(),
+			Valid:  amt.String() != "",
+		},
+	}
+
+	if _, err := s.store.WithTx(dbTx).UpdateWalletBalance(ctx, params); err != nil {
+		return fmt.Errorf("failed to update account balance: %w", err)
+	}
+
 	return nil
 }

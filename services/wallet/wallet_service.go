@@ -14,6 +14,13 @@ type WalletService struct {
 	logger *logging.Logger
 }
 
+func NewWalletService(store *db.Store, logger *logging.Logger) *WalletService {
+	return &WalletService{
+		store:  store,
+		logger: logger,
+	}
+}
+
 func (w *WalletService) GetWallet(ctx context.Context, dbTx *sql.Tx, walletID uuid.UUID) (*WalletModel, error) {
 	w.logger.Info("Fetching wallet")
 	db_wallet, err := w.store.WithTx(dbTx).GetWallet(ctx, walletID)
