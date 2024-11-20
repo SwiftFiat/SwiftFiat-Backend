@@ -1,6 +1,7 @@
 package apistrings
 
 const (
+	/// Basic User Related Strings
 	UserNotFound              = "user or account does not exist"
 	UserNotVerified           = "you have not verified your account yet"
 	UserDetailsAlreadyCreated = "email or phone number already exists"
@@ -8,11 +9,20 @@ const (
 	InvalidEmail              = "invalid email address, please check submitted email address"
 	InvalidPhoneEmailInput    = "please enter a valid email and password"
 	IncorrectEmailPass        = "incorrect email or password"
-	ServerError               = "a server error occurred, please try again later"
+
+	/// Core Functionality Error
+	ServerError = "a server error occurred, please try again later"
 
 	/// KYC Related Strings
 	InvalidBVNInput     = "invalid bvn input, please check submitted information"
 	InvalidNINInput     = "invalid nin input, please check submitted information"
 	InvalidAddressInput = "invalid address input, please check submitted information"
 	UserNoKYC           = "user does not have KYC information"
+
+	/// Wallet Related Strings
+	UserNoWallet         = "user does not have a wallet created"
+	InvalidCurrency      = "currency entered is not supported"
+	DuplicateWallet      = "user already has wallet with currency"
+	CurrencyNotSupported = "entered currency is not supported"
+	InvalidWalletInput   = "check 'currency' or 'type' keys, invalid request"
 )

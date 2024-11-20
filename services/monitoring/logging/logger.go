@@ -76,7 +76,7 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 		var responseJson interface{}
 		err := json.Unmarshal(requestBody, &requestJson)
 		if err != nil {
-			l.Log(logrus.DebugLevel, "error unmarshalling requestBody")
+			l.Log(logrus.DebugLevel, "error unmarshalling requestBody, request may not be JSON")
 		}
 
 		err = json.Unmarshal(w.body.Bytes(), &responseJson)
@@ -84,27 +84,32 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 			l.Log(logrus.DebugLevel, "error unmarshalling responseBody")
 		}
 
-		var debug bool
+		// var debug bool
 
-		mode := gin.Mode()
-		if mode == gin.DebugMode {
-			debug = true
-		} else {
-			debug = false
-		}
+		// mode := gin.Mode()
+		// if mode == gin.DebugMode {
+		// 	debug = true
+		// } else {
+		// 	debug = false
+		// }
 
 		fields := logrus.Fields{
 			"method":        c.Request.Method,
 			"path":          c.Request.URL.Path,
 			"status":        statusCode,
 			"duration":      duration,
-			"request":       requestBody,
 			"response_body": responseJson,
 		}
 
-		if debug {
-			fields["request_header"] = c.Request.Header
+		// Only log request body if it's small to avoid polluting logs with large payloads
+		// that could impact log storage and make debugging more difficult
+		if len(requestBody) < 250 {
+			fields["request"] = requestJson
 		}
+
+		// if debug {
+		// 	fields["request_header"] = c.Request.Header
+		// }
 
 		l.WithFields(fields).Info("Request-Response")
 	}

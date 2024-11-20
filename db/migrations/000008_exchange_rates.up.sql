@@ -1,0 +1,14 @@
+-- Exchange rates table
+CREATE TABLE IF NOT EXISTS "exchange_rates" (
+    "id" BIGSERIAL PRIMARY KEY,
+    "base_currency" CHAR(3) NOT NULL,
+    "quote_currency" CHAR(3) NOT NULL,
+    "rate" DECIMAL(20,8) NOT NULL,
+    "effective_time" TIMESTAMP WITH TIME ZONE NOT NULL,
+    "source" VARCHAR(50) NOT NULL,
+    "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX "idx_currency_pair" ON exchange_rates(base_currency, quote_currency);
+CREATE INDEX "idx_effective_time" ON exchange_rates(effective_time);
+CREATE INDEX "idx_lookup" ON exchange_rates(base_currency, quote_currency, effective_time);

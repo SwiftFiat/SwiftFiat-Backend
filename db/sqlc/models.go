@@ -8,8 +8,19 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
+
+type ExchangeRate struct {
+	ID            int64     `json:"id"`
+	BaseCurrency  string    `json:"base_currency"`
+	QuoteCurrency string    `json:"quote_currency"`
+	Rate          string    `json:"rate"`
+	EffectiveTime time.Time `json:"effective_time"`
+	Source        string    `json:"source"`
+	CreatedAt     time.Time `json:"created_at"`
+}
 
 type Kyc struct {
 	ID                    int64                 `json:"id"`
@@ -40,6 +51,16 @@ type Kyc struct {
 	CreatedAt             time.Time             `json:"created_at"`
 	UpdatedAt             time.Time             `json:"updated_at"`
 	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
+}
+
+type LedgerEntry struct {
+	ID            uuid.UUID `json:"id"`
+	TransactionID uuid.UUID `json:"transaction_id"`
+	AccountID     uuid.UUID `json:"account_id"`
+	Type          string    `json:"type"`
+	Amount        string    `json:"amount"`
+	Balance       string    `json:"balance"`
+	CreatedAt     time.Time `json:"created_at"`
 }
 
 type Otp struct {
@@ -81,6 +102,30 @@ type ReferralEntry struct {
 	CreatedAt      time.Time    `json:"created_at"`
 	UpdatedAt      time.Time    `json:"updated_at"`
 	DeletedAt      sql.NullTime `json:"deleted_at"`
+}
+
+type SwiftWallet struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID int64          `json:"customer_id"`
+	Type       string         `json:"type"`
+	Currency   string         `json:"currency"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+type Transaction struct {
+	ID            uuid.UUID      `json:"id"`
+	Type          string         `json:"type"`
+	Amount        string         `json:"amount"`
+	Currency      string         `json:"currency"`
+	FromAccountID uuid.NullUUID  `json:"from_account_id"`
+	ToAccountID   uuid.NullUUID  `json:"to_account_id"`
+	Status        string         `json:"status"`
+	Description   sql.NullString `json:"description"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
 }
 
 type User struct {
