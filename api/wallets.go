@@ -8,26 +8,30 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/shopspring/decimal"
 )
 
 type Wallet struct {
 	server             *Server
 	walletService      *wallet.WalletService
+	currencyService    *currency.CurrencyService
 	transactionService *transaction.TransactionService
 }
 
 func (w Wallet) router(server *Server) {
 	w.server = server
 	w.walletService = wallet.NewWalletService(w.server.queries, w.server.logger)
+	w.currencyService = currency.NewCurrencyService(w.server.queries, w.server.logger)
 	w.transactionService = transaction.NewTransactionService(
 		w.server.queries,
-		nil,
+		w.currencyService,
 		w.walletService,
 		w.server.logger,
 	)
@@ -37,7 +41,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.POST("create", AuthenticatedMiddleware(), w.createWallet)
 	serverGroupV1.GET("", AuthenticatedMiddleware(), w.getUserWallets)
 	serverGroupV1.GET("transactions", AuthenticatedMiddleware(), w.getTransactions)
-	serverGroupV1.POST("transactions", AuthenticatedMiddleware(), w.insertTransactions)
+	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -168,25 +172,75 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 
 }
 
-func (w *Wallet) insertTransactions(ctx *gin.Context) {
+func (w *Wallet) walletTransfer(ctx *gin.Context) {
 
-	params := db.CreateWalletTransactionParams{
-		Type:          "credit",
-		Amount:        "200",
-		Currency:      "NGN",
-		FromAccountID: uuid.NullUUID{},
-		ToAccountID:   uuid.NullUUID{},
-		Description:   sql.NullString{},
+	/// Active USER must OWN source wallet
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
 	}
 
-	transactions, err := w.server.queries.CreateWalletTransaction(ctx, params)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+	// Transfer Type -> Wallet -> Withdrawal -> Swap
+	// Call the appropriate walletService handler based on type
+
+	// Observe request
+	request := struct {
+		FromAccountID      string `json:"source_account"`
+		ToAccountID        string `json:"destination_account"`
+		Amount             int32  `json:"amount"`
+		DestinationUserTag string `json:"target_user_tag"`
+		Type               string `json:"type"`
+		Description        string `json:"description"`
+	}{}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
 		return
-	} else if err != nil {
+	}
+
+	sourceAccount, err := uuid.Parse(request.FromAccountID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account seems to be wrong"))
+		return
+	}
+
+	destinationAccount, err := uuid.Parse(request.ToAccountID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("destination account seems to be wrong"))
+		return
+	}
+
+	if sourceAccount == destinationAccount {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source and destination cannot be same"))
+		return
+	}
+
+	amount := decimal.NewFromInt32(request.Amount)
+
+	tparams := transaction.Transaction{
+		FromAccountID: sourceAccount,
+		ToAccountID:   destinationAccount,
+		Amount:        amount,
+		UserTag:       request.DestinationUserTag,
+		Description:   request.Description,
+		Type:          request.Type,
+	}
+
+	tObj, err := w.transactionService.CreateTransaction(ctx, tparams, &activeUser)
+	if err != nil {
+		w.server.logger.Error(err)
+		if wallError, ok := err.(*wallet.WalletError); ok {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
+			return
+		}
+		if currError, ok := err.(*currency.CurrencyError); ok {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(currError.ErrorOut()))
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", transactions))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
 }

@@ -28,8 +28,8 @@ ORDER BY created_at;
 
 -- name: UpdateWalletBalance :one
 UPDATE swift_wallets 
-SET balance = $2
-WHERE id = $1
+SET balance = balance + sqlc.arg(amount)
+WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: CreateWalletTransaction :one
@@ -37,11 +37,12 @@ INSERT INTO transactions (
     type,
     amount, 
     currency,
+    currency_flow,
     from_account_id,
     to_account_id,
     description
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
+    $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
 -- name: GetWalletTransaction :one

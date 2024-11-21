@@ -97,18 +97,20 @@ INSERT INTO transactions (
     type,
     amount, 
     currency,
+    currency_flow,
     from_account_id,
     to_account_id,
     description
 ) VALUES (
-    $1, $2, $3, $4, $5, $6
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow
 `
 
 type CreateWalletTransactionParams struct {
 	Type          string         `json:"type"`
 	Amount        string         `json:"amount"`
 	Currency      string         `json:"currency"`
+	CurrencyFlow  sql.NullString `json:"currency_flow"`
 	FromAccountID uuid.NullUUID  `json:"from_account_id"`
 	ToAccountID   uuid.NullUUID  `json:"to_account_id"`
 	Description   sql.NullString `json:"description"`
@@ -119,6 +121,7 @@ func (q *Queries) CreateWalletTransaction(ctx context.Context, arg CreateWalletT
 		arg.Type,
 		arg.Amount,
 		arg.Currency,
+		arg.CurrencyFlow,
 		arg.FromAccountID,
 		arg.ToAccountID,
 		arg.Description,
@@ -135,6 +138,7 @@ func (q *Queries) CreateWalletTransaction(ctx context.Context, arg CreateWalletT
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrencyFlow,
 	)
 	return i, err
 }
@@ -265,7 +269,7 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 }
 
 const getWalletTransaction = `-- name: GetWalletTransaction :one
-SELECT id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at FROM transactions
+SELECT id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow FROM transactions
 WHERE id = $1 LIMIT 1
 `
 
@@ -283,12 +287,13 @@ func (q *Queries) GetWalletTransaction(ctx context.Context, id uuid.UUID) (Trans
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrencyFlow,
 	)
 	return i, err
 }
 
 const listWalletTransactions = `-- name: ListWalletTransactions :many
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE 
@@ -331,6 +336,7 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CurrencyFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -346,7 +352,7 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 }
 
 const listWalletTransactionsByUserID = `-- name: ListWalletTransactionsByUserID :many
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE 
@@ -382,6 +388,7 @@ func (q *Queries) ListWalletTransactionsByUserID(ctx context.Context, arg ListWa
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.CurrencyFlow,
 		); err != nil {
 			return nil, err
 		}
@@ -436,18 +443,18 @@ func (q *Queries) ListWallets(ctx context.Context, customerID int64) ([]SwiftWal
 
 const updateWalletBalance = `-- name: UpdateWalletBalance :one
 UPDATE swift_wallets 
-SET balance = $2
-WHERE id = $1
+SET balance = balance + $1
+WHERE id = $2
 RETURNING id, customer_id, type, currency, balance, status, created_at, updated_at
 `
 
 type UpdateWalletBalanceParams struct {
-	ID      uuid.UUID      `json:"id"`
-	Balance sql.NullString `json:"balance"`
+	Amount sql.NullString `json:"amount"`
+	ID     uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateWalletBalance(ctx context.Context, arg UpdateWalletBalanceParams) (SwiftWallet, error) {
-	row := q.db.QueryRowContext(ctx, updateWalletBalance, arg.ID, arg.Balance)
+	row := q.db.QueryRowContext(ctx, updateWalletBalance, arg.Amount, arg.ID)
 	var i SwiftWallet
 	err := row.Scan(
 		&i.ID,
@@ -466,7 +473,7 @@ const updateWalletTransactionStatus = `-- name: UpdateWalletTransactionStatus :o
 UPDATE transactions
 SET status = $2
 WHERE id = $1
-RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at
+RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow
 `
 
 type UpdateWalletTransactionStatusParams struct {
@@ -488,6 +495,7 @@ func (q *Queries) UpdateWalletTransactionStatus(ctx context.Context, arg UpdateW
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.CurrencyFlow,
 	)
 	return i, err
 }

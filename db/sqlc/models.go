@@ -126,6 +126,7 @@ type Transaction struct {
 	Description   sql.NullString `json:"description"`
 	CreatedAt     time.Time      `json:"created_at"`
 	UpdatedAt     time.Time      `json:"updated_at"`
+	CurrencyFlow  sql.NullString `json:"currency_flow"`
 }
 
 type User struct {

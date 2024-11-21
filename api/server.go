@@ -125,6 +125,7 @@ func (s *Server) Start() error {
 	KYC{}.router(s)
 	GiftCard{}.router(s)
 	Wallet{}.router(s)
+	Currency{}.router(s)
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
