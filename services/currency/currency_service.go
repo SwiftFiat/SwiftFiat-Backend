@@ -15,25 +15,37 @@ type CurrencyService struct {
 	logger *logging.Logger
 }
 
+func NewCurrencyService(store *db.Store, logger *logging.Logger) *CurrencyService {
+	return &CurrencyService{
+		store:  store,
+		logger: logger,
+	}
+}
+
 func (c *CurrencyService) GetExchangeRate(ctx context.Context, fromCurrency string, toCurrency string) (decimal.Decimal, error) {
 	// TODO: Implement DB Call to fetch current exchange rate
-	c.logger.Info(fmt.Sprintf("fetching rate of %v -> %v", fromCurrency, toCurrency))
+	c.logger.Info(fmt.Sprintf("fetching rate of %v to %v", fromCurrency, toCurrency))
 	exchange, err := c.store.GetLatestExchangeRate(ctx, db.GetLatestExchangeRateParams{
 		BaseCurrency:  fromCurrency,
 		QuoteCurrency: toCurrency,
 	})
-	if err != nil {
+	if err == sql.ErrNoRows {
+		return decimal.Zero, ErrNoExchangeRate
+	} else if err != nil {
 		return decimal.Zero, err
 	}
 	decimalValue, err := decimal.NewFromString(exchange.Rate)
 	return decimalValue, err
 }
 
-func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fromCurrency string, toCurrency string, rate int64) error {
+func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fromCurrency string, toCurrency string, rate string) (*db.ExchangeRate, error) {
 	c.logger.Info(fmt.Sprintf("setting exchange rate %v -> %v: %v", fromCurrency, toCurrency, rate))
 
 	// Convert rate to decimal string for storage
-	rateDecimal := decimal.NewFromInt(rate)
+	rateDecimal, err := decimal.NewFromString(rate)
+	if err != nil {
+		return nil, fmt.Errorf("could not determine rate from input")
+	}
 
 	params := db.CreateExchangeRateParams{
 		BaseCurrency:  fromCurrency,
@@ -42,19 +54,21 @@ func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fro
 		Source:        "manual", // Indicating this was set manually
 	}
 
+	var exchObj db.ExchangeRate
+
 	if dbTX != nil {
 		// Execute within provided transaction
-		_, err := c.store.WithTx(dbTX).CreateExchangeRate(ctx, params)
+		exchObj, err = c.store.WithTx(dbTX).CreateExchangeRate(ctx, params)
 		if err != nil {
-			return fmt.Errorf("failed to create exchange rate: %w", err)
+			return nil, fmt.Errorf("failed to create exchange rate: %w", err)
 		}
 	} else {
 		// Execute without transaction
-		_, err := c.store.CreateExchangeRate(ctx, params)
+		exchObj, err = c.store.CreateExchangeRate(ctx, params)
 		if err != nil {
-			return fmt.Errorf("failed to create exchange rate: %w", err)
+			return nil, fmt.Errorf("failed to create exchange rate: %w", err)
 		}
 	}
 
-	return nil
+	return &exchObj, nil
 }

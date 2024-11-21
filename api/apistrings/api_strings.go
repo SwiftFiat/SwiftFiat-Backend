@@ -20,9 +20,10 @@ const (
 	UserNoKYC           = "user does not have KYC information"
 
 	/// Wallet Related Strings
-	UserNoWallet         = "user does not have a wallet created"
-	InvalidCurrency      = "currency entered is not supported"
-	DuplicateWallet      = "user already has wallet with currency"
-	CurrencyNotSupported = "entered currency is not supported"
-	InvalidWalletInput   = "check 'currency' or 'type' keys, invalid request"
+	UserNoWallet            = "user does not have a wallet created"
+	InvalidCurrency         = "currency entered is not supported"
+	DuplicateWallet         = "user already has wallet with currency"
+	CurrencyNotSupported    = "entered currency is not supported"
+	InvalidWalletInput      = "check 'currency' or 'type' keys, invalid request"
+	InvalidTransactionInput = "check 'source_account' or 'amount' keys, invalid request"
 )
