@@ -11,8 +11,8 @@ CREATE TABLE "swift_wallets" (
     "currency" VARCHAR(3) NOT NULL,
     "balance" DECIMAL(19,4) DEFAULT 0,
     "status" VARCHAR(20) NOT NULL DEFAULT 'active',
-    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
-    "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "positive_balance" CHECK (balance >= 0),
     CONSTRAINT "unique_customer_currency" UNIQUE (customer_id, currency)
 );
@@ -27,8 +27,8 @@ CREATE TABLE "transactions" (
     "to_account_id" UUID REFERENCES swift_wallets(id),
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
     "description" TEXT,
-    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
-    "updated_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "positive_amount" CHECK (amount > 0)
 );
 
@@ -40,7 +40,7 @@ CREATE TABLE "ledger_entries" (
     "type" VARCHAR(10) NOT NULL, -- 'debit' or 'credit'
     "amount" DECIMAL(19,4) NOT NULL,
     "balance" DECIMAL(19,4) NOT NULL,
-    "created_at" TIMESTAMP NOT NULL DEFAULT NOW(),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT "positive_amount" CHECK (amount > 0)
 );
 

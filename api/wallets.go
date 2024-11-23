@@ -1,8 +1,19 @@
 package api
 
+/// Transaction Types
+
+// transfer
+// deposit
+// swap
+// giftcard
+// airtime
+
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -147,6 +158,14 @@ func (w *Wallet) createWallet(ctx *gin.Context) {
 }
 
 func (w *Wallet) getTransactions(ctx *gin.Context) {
+	/// Pagination
+	cursor := ctx.Query("cursor")
+
+	var timestampStr string
+	var uuidStr string
+	var transactionTime time.Time
+	var uuidValue uuid.UUID
+
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -154,9 +173,43 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		return
 	}
 
+	if cursor != "" {
+		// Split cursor into timestamp and UUID
+		parts := strings.Split(cursor, "_")
+		if len(parts) != 2 {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor format"))
+			return
+		}
+		timestampStr = parts[0]
+		uuidStr = parts[1]
+
+		// Parse the timestamp
+		postgresLayout := "2006-01-02 15:04:05.999999-07"
+		transactionTime, err = time.Parse(postgresLayout, timestampStr)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Error parsing timestamp: %v", err)))
+			return
+		}
+
+		// Extract the UUID
+		uuidValue, err = uuid.Parse(uuidStr)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Error parsing UUID: %v", err)))
+			return
+		}
+	}
+
 	params := db.ListWalletTransactionsByUserIDParams{
 		CustomerID: activeUser.UserID,
-		Limit:      10,
+		PageLimit:  5,
+		TransactionCreated: sql.NullTime{
+			Time:  transactionTime,
+			Valid: cursor != "",
+		},
+		TransactionID: uuid.NullUUID{
+			UUID:  uuidValue,
+			Valid: cursor != "",
+		},
 	}
 
 	transactions, err := w.server.queries.ListWalletTransactionsByUserID(ctx, params)
@@ -164,6 +217,7 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
 		return
 	} else if err != nil {
+		w.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
