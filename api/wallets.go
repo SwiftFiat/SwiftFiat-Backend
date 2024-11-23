@@ -52,6 +52,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.POST("create", AuthenticatedMiddleware(), w.createWallet)
 	serverGroupV1.GET("", AuthenticatedMiddleware(), w.getUserWallets)
 	serverGroupV1.GET("transactions", AuthenticatedMiddleware(), w.getTransactions)
+	serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
 	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
 }
 
@@ -155,6 +156,40 @@ func (w *Wallet) createWallet(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Created Successfully", models.ToWalletResponse(&account)))
+}
+
+func (w *Wallet) getSingleTransaction(ctx *gin.Context) {
+	transactionId := ctx.Param("id")
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	transactionUUID, err := uuid.Parse(transactionId)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionID))
+		return
+	}
+
+	params := db.GetWalletTransactionParams{
+		ID:         transactionUUID,
+		CustomerID: activeUser.UserID,
+	}
+
+	transaction, err := w.server.queries.GetWalletTransaction(ctx, params)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionID))
+		return
+	} else if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transaction Fetched Successfully", transaction))
 }
 
 func (w *Wallet) getTransactions(ctx *gin.Context) {

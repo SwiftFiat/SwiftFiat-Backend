@@ -9,6 +9,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -270,13 +271,37 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 }
 
 const getWalletTransaction = `-- name: GetWalletTransaction :one
-SELECT id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow FROM transactions
-WHERE id = $1 LIMIT 1
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, w.id as wallet_id
+FROM transactions t
+JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
+WHERE t.id = $1 
+  AND w.customer_id = $2
+LIMIT 1
 `
 
-func (q *Queries) GetWalletTransaction(ctx context.Context, id uuid.UUID) (Transaction, error) {
-	row := q.db.QueryRowContext(ctx, getWalletTransaction, id)
-	var i Transaction
+type GetWalletTransactionParams struct {
+	ID         uuid.UUID `json:"id"`
+	CustomerID int64     `json:"customer_id"`
+}
+
+type GetWalletTransactionRow struct {
+	ID            uuid.UUID      `json:"id"`
+	Type          string         `json:"type"`
+	Amount        string         `json:"amount"`
+	Currency      string         `json:"currency"`
+	FromAccountID uuid.NullUUID  `json:"from_account_id"`
+	ToAccountID   uuid.NullUUID  `json:"to_account_id"`
+	Status        string         `json:"status"`
+	Description   sql.NullString `json:"description"`
+	CreatedAt     time.Time      `json:"created_at"`
+	UpdatedAt     time.Time      `json:"updated_at"`
+	CurrencyFlow  sql.NullString `json:"currency_flow"`
+	WalletID      uuid.UUID      `json:"wallet_id"`
+}
+
+func (q *Queries) GetWalletTransaction(ctx context.Context, arg GetWalletTransactionParams) (GetWalletTransactionRow, error) {
+	row := q.db.QueryRowContext(ctx, getWalletTransaction, arg.ID, arg.CustomerID)
+	var i GetWalletTransactionRow
 	err := row.Scan(
 		&i.ID,
 		&i.Type,
@@ -289,6 +314,7 @@ func (q *Queries) GetWalletTransaction(ctx context.Context, id uuid.UUID) (Trans
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CurrencyFlow,
+		&i.WalletID,
 	)
 	return i, err
 }

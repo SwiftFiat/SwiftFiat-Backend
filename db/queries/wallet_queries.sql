@@ -46,8 +46,12 @@ INSERT INTO transactions (
 ) RETURNING *;
 
 -- name: GetWalletTransaction :one
-SELECT * FROM transactions
-WHERE id = $1 LIMIT 1;
+SELECT t.*, w.id as wallet_id
+FROM transactions t
+JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
+WHERE t.id = $1 
+  AND w.customer_id = $2
+LIMIT 1;
 
 -- name: ListWalletTransactions :many
 SELECT t.*
