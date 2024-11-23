@@ -4,6 +4,6 @@ CREATE TABLE "proof_of_address_images" (
     "filename" VARCHAR(255) NOT NULL,
     "proof_type" VARCHAR(100) NOT NULL,   -- Proof of Address (One of: Utility Bill, Bank Statement, Tenancy Agreement)
     "image_data" BYTEA NOT NULL,           -- Binary data for the image
-    "created_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    "updated_at" TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

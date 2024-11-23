@@ -79,8 +79,8 @@ type ProofOfAddressImage struct {
 	Filename   string       `json:"filename"`
 	ProofType  string       `json:"proof_type"`
 	ImageData  []byte       `json:"image_data"`
-	CreatedAt  sql.NullTime `json:"created_at"`
-	UpdatedAt  sql.NullTime `json:"updated_at"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
 	Verified   bool         `json:"verified"`
 	VerifiedAt sql.NullTime `json:"verified_at"`
 }

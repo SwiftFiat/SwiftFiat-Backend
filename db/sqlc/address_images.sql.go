@@ -7,7 +7,7 @@ package db
 
 import (
 	"context"
-	"database/sql"
+	"time"
 )
 
 const deleteProofImage = `-- name: DeleteProofImage :execrows
@@ -30,12 +30,12 @@ WHERE id = $1
 `
 
 type GetProofImageRow struct {
-	ID        int32        `json:"id"`
-	UserID    int32        `json:"user_id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	ImageData []byte       `json:"image_data"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        int32     `json:"id"`
+	UserID    int32     `json:"user_id"`
+	Filename  string    `json:"filename"`
+	ProofType string    `json:"proof_type"`
+	ImageData []byte    `json:"image_data"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (q *Queries) GetProofImage(ctx context.Context, id int32) (GetProofImageRow, error) {
@@ -94,10 +94,10 @@ ORDER BY created_at DESC
 `
 
 type ListProofImagesRow struct {
-	ID        int32        `json:"id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        int32     `json:"id"`
+	Filename  string    `json:"filename"`
+	ProofType string    `json:"proof_type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (q *Queries) ListProofImages(ctx context.Context) ([]ListProofImagesRow, error) {
@@ -136,10 +136,10 @@ ORDER BY created_at DESC
 `
 
 type ListProofImagesForUserRow struct {
-	ID        int32        `json:"id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        int32     `json:"id"`
+	Filename  string    `json:"filename"`
+	ProofType string    `json:"proof_type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (q *Queries) ListProofImagesForUser(ctx context.Context, userID int32) ([]ListProofImagesForUserRow, error) {
@@ -185,10 +185,10 @@ type UpdateProofImageParams struct {
 }
 
 type UpdateProofImageRow struct {
-	ID        int32        `json:"id"`
-	Filename  string       `json:"filename"`
-	ProofType string       `json:"proof_type"`
-	CreatedAt sql.NullTime `json:"created_at"`
+	ID        int32     `json:"id"`
+	Filename  string    `json:"filename"`
+	ProofType string    `json:"proof_type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (q *Queries) UpdateProofImage(ctx context.Context, arg UpdateProofImageParams) (UpdateProofImageRow, error) {

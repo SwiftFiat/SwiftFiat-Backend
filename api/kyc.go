@@ -482,7 +482,7 @@ func (k *KYC) submitUtility(ctx *gin.Context) {
 		"user_id":    models.ID(proof.UserID),
 		"filename":   proof.Filename,
 		"proof_type": proof.ProofType,
-		"created_at": proof.CreatedAt.Time,
+		"created_at": proof.CreatedAt,
 	}))
 }
 
@@ -584,7 +584,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		"user_id":    models.ID(proof.UserID),
 		"filename":   proof.Filename,
 		"proof_type": proof.ProofType,
-		"created_at": proof.CreatedAt.Time,
+		"created_at": proof.CreatedAt,
 		"verified":   proof.Verified,
 	}))
 }

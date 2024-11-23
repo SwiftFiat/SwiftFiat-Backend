@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/google/uuid"
 )
@@ -351,56 +352,67 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 	return items, nil
 }
 
-const listWalletTransactionsByUserID = `-- name: ListWalletTransactionsByUserID :many
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
-FROM transactions t
-JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
-WHERE 
-    w.customer_id = $1
-ORDER BY t.created_at DESC
-LIMIT $2
-OFFSET $3
+const listWalletTransactionsByUserID = `-- name: ListWalletTransactionsByUserID :one
+WITH transaction_data AS (
+    SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
+    FROM transactions t
+    JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
+    WHERE 
+        w.customer_id = $1
+        AND (
+            -- If cursor is provided, apply the cursor-based filtering
+            -- If no cursor, use the default query to fetch the first results
+            ($2::timestamptz IS NULL OR (t.created_at::timestamptz, t.id) < (
+                $2::timestamptz,
+                $3::uuid
+            ))
+        )
+    ORDER BY t.created_at DESC, t.id DESC
+    LIMIT COALESCE($4, 25)
+),
+last_transaction AS (
+    SELECT created_at, id
+    FROM transaction_data
+    ORDER BY created_at ASC, id ASC
+    LIMIT 1
+),
+has_more_check AS (
+    SELECT EXISTS (
+        SELECT 1 
+        FROM transactions t2
+        JOIN swift_wallets w2 ON (t2.from_account_id = w2.id OR t2.to_account_id = w2.id)
+        WHERE 
+            w2.customer_id = $1
+            AND (t2.created_at::timestamptz, t2.id::uuid) < (SELECT created_at::timestamptz, id::uuid FROM last_transaction)
+    ) AS has_more
+)
+SELECT 
+    jsonb_build_object(
+        'transactions', (SELECT jsonb_agg(td.*) FROM transaction_data td),
+        'metadata', jsonb_build_object(
+            'has_more', (SELECT has_more FROM has_more_check),
+            'next_cursor', (SELECT concat(created_at::timestamptz, '_', id) FROM last_transaction)
+        )
+    ) AS result
 `
 
 type ListWalletTransactionsByUserIDParams struct {
-	CustomerID int64 `json:"customer_id"`
-	Limit      int32 `json:"limit"`
-	Offset     int32 `json:"offset"`
+	CustomerID         int64         `json:"customer_id"`
+	TransactionCreated sql.NullTime  `json:"transaction_created"`
+	TransactionID      uuid.NullUUID `json:"transaction_id"`
+	PageLimit          interface{}   `json:"page_limit"`
 }
 
-func (q *Queries) ListWalletTransactionsByUserID(ctx context.Context, arg ListWalletTransactionsByUserIDParams) ([]Transaction, error) {
-	rows, err := q.db.QueryContext(ctx, listWalletTransactionsByUserID, arg.CustomerID, arg.Limit, arg.Offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []Transaction{}
-	for rows.Next() {
-		var i Transaction
-		if err := rows.Scan(
-			&i.ID,
-			&i.Type,
-			&i.Amount,
-			&i.Currency,
-			&i.FromAccountID,
-			&i.ToAccountID,
-			&i.Status,
-			&i.Description,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.CurrencyFlow,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *Queries) ListWalletTransactionsByUserID(ctx context.Context, arg ListWalletTransactionsByUserIDParams) (json.RawMessage, error) {
+	row := q.db.QueryRowContext(ctx, listWalletTransactionsByUserID,
+		arg.CustomerID,
+		arg.TransactionCreated,
+		arg.TransactionID,
+		arg.PageLimit,
+	)
+	var result json.RawMessage
+	err := row.Scan(&result)
+	return result, err
 }
 
 const listWallets = `-- name: ListWallets :many

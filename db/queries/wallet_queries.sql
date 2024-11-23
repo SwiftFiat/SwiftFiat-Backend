@@ -84,12 +84,45 @@ ORDER BY created_at DESC
 LIMIT $2
 OFFSET $3;
 
--- name: ListWalletTransactionsByUserID :many
-SELECT t.*
-FROM transactions t
-JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
-WHERE 
-    w.customer_id = $1
-ORDER BY t.created_at DESC
-LIMIT $2
-OFFSET $3;
+-- name: ListWalletTransactionsByUserID :one
+WITH transaction_data AS (
+    SELECT t.*
+    FROM transactions t
+    JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
+    WHERE 
+        w.customer_id = $1
+        AND (
+            -- If cursor is provided, apply the cursor-based filtering
+            -- If no cursor, use the default query to fetch the first results
+            (sqlc.narg(transaction_created)::timestamptz IS NULL OR (t.created_at::timestamptz, t.id) < (
+                sqlc.narg(transaction_created)::timestamptz,
+                sqlc.narg(transaction_id)::uuid
+            ))
+        )
+    ORDER BY t.created_at DESC, t.id DESC
+    LIMIT COALESCE(sqlc.arg(page_limit), 25)
+),
+last_transaction AS (
+    SELECT created_at, id
+    FROM transaction_data
+    ORDER BY created_at ASC, id ASC
+    LIMIT 1
+),
+has_more_check AS (
+    SELECT EXISTS (
+        SELECT 1 
+        FROM transactions t2
+        JOIN swift_wallets w2 ON (t2.from_account_id = w2.id OR t2.to_account_id = w2.id)
+        WHERE 
+            w2.customer_id = $1
+            AND (t2.created_at::timestamptz, t2.id::uuid) < (SELECT created_at::timestamptz, id::uuid FROM last_transaction)
+    ) AS has_more
+)
+SELECT 
+    jsonb_build_object(
+        'transactions', (SELECT jsonb_agg(td.*) FROM transaction_data td),
+        'metadata', jsonb_build_object(
+            'has_more', (SELECT has_more FROM has_more_check),
+            'next_cursor', (SELECT concat(created_at::timestamptz, '_', id) FROM last_transaction)
+        )
+    ) AS result;
