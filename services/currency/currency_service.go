@@ -38,6 +38,17 @@ func (c *CurrencyService) GetExchangeRate(ctx context.Context, fromCurrency stri
 	return decimalValue, err
 }
 
+func (c *CurrencyService) GetAllExchangeRates(ctx context.Context) (interface{}, error) {
+	c.logger.Info("fetching all rates")
+	exchangeRates, err := c.store.ListLatestExchangeRates(ctx)
+	if err == sql.ErrNoRows {
+		return nil, ErrNoExchangeRate
+	} else if err != nil {
+		return nil, err
+	}
+	return exchangeRates, err
+}
+
 func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fromCurrency string, toCurrency string, rate string) (*db.ExchangeRate, error) {
 	c.logger.Info(fmt.Sprintf("setting exchange rate %v -> %v: %v", fromCurrency, toCurrency, rate))
 

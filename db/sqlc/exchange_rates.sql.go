@@ -169,3 +169,63 @@ func (q *Queries) ListExchangeRates(ctx context.Context, arg ListExchangeRatesPa
 	}
 	return items, nil
 }
+
+const listLatestExchangeRates = `-- name: ListLatestExchangeRates :many
+WITH LatestTimes AS (
+  SELECT 
+    base_currency,
+    quote_currency,
+    MAX(effective_time) as latest_time
+  FROM exchange_rates
+  GROUP BY base_currency, quote_currency
+)
+SELECT 
+  er.base_currency,
+  er.quote_currency,
+  er.rate,
+  er.effective_time,
+  er.source
+FROM exchange_rates er
+INNER JOIN LatestTimes lt 
+  ON er.base_currency = lt.base_currency 
+  AND er.quote_currency = lt.quote_currency
+  AND er.effective_time = lt.latest_time
+ORDER BY er.base_currency, er.quote_currency
+`
+
+type ListLatestExchangeRatesRow struct {
+	BaseCurrency  string    `json:"base_currency"`
+	QuoteCurrency string    `json:"quote_currency"`
+	Rate          string    `json:"rate"`
+	EffectiveTime time.Time `json:"effective_time"`
+	Source        string    `json:"source"`
+}
+
+func (q *Queries) ListLatestExchangeRates(ctx context.Context) ([]ListLatestExchangeRatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLatestExchangeRates)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLatestExchangeRatesRow{}
+	for rows.Next() {
+		var i ListLatestExchangeRatesRow
+		if err := rows.Scan(
+			&i.BaseCurrency,
+			&i.QuoteCurrency,
+			&i.Rate,
+			&i.EffectiveTime,
+			&i.Source,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
