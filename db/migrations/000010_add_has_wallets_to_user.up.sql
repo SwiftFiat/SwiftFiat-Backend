@@ -1,0 +1,2 @@
+ALTER TABLE "users"
+ADD COLUMN "has_wallets" BOOLEAN NOT NULL DEFAULT (FALSE);  

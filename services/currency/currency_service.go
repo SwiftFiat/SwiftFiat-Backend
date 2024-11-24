@@ -10,9 +10,21 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+var SupportedCurrencies = []string{"NGN", "USD", "EUR"}
+
 type CurrencyService struct {
 	store  *db.Store
 	logger *logging.Logger
+}
+
+func IsCurrencyValid(request string) bool {
+	for _, c := range SupportedCurrencies {
+		if request == c {
+			return true
+		}
+	}
+
+	return false
 }
 
 func NewCurrencyService(store *db.Store, logger *logging.Logger) *CurrencyService {

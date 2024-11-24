@@ -13,6 +13,8 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -20,12 +22,19 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// TODO: Register all services to be accessible from SERVER
 type Auth struct {
-	server *Server
+	server      *Server
+	userService *user_service.UserService
 }
 
 func (a Auth) router(server *Server) {
 	a.server = server
+	a.userService = user_service.NewUserService(
+		a.server.queries,
+		a.server.logger,
+		wallet.NewWalletService(a.server.queries, a.server.logger),
+	)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
@@ -103,12 +112,16 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), user.Email)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
-		return
-	} else if err != nil {
-		a.server.logger.Log(logrus.DebugLevel, err.Error())
+	dbUser, err := a.userService.FetchUserByEmail(ctx, nil, user.Email)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		if userErr, ok := err.(*user_service.UserError); ok {
+			if userErr.ErrorObj == user_service.ErrUserNotFound {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+				return
+			}
+		}
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -130,7 +143,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&dbUser),
+		User:  models.UserResponse{}.ToUserResponse(dbUser),
 		Token: token,
 	}
 
@@ -141,17 +154,21 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	user := new(models.UserPasscodeLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhoneEmailInput))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidCodeEmailInput))
 		return
 	}
 
-	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), user.Email)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or passcode"))
-		return
-	} else if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	dbUser, err := a.userService.FetchUserByEmail(ctx, nil, user.Email)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		if userErr, ok := err.(*user_service.UserError); ok {
+			if userErr.ErrorObj == user_service.ErrUserNotFound {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+				return
+			}
+		}
+
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -172,7 +189,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	}
 
 	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&dbUser),
+		User:  models.UserResponse{}.ToUserResponse(dbUser),
 		Token: token,
 	}
 
@@ -220,18 +237,16 @@ func (a *Auth) register(ctx *gin.Context) {
 		Role: models.USER,
 	}
 
-	newUser, err := a.server.queries.CreateUser(context.Background(), arg)
+	newUser, err := a.userService.CreateUserWithWallets(ctx, &arg)
 	if err != nil {
-		if pqErr, ok := err.(*pq.Error); ok {
-			if pqErr.Code == db.DuplicateEntry {
-				// 23505 --> Violated Unique Constraints
-				// TODO: Make these constants
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		if userErr, ok := err.(*user_service.UserError); ok {
+			if userErr.ErrorObj == user_service.ErrUserAlreadyExists {
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserDetailsAlreadyCreated))
 				return
 			}
-			fmt.Println("pq error:", pqErr.Code.Name())
 		}
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -247,7 +262,7 @@ func (a *Auth) register(ctx *gin.Context) {
 	}
 
 	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&newUser),
+		User:  models.UserResponse{}.ToUserResponse(newUser),
 		Token: token,
 	}
 

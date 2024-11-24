@@ -19,7 +19,7 @@ INSERT INTO users (
     phone_number,
     hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type CreateUserParams struct {
@@ -55,6 +55,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
@@ -78,7 +79,7 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at FROM users WHERE email = $1
+SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -98,12 +99,13 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at FROM users WHERE id = $1
+SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -123,12 +125,13 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at FROM users WHERE phone_number = $1
+SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets FROM users WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {
@@ -148,12 +151,13 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at FROM users WHERE role=$1 ORDER BY id
+SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets FROM users WHERE role=$1 ORDER BY id
 LIMIT $2 OFFSET $3
 `
 
@@ -186,6 +190,7 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.HasWallets,
 		); err != nil {
 			return nil, err
 		}
@@ -201,7 +206,7 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at FROM users WHERE deleted_at = NULL ORDER BY id
+SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets FROM users WHERE deleted_at = NULL ORDER BY id
 LIMIT $1 OFFSET $2
 `
 
@@ -233,6 +238,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+			&i.HasWallets,
 		); err != nil {
 			return nil, err
 		}
@@ -249,7 +255,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 
 const updateUserFirstName = `-- name: UpdateUserFirstName :one
 UPDATE users SET first_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserFirstNameParams struct {
@@ -275,13 +281,14 @@ func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserLastName = `-- name: UpdateUserLastName :one
 UPDATE users SET last_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserLastNameParams struct {
@@ -307,13 +314,14 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserPasscodee = `-- name: UpdateUserPasscodee :one
 UPDATE users SET hashed_passcode = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserPasscodeeParams struct {
@@ -339,13 +347,14 @@ func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscod
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET hashed_password = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserPasswordParams struct {
@@ -371,13 +380,14 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserPhone = `-- name: UpdateUserPhone :one
 UPDATE users SET phone_number = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserPhoneParams struct {
@@ -403,13 +413,14 @@ func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserPin = `-- name: UpdateUserPin :one
 UPDATE users SET hashed_pin = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserPinParams struct {
@@ -435,13 +446,14 @@ func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (U
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }
 
 const updateUserVerification = `-- name: UpdateUserVerification :one
 UPDATE users SET verified = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
 `
 
 type UpdateUserVerificationParams struct {
@@ -467,6 +479,40 @@ func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVeri
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
+		&i.HasWallets,
+	)
+	return i, err
+}
+
+const updateUserWalletStatus = `-- name: UpdateUserWalletStatus :one
+UPDATE users SET has_wallets = $1, updated_at = $2
+WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets
+`
+
+type UpdateUserWalletStatusParams struct {
+	HasWallets bool      `json:"has_wallets"`
+	UpdatedAt  time.Time `json:"updated_at"`
+	ID         int64     `json:"id"`
+}
+
+func (q *Queries) UpdateUserWalletStatus(ctx context.Context, arg UpdateUserWalletStatusParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserWalletStatus, arg.HasWallets, arg.UpdatedAt, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
 	)
 	return i, err
 }

@@ -13,7 +13,7 @@ type Currency struct {
 	currencyService *currency.CurrencyService
 }
 
-// / TODO: This route will be wrapped with an administrative middleware
+// TODO: This route will be wrapped with an administrative middleware
 func (c Currency) router(server *Server) {
 	c.server = server
 	c.currencyService = currency.NewCurrencyService(c.server.queries, c.server.logger)
