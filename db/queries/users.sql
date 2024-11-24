@@ -53,6 +53,10 @@ WHERE id = $3 RETURNING *;
 UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
+-- name: UpdateUserWalletStatus :one
+UPDATE users SET has_wallets = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
 -- name: DeleteUser :exec
 DELETE FROM users WHERE id = $1;
 

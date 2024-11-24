@@ -97,6 +97,9 @@ func NewServer(envPath string) *Server {
 		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
 	}
 
+	// Register an application services manager
+	// accessible via e.g ```server.services.WalletService```
+
 	return &Server{
 		router:        g,
 		queries:       q,
@@ -126,6 +129,9 @@ func (s *Server) Start() error {
 	GiftCard{}.router(s)
 	Wallet{}.router(s)
 	Currency{}.router(s)
+
+	/// TODO: Register all server dependent services to be accessible from SERVER
+	// e.g. s.RegisterService({services.wallet, WalletService})
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err

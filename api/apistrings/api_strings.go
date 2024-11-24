@@ -8,6 +8,7 @@ const (
 	InvalidPhone              = "invalid phone number, please use a standard phone number"
 	InvalidEmail              = "invalid email address, please check submitted email address"
 	InvalidPhoneEmailInput    = "please enter a valid email and password"
+	InvalidCodeEmailInput     = "please enter a valid email and passcode"
 	IncorrectEmailPass        = "incorrect email or password"
 
 	/// Core Functionality Error
