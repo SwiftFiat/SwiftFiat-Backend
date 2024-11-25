@@ -62,15 +62,15 @@ INSERT INTO ledger_entries (
     balance
 ) VALUES (
     $1, $2, $3, $4, $5
-) RETURNING id, transaction_id, account_id, type, amount, balance, created_at
+) RETURNING id, transaction_id, account_id, type, amount, balance, created_at, deleted_account_id
 `
 
 type CreateWalletLedgerEntryParams struct {
-	TransactionID uuid.UUID `json:"transaction_id"`
-	AccountID     uuid.UUID `json:"account_id"`
-	Type          string    `json:"type"`
-	Amount        string    `json:"amount"`
-	Balance       string    `json:"balance"`
+	TransactionID uuid.NullUUID `json:"transaction_id"`
+	AccountID     uuid.NullUUID `json:"account_id"`
+	Type          string        `json:"type"`
+	Amount        string        `json:"amount"`
+	Balance       string        `json:"balance"`
 }
 
 func (q *Queries) CreateWalletLedgerEntry(ctx context.Context, arg CreateWalletLedgerEntryParams) (LedgerEntry, error) {
@@ -90,6 +90,7 @@ func (q *Queries) CreateWalletLedgerEntry(ctx context.Context, arg CreateWalletL
 		&i.Amount,
 		&i.Balance,
 		&i.CreatedAt,
+		&i.DeletedAccountID,
 	)
 	return i, err
 }
@@ -105,7 +106,7 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id
 `
 
 type CreateWalletTransactionParams struct {
@@ -141,6 +142,8 @@ func (q *Queries) CreateWalletTransaction(ctx context.Context, arg CreateWalletT
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CurrencyFlow,
+		&i.DeletedFromAccountID,
+		&i.DeletedToAccountID,
 	)
 	return i, err
 }
@@ -226,7 +229,7 @@ func (q *Queries) GetWalletForUpdate(ctx context.Context, id uuid.UUID) (SwiftWa
 }
 
 const getWalletLedger = `-- name: GetWalletLedger :many
-SELECT id, transaction_id, account_id, type, amount, balance, created_at FROM ledger_entries
+SELECT id, transaction_id, account_id, type, amount, balance, created_at, deleted_account_id FROM ledger_entries
 WHERE account_id = $1
 ORDER BY created_at DESC
 LIMIT $2
@@ -234,9 +237,9 @@ OFFSET $3
 `
 
 type GetWalletLedgerParams struct {
-	AccountID uuid.UUID `json:"account_id"`
-	Limit     int32     `json:"limit"`
-	Offset    int32     `json:"offset"`
+	AccountID uuid.NullUUID `json:"account_id"`
+	Limit     int32         `json:"limit"`
+	Offset    int32         `json:"offset"`
 }
 
 func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams) ([]LedgerEntry, error) {
@@ -256,6 +259,7 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 			&i.Amount,
 			&i.Balance,
 			&i.CreatedAt,
+			&i.DeletedAccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -271,7 +275,7 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 }
 
 const getWalletTransaction = `-- name: GetWalletTransaction :one
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, w.id as wallet_id
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, w.id as wallet_id
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE t.id = $1 
@@ -285,18 +289,20 @@ type GetWalletTransactionParams struct {
 }
 
 type GetWalletTransactionRow struct {
-	ID            uuid.UUID      `json:"id"`
-	Type          string         `json:"type"`
-	Amount        string         `json:"amount"`
-	Currency      string         `json:"currency"`
-	FromAccountID uuid.NullUUID  `json:"from_account_id"`
-	ToAccountID   uuid.NullUUID  `json:"to_account_id"`
-	Status        string         `json:"status"`
-	Description   sql.NullString `json:"description"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	CurrencyFlow  sql.NullString `json:"currency_flow"`
-	WalletID      uuid.UUID      `json:"wallet_id"`
+	ID                   uuid.UUID      `json:"id"`
+	Type                 string         `json:"type"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	FromAccountID        uuid.NullUUID  `json:"from_account_id"`
+	ToAccountID          uuid.NullUUID  `json:"to_account_id"`
+	Status               string         `json:"status"`
+	Description          sql.NullString `json:"description"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	CurrencyFlow         sql.NullString `json:"currency_flow"`
+	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
+	WalletID             uuid.UUID      `json:"wallet_id"`
 }
 
 func (q *Queries) GetWalletTransaction(ctx context.Context, arg GetWalletTransactionParams) (GetWalletTransactionRow, error) {
@@ -314,13 +320,15 @@ func (q *Queries) GetWalletTransaction(ctx context.Context, arg GetWalletTransac
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CurrencyFlow,
+		&i.DeletedFromAccountID,
+		&i.DeletedToAccountID,
 		&i.WalletID,
 	)
 	return i, err
 }
 
 const listWalletTransactions = `-- name: ListWalletTransactions :many
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE 
@@ -364,6 +372,8 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CurrencyFlow,
+			&i.DeletedFromAccountID,
+			&i.DeletedToAccountID,
 		); err != nil {
 			return nil, err
 		}
@@ -380,7 +390,7 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 
 const listWalletTransactionsByUserID = `-- name: ListWalletTransactionsByUserID :one
 WITH transaction_data AS (
-    SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow
+    SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id
     FROM transactions t
     JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
     WHERE 
@@ -511,7 +521,7 @@ const updateWalletTransactionStatus = `-- name: UpdateWalletTransactionStatus :o
 UPDATE transactions
 SET status = $2
 WHERE id = $1
-RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow
+RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id
 `
 
 type UpdateWalletTransactionStatusParams struct {
@@ -534,6 +544,8 @@ func (q *Queries) UpdateWalletTransactionStatus(ctx context.Context, arg UpdateW
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CurrencyFlow,
+		&i.DeletedFromAccountID,
+		&i.DeletedToAccountID,
 	)
 	return i, err
 }

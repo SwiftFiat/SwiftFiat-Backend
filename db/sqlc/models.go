@@ -54,13 +54,14 @@ type Kyc struct {
 }
 
 type LedgerEntry struct {
-	ID            uuid.UUID `json:"id"`
-	TransactionID uuid.UUID `json:"transaction_id"`
-	AccountID     uuid.UUID `json:"account_id"`
-	Type          string    `json:"type"`
-	Amount        string    `json:"amount"`
-	Balance       string    `json:"balance"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID               uuid.UUID     `json:"id"`
+	TransactionID    uuid.NullUUID `json:"transaction_id"`
+	AccountID        uuid.NullUUID `json:"account_id"`
+	Type             string        `json:"type"`
+	Amount           string        `json:"amount"`
+	Balance          string        `json:"balance"`
+	CreatedAt        time.Time     `json:"created_at"`
+	DeletedAccountID uuid.NullUUID `json:"deleted_account_id"`
 }
 
 type Otp struct {
@@ -116,17 +117,19 @@ type SwiftWallet struct {
 }
 
 type Transaction struct {
-	ID            uuid.UUID      `json:"id"`
-	Type          string         `json:"type"`
-	Amount        string         `json:"amount"`
-	Currency      string         `json:"currency"`
-	FromAccountID uuid.NullUUID  `json:"from_account_id"`
-	ToAccountID   uuid.NullUUID  `json:"to_account_id"`
-	Status        string         `json:"status"`
-	Description   sql.NullString `json:"description"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
-	CurrencyFlow  sql.NullString `json:"currency_flow"`
+	ID                   uuid.UUID      `json:"id"`
+	Type                 string         `json:"type"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	FromAccountID        uuid.NullUUID  `json:"from_account_id"`
+	ToAccountID          uuid.NullUUID  `json:"to_account_id"`
+	Status               string         `json:"status"`
+	Description          sql.NullString `json:"description"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	CurrencyFlow         sql.NullString `json:"currency_flow"`
+	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
 }
 
 type User struct {

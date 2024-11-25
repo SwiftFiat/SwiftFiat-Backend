@@ -13,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -74,6 +75,10 @@ func NewServer(envPath string) *Server {
 	gp := giftcards.NewGiftCardProvider()
 	p.AddProvider(gp)
 
+	// Set up Crypto service
+	cp := cryptocurrency.NewCryptoProvider()
+	p.AddProvider(cp)
+
 	/// Add Middleware
 	g.Use(CORSMiddleware())
 	g.Use(l.LoggingMiddleWare())
@@ -129,6 +134,7 @@ func (s *Server) Start() error {
 	GiftCard{}.router(s)
 	Wallet{}.router(s)
 	Currency{}.router(s)
+	CryptoAPI{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

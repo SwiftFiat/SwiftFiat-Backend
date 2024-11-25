@@ -52,6 +52,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("transactions", AuthenticatedMiddleware(), w.getTransactions)
 	serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
 	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
+	serverGroupV1.POST("swap", AuthenticatedMiddleware(), w.swap)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -195,7 +196,6 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		ToAccountID        string `json:"destination_account"`
 		Amount             int32  `json:"amount"`
 		DestinationUserTag string `json:"target_user_tag"`
-		Type               string `json:"type"`
 		Description        string `json:"description"`
 	}{}
 
@@ -229,7 +229,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		Amount:        amount,
 		UserTag:       request.DestinationUserTag,
 		Description:   request.Description,
-		Type:          request.Type,
+		Type:          transaction.Transfer,
 	}
 
 	tObj, err := w.transactionService.CreateTransaction(ctx, tparams, &activeUser)
@@ -248,4 +248,71 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
+}
+
+func (w *Wallet) swap(ctx *gin.Context) {
+
+	/// Active USER must OWN source wallet
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// Observe request
+	request := struct {
+		FromAccountID string `json:"source_account"`
+		ToAccountID   string `json:"destination_account"`
+		Amount        int32  `json:"amount"`
+		Description   string `json:"description"`
+	}{}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
+		return
+	}
+
+	sourceAccount, err := uuid.Parse(request.FromAccountID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account seems to be wrong"))
+		return
+	}
+
+	destinationAccount, err := uuid.Parse(request.ToAccountID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("destination account seems to be wrong"))
+		return
+	}
+
+	if sourceAccount == destinationAccount {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source and destination cannot be same"))
+		return
+	}
+
+	amount := decimal.NewFromInt32(request.Amount)
+
+	tparams := transaction.Transaction{
+		FromAccountID: sourceAccount,
+		ToAccountID:   destinationAccount,
+		Amount:        amount,
+		Description:   request.Description,
+		Type:          transaction.Swap,
+	}
+
+	tObj, err := w.transactionService.CreateTransaction(ctx, tparams, &activeUser)
+	if err != nil {
+		w.server.logger.Error(err)
+		if wallError, ok := err.(*wallet.WalletError); ok {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
+			return
+		}
+		if currError, ok := err.(*currency.CurrencyError); ok {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(currError.ErrorOut()))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
 }
