@@ -59,6 +59,14 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 		return nil, wallet.NewWalletError(err, tx.ToAccountID.String())
 	}
 
+	// User should be conducting a swap from their account to their account
+	if tx.Type == Swap {
+		if user.UserID != toAccount.CustomerID {
+			s.logger.Error("illegal access: ", fmt.Sprintf("user tried swapping to a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.UserID, toAccount.ID))
+			return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.ToAccountID.String())
+		}
+	}
+
 	// Track transaction currency type
 	// e.g. EUR to USD or NGN to NGN
 	// This would help for ledger tracking
@@ -133,7 +141,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 	amountStr := tx.Amount.String()
 
 	params := db.CreateWalletTransactionParams{
-		Type: tx.Type,
+		Type: string(tx.Type),
 		FromAccountID: uuid.NullUUID{
 			UUID:  tx.FromAccountID,
 			Valid: tx.FromAccountID.URN() != "",
@@ -165,11 +173,17 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.Tx, le LedgerEntries) error {
 	// Create debit entry
 	debitParams := db.CreateWalletLedgerEntryParams{
-		TransactionID: le.TransactionID,
-		AccountID:     le.Debit.AccountID,
-		Type:          "debit",
-		Amount:        le.Debit.Amount.String(),
-		Balance:       le.Debit.Balance.String(),
+		TransactionID: uuid.NullUUID{
+			UUID:  le.TransactionID,
+			Valid: le.TransactionID.URN() != "",
+		},
+		AccountID: uuid.NullUUID{
+			UUID:  le.Debit.AccountID,
+			Valid: le.Debit.AccountID.URN() != "",
+		},
+		Type:    "debit",
+		Amount:  le.Debit.Amount.String(),
+		Balance: le.Debit.Balance.String(),
 	}
 
 	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
@@ -178,11 +192,17 @@ func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.
 
 	// Create credit entry
 	creditParams := db.CreateWalletLedgerEntryParams{
-		TransactionID: le.TransactionID,
-		AccountID:     le.Credit.AccountID,
-		Type:          "credit",
-		Amount:        le.Credit.Amount.String(),
-		Balance:       le.Debit.Balance.String(),
+		TransactionID: uuid.NullUUID{
+			UUID:  le.TransactionID,
+			Valid: le.TransactionID.URN() != "",
+		},
+		AccountID: uuid.NullUUID{
+			UUID:  le.Credit.AccountID,
+			Valid: le.Credit.AccountID.URN() != "",
+		},
+		Type:    "credit",
+		Amount:  le.Credit.Amount.String(),
+		Balance: le.Debit.Balance.String(),
 	}
 
 	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {

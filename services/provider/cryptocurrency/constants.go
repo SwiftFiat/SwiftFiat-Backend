@@ -1,42 +1,43 @@
 package cryptocurrency
 
+type SupportedCoin string
 type coin struct {
-	TBTC4    string
-	TBTCSIG  string
-	TBTC     string
-	TXRP     string
-	TDOGE    string
-	TADA     string
-	TLTC     string
-	TDOT     string
-	TSOL     string
-	TTON     string
-	TETC     string
-	TXLM     string
-	TBCH     string
-	TFIATUSD string
-	THBAR    string
-	TCELO    string
-	TOPETH   string
-	TARBETH  string
-	TPOLYGON string
-	TNEAR    string
-	TSUI     string
-	TSUSD    string
-	TXTZ     string
-	TCSPR    string
-	TAVAXC   string
-	TALGO    string
-	TAVAXP   string
-	TZEC     string
-	TDASH    string
-	TLNBTC   string
+	TBTC4    SupportedCoin
+	TBTCSIG  SupportedCoin
+	TBTC     SupportedCoin
+	TXRP     SupportedCoin
+	TADA     SupportedCoin
+	TLTC     SupportedCoin
+	TDOGE    SupportedCoin
+	TDOT     SupportedCoin
+	TSOL     SupportedCoin
+	TTON     SupportedCoin
+	TETC     SupportedCoin
+	TXLM     SupportedCoin
+	TBCH     SupportedCoin
+	TFIATUSD SupportedCoin
+	THBAR    SupportedCoin
+	TCELO    SupportedCoin
+	TOPETH   SupportedCoin
+	TARBETH  SupportedCoin
+	TPOLYGON SupportedCoin
+	TNEAR    SupportedCoin
+	TSUI     SupportedCoin
+	TSUSD    SupportedCoin
+	TXTZ     SupportedCoin
+	TCSPR    SupportedCoin
+	TAVAXC   SupportedCoin
+	TALGO    SupportedCoin
+	TAVAXP   SupportedCoin
+	TZEC     SupportedCoin
+	TDASH    SupportedCoin
+	TLNBTC   SupportedCoin
 }
 
 var Coin = coin{
-	TBTC4:    "tbtc4",
-	TBTCSIG:  "tbtcsig",
-	TBTC:     "tbtc",
+	TBTC4:    SupportedCoin("tbtc4"),
+	TBTCSIG:  SupportedCoin("tbtcsig"),
+	TBTC:     SupportedCoin("tbtc"),
 	TXRP:     "txrp",
 	TDOGE:    "tdoge",
 	TADA:     "tada",

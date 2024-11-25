@@ -12,6 +12,7 @@ import (
 const (
 	Dojah    = "DOJAH"
 	Reloadly = "RELOADLY"
+	Bitgo    = "BITGO"
 )
 
 // BaseProvider contains common fields and methods
@@ -60,6 +61,7 @@ func (p *BaseProvider) MakeRequest(method, url string, body interface{}, extraHe
 	// Set headers
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+p.APIKey)
+	// Allows for overwriting pre-set keys
 	for k, v := range extraHeaders {
 		req.Header.Set(k, v)
 	}

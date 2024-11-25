@@ -13,7 +13,7 @@ func ToTransactionModelResponse(tx *db.Transaction, userTag *string) *Transactio
 		Amount:        decimal.RequireFromString(tx.Amount),
 		Currency:      tx.Currency,
 		Description:   tx.Description.String,
-		Type:          tx.Type,
+		Type:          TransactionType(tx.Type),
 		UserTag:       *userTag,
 	}
 }

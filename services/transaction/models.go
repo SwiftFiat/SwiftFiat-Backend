@@ -5,6 +5,16 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+type TransactionType string
+
+const (
+	Transfer TransactionType = "transfer"
+	Deposit  TransactionType = "deposit"
+	Swap     TransactionType = "swap"
+	GiftCard TransactionType = "giftcard"
+	Airtime  TransactionType = "airtime"
+)
+
 type Transaction struct {
 	ID            string
 	FromAccountID uuid.UUID
@@ -13,7 +23,7 @@ type Transaction struct {
 	UserTag       string
 	Currency      string
 	Description   string
-	Type          string
+	Type          TransactionType
 }
 
 type LedgerEntries struct {
