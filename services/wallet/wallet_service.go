@@ -73,18 +73,21 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 					Valid:  true,
 				},
 			}
-			db_wallet, err := w.store.WithTx(dbTx).CreateWallet(ctx, param)
-			if err != nil {
-				if err == sql.ErrNoRows {
-					return nil, NewWalletError(ErrWalletNotPossible, "", err)
-				} else {
-					return nil, err
-				}
+
+			/// NOTE: Using a DBTX here causes the transaction to be terminated early
+			db_wallet, err := w.store.CreateWallet(ctx, param)
+			if err == nil {
+				wallets = append(wallets, ToWalletModel(db_wallet))
 			}
-			wallets = append(wallets, ToWalletModel(db_wallet))
 		}
 
-		if len(wallets) == len(currency.SupportedCurrencies) {
+		/// Check all wallets of user
+		userWallets, err := w.store.WithTx(dbTx).GetWalletByCustomerID(ctx, userID)
+		if err != nil {
+			return nil, fmt.Errorf("user wallet retrieval issues: %v", err)
+		}
+
+		if len(userWallets) == len(currency.SupportedCurrencies) {
 			_, err := w.store.WithTx(dbTx).UpdateUserWalletStatus(ctx, db.UpdateUserWalletStatusParams{
 				HasWallets: true,
 				UpdatedAt:  time.Now(),

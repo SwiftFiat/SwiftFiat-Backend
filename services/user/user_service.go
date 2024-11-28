@@ -72,6 +72,7 @@ func (u *UserService) CreateSwiftWalletForUser(ctx context.Context, userID int64
 	/// We create and return the user whether or not the wallet creation was successful
 	_, err = u.walletClient.CreateWallets(ctx, dbTx, userID, true)
 	if err != nil {
+		u.logger.Error(err)
 		return fmt.Errorf("failed to create wallets for user: %v", userID)
 	}
 
