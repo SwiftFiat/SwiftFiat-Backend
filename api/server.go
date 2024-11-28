@@ -38,7 +38,7 @@ type Server struct {
 }
 
 func NewServer(envPath string) *Server {
-	c, err := utils.LoadConfig(envPath)
+	c, err := utils.LoadConfig("")
 	if err != nil {
 		panic(fmt.Sprintf("Could not load config: %v", err))
 	}

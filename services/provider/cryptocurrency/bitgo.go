@@ -123,7 +123,7 @@ func (p *BitgoProvider) FetchWallets() (interface{}, error) {
 	return &newModel, nil
 }
 
-func (p *BitgoProvider) CreateWalletAddress(walletId string, coin SupportedCoin) (interface{}, error) {
+func (p *BitgoProvider) CreateWalletAddress(walletId string, coin SupportedCoin) (*WalletAddress, error) {
 
 	base, err := url.Parse(p.BaseURL)
 	if err != nil {
@@ -146,7 +146,7 @@ func (p *BitgoProvider) CreateWalletAddress(walletId string, coin SupportedCoin)
 	}
 
 	// Decode the response body
-	var newModel interface{}
+	var newModel WalletAddress
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {

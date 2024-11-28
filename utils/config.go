@@ -1,6 +1,11 @@
 package utils
 
-import "github.com/spf13/viper"
+import (
+	"fmt"
+	"log"
+
+	"github.com/spf13/viper"
+)
 
 var (
 	EnvPath string = "."
@@ -26,42 +31,96 @@ type Config struct {
 	RedisPassword      string `mapstructure:"REDIS_PASSWORD"`
 }
 
-func LoadConfig(path string) (config *Config, err error) {
-	viper.AddConfigPath(path)
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
+func LoadConfig(path string) (*Config, error) {
+	// Validate that the path is not empty
+	if path == "" {
+		path = "."
+	}
 
-	viper.AutomaticEnv()
+	// Create a new Viper instance to avoid global state
+	v := viper.New()
 
-	err = viper.ReadInConfig()
-	if err != nil {
+	// Disable environment variable prefix
+	v.SetEnvPrefix("")
+	v.AutomaticEnv()
+
+	// Configure config file
+	v.AddConfigPath(path)
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
+
+	// Read config file
+	if err := v.ReadInConfig(); err != nil {
+		// Log the error, but don't fail entirely
+		log.Printf("Warning: Unable to read config file: %v", err)
+	}
+
+	// Create config struct
+	var config Config
+	if err := v.Unmarshal(&config); err != nil {
+		return nil, fmt.Errorf("unable to decode config: %w", err)
+	}
+
+	// Additional security: Validate critical configurations
+	if err := validateConfig(&config); err != nil {
 		return nil, err
 	}
 
-	err = viper.Unmarshal(&config)
-	if err != nil {
-		return nil, err
-	}
-
-	return config, nil
+	return &config, nil
 }
 
-func LoadCustomConfig(path string, val interface{}) (err error) {
-	viper.AddConfigPath(path)
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
-
-	viper.AutomaticEnv()
-
-	err = viper.ReadInConfig()
-	if err != nil {
-		return err
+func validateConfig(config *Config) error {
+	// Add validation for critical configurations
+	if config.ServerPort == 0 {
+		return fmt.Errorf("server port must be specified")
 	}
 
-	err = viper.Unmarshal(val)
-	if err != nil {
-		return err
+	// Add more validation as needed
+	if config.DBUsername == "" || config.DBPassword == "" {
+		return fmt.Errorf("database credentials must be provided")
 	}
 
+	return nil
+}
+
+// Optional: Masking sensitive information for logging
+func (c *Config) Redact() Config {
+	redacted := *c
+	redacted.AWSSecretAccessKey = "****"
+	redacted.DBPassword = "****"
+	redacted.RedisPassword = "****"
+	return redacted
+}
+
+func LoadCustomConfig(path string, val interface{}) error {
+	// Validate that the path is not empty
+	if path == "" {
+		path = "."
+	}
+
+	// Create a new Viper instance to avoid global state
+	v := viper.New()
+
+	// Allow overriding config via environment variables
+	v.SetEnvPrefix("SWIFT") // Prefix for env vars
+	v.AutomaticEnv()
+
+	// Configure config file
+	v.AddConfigPath(path)
+	v.SetConfigName(".env")
+	v.SetConfigType("env")
+
+	// Read config file
+	if err := v.ReadInConfig(); err != nil {
+		// Log the error, but don't fail entirely
+		log.Printf("Warning: Unable to read config file: %v", err)
+	}
+
+	if err := v.Unmarshal(&val); err != nil {
+		return fmt.Errorf("unable to decode config: %w", err)
+	}
+
+	// Additional security: Validate critical configurations
+	// TODO: Enable critical validation later
 	return nil
 }
