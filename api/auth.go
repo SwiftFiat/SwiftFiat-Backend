@@ -112,7 +112,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	dbUser, err := a.userService.FetchUserByEmail(ctx, nil, user.Email)
+	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		if userErr, ok := err.(*user_service.UserError); ok {
@@ -142,6 +142,13 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
+	if !dbUser.HasWallets {
+		err := a.userService.CreateSwiftWalletForUser(ctx, dbUser.ID)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to Instantiate User Wallets"))
+		}
+	}
+
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
 		Token: token,
@@ -158,7 +165,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		return
 	}
 
-	dbUser, err := a.userService.FetchUserByEmail(ctx, nil, user.Email)
+	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		if userErr, ok := err.(*user_service.UserError); ok {

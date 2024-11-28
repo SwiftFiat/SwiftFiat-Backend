@@ -12,6 +12,17 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type CryptoAddress struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID sql.NullInt64  `json:"customer_id"`
+	AddressID  string         `json:"address_id"`
+	Coin       string         `json:"coin"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
 type ExchangeRate struct {
 	ID            int64     `json:"id"`
 	BaseCurrency  string    `json:"base_currency"`
