@@ -145,7 +145,9 @@ func (a *Auth) login(ctx *gin.Context) {
 	if !dbUser.HasWallets {
 		err := a.userService.CreateSwiftWalletForUser(ctx, dbUser.ID)
 		if err != nil {
+			a.server.logger.Error(err)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to Instantiate User Wallets"))
+			return
 		}
 	}
 
