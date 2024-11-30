@@ -1,8 +1,10 @@
 package cryptocurrency
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -75,6 +77,23 @@ func (p *BitgoProvider) CreateWallet(coin SupportedCoin) (interface{}, error) {
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
+		// Example error handling with body logging
+		if resp.StatusCode != http.StatusOK {
+			// Read the response body
+			bodyBytes, err := io.ReadAll(resp.Body)
+			if err != nil {
+				logging.NewLogger().Error("failed to read response body", err)
+				return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+			}
+
+			// Log the body
+			logging.NewLogger().Error("response body", string(bodyBytes))
+
+			// Reset the response body for further processing (if needed)
+			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+			return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+		}
 		logging.NewLogger().Error("resp", resp)
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
