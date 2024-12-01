@@ -126,19 +126,21 @@ var (
 	inactive AddressStatus
 )
 
-func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddressID string, userID int64, walletCoin string) error {
+func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddress string, userID int64, walletCoin string) error {
 	dbTx, err := u.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
+	/// Storing the address is better than storing the address ID as the address
+	/// is what gets returned by the webhook for transaction notification
 	_, err = u.store.WithTx(dbTx).AssignAddressToCustomer(ctx, db.AssignAddressToCustomerParams{
 		CustomerID: sql.NullInt64{
 			Int64: userID,
 			Valid: userID != 0,
 		},
-		AddressID: walletAddressID,
+		AddressID: walletAddress,
 		Coin:      walletCoin,
 		Balance: sql.NullString{
 			String: "0",

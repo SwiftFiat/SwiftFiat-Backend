@@ -4,9 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
 	"github.com/shopspring/decimal"
 )
 
@@ -50,6 +53,34 @@ func (c *CurrencyService) GetExchangeRate(ctx context.Context, fromCurrency stri
 	return decimalValue, err
 }
 
+func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin string, toCurrency string, prov *provider.ProviderService) (decimal.Decimal, error) {
+	// / Get Rate
+	if provider, exists := prov.GetProvider(provider.CoinGecko); exists {
+		rateProvider, ok := provider.(*cryptocurrency.CoinGeckoProvider)
+		if !ok {
+			c.logger.Error("failed to connect to provicer")
+			return decimal.Zero, fmt.Errorf("failed to instantiate provider")
+		}
+
+		coinRate, err := rateProvider.GetUSDRate(&fromCoin)
+		if err != nil {
+			c.logger.Error(err)
+			return decimal.Zero, fmt.Errorf("failed to connect to Crypto Rates Provider Error: %s", err)
+		}
+
+		c.logger.Info(fmt.Sprintf("USD Rate for coin: %v | rate: %+v", fromCoin, coinRate))
+
+		exchange_rate, err := decimal.NewFromString(coinRate)
+		if err != nil {
+			c.logger.Error(err)
+		}
+
+		return exchange_rate, nil
+	}
+
+	return decimal.Zero, fmt.Errorf("no such rates provider exists")
+}
+
 func (c *CurrencyService) GetAllExchangeRates(ctx context.Context) (interface{}, error) {
 	c.logger.Info("fetching all rates")
 	exchangeRates, err := c.store.ListLatestExchangeRates(ctx)
@@ -75,6 +106,7 @@ func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fro
 		QuoteCurrency: toCurrency,
 		Rate:          rateDecimal.String(),
 		Source:        "manual", // Indicating this was set manually
+		EffectiveTime: time.Now(),
 	}
 
 	var exchObj db.ExchangeRate

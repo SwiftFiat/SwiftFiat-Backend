@@ -8,6 +8,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -95,7 +96,7 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 	}
 
 	// Create transaction record
-	tObj, err := s.createTransactionRecord(ctx, dbTx, tx, currFlow)
+	tObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -136,58 +137,242 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 	return tObj, nil
 }
 
-func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, tx Transaction, currFlow string) (*db.Transaction, error) {
-	// Convert decimal amount to string for storage
-	amountStr := tx.Amount.String()
-
-	params := db.CreateWalletTransactionParams{
-		Type: string(tx.Type),
-		FromAccountID: uuid.NullUUID{
-			UUID:  tx.FromAccountID,
-			Valid: tx.FromAccountID.URN() != "",
-		},
-		ToAccountID: uuid.NullUUID{
-			UUID:  tx.ToAccountID,
-			Valid: tx.ToAccountID.URN() != "",
-		},
-		Amount:   amountStr,
-		Currency: tx.Currency,
-		CurrencyFlow: sql.NullString{
-			String: currFlow,
-			Valid:  currFlow != "",
-		},
-		Description: sql.NullString{
-			String: tx.Description,
-			Valid:  tx.Description != "",
-		},
-	}
-
-	tObj, err := s.store.WithTx(dbTx).CreateWalletTransaction(ctx, params)
+// / May return an arbitrary error or an error defined in [transaction_strings]
+func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, tx CryptoTransaction, prov *provider.ProviderService) (interface{}, error) {
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// Check if trail exists for this hash
+	trailExists, err := s.store.WithTx(dbTx).CheckCryptoTransactionTrailByTransactionHash(ctx, tx.SourceHash)
+	if err != nil {
+		return nil, fmt.Errorf("issue with checking for transactionHash %v", err)
 	}
 
-	return &tObj, nil
+	if trailExists {
+		return nil, fmt.Errorf("transaction already recorded, please check transaction hash: %v", tx.SourceHash)
+	}
+
+	/// Update amount in transaction object to prevent future problems
+	params := db.CreateCryptoTransactionTrailParams{
+		AddressID:       tx.DestinationAddress,
+		TransactionHash: tx.SourceHash,
+		Amount: sql.NullString{
+			String: tx.AmountInSatoshis.StringFixed(10),
+			Valid:  !tx.AmountInSatoshis.IsZero(),
+		},
+	}
+	_, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("error creating transaction trail: %v", err)
+	}
+
+	// Track transaction currency type
+	// e.g. BTC to USD or SOL to USD
+	// This would help for ledger tracking
+	// Anonymous function to determine the currency flow e.g BTC to USD
+	currFlow := func(fromCurrency, toCurrency string) string {
+		if fromCurrency == toCurrency {
+			return fromCurrency + " to " + toCurrency
+		}
+		return fromCurrency + " to " + toCurrency
+	}(tx.Coin, "USD") // Default to USD Transactions
+
+	// Handle Coin conversion to USD
+	rate, err := s.currencyClient.GetCryptoExchangeRate(ctx, tx.Coin, "USD", prov)
+	if err != nil {
+		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
+	}
+
+	/// Convert satoshis to coin
+	coinAmount := tx.AmountInSatoshis.Div(decimal.NewFromFloat(1e8))
+	amount := coinAmount.Mul(rate)
+
+	// Get Address Info from DB
+	walletAddress, err := s.store.WithTx(dbTx).FetchByAddressID(ctx, tx.DestinationAddress)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
+	}
+
+	// Update Address Balance with Params
+	updateAddressParams := db.UpdateAddressBalanceByAddressIDParams{
+		AddressID: walletAddress.AddressID,
+		Balance: sql.NullString{
+			String: amount.String(),
+			Valid:  amount.String() != "",
+		},
+	}
+
+	// Update Crypto Address Balance in DB
+	_, err = s.store.WithTx(dbTx).UpdateAddressBalanceByAddressID(ctx, updateAddressParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update the swift address with new changes %v", err)
+	}
+
+	// Pull users USD wallet
+	walletParams := db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: walletAddress.CustomerID.Int64,
+		Currency:   "USD", // TODO: Look into these as constants or enums
+	}
+	userUSDWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)", walletParams.CustomerID, walletParams.Currency)
+	}
+
+	// set Transaction Object destination account
+	tx.DestinationAccount = userUSDWallet.ID
+
+	// Create transaction record
+	tObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction record: %w", err)
+	}
+
+	// Create ledger entries
+	balance, err := decimal.NewFromString(userUSDWallet.Balance.String)
+	if err != nil {
+		s.logger.Error("failed to parse the balance string")
+	}
+	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
+		TransactionID: tObj.ID,
+		Credit: Entry{
+			AccountID: userUSDWallet.ID,
+			Amount:    amount,
+			Balance:   balance,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("create ledger entries: %w", err)
+	}
+
+	// Update account balances
+	if err := s.updateBalance(ctx, dbTx, userUSDWallet.ID, amount); err != nil {
+		return nil, fmt.Errorf("update to account balance: %w", err)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	s.logger.Info("transaction completed successfully", tx)
+
+	return tObj, nil
+}
+
+func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string) (*db.Transaction, error) {
+	// Convert decimal amount to string for storage
+
+	if platform == WalletTransaction {
+		tx, ok := txx.(*Transaction)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
+		}
+
+		amountStr := tx.Amount.String()
+
+		params := db.CreateWalletTransactionParams{
+			Type: string(tx.Type),
+			FromAccountID: uuid.NullUUID{
+				UUID:  tx.FromAccountID,
+				Valid: tx.FromAccountID.URN() != "",
+			},
+			ToAccountID: uuid.NullUUID{
+				UUID:  tx.ToAccountID,
+				Valid: tx.ToAccountID.URN() != "",
+			},
+			Amount:   amountStr,
+			Currency: tx.Currency,
+			CurrencyFlow: sql.NullString{
+				String: currFlow,
+				Valid:  currFlow != "",
+			},
+			Description: sql.NullString{
+				String: tx.Description,
+				Valid:  tx.Description != "",
+			},
+		}
+
+		tObj, err := s.store.WithTx(dbTx).CreateWalletTransaction(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		}
+
+		return &tObj, nil
+
+	}
+
+	if platform == CryptoInflowTransaction {
+		tx, ok := txx.(*CryptoTransaction)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
+		}
+
+		amountStr := tx.AmountInSatoshis.String()
+
+		params := db.CreateWalletCryptoTransactionParams{
+			Type: string(tx.Type),
+			SourceHash: sql.NullString{
+				String: tx.SourceHash,
+				Valid:  tx.SourceHash != "",
+			},
+			Amount: amountStr,
+			Coin: sql.NullString{
+				String: tx.Coin,
+				Valid:  tx.Coin != "",
+			},
+			ToAccountID: uuid.NullUUID{
+				UUID:  tx.DestinationAccount,
+				Valid: tx.DestinationAccount.URN() != "",
+			},
+			Currency: "XXX",
+			CurrencyFlow: sql.NullString{
+				String: currFlow,
+				Valid:  currFlow != "",
+			},
+			Description: sql.NullString{
+				String: tx.Description,
+				Valid:  tx.Description != "",
+			},
+		}
+
+		tObj, err := s.store.WithTx(dbTx).CreateWalletCryptoTransaction(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		}
+
+		return &tObj, nil
+
+	}
+
+	return nil, fmt.Errorf("cannot decipher platform type: %v", platform)
+
 }
 
 func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.Tx, le LedgerEntries) error {
-	// Create debit entry
-	debitParams := db.CreateWalletLedgerEntryParams{
-		TransactionID: uuid.NullUUID{
-			UUID:  le.TransactionID,
-			Valid: le.TransactionID.URN() != "",
-		},
-		AccountID: uuid.NullUUID{
-			UUID:  le.Debit.AccountID,
-			Valid: le.Debit.AccountID.URN() != "",
-		},
-		Type:    "debit",
-		Amount:  le.Debit.Amount.String(),
-		Balance: le.Debit.Balance.String(),
-	}
 
-	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
-		return fmt.Errorf("failed to create debit entry: %w", err)
+	if le.Platform == WalletTransaction {
+		/// There MUST be a DEBIT
+		// Create debit entry
+		debitParams := db.CreateWalletLedgerEntryParams{
+			TransactionID: uuid.NullUUID{
+				UUID:  le.TransactionID,
+				Valid: le.TransactionID.URN() != "",
+			},
+			AccountID: uuid.NullUUID{
+				UUID:  le.Debit.AccountID,
+				Valid: le.Debit.AccountID.URN() != "",
+			},
+			Type:    "debit",
+			Amount:  le.Debit.Amount.String(),
+			Balance: le.Debit.Balance.String(),
+		}
+
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+			return fmt.Errorf("failed to create debit entry: %w", err)
+		}
 	}
 
 	// Create credit entry

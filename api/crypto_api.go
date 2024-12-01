@@ -8,8 +8,10 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -18,9 +20,10 @@ import (
 )
 
 type CryptoAPI struct {
-	server        *Server
-	userService   *user_service.UserService
-	walletService *wallet.WalletService
+	server             *Server
+	userService        *user_service.UserService
+	walletService      *wallet.WalletService
+	transactionService *transaction.TransactionService
 }
 
 func (c CryptoAPI) router(server *Server) {
@@ -33,6 +36,15 @@ func (c CryptoAPI) router(server *Server) {
 		c.server.queries,
 		c.server.logger,
 		c.walletService,
+	)
+	c.transactionService = transaction.NewTransactionService(
+		c.server.queries,
+		currency.NewCurrencyService(
+			c.server.queries,
+			c.server.logger,
+		),
+		c.walletService,
+		c.server.logger,
 	)
 
 	// serverGroupV1 := server.router.Group("/auth")
@@ -158,7 +170,7 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 	}
 
 	/// Assign address to user
-	err = c.userService.AssignWalletAddressToUser(ctx, walletData.ID, activeUser.UserID, walletData.Coin)
+	err = c.userService.AssignWalletAddressToUser(ctx, walletData.Address, activeUser.UserID, walletData.Coin)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to assign wallet to User Error: %s", err)))
 		return
@@ -184,46 +196,27 @@ func (c *CryptoAPI) HandleWebhook(ctx *gin.Context) {
 		c.server.logger.Info(fmt.Sprintf("Payload BaseValue %v", *payload.BaseValue))
 		c.server.logger.Info(fmt.Sprintf("Payload Coin %v", *payload.Coin))
 
-		/// Get Rate
-		if provider, exists := c.server.provider.GetProvider(provider.CoinGecko); exists {
-			rateProvider, ok := provider.(*cryptocurrency.CoinGeckoProvider)
-			if !ok {
-				c.server.logger.Error("failed to connect to provicer")
-				return
-			}
-
-			coinRate, err := rateProvider.GetUSDRate(payload.Coin)
-			if err != nil {
-				c.server.logger.Error(err)
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Rates Provider Error: %s", err)))
-				return
-			}
-
-			c.server.logger.Info(fmt.Sprintf("USD Rate for coin: %v | rate: %+v", *payload.Coin, coinRate))
-
-			/// Convert satoshis to coin
-			balanceInSatoshis, err := decimal.NewFromString(*payload.BaseValueString)
-			if err != nil {
-				c.server.logger.Error("could not parse payloadBaseValue to decimal", err)
-				return
-			}
-			btc_balance := balanceInSatoshis.Div(decimal.NewFromFloat(1e8))
-
-			exchange_rate, err := decimal.NewFromString(coinRate)
-			if err != nil {
-				c.server.logger.Error(err)
-			}
-			usd_amount := btc_balance.Mul(exchange_rate)
-
-			/// Update wallet information in DB
-			err = c.walletService.UpdateWalletBalanceFromCrypto(ctx, *payload.Receiver, usd_amount, *payload.Hash)
-			if err != nil {
-				c.server.logger.Error("could not complete the DB Update process", err)
-				return
-			}
+		amountInSatoshis, err := decimal.NewFromString(*payload.BaseValueString)
+		if err != nil {
+			c.server.logger.Error("could not parse payloadBaseValue to decimal", err)
+			return
 		}
 
+		cryptoTransaction := transaction.CryptoTransaction{
+			SourceHash:         *payload.Hash,
+			DestinationAddress: *payload.Receiver,
+			AmountInSatoshis:   amountInSatoshis,
+			Coin:               *payload.Coin,
+			Description:        "Cypto Inflow",
+			Type:               transaction.Deposit,
+		}
+
+		_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, cryptoTransaction, c.server.provider)
+		if err != nil {
+			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+		}
 	}
 
+	c.server.logger.Info(fmt.Sprintf("transaction %v successful", *payload.Hash))
 	ctx.JSON(http.StatusOK, gin.H{"status": "success"})
 }
