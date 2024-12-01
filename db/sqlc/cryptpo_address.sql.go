@@ -8,7 +8,6 @@ package db
 import (
 	"context"
 	"database/sql"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -112,20 +111,24 @@ func (q *Queries) FetchActiveByCustomerID(ctx context.Context, customerID sql.Nu
 }
 
 const fetchAllAddressesAndCustomers = `-- name: FetchAllAddressesAndCustomers :many
-SELECT ca.id, ca.customer_id, ca.address_id, ca.coin, ca.balance, ca.status, ca.created_at, ca.updated_at, u.first_name AS customer_name, u.email AS customer_email
+SELECT 
+    ca.id AS address_id, 
+    ca.customer_id, 
+    ca.coin, 
+    ca.balance, 
+    ca.status, 
+    u.first_name AS customer_name, 
+    u.email AS customer_email
 FROM crypto_addresses ca
 LEFT JOIN users u ON ca.customer_id = u.id
 `
 
 type FetchAllAddressesAndCustomersRow struct {
-	ID            uuid.UUID      `json:"id"`
+	AddressID     uuid.UUID      `json:"address_id"`
 	CustomerID    sql.NullInt64  `json:"customer_id"`
-	AddressID     string         `json:"address_id"`
 	Coin          string         `json:"coin"`
 	Balance       sql.NullString `json:"balance"`
 	Status        string         `json:"status"`
-	CreatedAt     time.Time      `json:"created_at"`
-	UpdatedAt     time.Time      `json:"updated_at"`
 	CustomerName  sql.NullString `json:"customer_name"`
 	CustomerEmail sql.NullString `json:"customer_email"`
 }
@@ -140,14 +143,11 @@ func (q *Queries) FetchAllAddressesAndCustomers(ctx context.Context) ([]FetchAll
 	for rows.Next() {
 		var i FetchAllAddressesAndCustomersRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.CustomerID,
 			&i.AddressID,
+			&i.CustomerID,
 			&i.Coin,
 			&i.Balance,
 			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.CustomerName,
 			&i.CustomerEmail,
 		); err != nil {
@@ -263,14 +263,19 @@ func (q *Queries) GetOrphanedAddresses(ctx context.Context) ([]CryptoAddress, er
 
 const updateAddressBalanceByAddressID = `-- name: UpdateAddressBalanceByAddressID :one
 UPDATE crypto_addresses
-SET balance = balance + 0.001,
+SET balance = balance + $2,
     updated_at = NOW()
 WHERE address_id = $1
 RETURNING id, customer_id, address_id, coin, balance, status, created_at, updated_at
 `
 
-func (q *Queries) UpdateAddressBalanceByAddressID(ctx context.Context, addressID string) (CryptoAddress, error) {
-	row := q.db.QueryRowContext(ctx, updateAddressBalanceByAddressID, addressID)
+type UpdateAddressBalanceByAddressIDParams struct {
+	AddressID string         `json:"address_id"`
+	Balance   sql.NullString `json:"balance"`
+}
+
+func (q *Queries) UpdateAddressBalanceByAddressID(ctx context.Context, arg UpdateAddressBalanceByAddressIDParams) (CryptoAddress, error) {
+	row := q.db.QueryRowContext(ctx, updateAddressBalanceByAddressID, arg.AddressID, arg.Balance)
 	var i CryptoAddress
 	err := row.Scan(
 		&i.ID,

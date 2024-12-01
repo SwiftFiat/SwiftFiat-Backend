@@ -16,6 +16,15 @@ WHERE id = $1 LIMIT 1;
 SELECT * FROM swift_wallets
 WHERE customer_id = $1;
 
+-- name: GetWalletByCurrency :one
+SELECT 1 FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2;
+
+-- name: GetWalletByCurrencyForUpdate :one
+SELECT 1 FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2
+FOR UPDATE;
+
 -- name: GetWalletForUpdate :one
 SELECT * FROM swift_wallets
 WHERE id = $1 LIMIT 1

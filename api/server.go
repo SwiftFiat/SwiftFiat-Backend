@@ -79,6 +79,10 @@ func NewServer(envPath string) *Server {
 	cp := cryptocurrency.NewCryptoProvider()
 	p.AddProvider(cp)
 
+	// Set up Crypto (Rates) service
+	rp := cryptocurrency.NewRatesProvider()
+	p.AddProvider(rp)
+
 	/// Add Middleware
 	g.Use(CORSMiddleware())
 	g.Use(l.LoggingMiddleWare())

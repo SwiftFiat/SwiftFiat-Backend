@@ -261,10 +261,10 @@ func (w *Wallet) swap(ctx *gin.Context) {
 
 	// Observe request
 	request := struct {
-		FromAccountID string `json:"source_account"`
-		ToAccountID   string `json:"destination_account"`
-		Amount        int32  `json:"amount"`
-		Description   string `json:"description"`
+		FromAccountID string  `json:"source_account"`
+		ToAccountID   string  `json:"destination_account"`
+		Amount        float64 `json:"amount"`
+		Description   string  `json:"description"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -289,7 +289,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		return
 	}
 
-	amount := decimal.NewFromInt32(request.Amount)
+	amount := decimal.NewFromFloat(request.Amount)
 
 	tparams := transaction.Transaction{
 		FromAccountID: sourceAccount,

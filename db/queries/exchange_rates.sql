@@ -40,7 +40,7 @@ WITH LatestTimes AS (
   FROM exchange_rates
   GROUP BY base_currency, quote_currency
 )
-SELECT 
+SELECT DISTINCT
   er.base_currency,
   er.quote_currency,
   er.rate,
