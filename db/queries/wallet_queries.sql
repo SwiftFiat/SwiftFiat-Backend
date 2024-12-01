@@ -17,12 +17,12 @@ SELECT * FROM swift_wallets
 WHERE customer_id = $1;
 
 -- name: GetWalletByCurrency :one
-SELECT 1 FROM swift_wallets
-WHERE customer_id = $1 AND currency = $2;
+SELECT * FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2 LIMIT 1;
 
 -- name: GetWalletByCurrencyForUpdate :one
-SELECT 1 FROM swift_wallets
-WHERE customer_id = $1 AND currency = $2
+SELECT * FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2 LIMIT 1
 FOR UPDATE;
 
 -- name: GetWalletForUpdate :one
@@ -52,6 +52,20 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
+) RETURNING *;
+
+-- name: CreateWalletCryptoTransaction :one
+INSERT INTO transactions (
+    type,
+    amount, 
+    coin,
+    source_hash,
+    to_account_id,
+    currency,
+    currency_flow,
+    description
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
 -- name: GetWalletTransaction :one

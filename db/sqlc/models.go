@@ -150,6 +150,8 @@ type Transaction struct {
 	CurrencyFlow         sql.NullString `json:"currency_flow"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
 	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
+	SourceHash           sql.NullString `json:"source_hash"`
+	Coin                 sql.NullString `json:"coin"`
 }
 
 type User struct {

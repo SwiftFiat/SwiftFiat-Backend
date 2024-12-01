@@ -15,6 +15,13 @@ const (
 	Airtime  TransactionType = "airtime"
 )
 
+type TransactionPlatform string
+
+const (
+	WalletTransaction       TransactionPlatform = "wallet"
+	CryptoInflowTransaction TransactionPlatform = "crypto"
+)
+
 type Transaction struct {
 	ID            string
 	FromAccountID uuid.UUID
@@ -26,10 +33,22 @@ type Transaction struct {
 	Type          TransactionType
 }
 
+type CryptoTransaction struct {
+	ID                 string
+	SourceHash         string
+	DestinationAddress string
+	DestinationAccount uuid.UUID
+	AmountInSatoshis   decimal.Decimal
+	Coin               string
+	Description        string
+	Type               TransactionType
+}
+
 type LedgerEntries struct {
 	TransactionID uuid.UUID
 	Debit         Entry
 	Credit        Entry
+	Platform      TransactionPlatform
 }
 
 type Entry struct {
