@@ -169,6 +169,41 @@ func (q *Queries) GetWallet(ctx context.Context, id uuid.UUID) (SwiftWallet, err
 	return i, err
 }
 
+const getWalletByCurrency = `-- name: GetWalletByCurrency :one
+SELECT 1 FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2
+`
+
+type GetWalletByCurrencyParams struct {
+	CustomerID int64  `json:"customer_id"`
+	Currency   string `json:"currency"`
+}
+
+func (q *Queries) GetWalletByCurrency(ctx context.Context, arg GetWalletByCurrencyParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getWalletByCurrency, arg.CustomerID, arg.Currency)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getWalletByCurrencyForUpdate = `-- name: GetWalletByCurrencyForUpdate :one
+SELECT 1 FROM swift_wallets
+WHERE customer_id = $1 AND currency = $2
+FOR UPDATE
+`
+
+type GetWalletByCurrencyForUpdateParams struct {
+	CustomerID int64  `json:"customer_id"`
+	Currency   string `json:"currency"`
+}
+
+func (q *Queries) GetWalletByCurrencyForUpdate(ctx context.Context, arg GetWalletByCurrencyForUpdateParams) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getWalletByCurrencyForUpdate, arg.CustomerID, arg.Currency)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const getWalletByCustomerID = `-- name: GetWalletByCustomerID :many
 SELECT id, customer_id, type, currency, balance, status, created_at, updated_at FROM swift_wallets
 WHERE customer_id = $1

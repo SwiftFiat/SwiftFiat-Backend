@@ -10,9 +10,10 @@ import (
 )
 
 const (
-	Dojah    = "DOJAH"
-	Reloadly = "RELOADLY"
-	Bitgo    = "BITGO"
+	Dojah     = "DOJAH"
+	Reloadly  = "RELOADLY"
+	Bitgo     = "BITGO"
+	CoinGecko = "COINGECKO"
 )
 
 // BaseProvider contains common fields and methods

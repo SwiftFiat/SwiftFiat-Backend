@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 var ValidWalletTypes = []string{"personal", "business", "savings", "checking"}
@@ -100,4 +101,77 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 	}
 
 	return wallets, nil
+}
+
+func (w *WalletService) UpdateWalletBalanceFromCrypto(ctx context.Context, cryptoAddress string, amount decimal.Decimal, hash string) error {
+	dbTx, err := w.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// Get Address Info from DB
+	walletAddress, err := w.store.WithTx(dbTx).FetchByAddressID(ctx, cryptoAddress)
+	if err != nil {
+		return fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
+	}
+
+	// Verify against recorded transaction collection for address
+
+	params := db.UpdateAddressBalanceByAddressIDParams{
+		AddressID: walletAddress.AddressID,
+		Balance: sql.NullString{
+			String: amount.String(),
+			Valid:  amount.String() != "",
+		},
+	}
+
+	// Update Crypto Address Balance in DB
+	_, err = w.store.WithTx(dbTx).UpdateAddressBalanceByAddressID(ctx, params)
+	if err != nil {
+		return fmt.Errorf("failed to update the swift address with new changes %v", err)
+	}
+
+	// Pull users USD wallet
+	walletParams := db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: walletAddress.CustomerID.Int64,
+		Currency:   "USD", // TODO: Look into these as constants or enums
+	}
+	_, err = w.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
+
+	// Check if trail exists for this hash
+	trailExists, err := w.store.WithTx(dbTx).CheckCryptoTransactionTrailByTransactionHash(ctx, hash)
+	if err != nil {
+		return fmt.Errorf("issue with checking for transactionHash %v", err)
+	}
+
+	if trailExists {
+		return fmt.Errorf("transaction already recorded, please check transaction hash: %v", hash)
+	} else {
+		params := db.CreateCryptoTransactionTrailParams{
+			AddressID:       cryptoAddress,
+			TransactionHash: hash,
+			Amount: sql.NullString{
+				String: amount.String(),
+				Valid:  amount.String() != "",
+			},
+		}
+		_, err := w.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params)
+		if err != nil {
+			return fmt.Errorf("error ")
+		}
+	}
+
+	// Update wallet with balance
+
+	// walletParams := db.UpdateWalletBalanceParams{
+	// 	Amount: sql.NullString{
+	// 		String: amount.String(),
+	// 		Valid: amount.String() != "",
+	// 	},
+	// 	ID:
+
+	// }
+	// _, err = w.store.WithTx(dbTx).UpdateWalletBalance(ctx, )
+	return nil
 }

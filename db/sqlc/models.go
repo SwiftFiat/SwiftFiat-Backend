@@ -23,6 +23,15 @@ type CryptoAddress struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+type CryptoTransactionTrail struct {
+	ID              uuid.UUID      `json:"id"`
+	AddressID       string         `json:"address_id"`
+	TransactionHash string         `json:"transaction_hash"`
+	Amount          sql.NullString `json:"amount"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
 type ExchangeRate struct {
 	ID            int64     `json:"id"`
 	BaseCurrency  string    `json:"base_currency"`
