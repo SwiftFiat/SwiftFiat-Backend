@@ -28,4 +28,5 @@ const (
 	InvalidWalletInput      = "check 'currency' or 'type' keys, invalid request"
 	InvalidTransactionInput = "check 'source_account' or 'amount' keys, invalid request"
 	InvalidTransactionID    = "entered ID is invalid"
+	InvalidTransactionPIN   = "incorrect PIN, please try again"
 )

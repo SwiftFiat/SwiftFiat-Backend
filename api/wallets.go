@@ -192,15 +192,27 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 
 	// Observe request
 	request := struct {
-		FromAccountID      string `json:"source_account"`
-		ToAccountID        string `json:"destination_account"`
-		Amount             int32  `json:"amount"`
-		DestinationUserTag string `json:"target_user_tag"`
-		Description        string `json:"description"`
+		FromAccountID      string  `json:"source_account"`
+		ToAccountID        string  `json:"destination_account"`
+		Amount             float64 `json:"amount"`
+		DestinationUserTag string  `json:"target_user_tag"`
+		Description        string  `json:"description"`
+		Pin                string  `json:"pin"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
+		return
+	}
+
+	dbUserValue, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, dbUserValue.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
 
@@ -221,7 +233,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	amount := decimal.NewFromInt32(request.Amount)
+	amount := decimal.NewFromFloat(request.Amount)
 
 	tparams := transaction.Transaction{
 		FromAccountID: sourceAccount,
@@ -265,10 +277,22 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		ToAccountID   string  `json:"destination_account"`
 		Amount        float64 `json:"amount"`
 		Description   string  `json:"description"`
+		Pin           string  `json:"pin"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
+		return
+	}
+
+	dbUserValue, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, dbUserValue.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
 
