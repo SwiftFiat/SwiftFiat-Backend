@@ -2,3 +2,4 @@
 SwiftFiat-Backend
 *.env
 redis_data/*
+*.json
