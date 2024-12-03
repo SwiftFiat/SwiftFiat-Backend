@@ -201,10 +201,26 @@ func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID int64, f
 	return &user, err
 }
 
-func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToken string, deviceUUID string) (*db.UserFcmToken, error) {
+func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToken string, deviceUUID string) (*db.UserToken, error) {
 
-	tokenValue, err := u.store.UpsertFCMToken(ctx, db.UpsertFCMTokenParams{
-		FcmToken: fcmToken,
+	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
+		Token:    fcmToken,
+		Provider: "FCM",
+		UserID:   userID,
+		DeviceUuid: sql.NullString{
+			String: deviceUUID,
+			Valid:  deviceUUID != "",
+		},
+	})
+
+	return &tokenValue, err
+}
+
+func (u *UserService) AddUserExpoToken(ctx context.Context, userID int64, expoToken string, deviceUUID string) (*db.UserToken, error) {
+
+	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
+		Token:    expoToken,
+		Provider: "EXPO",
 		UserID:   userID,
 		DeviceUuid: sql.NullString{
 			String: deviceUUID,

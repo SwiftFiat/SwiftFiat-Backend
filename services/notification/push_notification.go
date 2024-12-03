@@ -8,10 +8,18 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	expo "github.com/oliveroneill/exponent-server-sdk-golang/sdk"
 	"google.golang.org/api/option"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
+)
+
+type PushProvider string
+
+const (
+	PushProviderFCM  = PushProvider("fcm")
+	PushProviderExpo = PushProvider("expo")
 )
 
 type Config struct {
@@ -19,14 +27,17 @@ type Config struct {
 }
 
 type PushNotificationInfo struct {
-	Title          string `json:"title"`
-	Message        string `json:"message"`
-	UserFCMToken   string `json:"user_fcm_token"`
-	Badge          int    `json:"badge"`
-	AnalyticsLabel string `json:"analytics"`
+	Title          string       `json:"title"`
+	Message        string       `json:"message"`
+	Provider       PushProvider `json:"provider"`
+	UserExpoToken  string       `json:"user_expo_token"`
+	UserFCMToken   string       `json:"user_fcm_token"`
+	Badge          int          `json:"badge"`
+	AnalyticsLabel string       `json:"analytics"`
 }
 
 type PushNotificationService struct {
+	client *expo.PushClient
 	app    *firebase.App
 	logger *logging.Logger
 }
@@ -36,24 +47,33 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 	var config Config
 	err := utils.LoadCustomConfig(utils.EnvPath, &config)
 	if err != nil {
-		logger.Error(err)
+		logger.Error(fmt.Sprintf("Error loading JSON config file: %v", err))
 		return nil
 	}
 
 	opt := option.WithCredentialsFile(config.GoogleAppCredentials)
 	app, err := firebase.NewApp(context.Background(), nil, opt)
 	if err != nil {
-		logger.Error(err)
+		logger.Error(fmt.Sprintf("Error starting firebase App: %v", err))
 		return nil
 	}
 
+	// Create a new Expo SDK client
+	client := expo.NewPushClient(nil)
+
 	return &PushNotificationService{
+		client: client,
 		app:    app,
 		logger: logger,
 	}
 }
 
 func (p *PushNotificationService) SendPush(info *PushNotificationInfo) error {
+
+	if info.Provider == PushProviderExpo {
+		err := p.SendPushExpo(info)
+		return err
+	}
 
 	client, err := p.app.Messaging(context.Background())
 	if err != nil {
@@ -109,4 +129,30 @@ func (p *PushNotificationService) SendPush(info *PushNotificationInfo) error {
 	p.logger.Info(fmt.Sprintf("Did send: %v", didSend))
 
 	return nil
+}
+
+func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error {
+	response, err := p.client.Publish(
+		&expo.PushMessage{
+			To:       []expo.ExponentPushToken{expo.ExponentPushToken(info.UserExpoToken)},
+			Body:     "This is a test notification",
+			Data:     map[string]string{"withSome": "data"},
+			Sound:    "default",
+			Title:    "Notification Title",
+			Priority: expo.DefaultPriority,
+		},
+	)
+
+	// Check errors
+	if err != nil {
+		return err
+	}
+
+	// Validate responses
+	if response.ValidateResponse() != nil {
+		return fmt.Errorf("failed: %v", response.PushMessage.To)
+	}
+
+	return nil
+
 }

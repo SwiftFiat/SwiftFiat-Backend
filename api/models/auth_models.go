@@ -83,9 +83,10 @@ type CreatePinParams struct {
 	Pin string `json:"pin" binding:"required"`
 }
 
-type UserFCMTokenResponse struct {
+type UserTokenResponse struct {
 	UserID     ID        `json:"user_id"`
-	FCMToken   string    `json:"fcm_token"`
+	PushToken  string    `json:"push_token"`
+	Provider   string    `json:"provider"`
 	DeviceUUID string    `json:"device_uuid"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
