@@ -12,6 +12,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
@@ -28,13 +29,14 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router        *gin.Engine
-	queries       *db.Store
-	config        *utils.Config
-	logger        *logging.Logger
-	taskScheduler *tasks.TaskScheduler
-	provider      *provider.ProviderService
-	redis         *services.RedisService
+	router           *gin.Engine
+	queries          *db.Store
+	config           *utils.Config
+	logger           *logging.Logger
+	taskScheduler    *tasks.TaskScheduler
+	provider         *provider.ProviderService
+	redis            *services.RedisService
+	pushNotification *service.PushNotificationService
 }
 
 func NewServer(envPath string) *Server {
@@ -66,6 +68,7 @@ func NewServer(envPath string) *Server {
 	g := gin.Default()
 	l := logging.NewLogger()
 	p := provider.NewProviderService()
+	pn := service.NewPushNotificationService(l)
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
@@ -110,13 +113,14 @@ func NewServer(envPath string) *Server {
 	// accessible via e.g ```server.services.WalletService```
 
 	return &Server{
-		router:        g,
-		queries:       q,
-		config:        c,
-		logger:        l,
-		taskScheduler: t,
-		provider:      p,
-		redis:         r,
+		router:           g,
+		queries:          q,
+		config:           c,
+		logger:           l,
+		taskScheduler:    t,
+		provider:         p,
+		redis:            r,
+		pushNotification: pn,
 	}
 }
 

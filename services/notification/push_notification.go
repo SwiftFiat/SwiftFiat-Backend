@@ -1,59 +1,112 @@
 package service
 
-// assumes you have the following environment variables setup for AWS session creation
-// AWS_SDK_LOAD_CONFIG=1
-// AWS_ACCESS_KEY_ID=XXXXXXXXXX
-// AWS_SECRET_ACCESS_KEY=XXXXXXXX
-// AWS_REGION=us-west-2( or AWS_DEFAULT_REGION=us-east-1 if you are having trouble)
+/// We need to set up FCM for this project
 
 import (
+	"context"
 	"fmt"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sns"
+	"google.golang.org/api/option"
+
+	firebase "firebase.google.com/go/v4"
+	"firebase.google.com/go/v4/messaging"
 )
 
-type PushNotification struct {
-	Message      string        `json:"message"`
-	UserFCMToken string        `json:"user_fcm_token"`
-	Config       *utils.Config `json:"config"`
+type Config struct {
+	GoogleAppCredentials string `mapstructure:"GOOGLE_APPLICATION_CREDENTIALS"`
 }
 
-func (p *PushNotification) SendPush() error {
-	AwsRegion := p.Config.AWSRegion
-	AccessKeyID := p.Config.AWSAccessKeyID
-	SecretAccessKey := p.Config.AWSSecretAccessKey
+type PushNotificationInfo struct {
+	Title          string `json:"title"`
+	Message        string `json:"message"`
+	UserFCMToken   string `json:"user_fcm_token"`
+	Badge          int    `json:"badge"`
+	AnalyticsLabel string `json:"analytics"`
+}
 
-	// Create Session and assign AccessKeyID and SecretAccessKey
-	sess := session.Must(session.NewSession(
-		&aws.Config{
-			Region:      aws.String(AwsRegion),
-			Credentials: credentials.NewStaticCredentials(AccessKeyID, SecretAccessKey, ""),
-		},
-	))
+type PushNotificationService struct {
+	app    *firebase.App
+	logger *logging.Logger
+}
 
-	// Create SNS service
-	svc := sns.New(sess)
+func NewPushNotificationService(logger *logging.Logger) *PushNotificationService {
 
-	params := &sns.PublishInput{
-		Message:     aws.String(p.Message),
-		PhoneNumber: aws.String(p.UserFCMToken),
-	}
-	resp, err := svc.Publish(params)
-
+	var config Config
+	err := utils.LoadCustomConfig(utils.EnvPath, &config)
 	if err != nil {
-		// Print the error, cast err to awserr.Error to get the Code and
-		// Message from an error.
-		fmt.Println(err.Error())
-		panic(err)
-
+		logger.Error(err)
+		return nil
 	}
 
-	// Pretty-print the response data.
-	fmt.Println(resp)
+	opt := option.WithCredentialsFile(config.GoogleAppCredentials)
+	app, err := firebase.NewApp(context.Background(), nil, opt)
+	if err != nil {
+		logger.Error(err)
+		return nil
+	}
+
+	return &PushNotificationService{
+		app:    app,
+		logger: logger,
+	}
+}
+
+func (p *PushNotificationService) SendPush(info *PushNotificationInfo) error {
+
+	client, err := p.app.Messaging(context.Background())
+	if err != nil {
+		return err
+	}
+
+	newMessage := messaging.Message{
+		Token: info.UserFCMToken,
+		Notification: &messaging.Notification{
+			Title: info.Title, // Assuming `info.Title` holds a more appropriate title.
+			Body:  info.Message,
+		},
+		Android: &messaging.AndroidConfig{
+			Priority: "high", // Ensures the message is delivered immediately.
+			Notification: &messaging.AndroidNotification{
+				Color: "#f4bb44", // Notification icon color.
+				Sound: "default", // Plays the default sound.
+			},
+		},
+		APNS: &messaging.APNSConfig{
+			Headers: map[string]string{
+				"apns-priority":  "10",    // High priority for immediate delivery.
+				"apns-push-type": "alert", // Ensures a visible alert is displayed.
+			},
+			Payload: &messaging.APNSPayload{
+				Aps: &messaging.Aps{
+					Alert: &messaging.ApsAlert{
+						Title: info.Title,
+						Body:  info.Message,
+					},
+					Badge: &info.Badge, // Assuming `info.Badge` holds a badge count.
+					Sound: "default",   // Plays the default system sound.
+				},
+			},
+			FCMOptions: &messaging.APNSFCMOptions{
+				AnalyticsLabel: info.AnalyticsLabel, // Optional: useful for tracking analytics.
+			},
+		},
+		Webpush: &messaging.WebpushConfig{
+			Notification: &messaging.WebpushNotification{
+				Title: info.Title,
+				Body:  info.Message,
+				Icon:  "https://example.com/icon.png", // Replace with a valid URL for web push icon.
+			},
+		},
+	}
+
+	didSend, err := client.Send(context.Background(), &newMessage)
+	if err != nil {
+		return err
+	}
+
+	p.logger.Info(fmt.Sprintf("Did send: %v", didSend))
 
 	return nil
 }

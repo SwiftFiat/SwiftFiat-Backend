@@ -8,6 +8,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -39,6 +40,37 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("checktag", AuthenticatedMiddleware(), u.checkTag)
 	serverGroupV1.POST("fcm-token", AuthenticatedMiddleware(), u.fcmToken)
 	serverGroupV1.POST("fresh-chat", AuthenticatedMiddleware(), u.freshChatID)
+	/// For test purposes only
+	serverGroupV1.POST("get-push", AuthenticatedMiddleware(), u.testPush)
+}
+
+func (u *User) testPush(ctx *gin.Context) {
+	request := struct {
+		FCMToken string `json:"fcm_token" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid FCM Token"))
+		return
+	}
+
+	err = u.server.pushNotification.SendPush(&service.PushNotificationInfo{
+		Title:          "Test Push",
+		Message:        "Current USER Testing Push Notifications",
+		UserFCMToken:   request.FCMToken,
+		Badge:          1,
+		AnalyticsLabel: "test_push",
+	})
+
+	if err != nil {
+		u.server.logger.Error(fmt.Sprintf("an error occurred with push notifications: %v", err))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid FCM Token"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("message sent successfully", nil))
+
 }
 
 func (u *User) GetUserID(ctx *gin.Context) {
@@ -176,7 +208,7 @@ func (u *User) fcmToken(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a fresh_chat_id"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid FCM Token"))
 		return
 	}
 
