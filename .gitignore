@@ -2,4 +2,8 @@
 SwiftFiat-Backend
 *.env
 redis_data/*
+<<<<<<< HEAD
 *.json
+=======
+*json
+>>>>>>> 35870a7 (added new env)
