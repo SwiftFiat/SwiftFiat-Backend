@@ -10,7 +10,7 @@ CREATE TABLE "crypto_addresses" (
     "customer_id" BIGSERIAL REFERENCES users(id) ON DELETE SET NULL,
     "address_id" VARCHAR(200) NOT NULL,
     "coin" VARCHAR(10) NOT NULL,
-    "balance" DECIMAL(20,20) DEFAULT 0,
+    "balance" DECIMAL(30,10) DEFAULT 0,
     "status" VARCHAR(20) NOT NULL DEFAULT 'active',
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()

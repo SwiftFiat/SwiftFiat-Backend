@@ -169,4 +169,15 @@ type User struct {
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
 	HasWallets     bool           `json:"has_wallets"`
+	UserTag        sql.NullString `json:"user_tag"`
+	FreshChatID    sql.NullString `json:"fresh_chat_id"`
+}
+
+type UserFcmToken struct {
+	ID         int32          `json:"id"`
+	UserID     int64          `json:"user_id"`
+	FcmToken   string         `json:"fcm_token"`
+	DeviceUuid sql.NullString `json:"device_uuid"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 }

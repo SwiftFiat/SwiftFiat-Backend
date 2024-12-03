@@ -2,6 +2,8 @@ package utils
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -18,4 +20,11 @@ func GetActiveUser(ctx *gin.Context) (TokenObject, error) {
 	}
 
 	return user, nil
+}
+
+// SanitizeString removes non-alphanumeric characters and converts to lowercase
+func SanitizeString(input string) string {
+	// Remove non-alphanumeric characters and convert to lowercase
+	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
+	return strings.ToLower(reg.ReplaceAllString(input, ""))
 }

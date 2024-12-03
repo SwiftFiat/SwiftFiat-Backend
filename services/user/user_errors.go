@@ -3,8 +3,9 @@ package user_service
 import "fmt"
 
 var (
-	ErrUserNotFound      = fmt.Errorf("user not found")
-	ErrUserAlreadyExists = fmt.Errorf("user already exists")
+	ErrUserNotFound         = fmt.Errorf("user not found")
+	ErrUserAlreadyExists    = fmt.Errorf("user already exists")
+	ErrUserTagAlreadyExists = fmt.Errorf("tag already exists")
 )
 
 type UserError struct {

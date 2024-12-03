@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
@@ -162,4 +163,68 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	}
 
 	return nil
+}
+
+func (u *UserService) UpdateUserTag(ctx context.Context, userID int64, newTag string) (*db.User, error) {
+
+	user, err := u.store.UpdateUserTag(ctx, db.UpdateUserTagParams{
+		UserTag: sql.NullString{
+			String: newTag,
+			Valid:  newTag != "",
+		},
+		UpdatedAt: time.Now(),
+		ID:        userID,
+	})
+
+	if err != nil {
+		pgErr, ok := err.(*pq.Error)
+		if ok && pgErr.Code == db.DuplicateEntry {
+			return nil, NewUserError(ErrUserTagAlreadyExists, string(userID))
+		}
+		return nil, err
+	}
+
+	return &user, err
+}
+
+func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID int64, freshChatID string) (*db.User, error) {
+
+	user, err := u.store.UpdateUserFreshChatID(ctx, db.UpdateUserFreshChatIDParams{
+		FreshChatID: sql.NullString{
+			String: freshChatID,
+			Valid:  freshChatID != "",
+		},
+		UpdatedAt: time.Now(),
+		ID:        userID,
+	})
+
+	return &user, err
+}
+
+func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToken string, deviceUUID string) (*db.UserFcmToken, error) {
+
+	tokenValue, err := u.store.UpsertFCMToken(ctx, db.UpsertFCMTokenParams{
+		FcmToken: fcmToken,
+		UserID:   userID,
+		DeviceUuid: sql.NullString{
+			String: deviceUUID,
+			Valid:  deviceUUID != "",
+		},
+	})
+
+	return &tokenValue, err
+}
+
+func (u *UserService) UserTagExists(ctx context.Context, newTag string) (bool, error) {
+
+	exists, err := u.store.CheckUserTag(ctx, sql.NullString{
+		String: newTag,
+		Valid:  newTag != "",
+	})
+
+	if err != nil {
+		return true, err
+	}
+
+	return exists, err
 }
