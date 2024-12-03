@@ -37,10 +37,12 @@ type UserResponse struct {
 	FirstName   string    `json:"first_name"`
 	LastName    string    `json:"last_name"`
 	Email       string    `json:"email"`
+	UserTag     string    `json:"user_tag"`
 	PhoneNumber string    `json:"phone_number"`
 	Verified    bool      `json:"verified"`
 	HasPin      bool      `json:"has_pin"`
 	HasPasscode bool      `json:"has_passcode"`
+	FreshChatID string    `json:"fresh_chat_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -79,4 +81,12 @@ type CreatePasscodeParams struct {
 
 type CreatePinParams struct {
 	Pin string `json:"pin" binding:"required"`
+}
+
+type UserFCMTokenResponse struct {
+	UserID     ID        `json:"user_id"`
+	FCMToken   string    `json:"fcm_token"`
+	DeviceUUID string    `json:"device_uuid"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }

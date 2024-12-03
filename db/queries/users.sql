@@ -8,8 +8,25 @@ INSERT INTO users (
     role
 ) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
 
+-- name: UpdateUserTag :one
+UPDATE users SET user_tag = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
+-- name: UpdateUserFreshChatID :one
+UPDATE users SET fresh_chat_id = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
+
+-- name: GetUserNameByUserTag :one
+SELECT first_name, last_name FROM users WHERE user_tag = $1;
+
+-- name: CheckUserTag :one
+SELECT EXISTS (
+    SELECT 1
+    FROM users WHERE user_tag = $1
+) AS exists;
 
 -- name: GetUserByEmail :one
 SELECT * FROM users WHERE email = $1;

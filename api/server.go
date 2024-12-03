@@ -139,6 +139,7 @@ func (s *Server) Start() error {
 	Wallet{}.router(s)
 	Currency{}.router(s)
 	CryptoAPI{}.router(s)
+	User{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

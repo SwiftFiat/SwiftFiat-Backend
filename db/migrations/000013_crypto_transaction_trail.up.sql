@@ -7,7 +7,7 @@ CREATE TABLE "crypto_transaction_trail" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     "address_id" VARCHAR(200) NOT NULL,
     "transaction_hash" VARCHAR(128) NOT NULL,
-    "amount" DECIMAL(20,20) DEFAULT 0,
+    "amount" DECIMAL(30,10) DEFAULT 0,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
