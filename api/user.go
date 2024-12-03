@@ -38,7 +38,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("profile", AuthenticatedMiddleware(), u.profile)
 	serverGroupV1.POST("usertag", AuthenticatedMiddleware(), u.userTag)
 	serverGroupV1.POST("checktag", AuthenticatedMiddleware(), u.checkTag)
-	serverGroupV1.POST("fcm-token", AuthenticatedMiddleware(), u.fcmToken)
+	serverGroupV1.POST("push-token", AuthenticatedMiddleware(), u.pushToken)
 	serverGroupV1.POST("fresh-chat", AuthenticatedMiddleware(), u.freshChatID)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", AuthenticatedMiddleware(), u.testPush)
@@ -46,7 +46,8 @@ func (u User) router(server *Server) {
 
 func (u *User) testPush(ctx *gin.Context) {
 	request := struct {
-		FCMToken string `json:"fcm_token" binding:"required"`
+		FCMToken  string `json:"fcm_token"`
+		ExpoToken string `json:"expo_token"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -55,10 +56,21 @@ func (u *User) testPush(ctx *gin.Context) {
 		return
 	}
 
+	var provider service.PushProvider
+	if request.FCMToken != "" {
+		provider = service.PushProviderFCM
+	}
+
+	if request.ExpoToken != "" {
+		provider = service.PushProviderExpo
+	}
+
 	err = u.server.pushNotification.SendPush(&service.PushNotificationInfo{
 		Title:          "Test Push",
 		Message:        "Current USER Testing Push Notifications",
+		Provider:       provider,
 		UserFCMToken:   request.FCMToken,
+		UserExpoToken:  request.ExpoToken,
 		Badge:          1,
 		AnalyticsLabel: "test_push",
 	})
@@ -199,16 +211,17 @@ func (u *User) freshChatID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user fresh tag ID set successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
-func (u *User) fcmToken(ctx *gin.Context) {
+func (u *User) pushToken(ctx *gin.Context) {
 
 	request := struct {
-		FCMToken   string `json:"fcm_token" binding:"required"`
+		FCMToken   string `json:"fcm_token"`
+		ExpoToken  string `json:"expo_token"`
 		DeviceUUID string `json:"device_uuid"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid FCM Token"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid Token"))
 		return
 	}
 
@@ -219,12 +232,30 @@ func (u *User) fcmToken(ctx *gin.Context) {
 		return
 	}
 
-	tokenValue, err := u.userService.AddUserFCMToken(ctx, activeUser.UserID, request.FCMToken, request.DeviceUUID)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
+	if request.FCMToken == "" && request.ExpoToken == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a either a valid fcm_token or an expo_token key"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserFCMTokenResponse(tokenValue)))
+	if request.FCMToken != "" {
+		tokenValue, err := u.userService.AddUserFCMToken(ctx, activeUser.UserID, request.FCMToken, request.DeviceUUID)
+		if err != nil {
+			u.server.logger.Error(err.Error())
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
+			return
+		}
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
+		return
+	}
+
+	if request.ExpoToken != "" {
+		tokenValue, err := u.userService.AddUserExpoToken(ctx, activeUser.UserID, request.ExpoToken, request.DeviceUUID)
+		if err != nil {
+			u.server.logger.Error(err.Error())
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
+			return
+		}
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
+		return
+	}
 }

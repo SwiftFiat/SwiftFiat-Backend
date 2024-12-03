@@ -173,10 +173,11 @@ type User struct {
 	FreshChatID    sql.NullString `json:"fresh_chat_id"`
 }
 
-type UserFcmToken struct {
+type UserToken struct {
 	ID         int32          `json:"id"`
 	UserID     int64          `json:"user_id"`
-	FcmToken   string         `json:"fcm_token"`
+	Token      string         `json:"token"`
+	Provider   string         `json:"provider"`
 	DeviceUuid sql.NullString `json:"device_uuid"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`

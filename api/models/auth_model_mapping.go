@@ -19,12 +19,13 @@ func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 	}
 }
 
-func ToUserFCMTokenResponse(user *db.UserFcmToken) *UserFCMTokenResponse {
-	return &UserFCMTokenResponse{
-		UserID:     ID(user.ID),
-		FCMToken:   user.FcmToken,
-		DeviceUUID: user.DeviceUuid.String,
-		CreatedAt:  user.CreatedAt,
-		UpdatedAt:  user.UpdatedAt,
+func ToUserTokenResponse(token *db.UserToken) *UserTokenResponse {
+	return &UserTokenResponse{
+		UserID:     ID(token.ID),
+		PushToken:  token.Token,
+		Provider:   token.Provider,
+		DeviceUUID: token.DeviceUuid.String,
+		CreatedAt:  token.CreatedAt,
+		UpdatedAt:  token.UpdatedAt,
 	}
 }
