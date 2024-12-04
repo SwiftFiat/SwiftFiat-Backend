@@ -23,7 +23,7 @@ jobs:
       - name: Creating env file and json file
         run: |
           echo "${{ secrets.ENV }}" > .env  
-          echo "${{ secrets.GOOGLE_CRED }}" > swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json
+          echo "${{ secrets.GOOGLE_CRED }}" >> swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json
           
 
       - name: Remove old containers
