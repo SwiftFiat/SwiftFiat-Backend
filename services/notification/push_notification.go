@@ -58,6 +58,8 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 		return nil
 	}
 
+	logger.Info(fmt.Sprintf("Firebase App Config: %v", app))
+
 	// Create a new Expo SDK client
 	client := expo.NewPushClient(nil)
 
