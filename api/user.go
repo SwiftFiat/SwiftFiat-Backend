@@ -77,7 +77,7 @@ func (u *User) testPush(ctx *gin.Context) {
 
 	if err != nil {
 		u.server.logger.Error(fmt.Sprintf("an error occurred with push notifications: %v", err))
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid FCM Token"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred sending push notifications"))
 		return
 	}
 
