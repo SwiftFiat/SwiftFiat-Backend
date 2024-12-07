@@ -34,10 +34,16 @@ type ResolvedAccount struct {
 	BankID        int64  `json:"bank_id,omitempty"`
 }
 
-// Response on Fetching Banks
-type Bank []BankElement
+type Response[T any] struct {
+	Status  bool   `json:"status"`
+	Message string `json:"message"`
+	Data    T      `json:"data"`
+}
 
-type BankElement struct {
+// Response on Fetching Banks
+type BankCollection []Bank
+
+type Bank struct {
 	ID               int64     `json:"id"`
 	Name             string    `json:"name"`
 	Slug             string    `json:"slug"`

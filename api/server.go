@@ -9,14 +9,15 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -35,7 +36,7 @@ type Server struct {
 	logger           *logging.Logger
 	taskScheduler    *tasks.TaskScheduler
 	provider         *provider.ProviderService
-	redis            *services.RedisService
+	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
 }
 
@@ -86,6 +87,10 @@ func NewServer(envPath string) *Server {
 	rp := cryptocurrency.NewRatesProvider()
 	p.AddProvider(rp)
 
+	// Set up Paystack Fiat Provider
+	fp := fiat.NewFiatProvider()
+	p.AddProvider(fp)
+
 	/// Add Middleware
 	g.Use(CORSMiddleware())
 	g.Use(l.LoggingMiddleWare())
@@ -97,14 +102,14 @@ func NewServer(envPath string) *Server {
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
 	// Initialize Redis
-	redisConfig := &services.RedisConfig{
+	redisConfig := &redis.RedisConfig{
 		Host:     c.RedisHost,
 		Port:     c.RedisPort,
 		Password: c.RedisPassword,
 		DB:       0,
 	}
 
-	r, err := services.NewRedisService(redisConfig)
+	r, err := redis.NewRedisService(redisConfig)
 	if err != nil {
 		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
 	}

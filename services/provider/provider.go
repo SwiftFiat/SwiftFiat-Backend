@@ -14,6 +14,7 @@ const (
 	Reloadly  = "RELOADLY"
 	Bitgo     = "BITGO"
 	CoinGecko = "COINGECKO"
+	Paystack  = "PAYSTACK"
 )
 
 // BaseProvider contains common fields and methods

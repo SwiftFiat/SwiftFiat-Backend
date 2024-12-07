@@ -6,9 +6,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/google/uuid"
 )
 
@@ -17,12 +21,21 @@ var ValidWalletTypes = []string{"personal", "business", "savings", "checking"}
 type WalletService struct {
 	store  *db.Store
 	logger *logging.Logger
+	redis  *redis.RedisService
 }
 
 func NewWalletService(store *db.Store, logger *logging.Logger) *WalletService {
 	return &WalletService{
 		store:  store,
 		logger: logger,
+	}
+}
+
+func NewWalletServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService) *WalletService {
+	return &WalletService{
+		store:  store,
+		logger: logger,
+		redis:  redis,
 	}
 }
 
@@ -100,4 +113,66 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 	}
 
 	return wallets, nil
+}
+
+func (w *WalletService) GetFiatBanks(prov *provider.ProviderService, query *string) (*models.BankResponseCollection, error) {
+
+	/// Check existence of banks in Cache
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
+	defer cancel()
+
+	var cachedBanks models.BankResponseCollection
+	cachedBanks, err := w.redis.GetBankResponseCollection(ctx, "banks")
+	if err != nil {
+		w.logger.Error(fmt.Sprintf("failed to fetch banks from redisCache: %v", err))
+		return nil, err
+	}
+
+	if len(cachedBanks) > 0 {
+		w.logger.Info("banks retrieved from cache")
+		if query != nil {
+			queryResults := cachedBanks.FindBanks(*query)
+			return queryResults, nil
+		}
+		return &cachedBanks, nil
+	}
+
+	w.logger.Info("retrieving banks from provider")
+
+	provider, exists := prov.GetProvider(provider.Paystack)
+	if !exists {
+		w.logger.Error("FIAT Provider does not exist - Paystack")
+		return nil, fmt.Errorf("FIAT Provider does not exist")
+	}
+
+	fiatProvider, ok := provider.(*fiat.PaystackProvider)
+	if !ok {
+		w.logger.Error("could not resolve to FIAT Provider - Paystack")
+		return nil, fmt.Errorf("could not resolve FIAT Provider")
+	}
+
+	banks, err := fiatProvider.GetBanks()
+	if err != nil {
+		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Paystack: %v", err))
+		return nil, fmt.Errorf("error connecting to FIAT Provider: %v", err)
+	}
+
+	banksCollection := models.ToBankResponseCollection(*banks)
+
+	w.logger.Info("storing banks into cache")
+
+	err = w.redis.StoreBankResponseCollection(ctx, "banks", banksCollection)
+	if err != nil {
+		w.logger.Error(fmt.Sprintf("failed to store banks into redisCache: %v", err))
+		// Do not break the user's flow just because you couldn't get your own (funny) convenience service to work
+		// return nil, err
+	}
+
+	/// Perform search
+	if query != nil {
+		queryResults := banksCollection.FindBanks(*query)
+		return queryResults, nil
+	}
+
+	return &banksCollection, nil
 }
