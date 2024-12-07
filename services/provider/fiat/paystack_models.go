@@ -60,3 +60,9 @@ type Bank struct {
 	CreatedAt        time.Time `json:"createdAt"`
 	UpdatedAt        time.Time `json:"updatedAt"`
 }
+
+type AccountInfo struct {
+	AccountName   string `json:"account_name"`
+	AccountNumber string `json:"account_number"`
+	BankID        int64  `json:"bank_id"`
+}

@@ -79,3 +79,44 @@ func (p *PaystackProvider) GetBanks() (*BankCollection, error) {
 
 	return &banks.Data, nil
 }
+
+func (p *PaystackProvider) ResolveAccount(accountNumber string, bankCode string) (*AccountInfo, error) {
+	// This would use the BaseProvider's fields to make the actual HTTP request
+	// ...
+
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	// Path params
+	base.Path += "bank/resolve"
+
+	// Query params
+	params := url.Values{}
+	params.Add("account_number", accountNumber)
+	params.Add("bank_code", bankCode)
+	base.RawQuery = params.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error("resp", resp)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var response Response[AccountInfo]
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &response.Data, nil
+}

@@ -54,6 +54,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
 	serverGroupV1.POST("swap", AuthenticatedMiddleware(), w.swap)
 	serverGroupV1.GET("banks", AuthenticatedMiddleware(), w.banks)
+	serverGroupV1.GET("resolve-bank-account", AuthenticatedMiddleware(), w.resolveBankAccount)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -352,4 +353,22 @@ func (w *Wallet) banks(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched banks successfully", banks))
+}
+
+func (w *Wallet) resolveBankAccount(ctx *gin.Context) {
+	accountNumber := ctx.Query("accountNumber")
+	bankCode := ctx.Query("bankCode")
+
+	if bankCode == "" || accountNumber == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid bankCode and accountNumber"))
+		return
+	}
+
+	userInfo, err := w.walletService.ResolveAccount(w.server.provider, &accountNumber, &bankCode)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account resolved successfully", models.ToAccountInfoResponse(userInfo)))
 }

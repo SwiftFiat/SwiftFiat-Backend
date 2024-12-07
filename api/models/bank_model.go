@@ -68,3 +68,15 @@ func ToBankResponseWithLogo(bank fiat.Bank, logo string) *BankResponse {
 		LogoURL:  logo,
 	}
 }
+
+type AccountInfoResponse struct {
+	AccountName   string `json:"account_name"`
+	AccountNumber string `json:"account_number"`
+}
+
+func ToAccountInfoResponse(account *fiat.AccountInfo) *AccountInfoResponse {
+	return &AccountInfoResponse{
+		AccountName:   account.AccountName,
+		AccountNumber: account.AccountNumber,
+	}
+}
