@@ -176,3 +176,28 @@ func (w *WalletService) GetFiatBanks(prov *provider.ProviderService, query *stri
 
 	return &banksCollection, nil
 }
+
+func (w *WalletService) ResolveAccount(prov *provider.ProviderService, accountNumber *string, bankCode *string) (*fiat.AccountInfo, error) {
+
+	w.logger.Info("resolving account number")
+
+	provider, exists := prov.GetProvider(provider.Paystack)
+	if !exists {
+		w.logger.Error("FIAT Provider does not exist - Paystack")
+		return nil, fmt.Errorf("FIAT Provider does not exist")
+	}
+
+	fiatProvider, ok := provider.(*fiat.PaystackProvider)
+	if !ok {
+		w.logger.Error("could not resolve to FIAT Provider - Paystack")
+		return nil, fmt.Errorf("could not resolve FIAT Provider")
+	}
+
+	accountInfo, err := fiatProvider.ResolveAccount(*accountNumber, *bankCode)
+	if err != nil {
+		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Paystack: %v", err))
+		return nil, fmt.Errorf("error connecting to FIAT Provider: %v", err)
+	}
+
+	return accountInfo, nil
+}
