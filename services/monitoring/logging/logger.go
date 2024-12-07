@@ -94,11 +94,11 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 		// }
 
 		fields := logrus.Fields{
-			"method":        c.Request.Method,
-			"path":          c.Request.URL.Path,
-			"status":        statusCode,
-			"duration":      duration,
-			"response_body": responseJson,
+			"method":   c.Request.Method,
+			"path":     c.Request.URL.Path,
+			"status":   statusCode,
+			"duration": duration,
+			// "response_body": responseJson,
 		}
 
 		// Only log request body if it's small to avoid polluting logs with large payloads

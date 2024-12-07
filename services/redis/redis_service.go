@@ -1,4 +1,4 @@
-package services
+package redis
 
 import (
 	"context"
@@ -56,13 +56,18 @@ func (r *RedisService) Delete(ctx context.Context, key string) error {
 }
 
 // SetHash stores a hash map
-func (r *RedisService) SetHash(ctx context.Context, key string, fields map[string]interface{}) error {
+func (r *RedisService) SetHash(ctx context.Context, key string, fields interface{}) error {
 	return r.client.HSet(ctx, key, fields).Err()
 }
 
 // GetHash retrieves all fields from a hash
 func (r *RedisService) GetHash(ctx context.Context, key string) (map[string]string, error) {
 	return r.client.HGetAll(ctx, key).Result()
+}
+
+// GetHashScan retrieves all fields from a hash and scans it into the passed value
+func (r *RedisService) GetHashScan(ctx context.Context, key string, dest interface{}) error {
+	return r.client.HGetAll(ctx, key).Scan(dest)
 }
 
 // Close closes the Redis connection

@@ -37,7 +37,7 @@ type Wallet struct {
 
 func (w Wallet) router(server *Server) {
 	w.server = server
-	w.walletService = wallet.NewWalletService(w.server.queries, w.server.logger)
+	w.walletService = wallet.NewWalletServiceWithCache(w.server.queries, w.server.logger, w.server.redis)
 	w.currencyService = currency.NewCurrencyService(w.server.queries, w.server.logger)
 	w.transactionService = transaction.NewTransactionService(
 		w.server.queries,
@@ -53,6 +53,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
 	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
 	serverGroupV1.POST("swap", AuthenticatedMiddleware(), w.swap)
+	serverGroupV1.GET("banks", AuthenticatedMiddleware(), w.banks)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -339,4 +340,16 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
+}
+
+func (w *Wallet) banks(ctx *gin.Context) {
+	query := ctx.Query("query")
+
+	banks, err := w.walletService.GetFiatBanks(w.server.provider, &query)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched banks successfully", banks))
 }
