@@ -5,6 +5,7 @@ go 1.22.2
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/google/uuid v1.6.0
+	github.com/oliveroneill/exponent-server-sdk-golang v0.0.0-20210823140141-d050598be512
 	github.com/shopspring/decimal v1.4.0
 	github.com/sqlc-dev/pqtype v0.3.0
 	google.golang.org/api v0.171.0
@@ -37,7 +38,6 @@ require (
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
-	github.com/oliveroneill/exponent-server-sdk-golang v0.0.0-20210823140141-d050598be512 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect

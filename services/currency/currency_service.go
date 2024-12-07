@@ -30,6 +30,10 @@ func IsCurrencyValid(request string) bool {
 	return false
 }
 
+func IsCurrencyInvalid(request string) bool {
+	return !IsCurrencyValid(request)
+}
+
 func NewCurrencyService(store *db.Store, logger *logging.Logger) *CurrencyService {
 	return &CurrencyService{
 		store:  store,

@@ -60,11 +60,28 @@ func (w *WalletService) GetWallet(ctx context.Context, dbTx *sql.Tx, walletID uu
 	return ToWalletModel(db_wallet), err
 }
 
-// / QUE: Should be in Wallet? or UserService?
-func (w *WalletService) ResolveTag(ctx context.Context, dbTx *sql.Tx, tag string) (interface{}, error) {
+func (w *WalletService) ResolveTag(ctx context.Context, tag string, currency string) (*db.GetWalletByTagRow, error) {
 	w.logger.Info(fmt.Sprintf("Fetching user account for tag -> %v", tag))
-	// db_wallet, err := w.store.WithTx(dbTx).GetWallet(ctx, walletID)
-	return nil, fmt.Errorf("not implemented")
+
+	params := db.GetWalletByTagParams{
+		UserTag: sql.NullString{
+			String: tag,
+			Valid:  tag != "",
+		},
+		Currency: currency,
+	}
+
+	db_wallet, err := w.store.GetWalletByTag(ctx, params)
+
+	if err != nil {
+		w.logger.Error(fmt.Sprintf("error fetching wallet: %v", err))
+		if err == sql.ErrNoRows {
+			return nil, NewWalletError(ErrWalletNotFound, "", err)
+		}
+
+		return nil, err
+	}
+	return &db_wallet, nil
 }
 
 func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID int64, all bool) ([]*WalletModel, error) {

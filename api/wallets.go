@@ -55,6 +55,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.POST("swap", AuthenticatedMiddleware(), w.swap)
 	serverGroupV1.GET("banks", AuthenticatedMiddleware(), w.banks)
 	serverGroupV1.GET("resolve-bank-account", AuthenticatedMiddleware(), w.resolveBankAccount)
+	serverGroupV1.GET("resolve-user-tag", AuthenticatedMiddleware(), w.resolveUserTag)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -371,4 +372,32 @@ func (w *Wallet) resolveBankAccount(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account resolved successfully", models.ToAccountInfoResponse(userInfo)))
+}
+
+func (w *Wallet) resolveUserTag(ctx *gin.Context) {
+	userTag := ctx.Query("userTag")
+	curr := ctx.Query("currency")
+
+	if userTag == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid userTag"))
+		return
+	}
+
+	if curr == "" || currency.IsCurrencyInvalid(curr) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid currency (USD | NGN | EUR)"))
+		return
+	}
+
+	tagInfo, err := w.walletService.ResolveTag(ctx, userTag, curr)
+	if err != nil {
+		if wallError, ok := err.(*wallet.WalletError); ok {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
+			return
+		}
+
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("tag resolved successfully", models.ToTagResolveResponse(*tagInfo)))
 }
