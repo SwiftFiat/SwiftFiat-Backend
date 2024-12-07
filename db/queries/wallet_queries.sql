@@ -12,6 +12,12 @@ INSERT INTO swift_wallets (
 SELECT * FROM swift_wallets
 WHERE id = $1 LIMIT 1;
 
+-- name: GetWalletByTag :one
+SELECT sw.id, sw.currency, sw.status ,u.id, u.first_name, u.last_name
+FROM users u
+JOIN swift_wallets sw ON u.id = sw.customer_id
+WHERE u.user_tag = $1 AND sw.currency = $2;
+
 -- name: GetWalletByCustomerID :many
 SELECT * FROM swift_wallets
 WHERE customer_id = $1;

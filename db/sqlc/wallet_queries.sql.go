@@ -319,6 +319,41 @@ func (q *Queries) GetWalletByCustomerID(ctx context.Context, customerID int64) (
 	return items, nil
 }
 
+const getWalletByTag = `-- name: GetWalletByTag :one
+SELECT sw.id, sw.currency, sw.status ,u.id, u.first_name, u.last_name
+FROM users u
+JOIN swift_wallets sw ON u.id = sw.customer_id
+WHERE u.user_tag = $1 AND sw.currency = $2
+`
+
+type GetWalletByTagParams struct {
+	UserTag  sql.NullString `json:"user_tag"`
+	Currency string         `json:"currency"`
+}
+
+type GetWalletByTagRow struct {
+	ID        uuid.UUID      `json:"id"`
+	Currency  string         `json:"currency"`
+	Status    string         `json:"status"`
+	ID_2      int64          `json:"id_2"`
+	FirstName sql.NullString `json:"first_name"`
+	LastName  sql.NullString `json:"last_name"`
+}
+
+func (q *Queries) GetWalletByTag(ctx context.Context, arg GetWalletByTagParams) (GetWalletByTagRow, error) {
+	row := q.db.QueryRowContext(ctx, getWalletByTag, arg.UserTag, arg.Currency)
+	var i GetWalletByTagRow
+	err := row.Scan(
+		&i.ID,
+		&i.Currency,
+		&i.Status,
+		&i.ID_2,
+		&i.FirstName,
+		&i.LastName,
+	)
+	return i, err
+}
+
 const getWalletForUpdate = `-- name: GetWalletForUpdate :one
 SELECT id, customer_id, type, currency, balance, status, created_at, updated_at FROM swift_wallets
 WHERE id = $1 LIMIT 1
