@@ -13,7 +13,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-var SupportedCurrencies = []string{"NGN", "USD", "EUR"}
+var SupportedCurrencies = []string{"NGN", "USD"} // , "EUR"}
 
 type CurrencyService struct {
 	store  *db.Store

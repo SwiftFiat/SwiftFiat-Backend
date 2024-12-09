@@ -12,6 +12,25 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type Brand struct {
+	ID        int32          `json:"id"`
+	BrandID   int64          `json:"brand_id"`
+	BrandName sql.NullString `json:"brand_name"`
+}
+
+type Category struct {
+	ID         int32  `json:"id"`
+	CategoryID int64  `json:"category_id"`
+	Name       string `json:"name"`
+}
+
+type Country struct {
+	ID      int32          `json:"id"`
+	IsoName sql.NullString `json:"iso_name"`
+	Name    sql.NullString `json:"name"`
+	FlagUrl sql.NullString `json:"flag_url"`
+}
+
 type CryptoAddress struct {
 	ID         uuid.UUID      `json:"id"`
 	CustomerID sql.NullInt64  `json:"customer_id"`
@@ -40,6 +59,48 @@ type ExchangeRate struct {
 	EffectiveTime time.Time `json:"effective_time"`
 	Source        string    `json:"source"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type GiftCard struct {
+	ID                       int32                 `json:"id"`
+	ProductID                int64                 `json:"product_id"`
+	ProductName              sql.NullString        `json:"product_name"`
+	DenominationType         sql.NullString        `json:"denomination_type"`
+	DiscountPercentage       sql.NullFloat64       `json:"discount_percentage"`
+	MaxRecipientDenomination sql.NullFloat64       `json:"max_recipient_denomination"`
+	MinRecipientDenomination sql.NullFloat64       `json:"min_recipient_denomination"`
+	MaxSenderDenomination    sql.NullFloat64       `json:"max_sender_denomination"`
+	MinSenderDenomination    sql.NullFloat64       `json:"min_sender_denomination"`
+	Global                   sql.NullBool          `json:"global"`
+	Metadata                 pqtype.NullRawMessage `json:"metadata"`
+	RecipientCurrencyCode    sql.NullString        `json:"recipient_currency_code"`
+	SenderCurrencyCode       sql.NullString        `json:"sender_currency_code"`
+	SenderFee                sql.NullFloat64       `json:"sender_fee"`
+	SenderFeePercentage      sql.NullFloat64       `json:"sender_fee_percentage"`
+	SupportsPreOrder         sql.NullBool          `json:"supports_pre_order"`
+	BrandID                  sql.NullInt64         `json:"brand_id"`
+	CategoryID               sql.NullInt64         `json:"category_id"`
+	CountryID                sql.NullInt64         `json:"country_id"`
+}
+
+type GiftCardDenominationMap struct {
+	ID                    int32           `json:"id"`
+	GiftCardID            sql.NullInt64   `json:"gift_card_id"`
+	RecipientCurrencyCode sql.NullString  `json:"recipient_currency_code"`
+	SenderCurrencyValue   sql.NullFloat64 `json:"sender_currency_value"`
+}
+
+type GiftCardFixedDenomination struct {
+	ID           int32           `json:"id"`
+	GiftCardID   sql.NullInt64   `json:"gift_card_id"`
+	Type         sql.NullString  `json:"type"`
+	Denomination sql.NullFloat64 `json:"denomination"`
+}
+
+type GiftCardLogoUrl struct {
+	ID         int32          `json:"id"`
+	GiftCardID sql.NullInt64  `json:"gift_card_id"`
+	LogoUrl    sql.NullString `json:"logo_url"`
 }
 
 type Kyc struct {
@@ -104,6 +165,13 @@ type ProofOfAddressImage struct {
 	UpdatedAt  time.Time    `json:"updated_at"`
 	Verified   bool         `json:"verified"`
 	VerifiedAt sql.NullTime `json:"verified_at"`
+}
+
+type RedeemInstruction struct {
+	ID                  int32          `json:"id"`
+	GiftCardID          sql.NullInt64  `json:"gift_card_id"`
+	Concise             sql.NullString `json:"concise"`
+	DetailedInstruction sql.NullString `json:"detailed_instruction"`
 }
 
 type Referral struct {
