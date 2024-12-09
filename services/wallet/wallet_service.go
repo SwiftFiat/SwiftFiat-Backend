@@ -105,10 +105,13 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 			}
 
 			/// NOTE: Using a DBTX here causes the transaction to be terminated early
-			db_wallet, err := w.store.CreateWallet(ctx, param)
-			if err == nil {
-				wallets = append(wallets, ToWalletModel(db_wallet))
+			db_wallet, err := w.store.WithTx(dbTx).CreateWallet(ctx, param)
+			if err != nil {
+				w.logger.Error(fmt.Sprintf("error creating wallet: %v", err))
+				return nil, err
 			}
+
+			wallets = append(wallets, ToWalletModel(db_wallet))
 		}
 
 		/// Check all wallets of user

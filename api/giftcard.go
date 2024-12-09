@@ -3,27 +3,31 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/giftcard"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 type GiftCard struct {
-	server *Server
+	server  *Server
+	service *giftcard.GiftcardService
 }
 
 func (g GiftCard) router(server *Server) {
 	g.server = server
+	g.service = giftcard.NewGiftcardServiceWithCache(
+		server.queries,
+		server.logger,
+		server.redis,
+	)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/giftcard")
+	serverGroupV1.POST("sync", AuthenticatedMiddleware(), g.syncGiftCards)
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
 	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
 	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
@@ -52,22 +56,9 @@ func (g GiftCard) router(server *Server) {
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	// Fetch Query Params and parse
-	params := ctx.Request.URL.Query()
-	size, err := strconv.Atoi(params.Get("size"))
-	if err != nil {
-		size = 10
-	}
-	page, err := strconv.Atoi(params.Get("page"))
-	if err != nil {
-		page = 0
-	}
-	includeRange, err := strconv.ParseBool(params.Get("includeRange"))
-	if err != nil {
-		includeRange = false
-	}
-	includeFixed, err := strconv.ParseBool(params.Get("includeFixed"))
-	if err != nil {
-		includeFixed = false
+	cursor := ctx.Query("cursor")
+	if cursor == "" {
+		g.server.logger.Info("no cursor passed to fetch giftcards")
 	}
 
 	// Fetch user details
@@ -82,46 +73,18 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := g.server.provider.GetProvider(provider.Reloadly); exists {
-		reloadlyProvider, ok := provider.(*giftcards.ReloadlyProvider)
-		if ok {
-			params := reloadlymodels.ProductQueryParams{
-				Size:         size,
-				Page:         page,
-				IncludeRange: includeRange,
-				IncludeFixed: includeFixed,
-			}
-			giftCards, err := reloadlyProvider.GetAllGiftCards(params)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to GiftCard Provider Error: %s", err)))
-				return
-			}
-			/// Log GiftCard DATA
-			g.server.logger.Log(logrus.InfoLevel, "GiftCardData: ", giftCards)
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift cards fetched", giftCards))
-		}
+	giftcards, err := g.server.queries.FetchGiftCards(ctx)
+	if err != nil {
+		g.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", models.ToGiftCardResponse(giftcards)))
+
 }
 
 func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
-	// Fetch Query Params and parse
-	params := ctx.Request.URL.Query()
-	size, err := strconv.Atoi(params.Get("size"))
-	if err != nil {
-		size = 10
-	}
-	page, err := strconv.Atoi(params.Get("page"))
-	if err != nil {
-		page = 0
-	}
-	includeRange, err := strconv.ParseBool(params.Get("includeRange"))
-	if err != nil {
-		includeRange = false
-	}
-	includeFixed, err := strconv.ParseBool(params.Get("includeFixed"))
-	if err != nil {
-		includeFixed = false
-	}
 
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -135,25 +98,26 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := g.server.provider.GetProvider(provider.Reloadly); exists {
-		reloadlyProvider, ok := provider.(*giftcards.ReloadlyProvider)
-		if ok {
-			params := reloadlymodels.ProductQueryParams{
-				Size:         size,
-				Page:         page,
-				IncludeRange: includeRange,
-				IncludeFixed: includeFixed,
-			}
-			giftCardBrands, err := reloadlyProvider.GetAllGiftCardBrands(params)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to GiftCard Provider Error: %s", err)))
-				return
-			}
-			/// Log GiftCard DATA
-			g.server.logger.Log(logrus.InfoLevel, "GiftCardData: ", giftCardBrands)
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift cards brands fetched", giftCardBrands))
-		}
+	giftcards, err := g.server.queries.FetchGiftCards(ctx)
+	if err != nil {
+		g.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", giftcards))
+}
+
+// / Administrative function
+func (g *GiftCard) syncGiftCards(ctx *gin.Context) {
+	err := g.service.SyncGiftCards(g.server.provider)
+	if err != nil {
+		g.server.logger.Error(fmt.Sprintf("failed to sync gift cards: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards synced", nil))
 }
 
 func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
