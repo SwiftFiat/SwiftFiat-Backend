@@ -155,6 +155,8 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 		return
 	}
 
+	/// Maybe we should check if user already has an address with this coin, and use that instead.
+
 	var walletData *cryptocurrency.WalletAddress
 
 	/// Generate a new address
