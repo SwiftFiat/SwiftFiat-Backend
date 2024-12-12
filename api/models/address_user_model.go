@@ -10,6 +10,8 @@ import (
 type AddressUserResponse struct {
 	AddressID  uuid.UUID `json:"id"`
 	CustomerID ID        `json:"customer_id"`
+	Address    string    `json:"adddress"`
+	Chain      int64     `json:"chain"`
 	Coin       string    `json:"currency"`
 	Balance    string    `json:"balance"`
 	Status     string    `json:"status"`
@@ -21,6 +23,8 @@ func MapWalletAddressToAddressUserResponse(walletAddress *cryptocurrency.WalletA
 	return &AddressUserResponse{
 		AddressID:  uuid.MustParse(walletAddress.ID), // Assuming walletAddress.ID is a valid UUID
 		CustomerID: customerID,
+		Address:    walletAddress.Address,
+		Chain:      walletAddress.Chain,
 		Coin:       walletAddress.Coin,
 		Balance:    balance,
 		Status:     status,
