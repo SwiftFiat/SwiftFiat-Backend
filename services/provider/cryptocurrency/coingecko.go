@@ -46,11 +46,12 @@ func NewRatesProvider() *CoinGeckoProvider {
 }
 
 var supportedCoins = map[string]string{
-	"btc":  "bitcoin",
-	"tbtc": "bitcoin",
-	"sol":  "solana",
-	"tsol": "solana",
-	"xrp":  "",
+	"btc":   "bitcoin",
+	"tbtc":  "bitcoin",
+	"tbtc4": "bitcoin",
+	"sol":   "solana",
+	"tsol":  "solana",
+	"xrp":   "",
 }
 
 func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
