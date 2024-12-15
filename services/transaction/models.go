@@ -18,8 +18,9 @@ const (
 type TransactionPlatform string
 
 const (
-	WalletTransaction       TransactionPlatform = "wallet"
-	CryptoInflowTransaction TransactionPlatform = "crypto"
+	WalletTransaction          TransactionPlatform = "wallet"
+	CryptoInflowTransaction    TransactionPlatform = "crypto"
+	GiftCardOutflowTransaction TransactionPlatform = "giftcard"
 )
 
 type Transaction struct {
@@ -42,6 +43,17 @@ type CryptoTransaction struct {
 	Coin               string
 	Description        string
 	Type               TransactionType
+}
+
+type GiftCardTransaction struct {
+	ID               string
+	SourceWalletID   uuid.UUID
+	Amount           decimal.Decimal
+	WalletCurrency   string
+	WalletBalance    string
+	GiftCardCurrency string
+	Description      string
+	Type             TransactionType
 }
 
 type LedgerEntries struct {

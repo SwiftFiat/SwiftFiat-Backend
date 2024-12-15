@@ -11,7 +11,11 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -19,6 +23,8 @@ type GiftcardService struct {
 	store  *db.Store
 	logger *logging.Logger
 	redis  *redis.RedisService
+	/// We may need to inject the provider service here
+	/// since it's getting used in all of the functions
 }
 
 func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService) *GiftcardService {
@@ -50,6 +56,8 @@ func (g *GiftcardService) SyncGiftCards(prov *provider.ProviderService) error {
 		if err != nil {
 			g.logger.Fatalf("Failed to start transaction: %v", err)
 		}
+
+		defer tx.Rollback()
 
 		// Upsert Brand
 		brandID, err := g.store.WithTx(tx).UpsertBrand(ctx, db.UpsertBrandParams{
@@ -249,4 +257,109 @@ func (g *GiftcardService) SyncGiftCards(prov *provider.ProviderService) error {
 	}
 
 	return nil
+}
+
+func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*reloadlymodels.GiftCardPurchaseResponse, error) {
+	gprov, exists := prov.GetProvider(provider.Reloadly)
+	if !exists {
+		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
+	}
+	reloadlyProvider, ok := gprov.(*giftcards.ReloadlyProvider)
+	if !ok {
+		return nil, fmt.Errorf("failed to connect to giftcard provider")
+	}
+
+	ctx := context.Background()
+
+	tx, err := g.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		g.logger.Fatalf("Failed to start transaction: %v", err)
+	}
+
+	defer tx.Rollback()
+
+	// Pull user information
+	userInfo, err := g.store.WithTx(tx).GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull user information: %s", err)
+	}
+
+	// Pull product information
+	productInfo, err := g.store.WithTx(tx).FetchGiftCard(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull product information: %s", err)
+	}
+
+	// Pull wallet information and lock it for processing
+	walletInfo, err := g.store.WithTx(tx).GetWalletForUpdate(ctx, walletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull and lock wallet information: %s", err)
+	}
+
+	// Check wallet balance with up to 100% markup on the platform
+	if walletInfo.Currency != productInfo.RecipientCurrencyCode.String {
+		return nil, fmt.Errorf("cannot proceed with purchase due to conflicting currencies")
+	}
+
+	var potentialAmount decimal.Decimal
+
+	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
+	if productInfo.SenderFeePercentage.Float64 != 0 {
+		potentialAmount = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64)).Add(basePrice)
+	} else {
+		potentialAmount = basePrice.Add(decimal.NewFromFloat(productInfo.SenderFee.Float64))
+	}
+
+	val, err := decimal.NewFromString(walletInfo.Balance.String)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse user's wallet balance: %v", err)
+	}
+
+	if val.LessThan(potentialAmount) {
+		return nil, fmt.Errorf("insufficient balance for purchase: %v", val)
+	}
+
+	// Perform transaction
+	request := reloadlymodels.GiftCardPurchaseRequest{
+		ProductID:        productInfo.ProductID,
+		CountryCode:      "US",
+		Quantity:         float64(quantity),
+		UnitPrice:        float64(unitPrice),
+		CustomIdentifier: fmt.Sprintf("%v:%v", userInfo.Email, uuid.NewString()),
+		SenderName:       userInfo.FirstName.String,
+		RecipientEmail:   userInfo.Email,
+		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
+			CountryCode: "NG",
+			PhoneNumber: "08022491679",
+		},
+	}
+
+	giftCardPurchaseResponse, err := reloadlyProvider.BuyGiftCard(&request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform transaction: %s", err)
+	}
+
+	// Create GiftCardTransaction
+	_, err = trans.CreateGiftCardOutflowTransactionWithTx(ctx, tx, transaction.GiftCardTransaction{
+		SourceWalletID:   walletInfo.ID,
+		Amount:           decimal.NewFromFloat(giftCardPurchaseResponse.Amount),
+		WalletCurrency:   walletInfo.Currency,
+		WalletBalance:    walletInfo.Balance.String,
+		GiftCardCurrency: productInfo.RecipientCurrencyCode.String,
+		Description:      "giftcard-purchase",
+		Type:             transaction.GiftCard,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit customer: %s", err)
+	}
+
+	// Commit
+	err = tx.Commit()
+	if err != nil {
+		return nil, fmt.Errorf("failed to commit transaction: %s", err)
+	}
+
+	g.logger.Info("transaction (gitftcard purchase) completed successfully", tx)
+
+	return giftCardPurchaseResponse, nil
 }

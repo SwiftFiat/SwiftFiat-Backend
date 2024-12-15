@@ -262,6 +262,51 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	return tObj, nil
 }
 
+// / May return an arbitrary error or an error defined in [transaction_strings]
+func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.Context, dbTx *sql.Tx, tx GiftCardTransaction) (interface{}, error) {
+
+	// Track transaction currency type
+	// e.g. USD to USD or NGN to USD
+	// This would help for ledger tracking
+	// Anonymous function to determine the currency flow e.g NGN to USD
+	currFlow := func(fromCurrency, toCurrency string) string {
+		if fromCurrency == toCurrency {
+			return fromCurrency + " to " + toCurrency
+		}
+		return fromCurrency + " to " + toCurrency
+	}(tx.WalletCurrency, tx.GiftCardCurrency) // Default to USD Transactions
+
+	// Create transaction record
+	tObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction record: %w", err)
+	}
+
+	// Create ledger entries
+	balance, err := decimal.NewFromString(tx.WalletBalance)
+	if err != nil {
+		s.logger.Error("failed to parse the balance string")
+	}
+	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
+		TransactionID: tObj.ID,
+		Debit: Entry{
+			AccountID: tx.SourceWalletID,
+			Amount:    tx.Amount,
+			Balance:   balance,
+		},
+		Platform: GiftCardOutflowTransaction,
+	}); err != nil {
+		return nil, fmt.Errorf("create ledger entries: %w", err)
+	}
+
+	// Update account balances
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, tx.Amount.Neg()); err != nil {
+		return nil, fmt.Errorf("update to account balance: %w", err)
+	}
+
+	return tObj, nil
+}
+
 func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string) (*db.Transaction, error) {
 	// Convert decimal amount to string for storage
 
@@ -347,35 +392,67 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 	}
 
+	if platform == GiftCardOutflowTransaction {
+		tx, ok := txx.(*GiftCardTransaction)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
+		}
+
+		amountStr := tx.Amount.String()
+
+		params := db.CreateWalletGiftCardDebitTransactionParams{
+			Type:     string(tx.Type),
+			Amount:   amountStr,
+			Currency: tx.GiftCardCurrency,
+			TransactionDestination: sql.NullString{
+				String: "reloadly-gc-buy",
+				Valid:  true,
+			},
+			FromAccountID: uuid.NullUUID{
+				UUID:  tx.SourceWalletID,
+				Valid: tx.SourceWalletID.URN() != "",
+			},
+			CurrencyFlow: sql.NullString{
+				String: currFlow,
+				Valid:  currFlow != "",
+			},
+			Description: sql.NullString{
+				String: tx.Description,
+				Valid:  tx.Description != "",
+			},
+		}
+
+		tObj, err := s.store.WithTx(dbTx).CreateWalletGiftCardDebitTransaction(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		}
+
+		return &tObj, nil
+
+	}
+
 	return nil, fmt.Errorf("cannot decipher platform type: %v", platform)
 
 }
 
 func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.Tx, le LedgerEntries) error {
 
-	if le.Platform == WalletTransaction {
-		/// There MUST be a DEBIT
-		// Create debit entry
-		debitParams := db.CreateWalletLedgerEntryParams{
-			TransactionID: uuid.NullUUID{
-				UUID:  le.TransactionID,
-				Valid: le.TransactionID.URN() != "",
-			},
-			AccountID: uuid.NullUUID{
-				UUID:  le.Debit.AccountID,
-				Valid: le.Debit.AccountID.URN() != "",
-			},
-			Type:    "debit",
-			Amount:  le.Debit.Amount.String(),
-			Balance: le.Debit.Balance.String(),
-		}
-
-		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
-			return fmt.Errorf("failed to create debit entry: %w", err)
-		}
+	/// TODO: Figure out how to always have a ledger entry even though destination | source may be off-platform
+	/// e.g. CryptoInflow | GiftCard outflow
+	debitParams := db.CreateWalletLedgerEntryParams{
+		TransactionID: uuid.NullUUID{
+			UUID:  le.TransactionID,
+			Valid: le.TransactionID.URN() != "",
+		},
+		AccountID: uuid.NullUUID{
+			UUID:  le.Debit.AccountID,
+			Valid: le.Debit.AccountID.URN() != "",
+		},
+		Type:    "debit",
+		Amount:  le.Debit.Amount.String(),
+		Balance: le.Debit.Balance.String(),
 	}
 
-	// Create credit entry
 	creditParams := db.CreateWalletLedgerEntryParams{
 		TransactionID: uuid.NullUUID{
 			UUID:  le.TransactionID,
@@ -390,11 +467,31 @@ func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.
 		Balance: le.Debit.Balance.String(),
 	}
 
-	if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {
-		return fmt.Errorf("failed to create credit entry: %w", err)
-	}
+	switch le.Platform {
+	case WalletTransaction:
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+			return fmt.Errorf("failed to create debit entry: %w", err)
+		}
 
-	return nil
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {
+			return fmt.Errorf("failed to create credit entry: %w", err)
+		}
+		return nil
+	case GiftCardOutflowTransaction:
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+			return fmt.Errorf("failed to create debit entry: %w", err)
+		}
+		return nil
+
+	case CryptoInflowTransaction:
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {
+			return fmt.Errorf("failed to create credit entry: %w", err)
+		}
+		return nil
+
+	default:
+		return fmt.Errorf("invalid transaction platform: should be Wallet | Crypto | GiftCard")
+	}
 }
 
 // QUE: Should this be a Wallet Service function??

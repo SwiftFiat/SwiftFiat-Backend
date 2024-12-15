@@ -7,14 +7,19 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/giftcard"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type GiftCard struct {
-	server  *Server
-	service *giftcard.GiftcardService
+	server             *Server
+	service            *giftcard.GiftcardService
+	transactionService *transaction.TransactionService
 }
 
 func (g GiftCard) router(server *Server) {
@@ -23,6 +28,19 @@ func (g GiftCard) router(server *Server) {
 		server.queries,
 		server.logger,
 		server.redis,
+	)
+	g.transactionService = transaction.NewTransactionService(
+		server.queries,
+		currency.NewCurrencyService(
+			server.queries,
+			server.logger,
+		),
+		wallet.NewWalletServiceWithCache(
+			server.queries,
+			server.logger,
+			server.redis,
+		),
+		server.logger,
 	)
 
 	// serverGroupV1 := server.router.Group("/auth")
@@ -121,6 +139,20 @@ func (g *GiftCard) syncGiftCards(ctx *gin.Context) {
 }
 
 func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
+
+	request := struct {
+		ProductID int64  `json:"product_id" binding:"required"`
+		WalletID  string `json:"wallet_id" binding:"required"`
+		Quantity  int    `json:"quantity" binding:"required"`
+		UnitPrice int    `json:"unit_price" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("please check request body: %v", err)))
+		return
+	}
+
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -134,5 +166,18 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusUnauthorized, basemodels.NewSuccess("gift card purchased", activeUser))
+	walletID, err := uuid.Parse(request.WalletID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
+		return
+	}
+
+	response, err := g.service.BuyGiftCard(g.server.provider, g.transactionService, activeUser.UserID, request.ProductID, walletID, request.Quantity, request.UnitPrice)
+	if err != nil {
+		g.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("error processing giftcard purchase: %v", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
 }

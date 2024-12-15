@@ -27,6 +27,8 @@ type GiftCardResponse struct {
 	CategoryName             string      `json:"category_name"`
 	CountryName              string      `json:"country_name"`
 	FlagUrl                  string      `json:"flag_url"`
+	Denomination             float64     `json:"denomination"`
+	SenderCurrencyValue      float64     `json:"sender_currency_value"`
 }
 
 func ToGiftCardResponse(dbVal []db.FetchGiftCardsRow) []*GiftCardResponse {

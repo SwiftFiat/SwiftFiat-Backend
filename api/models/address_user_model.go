@@ -10,7 +10,7 @@ import (
 type AddressUserResponse struct {
 	AddressID  uuid.UUID `json:"id"`
 	CustomerID ID        `json:"customer_id"`
-	Address    string    `json:"adddress"`
+	Address    string    `json:"address"`
 	Chain      int64     `json:"chain"`
 	Coin       string    `json:"currency"`
 	Balance    string    `json:"balance"`
