@@ -205,21 +205,23 @@ type SwiftWallet struct {
 }
 
 type Transaction struct {
-	ID                   uuid.UUID      `json:"id"`
-	Type                 string         `json:"type"`
-	Amount               string         `json:"amount"`
-	Currency             string         `json:"currency"`
-	FromAccountID        uuid.NullUUID  `json:"from_account_id"`
-	ToAccountID          uuid.NullUUID  `json:"to_account_id"`
-	Status               string         `json:"status"`
-	Description          sql.NullString `json:"description"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	CurrencyFlow         sql.NullString `json:"currency_flow"`
-	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
-	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
-	SourceHash           sql.NullString `json:"source_hash"`
-	Coin                 sql.NullString `json:"coin"`
+	ID                     uuid.UUID      `json:"id"`
+	Type                   string         `json:"type"`
+	Amount                 string         `json:"amount"`
+	Currency               string         `json:"currency"`
+	FromAccountID          uuid.NullUUID  `json:"from_account_id"`
+	ToAccountID            uuid.NullUUID  `json:"to_account_id"`
+	Status                 string         `json:"status"`
+	Description            sql.NullString `json:"description"`
+	CreatedAt              time.Time      `json:"created_at"`
+	UpdatedAt              time.Time      `json:"updated_at"`
+	CurrencyFlow           sql.NullString `json:"currency_flow"`
+	DeletedFromAccountID   uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID     uuid.NullUUID  `json:"deleted_to_account_id"`
+	SourceHash             sql.NullString `json:"source_hash"`
+	Coin                   sql.NullString `json:"coin"`
+	TransactionSource      sql.NullString `json:"transaction_source"`
+	TransactionDestination sql.NullString `json:"transaction_destination"`
 }
 
 type User struct {

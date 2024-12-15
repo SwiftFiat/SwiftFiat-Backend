@@ -74,6 +74,32 @@ INSERT INTO transactions (
     $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
+-- name: CreateWalletGiftCardDebitTransaction :one
+INSERT INTO transactions (
+    type,
+    amount, 
+    from_account_id,
+    transaction_destination,
+    currency,
+    currency_flow,
+    description
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING *;
+
+-- name: CreateWalletGiftCardCreditTransaction :one
+INSERT INTO transactions (
+    type,
+    amount, 
+    to_account_id,
+    transaction_source,
+    currency,
+    currency_flow,
+    description
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7
+) RETURNING *;
+
 -- name: GetWalletTransaction :one
 SELECT t.*, w.id as wallet_id
 FROM transactions t
