@@ -127,7 +127,7 @@ func (g *GiftCard) getAllGiftCardCategories(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", categories))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard categories fetched successfully", categories))
 }
 
 // / Administrative function
