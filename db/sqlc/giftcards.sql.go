@@ -264,6 +264,50 @@ func (q *Queries) FetchGiftCardsByBrand(ctx context.Context) ([]FetchGiftCardsBy
 	return items, nil
 }
 
+const fetchGiftCardsByCategory = `-- name: FetchGiftCardsByCategory :many
+SELECT 
+    c.name,
+    COUNT(gc.id) AS gift_card_count
+FROM 
+    categories c 
+LEFT JOIN
+    gift_cards gc ON gc.category_id = c.id
+GROUP BY 
+    c.id,
+    c.category_id,
+    c.name
+ORDER BY 
+    c.name
+`
+
+type FetchGiftCardsByCategoryRow struct {
+	Name          string `json:"name"`
+	GiftCardCount int64  `json:"gift_card_count"`
+}
+
+func (q *Queries) FetchGiftCardsByCategory(ctx context.Context) ([]FetchGiftCardsByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, fetchGiftCardsByCategory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FetchGiftCardsByCategoryRow{}
+	for rows.Next() {
+		var i FetchGiftCardsByCategoryRow
+		if err := rows.Scan(&i.Name, &i.GiftCardCount); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertBrand = `-- name: UpsertBrand :one
 INSERT INTO brands (brand_id, brand_name)
 VALUES ($1, $2)
