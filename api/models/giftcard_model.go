@@ -59,3 +59,28 @@ func ToGiftCardResponse(dbVal []db.FetchGiftCardsRow) []*GiftCardResponse {
 	}
 	return giftCardResponses
 }
+
+type GiftCardBrandResponseCollection []GiftCardBrandResponse
+
+type GiftCardBrandResponse struct {
+	ID            int32  `json:"id"`
+	BrandID       int64  `json:"brand_id"`
+	BrandName     string `json:"brand_name"`
+	BrandLogoUrl  string `json:"brand_logo_url"`
+	GiftCardCount int64  `json:"gift_card_count"`
+}
+
+func ToBrandObject(dbVal []db.FetchGiftCardsByBrandRow) GiftCardBrandResponseCollection {
+	giftCardBrandResponses := make(GiftCardBrandResponseCollection, len(dbVal))
+	for i, val := range dbVal {
+		giftCardBrandResponses[i] = GiftCardBrandResponse{
+			ID:            val.ID,
+			BrandID:       val.BrandID,
+			BrandName:     val.BrandName.String,
+			BrandLogoUrl:  val.BrandLogoUrl.String,
+			GiftCardCount: val.GiftCardCount,
+		}
+	}
+
+	return giftCardBrandResponses
+}

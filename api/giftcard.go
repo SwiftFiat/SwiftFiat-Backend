@@ -116,14 +116,14 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		return
 	}
 
-	giftcards, err := g.server.queries.FetchGiftCards(ctx)
+	giftcards, err := g.server.queries.FetchGiftCardsByBrand(ctx)
 	if err != nil {
 		g.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", giftcards))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToBrandObject(giftcards)))
 }
 
 // / Administrative function

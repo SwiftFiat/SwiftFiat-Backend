@@ -202,6 +202,68 @@ func (q *Queries) FetchGiftCards(ctx context.Context) ([]FetchGiftCardsRow, erro
 	return items, nil
 }
 
+const fetchGiftCardsByBrand = `-- name: FetchGiftCardsByBrand :many
+SELECT 
+    b.id,
+    b.brand_id,
+    b.brand_name,
+    (
+        SELECT logo_url 
+        FROM gift_card_logo_urls gl 
+        JOIN gift_cards gc2 ON gl.gift_card_id = gc2.id
+        WHERE gc2.brand_id = b.id
+        LIMIT 1
+    ) AS brand_logo_url,
+    COUNT(gc.id) AS gift_card_count
+FROM 
+    brands b
+LEFT JOIN 
+    gift_cards gc ON b.id = gc.brand_id
+GROUP BY 
+    b.id,
+    b.brand_id,
+    b.brand_name
+ORDER BY 
+    b.brand_name ASC
+`
+
+type FetchGiftCardsByBrandRow struct {
+	ID            int32          `json:"id"`
+	BrandID       int64          `json:"brand_id"`
+	BrandName     sql.NullString `json:"brand_name"`
+	BrandLogoUrl  sql.NullString `json:"brand_logo_url"`
+	GiftCardCount int64          `json:"gift_card_count"`
+}
+
+func (q *Queries) FetchGiftCardsByBrand(ctx context.Context) ([]FetchGiftCardsByBrandRow, error) {
+	rows, err := q.db.QueryContext(ctx, fetchGiftCardsByBrand)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []FetchGiftCardsByBrandRow{}
+	for rows.Next() {
+		var i FetchGiftCardsByBrandRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.BrandID,
+			&i.BrandName,
+			&i.BrandLogoUrl,
+			&i.GiftCardCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertBrand = `-- name: UpsertBrand :one
 INSERT INTO brands (brand_id, brand_name)
 VALUES ($1, $2)
