@@ -116,3 +116,28 @@ LEFT JOIN
     gift_card_logo_urls gl ON gc.id = gl.gift_card_id
 ORDER BY 
     gc.product_id;
+
+
+-- name: FetchGiftCardsByBrand :many
+SELECT 
+    b.id,
+    b.brand_id,
+    b.brand_name,
+    (
+        SELECT logo_url 
+        FROM gift_card_logo_urls gl 
+        JOIN gift_cards gc2 ON gl.gift_card_id = gc2.id
+        WHERE gc2.brand_id = b.id
+        LIMIT 1
+    ) AS brand_logo_url,
+    COUNT(gc.id) AS gift_card_count
+FROM 
+    brands b
+LEFT JOIN 
+    gift_cards gc ON b.id = gc.brand_id
+GROUP BY 
+    b.id,
+    b.brand_id,
+    b.brand_name
+ORDER BY 
+    b.brand_name ASC;
