@@ -21,7 +21,7 @@ func ToBankResponseCollection(banks fiat.BankCollection) BankResponseCollection 
 	var tempBanks BankResponseCollection
 
 	for _, bank := range banks {
-		bankResponse := ToBankResponse(bank)
+		bankResponse := ToBankResponseWithLogo(bank, fiat.GetBankLogoByCode(bank.Code))
 		tempBanks = append(tempBanks, *bankResponse)
 	}
 	return tempBanks
@@ -48,15 +48,6 @@ func (c *BankResponseCollection) FindBanks(query string) *BankResponseCollection
 	}
 
 	return &tempBanks
-}
-
-func ToBankResponse(bank fiat.Bank) *BankResponse {
-	return &BankResponse{
-		Name:     bank.Name,
-		Slug:     bank.Slug,
-		Code:     bank.Code,
-		Longcode: bank.Longcode,
-	}
 }
 
 func ToBankResponseWithLogo(bank fiat.Bank, logo string) *BankResponse {
