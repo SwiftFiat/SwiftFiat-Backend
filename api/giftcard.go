@@ -48,29 +48,9 @@ func (g GiftCard) router(server *Server) {
 	serverGroupV1.POST("sync", AuthenticatedMiddleware(), g.syncGiftCards)
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
 	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
+	serverGroupV1.GET("categories", AuthenticatedMiddleware(), g.getAllGiftCardCategories)
 	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
 }
-
-// func (g *GiftCard) fetchAndStoreCards(context.Context) {
-// 	if provider, exists := g.server.provider.GetProvider(provider.Reloadly); exists {
-// 		reloadlyProvider, ok := provider.(*giftcards.ReloadlyProvider)
-// 		if ok {
-// 			params := reloadlymodels.ProductQueryParams{
-// 				Size:         size,
-// 				Page:         page,
-// 				IncludeRange: includeRange,
-// 				IncludeFixed: includeFixed,
-// 			}
-// 			giftCards, err := reloadlyProvider.GetAllGiftCards(params)
-// 			if err != nil {
-// 				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to GiftCard Provider Error: %s", err)))
-// 				return
-// 			}
-// 			/// Log GiftCard DATA
-// 			g.server.logger.Log(logrus.InfoLevel, "GiftCardData: ", giftCards)
-// 		}
-// 	}
-// }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	// Fetch Query Params and parse
@@ -124,6 +104,30 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToBrandObject(giftcards)))
+}
+
+func (g *GiftCard) getAllGiftCardCategories(ctx *gin.Context) {
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !activeUser.Verified {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
+
+	categories, err := g.server.queries.FetchGiftCardsByCategory(ctx)
+	if err != nil {
+		g.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", categories))
 }
 
 // / Administrative function

@@ -141,3 +141,19 @@ GROUP BY
     b.brand_name
 ORDER BY 
     b.brand_name ASC;
+
+
+-- name: FetchGiftCardsByCategory :many
+SELECT 
+    c.name,
+    COUNT(gc.id) AS gift_card_count
+FROM 
+    categories c 
+LEFT JOIN
+    gift_cards gc ON gc.category_id = c.id
+GROUP BY 
+    c.id,
+    c.category_id,
+    c.name
+ORDER BY 
+    c.name;
