@@ -120,3 +120,84 @@ func (p *PaystackProvider) ResolveAccount(accountNumber string, bankCode string)
 
 	return &response.Data, nil
 }
+
+func (p *PaystackProvider) CreateTransferRecipient(accountNumber string, bankCode string, name string) (*Recipient, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	// Path params
+	base.Path += "transferrecipient"
+
+	/// Constants are NUBAN and NGN (Naira)
+	request := CreateTransferRecipientRequest{
+		Type:          "nuban",
+		Name:          name,
+		AccountNumber: accountNumber,
+		BankCode:      bankCode,
+		Currency:      "NGN",
+	}
+
+	resp, err := p.MakeRequest("POST", base.String(), request, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusCreated {
+		logging.NewLogger().Error("resp", resp)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response bodyp
+	var response Response[Recipient]
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &response.Data, nil
+}
+
+func (p *PaystackProvider) MakeTransfer(recipient string, amount int64, beneficiaryName string) (*TransferResponse, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	// Path params
+	base.Path += "transfer"
+
+	/// Constant is Source
+	request := TransferRequest{
+		Source:    "balance",
+		Recipient: recipient,
+		Amount:    amount,
+		Reason:    fmt.Sprintf("SwiftFiat %v Transfer", beneficiaryName),
+	}
+
+	resp, err := p.MakeRequest("POST", base.String(), request, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error("resp", resp)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var response Response[TransferResponse]
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &response.Data, nil
+}

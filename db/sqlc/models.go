@@ -12,6 +12,16 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+type Beneficiary struct {
+	ID              uuid.UUID     `json:"id"`
+	UserID          sql.NullInt64 `json:"user_id"`
+	BankCode        string        `json:"bank_code"`
+	AccountNumber   string        `json:"account_number"`
+	BeneficiaryName string        `json:"beneficiary_name"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
+}
+
 type Brand struct {
 	ID        int32          `json:"id"`
 	BrandID   int64          `json:"brand_id"`
@@ -222,6 +232,9 @@ type Transaction struct {
 	Coin                   sql.NullString `json:"coin"`
 	TransactionSource      sql.NullString `json:"transaction_source"`
 	TransactionDestination sql.NullString `json:"transaction_destination"`
+	FiatAccountName        sql.NullString `json:"fiat_account_name"`
+	FiatAccountBankCode    sql.NullString `json:"fiat_account_bank_code"`
+	FiatAccountNumber      sql.NullString `json:"fiat_account_number"`
 }
 
 type User struct {
