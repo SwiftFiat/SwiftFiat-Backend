@@ -8,11 +8,12 @@ import (
 type TransactionType string
 
 const (
-	Transfer TransactionType = "transfer"
-	Deposit  TransactionType = "deposit"
-	Swap     TransactionType = "swap"
-	GiftCard TransactionType = "giftcard"
-	Airtime  TransactionType = "airtime"
+	Transfer   TransactionType = "transfer"
+	Withdrawal TransactionType = "withdrawal"
+	Deposit    TransactionType = "deposit"
+	Swap       TransactionType = "swap"
+	GiftCard   TransactionType = "giftcard"
+	Airtime    TransactionType = "airtime"
 )
 
 type TransactionPlatform string
@@ -21,6 +22,7 @@ const (
 	WalletTransaction          TransactionPlatform = "wallet"
 	CryptoInflowTransaction    TransactionPlatform = "crypto"
 	GiftCardOutflowTransaction TransactionPlatform = "giftcard"
+	FiatOutflowTransaction     TransactionPlatform = "fiat"
 )
 
 type Transaction struct {
@@ -54,6 +56,20 @@ type GiftCardTransaction struct {
 	GiftCardCurrency string
 	Description      string
 	Type             TransactionType
+}
+
+type FiatTransaction struct {
+	ID                         string
+	SourceWalletID             uuid.UUID
+	Amount                     decimal.Decimal
+	WalletCurrency             string
+	WalletBalance              string
+	DestinationAccountCurrency string
+	DestinationAccountNumber   string
+	DestinationAccountName     string
+	DestinationAccountBankCode string
+	Description                string
+	Type                       TransactionType
 }
 
 type LedgerEntries struct {

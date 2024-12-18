@@ -66,3 +66,41 @@ type AccountInfo struct {
 	AccountNumber string `json:"account_number"`
 	BankID        int64  `json:"bank_id"`
 }
+
+type CreateTransferRecipientRequest struct {
+	Type          string `json:"type"`
+	Name          string `json:"name"`
+	AccountNumber string `json:"account_number"`
+	BankCode      string `json:"bank_code"`
+	Currency      string `json:"currency"`
+}
+
+type TransferRequest struct {
+	Source    string `json:"source"`
+	Reason    string `json:"reason"`
+	Amount    int64  `json:"amount"`
+	Recipient string `json:"recipient"`
+}
+
+type TransferResponse struct {
+	Transfersessionid []interface{} `json:"transfersessionid"`
+	Transfertrials    []interface{} `json:"transfertrials"`
+	Domain            string        `json:"domain"`
+	Amount            int64         `json:"amount"`
+	Currency          string        `json:"currency"`
+	Reference         string        `json:"reference"`
+	Source            string        `json:"source"`
+	SourceDetails     interface{}   `json:"source_details"`
+	Reason            string        `json:"reason"`
+	Status            string        `json:"status"`
+	Failures          interface{}   `json:"failures"`
+	TransferCode      string        `json:"transfer_code"`
+	TitanCode         interface{}   `json:"titan_code"`
+	TransferredAt     interface{}   `json:"transferred_at"`
+	ID                int64         `json:"id"`
+	Integration       int64         `json:"integration"`
+	Request           int64         `json:"request"`
+	Recipient         int64         `json:"recipient"`
+	CreatedAt         time.Time     `json:"createdAt"`
+	UpdatedAt         time.Time     `json:"updatedAt"`
+}

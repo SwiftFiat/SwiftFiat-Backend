@@ -100,6 +100,21 @@ INSERT INTO transactions (
     $1, $2, $3, $4, $5, $6, $7
 ) RETURNING *;
 
+-- name: CreateFiatDebitTransaction :one
+INSERT INTO transactions (
+    type,
+    amount, 
+    from_account_id,
+    fiat_account_name,
+    fiat_account_number,
+    fiat_account_bank_code,
+    currency,
+    currency_flow,
+    description
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING *;
+
 -- name: GetWalletTransaction :one
 SELECT t.*, w.id as wallet_id
 FROM transactions t

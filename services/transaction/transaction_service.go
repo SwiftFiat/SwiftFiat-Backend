@@ -307,6 +307,65 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	return tObj, nil
 }
 
+// / May return an arbitrary error or an error defined in [transaction_strings]
+func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Context, dbTx *sql.Tx, tx FiatTransaction) (*db.Transaction, error) {
+
+	// Track transaction currency type
+	// e.g. USD to USD or NGN to USD
+	// This would help for ledger tracking
+	// Anonymous function to determine the currency flow e.g NGN to USD
+	currFlow := func(fromCurrency, toCurrency string) string {
+		if fromCurrency == toCurrency {
+			return fromCurrency + " to " + toCurrency
+		}
+		return fromCurrency + " to " + toCurrency
+	}(tx.WalletCurrency, tx.DestinationAccountCurrency) // Default to NGN Transactions
+
+	// Handle currency conversion if needed
+	amount := tx.Amount
+	if tx.WalletCurrency != tx.DestinationAccountCurrency {
+		rate, err := s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.DestinationAccountCurrency)
+		if err != nil {
+			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.DestinationAccountCurrency)
+		}
+		// TODO: Have a function that performs multiplication like Mul instead of direct aug
+		amount = tx.Amount.Mul(rate)
+	}
+
+	/// set amount if undergone transform or not
+	tx.Amount = amount
+
+	// Create transaction record
+	tObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction record: %w", err)
+	}
+
+	// Create ledger entries
+	balance, err := decimal.NewFromString(tx.WalletBalance)
+	if err != nil {
+		s.logger.Error("failed to parse the balance string")
+	}
+	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
+		TransactionID: tObj.ID,
+		Debit: Entry{
+			AccountID: tx.SourceWalletID,
+			Amount:    tx.Amount,
+			Balance:   balance,
+		},
+		Platform: GiftCardOutflowTransaction,
+	}); err != nil {
+		return nil, fmt.Errorf("create ledger entries: %w", err)
+	}
+
+	// Update account balances
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, tx.Amount.Neg()); err != nil {
+		return nil, fmt.Errorf("update to account balance: %w", err)
+	}
+
+	return tObj, nil
+}
+
 func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string) (*db.Transaction, error) {
 	// Convert decimal amount to string for storage
 
@@ -431,6 +490,53 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 	}
 
+	if platform == FiatOutflowTransaction {
+		tx, ok := txx.(*FiatTransaction)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
+		}
+
+		amountStr := tx.Amount.String()
+
+		params := db.CreateFiatDebitTransactionParams{
+			Type:     string(tx.Type),
+			Amount:   amountStr,
+			Currency: tx.WalletCurrency,
+			FromAccountID: uuid.NullUUID{
+				UUID:  tx.SourceWalletID,
+				Valid: tx.SourceWalletID.URN() != "",
+			},
+			FiatAccountName: sql.NullString{
+				String: tx.DestinationAccountName,
+				Valid:  true,
+			},
+			FiatAccountNumber: sql.NullString{
+				String: tx.DestinationAccountNumber,
+				Valid:  true,
+			},
+			FiatAccountBankCode: sql.NullString{
+				String: tx.DestinationAccountBankCode,
+				Valid:  true,
+			},
+			CurrencyFlow: sql.NullString{
+				String: currFlow,
+				Valid:  currFlow != "",
+			},
+			Description: sql.NullString{
+				String: tx.Description,
+				Valid:  tx.Description != "",
+			},
+		}
+
+		tObj, err := s.store.WithTx(dbTx).CreateFiatDebitTransaction(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		}
+
+		return &tObj, nil
+
+	}
+
 	return nil, fmt.Errorf("cannot decipher platform type: %v", platform)
 
 }
@@ -486,6 +592,12 @@ func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.
 	case CryptoInflowTransaction:
 		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, creditParams); err != nil {
 			return fmt.Errorf("failed to create credit entry: %w", err)
+		}
+		return nil
+
+	case FiatOutflowTransaction:
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+			return fmt.Errorf("failed to create debit entry: %w", err)
 		}
 		return nil
 

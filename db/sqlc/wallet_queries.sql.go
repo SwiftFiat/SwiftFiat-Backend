@@ -14,6 +14,72 @@ import (
 	"github.com/google/uuid"
 )
 
+const createFiatDebitTransaction = `-- name: CreateFiatDebitTransaction :one
+INSERT INTO transactions (
+    type,
+    amount, 
+    from_account_id,
+    fiat_account_name,
+    fiat_account_number,
+    fiat_account_bank_code,
+    currency,
+    currency_flow,
+    description
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
+`
+
+type CreateFiatDebitTransactionParams struct {
+	Type                string         `json:"type"`
+	Amount              string         `json:"amount"`
+	FromAccountID       uuid.NullUUID  `json:"from_account_id"`
+	FiatAccountName     sql.NullString `json:"fiat_account_name"`
+	FiatAccountNumber   sql.NullString `json:"fiat_account_number"`
+	FiatAccountBankCode sql.NullString `json:"fiat_account_bank_code"`
+	Currency            string         `json:"currency"`
+	CurrencyFlow        sql.NullString `json:"currency_flow"`
+	Description         sql.NullString `json:"description"`
+}
+
+func (q *Queries) CreateFiatDebitTransaction(ctx context.Context, arg CreateFiatDebitTransactionParams) (Transaction, error) {
+	row := q.db.QueryRowContext(ctx, createFiatDebitTransaction,
+		arg.Type,
+		arg.Amount,
+		arg.FromAccountID,
+		arg.FiatAccountName,
+		arg.FiatAccountNumber,
+		arg.FiatAccountBankCode,
+		arg.Currency,
+		arg.CurrencyFlow,
+		arg.Description,
+	)
+	var i Transaction
+	err := row.Scan(
+		&i.ID,
+		&i.Type,
+		&i.Amount,
+		&i.Currency,
+		&i.FromAccountID,
+		&i.ToAccountID,
+		&i.Status,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CurrencyFlow,
+		&i.DeletedFromAccountID,
+		&i.DeletedToAccountID,
+		&i.SourceHash,
+		&i.Coin,
+		&i.TransactionSource,
+		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
+	)
+	return i, err
+}
+
 const createWallet = `-- name: CreateWallet :one
 INSERT INTO swift_wallets (
     customer_id,
@@ -65,7 +131,7 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
 `
 
 type CreateWalletCryptoTransactionParams struct {
@@ -109,6 +175,9 @@ func (q *Queries) CreateWalletCryptoTransaction(ctx context.Context, arg CreateW
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 	)
 	return i, err
 }
@@ -124,7 +193,7 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
 `
 
 type CreateWalletGiftCardCreditTransactionParams struct {
@@ -166,6 +235,9 @@ func (q *Queries) CreateWalletGiftCardCreditTransaction(ctx context.Context, arg
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 	)
 	return i, err
 }
@@ -181,7 +253,7 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
 `
 
 type CreateWalletGiftCardDebitTransactionParams struct {
@@ -223,6 +295,9 @@ func (q *Queries) CreateWalletGiftCardDebitTransaction(ctx context.Context, arg 
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 	)
 	return i, err
 }
@@ -280,7 +355,7 @@ INSERT INTO transactions (
     description
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination
+) RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
 `
 
 type CreateWalletTransactionParams struct {
@@ -322,6 +397,9 @@ func (q *Queries) CreateWalletTransaction(ctx context.Context, arg CreateWalletT
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 	)
 	return i, err
 }
@@ -541,7 +619,7 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 }
 
 const getWalletTransaction = `-- name: GetWalletTransaction :one
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination, w.id as wallet_id
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination, t.fiat_account_name, t.fiat_account_bank_code, t.fiat_account_number, w.id as wallet_id
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE t.id = $1 
@@ -572,6 +650,9 @@ type GetWalletTransactionRow struct {
 	Coin                   sql.NullString `json:"coin"`
 	TransactionSource      sql.NullString `json:"transaction_source"`
 	TransactionDestination sql.NullString `json:"transaction_destination"`
+	FiatAccountName        sql.NullString `json:"fiat_account_name"`
+	FiatAccountBankCode    sql.NullString `json:"fiat_account_bank_code"`
+	FiatAccountNumber      sql.NullString `json:"fiat_account_number"`
 	WalletID               uuid.UUID      `json:"wallet_id"`
 }
 
@@ -596,13 +677,16 @@ func (q *Queries) GetWalletTransaction(ctx context.Context, arg GetWalletTransac
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 		&i.WalletID,
 	)
 	return i, err
 }
 
 const listWalletTransactions = `-- name: ListWalletTransactions :many
-SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination
+SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination, t.fiat_account_name, t.fiat_account_bank_code, t.fiat_account_number
 FROM transactions t
 JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
 WHERE 
@@ -652,6 +736,9 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 			&i.Coin,
 			&i.TransactionSource,
 			&i.TransactionDestination,
+			&i.FiatAccountName,
+			&i.FiatAccountBankCode,
+			&i.FiatAccountNumber,
 		); err != nil {
 			return nil, err
 		}
@@ -668,7 +755,7 @@ func (q *Queries) ListWalletTransactions(ctx context.Context, arg ListWalletTran
 
 const listWalletTransactionsByUserID = `-- name: ListWalletTransactionsByUserID :one
 WITH transaction_data AS (
-    SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination
+    SELECT t.id, t.type, t.amount, t.currency, t.from_account_id, t.to_account_id, t.status, t.description, t.created_at, t.updated_at, t.currency_flow, t.deleted_from_account_id, t.deleted_to_account_id, t.source_hash, t.coin, t.transaction_source, t.transaction_destination, t.fiat_account_name, t.fiat_account_bank_code, t.fiat_account_number
     FROM transactions t
     JOIN swift_wallets w ON (t.from_account_id = w.id OR t.to_account_id = w.id)
     WHERE 
@@ -799,7 +886,7 @@ const updateWalletTransactionStatus = `-- name: UpdateWalletTransactionStatus :o
 UPDATE transactions
 SET status = $2
 WHERE id = $1
-RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination
+RETURNING id, type, amount, currency, from_account_id, to_account_id, status, description, created_at, updated_at, currency_flow, deleted_from_account_id, deleted_to_account_id, source_hash, coin, transaction_source, transaction_destination, fiat_account_name, fiat_account_bank_code, fiat_account_number
 `
 
 type UpdateWalletTransactionStatusParams struct {
@@ -828,6 +915,9 @@ func (q *Queries) UpdateWalletTransactionStatus(ctx context.Context, arg UpdateW
 		&i.Coin,
 		&i.TransactionSource,
 		&i.TransactionDestination,
+		&i.FiatAccountName,
+		&i.FiatAccountBankCode,
+		&i.FiatAccountNumber,
 	)
 	return i, err
 }

@@ -20,6 +20,8 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -56,6 +58,8 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("banks", AuthenticatedMiddleware(), w.banks)
 	serverGroupV1.GET("resolve-bank-account", AuthenticatedMiddleware(), w.resolveBankAccount)
 	serverGroupV1.GET("resolve-user-tag", AuthenticatedMiddleware(), w.resolveUserTag)
+	serverGroupV1.GET("beneficiaries", AuthenticatedMiddleware(), w.getBeneficiaries)
+	serverGroupV1.POST("withdraw", AuthenticatedMiddleware(), w.fiatTransfer)
 }
 
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
@@ -400,4 +404,179 @@ func (w *Wallet) resolveUserTag(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("tag resolved successfully", models.ToTagResolveResponse(*tagInfo)))
+}
+
+func (w *Wallet) getBeneficiaries(ctx *gin.Context) {
+	/// Active USER must OWN source wallet
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	beneficiaries, err := w.server.queries.GetBeneficiariesByUserID(ctx, sql.NullInt64{
+		Int64: activeUser.UserID,
+		Valid: true,
+	})
+	if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("beneficiaries retrieved successfully", models.ToBeneficiaryResponseCollection(beneficiaries)))
+}
+
+func (w *Wallet) fiatTransfer(ctx *gin.Context) {
+
+	request := struct {
+		Name            string `json:"name" binding:"required"`
+		AccountNumber   string `json:"account_number" binding:"required"`
+		BankCode        string `json:"bank_code" binding:"required"`
+		WalletID        string `json:"wallet_id" binding:"required"`
+		Amount          int64  `json:"amount" binding:"required"`
+		Pin             string `json:"pin" binding:"required"`
+		SaveBeneficiary bool   `json:"save_beneficiary" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check your entered details: 'name', 'account_numner', 'bank_code', 'wallet_id', 'amount', 'pin' and 'save_beneficiary'"))
+		return
+	}
+
+	/// Active USER must OWN source wallet
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	provider, exists := w.server.provider.GetProvider(provider.Paystack)
+	if !exists {
+		w.server.logger.Error("FIAT Provider does not exist - Paystack")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	fiatProvider, ok := provider.(*fiat.PaystackProvider)
+	if !ok {
+		w.server.logger.Error("could not resolve to FIAT Provider - Paystack")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	walletUUID, err := uuid.Parse(request.WalletID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("failed to parse wallet ID, please use correct wallet"))
+		return
+	}
+
+	tx, err := w.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		w.server.logger.Fatalf("Failed to start transaction: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	defer tx.Rollback()
+
+	dbUserValue, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, dbUserValue.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
+		return
+	}
+
+	// Pull wallet information and lock it for processing
+	walletInfo, err := w.server.queries.WithTx(tx).GetWalletForUpdate(ctx, walletUUID)
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to pull and lock wallet information: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if walletInfo.CustomerID != activeUser.UserID {
+		w.server.logger.Error("error occurred: WalletInfo.CustomerID != activeUser.UserID")
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check wallet ID, this will be reported"))
+		return
+	}
+
+	/// Divide the amount by 100 to get the Naira value from the User's kobo input
+	swiftWalletAmount := decimal.NewFromInt(request.Amount).Div(decimal.NewFromInt(100))
+	paystackAmount := request.Amount
+
+	val, _ := decimal.NewFromString(walletInfo.Balance.String)
+
+	if val.LessThan(swiftWalletAmount) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance"))
+		return
+	}
+
+	// Create GiftCardTransaction
+	transactionInfo, err := w.transactionService.CreateFiatOutflowTransactionWithTx(ctx, tx, transaction.FiatTransaction{
+		SourceWalletID:             walletInfo.ID,
+		Amount:                     swiftWalletAmount,
+		WalletCurrency:             walletInfo.Currency,
+		WalletBalance:              walletInfo.Balance.String,
+		DestinationAccountName:     request.Name,
+		DestinationAccountNumber:   request.AccountNumber,
+		DestinationAccountBankCode: request.BankCode,
+		DestinationAccountCurrency: "NGN",
+		Description:                "withdrawal-to-swift",
+		Type:                       transaction.Withdrawal,
+	})
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to debit customer: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	recipientInfo, err := fiatProvider.CreateTransferRecipient(request.AccountNumber, request.BankCode, request.Name)
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	transferInfo, err := fiatProvider.MakeTransfer(recipientInfo.RecipientCode, paystackAmount, request.Name)
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Commit
+	err = tx.Commit()
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to commit transaction: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Try to save beneficiary
+	_, err = w.server.queries.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
+		UserID: sql.NullInt64{
+			Int64: activeUser.UserID,
+			Valid: true,
+		},
+		AccountNumber:   request.AccountNumber,
+		BeneficiaryName: request.Name,
+		BankCode:        request.BankCode,
+	})
+
+	w.server.logger.Info("transaction (withdraw) completed successfully", tx)
+	var savedBeneficiary bool = true
+
+	if err != nil {
+		w.server.logger.Error(err)
+		savedBeneficiary = false
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", models.ToFiatTransferResponse(transferInfo, transactionInfo, savedBeneficiary)))
 }
