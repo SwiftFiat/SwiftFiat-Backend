@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 
 	"github.com/sqlc-dev/pqtype"
 )
@@ -101,6 +102,46 @@ func (q *Queries) FetchGiftCard(ctx context.Context, productID int64) (FetchGift
 
 const fetchGiftCards = `-- name: FetchGiftCards :many
 SELECT 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination, 
+    -- This ensures that only payable denom in 'USD' is returned
+    COALESCE(
+        JSON_AGG(DISTINCT gd.denomination) FILTER (WHERE gd.denomination IS NOT NULL AND gd.type = 'sender'),
+        '[]'
+    )::json AS giftcard_denominations,
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order, 
+    COALESCE(JSON_AGG(DISTINCT gl.logo_url) FILTER (WHERE gl.logo_url IS NOT NULL), '[]')::json AS logo_urls,
+    b.brand_name, 
+    c.name AS category_name,
+    co.name AS country_name, 
+    co.flag_url
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    brands b ON gc.brand_id = b.brand_id
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+LEFT JOIN 
+    categories c ON gc.category_id = c.id
+LEFT JOIN 
+    countries co ON gc.country_id = co.id
+LEFT JOIN 
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+GROUP BY 
+    gc.id,
     gc.product_id, 
     gc.product_name, 
     gc.denomination_type, 
@@ -116,26 +157,16 @@ SELECT
     gc.sender_fee, 
     gc.sender_fee_percentage, 
     gc.supports_pre_order, 
-    gl.logo_url,
     b.brand_name, 
-    c.name AS category_name, 
-    co.name AS country_name, 
+    c.name, 
+    co.name, 
     co.flag_url
-FROM 
-    gift_cards gc
-LEFT JOIN 
-    brands b ON gc.brand_id = b.brand_id
-LEFT JOIN 
-    categories c ON gc.category_id = c.id
-LEFT JOIN 
-    countries co ON gc.country_id = co.id
-LEFT JOIN 
-    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
 ORDER BY 
     gc.product_id
 `
 
 type FetchGiftCardsRow struct {
+	ID                       int32                 `json:"id"`
 	ProductID                int64                 `json:"product_id"`
 	ProductName              sql.NullString        `json:"product_name"`
 	DenominationType         sql.NullString        `json:"denomination_type"`
@@ -144,6 +175,7 @@ type FetchGiftCardsRow struct {
 	MinRecipientDenomination sql.NullFloat64       `json:"min_recipient_denomination"`
 	MaxSenderDenomination    sql.NullFloat64       `json:"max_sender_denomination"`
 	MinSenderDenomination    sql.NullFloat64       `json:"min_sender_denomination"`
+	GiftcardDenominations    json.RawMessage       `json:"giftcard_denominations"`
 	Global                   sql.NullBool          `json:"global"`
 	Metadata                 pqtype.NullRawMessage `json:"metadata"`
 	RecipientCurrencyCode    sql.NullString        `json:"recipient_currency_code"`
@@ -151,7 +183,7 @@ type FetchGiftCardsRow struct {
 	SenderFee                sql.NullFloat64       `json:"sender_fee"`
 	SenderFeePercentage      sql.NullFloat64       `json:"sender_fee_percentage"`
 	SupportsPreOrder         sql.NullBool          `json:"supports_pre_order"`
-	LogoUrl                  sql.NullString        `json:"logo_url"`
+	LogoUrls                 json.RawMessage       `json:"logo_urls"`
 	BrandName                sql.NullString        `json:"brand_name"`
 	CategoryName             sql.NullString        `json:"category_name"`
 	CountryName              sql.NullString        `json:"country_name"`
@@ -168,6 +200,7 @@ func (q *Queries) FetchGiftCards(ctx context.Context) ([]FetchGiftCardsRow, erro
 	for rows.Next() {
 		var i FetchGiftCardsRow
 		if err := rows.Scan(
+			&i.ID,
 			&i.ProductID,
 			&i.ProductName,
 			&i.DenominationType,
@@ -176,6 +209,7 @@ func (q *Queries) FetchGiftCards(ctx context.Context) ([]FetchGiftCardsRow, erro
 			&i.MinRecipientDenomination,
 			&i.MaxSenderDenomination,
 			&i.MinSenderDenomination,
+			&i.GiftcardDenominations,
 			&i.Global,
 			&i.Metadata,
 			&i.RecipientCurrencyCode,
@@ -183,7 +217,7 @@ func (q *Queries) FetchGiftCards(ctx context.Context) ([]FetchGiftCardsRow, erro
 			&i.SenderFee,
 			&i.SenderFeePercentage,
 			&i.SupportsPreOrder,
-			&i.LogoUrl,
+			&i.LogoUrls,
 			&i.BrandName,
 			&i.CategoryName,
 			&i.CountryName,

@@ -133,7 +133,7 @@ func (r *ReloadlyProvider) GetToken() (string, error) {
 		ClientID:     r.config.GiftCardID,
 		ClientSecret: r.config.GiftCardKey,
 		GrantType:    "client_credentials",
-		Audience:     r.config.GiftCardTestUrl,
+		Audience:     r.config.GiftCardBaseUrl,
 	}
 
 	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
