@@ -84,6 +84,46 @@ WHERE
 
 -- name: FetchGiftCards :many
 SELECT 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination, 
+    -- This ensures that only payable denom in 'USD' is returned
+    COALESCE(
+        JSON_AGG(DISTINCT gd.denomination) FILTER (WHERE gd.denomination IS NOT NULL AND gd.type = 'sender'),
+        '[]'
+    )::json AS giftcard_denominations,
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order, 
+    COALESCE(JSON_AGG(DISTINCT gl.logo_url) FILTER (WHERE gl.logo_url IS NOT NULL), '[]')::json AS logo_urls,
+    b.brand_name, 
+    c.name AS category_name,
+    co.name AS country_name, 
+    co.flag_url
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    brands b ON gc.brand_id = b.brand_id
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+LEFT JOIN 
+    categories c ON gc.category_id = c.id
+LEFT JOIN 
+    countries co ON gc.country_id = co.id
+LEFT JOIN 
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+GROUP BY 
+    gc.id,
     gc.product_id, 
     gc.product_name, 
     gc.denomination_type, 
@@ -99,23 +139,13 @@ SELECT
     gc.sender_fee, 
     gc.sender_fee_percentage, 
     gc.supports_pre_order, 
-    gl.logo_url,
     b.brand_name, 
-    c.name AS category_name, 
-    co.name AS country_name, 
+    c.name, 
+    co.name, 
     co.flag_url
-FROM 
-    gift_cards gc
-LEFT JOIN 
-    brands b ON gc.brand_id = b.brand_id
-LEFT JOIN 
-    categories c ON gc.category_id = c.id
-LEFT JOIN 
-    countries co ON gc.country_id = co.id
-LEFT JOIN 
-    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
 ORDER BY 
     gc.product_id;
+
 
 
 -- name: FetchGiftCardsByBrand :many

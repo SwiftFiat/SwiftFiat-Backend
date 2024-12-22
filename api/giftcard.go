@@ -79,7 +79,6 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", models.ToGiftCardResponse(giftcards)))
-
 }
 
 func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {

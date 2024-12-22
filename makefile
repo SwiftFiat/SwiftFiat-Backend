@@ -1,6 +1,6 @@
 # Start the server using CompileDaemon for automatic recompilation
 start: # start-server
-	CompileDaemon -command="./Swiftfiat-Backend" -color=true
+	air --build.cmd "go build -o bin/api" --build.bin "./bin/api"
 
 # Start the server in debug mode with Delve debugger
 start_d:
