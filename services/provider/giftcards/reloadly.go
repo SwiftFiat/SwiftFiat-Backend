@@ -133,7 +133,7 @@ func (r *ReloadlyProvider) GetToken() (string, error) {
 		ClientID:     r.config.GiftCardID,
 		ClientSecret: r.config.GiftCardKey,
 		GrantType:    "client_credentials",
-		Audience:     r.config.GiftCardBaseUrl,
+		Audience:     r.config.GiftCardTestUrl,
 	}
 
 	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
@@ -196,6 +196,49 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 
 	// Decode the response body
 	var response reloadlymodels.GiftCardPurchaseResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing products: %w", err)
+	}
+
+	return &response, nil
+}
+
+func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
+	token, err := r.GetToken()
+	if err != nil {
+		return nil, err
+	}
+
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
+	requiredHeaders["Authorization"] = "Bearer " + token
+
+	base, err := url.Parse(r.config.GiftCardTestUrl)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing base URL: %v", err)
+	}
+	base.Path += fmt.Sprintf("/orders/transactions/%s/cards", request)
+
+	resp, err := r.MakeRequest("GET", base.String(), nil, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		logging.NewLogger().Error("resp", string(respBody))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	logging.NewLogger().Info(fmt.Sprintf("response status - %v", resp.Status))
+	logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
+
+	// Decode the response body
+	var response interface{}
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&response)
 	if err != nil {

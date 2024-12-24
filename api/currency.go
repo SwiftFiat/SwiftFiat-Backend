@@ -19,9 +19,11 @@ func (c Currency) router(server *Server) {
 	c.currencyService = currency.NewCurrencyService(c.server.queries, c.server.logger)
 
 	serverGroupV1 := server.router.Group("/api/v1/currency")
-	serverGroupV1.POST("set", AuthenticatedMiddleware(), c.setPairRate)
 	serverGroupV1.GET("get", AuthenticatedMiddleware(), c.getPairRate)
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), c.getAllRates)
+
+	serverGroupV1Admin := server.router.Group("/api/admin/v1/currency")
+	serverGroupV1Admin.POST("set", AuthenticatedMiddleware(), c.setPairRate)
 }
 
 func (c *Currency) setPairRate(ctx *gin.Context) {
