@@ -45,11 +45,14 @@ func (g GiftCard) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/giftcard")
-	serverGroupV1.POST("sync", AuthenticatedMiddleware(), g.syncGiftCards)
 	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
 	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
 	serverGroupV1.GET("categories", AuthenticatedMiddleware(), g.getAllGiftCardCategories)
 	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
+	serverGroupV1.GET("card/:transactionID", AuthenticatedMiddleware(), g.getCardInfo)
+
+	serverGroupV1Admin := server.router.Group("/api/admin/v1/giftcard")
+	serverGroupV1Admin.POST("sync", AuthenticatedMiddleware(), g.syncGiftCards)
 }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
@@ -183,4 +186,34 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
+}
+
+func (g *GiftCard) getCardInfo(ctx *gin.Context) {
+	transactionID, ok := ctx.Params.Get("transactionID")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please pass transactionID as a path param: /giftCardInfo/:transactionID"))
+		return
+	}
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	/// check varification status
+	if !activeUser.Verified {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
+
+	response, err := g.service.GetCardInfo(g.server.provider, transactionID)
+	if err != nil {
+		g.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("error fetching giftcard: %v", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift retrieved", response))
 }

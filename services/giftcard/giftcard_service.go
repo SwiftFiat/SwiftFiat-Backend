@@ -297,8 +297,8 @@ func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *tra
 	}
 
 	// Check wallet balance with up to 100% markup on the platform
-	if walletInfo.Currency != productInfo.RecipientCurrencyCode.String {
-		return nil, fmt.Errorf("cannot proceed with purchase due to conflicting currencies")
+	if walletInfo.Currency != productInfo.SenderCurrencyCode.String {
+		return nil, fmt.Errorf("cannot proceed with purchase due to conflicting currencies: %v -> %v", walletInfo.Currency, productInfo.RecipientCurrencyCode.String)
 	}
 
 	var potentialAmount decimal.Decimal
@@ -345,7 +345,7 @@ func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *tra
 		Amount:           decimal.NewFromFloat(giftCardPurchaseResponse.Amount),
 		WalletCurrency:   walletInfo.Currency,
 		WalletBalance:    walletInfo.Balance.String,
-		GiftCardCurrency: productInfo.RecipientCurrencyCode.String,
+		GiftCardCurrency: productInfo.SenderCurrencyCode.String,
 		Description:      "giftcard-purchase",
 		Type:             transaction.GiftCard,
 	})
@@ -362,4 +362,23 @@ func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *tra
 	g.logger.Info("transaction (gitftcard purchase) completed successfully", tx)
 
 	return giftCardPurchaseResponse, nil
+}
+
+func (g *GiftcardService) GetCardInfo(prov *provider.ProviderService, transactionID string) (interface{}, error) {
+
+	gprov, exists := prov.GetProvider(provider.Reloadly)
+	if !exists {
+		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
+	}
+	reloadlyProvider, ok := gprov.(*giftcards.ReloadlyProvider)
+	if !ok {
+		return nil, fmt.Errorf("failed to connect to giftcard provider")
+	}
+
+	giftCardInfo, err := reloadlyProvider.GetCardInfo(transactionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform transaction: %s", err)
+	}
+
+	return giftCardInfo, nil
 }
