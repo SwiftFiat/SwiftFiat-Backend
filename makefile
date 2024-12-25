@@ -1,13 +1,19 @@
-# Start the server using CompileDaemon for automatic recompilation
-start: # start-server
-	air --build.cmd "go build -o bin/api" --build.bin "./bin/api"
+# Start the server using AIR for automatic recompilation
+start:
+	air \
+		--build.cmd "go build -o bin/api" \
+		--build.bin "./bin/api" \
+		--build.exclude_dir "vendor" \
+		--build.include_ext "go" \
+		--build.kill_delay "0.5s" \
+		--build.poll "2s"
 
-# Start the server in debug mode with Delve debugger
-start_d:
-	CompileDaemon \
-  		-command="dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./Swiftfiat-Backend" \
-  		-build="go build -gcflags=all=-N" \
-  		-color=true
+# Start the server in debug mode with air and Delve
+debug:
+	air \
+		--build.cmd "go build -gcflags=all=-N -o bin/debug" \
+		--build.bin "dlv --listen=:2345 --headless=true --api-version=2 --accept-multiclient exec ./bin/debug" \
+   		--build.exclude_dir "vendor"
 
 # Run all tests with verbose output and coverage reporting
 test: # run tests
