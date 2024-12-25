@@ -305,9 +305,9 @@ func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *tra
 
 	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
 	if productInfo.SenderFeePercentage.Float64 != 0 {
-		potentialAmount = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64)).Add(basePrice)
+		potentialAmount = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64).Mul(decimal.NewFromInt(int64(quantity)))).Add(basePrice)
 	} else {
-		potentialAmount = basePrice.Add(decimal.NewFromFloat(productInfo.SenderFee.Float64))
+		potentialAmount = basePrice.Add(decimal.NewFromFloat(productInfo.SenderFee.Float64).Mul(decimal.NewFromInt(int64(quantity))))
 	}
 
 	val, err := decimal.NewFromString(walletInfo.Balance.String)
