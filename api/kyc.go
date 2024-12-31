@@ -12,8 +12,8 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -94,7 +94,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := k.server.provider.GetProvider(provider.Dojah); exists {
+	if provider, exists := k.server.provider.GetProvider(providers.Dojah); exists {
 		kycProvider, ok := provider.(*kyc.DOJAHProvider)
 		if ok {
 			verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, nil)
@@ -248,7 +248,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := k.server.provider.GetProvider(provider.Dojah); exists {
+	if provider, exists := k.server.provider.GetProvider(providers.Dojah); exists {
 		kycProvider, ok := provider.(*kyc.DOJAHProvider)
 		if ok {
 			verificationData, err := kycProvider.ValidateNIN(request)

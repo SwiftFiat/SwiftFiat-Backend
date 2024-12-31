@@ -9,13 +9,13 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type BitgoProvider struct {
-	provider.BaseProvider
+	providers.BaseProvider
 	config *CryptoConfig
 }
 
@@ -39,7 +39,7 @@ func NewCryptoProvider() *BitgoProvider {
 	}
 
 	return &BitgoProvider{
-		BaseProvider: provider.BaseProvider{
+		BaseProvider: providers.BaseProvider{
 			Name:    c.CryptoProviderName,
 			BaseURL: c.BitgoBaseUrl,
 			APIKey:  c.BitgoAccessKey,
@@ -77,24 +77,19 @@ func (p *BitgoProvider) CreateWallet(coin SupportedCoin) (interface{}, error) {
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		// Example error handling with body logging
-		if resp.StatusCode != http.StatusOK {
-			// Read the response body
-			bodyBytes, err := io.ReadAll(resp.Body)
-			if err != nil {
-				logging.NewLogger().Error("failed to read response body", err)
-				return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
-			}
-
-			// Log the body
-			logging.NewLogger().Error("response body", string(bodyBytes))
-
-			// Reset the response body for further processing (if needed)
-			resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
+		// Read the response body
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logging.NewLogger().Error("failed to read response body", err)
 			return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 		}
-		logging.NewLogger().Error("resp", resp)
+
+		// Log the body
+		logging.NewLogger().Error("response body", string(bodyBytes))
+
+		// Reset the response body for further processing (if needed)
+		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 

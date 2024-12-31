@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type PaystackProvider struct {
-	provider.BaseProvider
+	providers.BaseProvider
 	config *FiatConfig
 }
 
@@ -33,7 +33,7 @@ func NewFiatProvider() *PaystackProvider {
 	}
 
 	return &PaystackProvider{
-		BaseProvider: provider.BaseProvider{
+		BaseProvider: providers.BaseProvider{
 			Name:    c.FiatProviderName,
 			BaseURL: c.FiatProviderBaseUrl,
 			APIKey:  c.FiatProviderKey,

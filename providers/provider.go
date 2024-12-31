@@ -1,4 +1,4 @@
-package provider
+package providers
 
 import (
 	"bytes"
@@ -15,6 +15,7 @@ const (
 	Bitgo     = "BITGO"
 	CoinGecko = "COINGECKO"
 	Paystack  = "PAYSTACK"
+	VTPass    = "VTPASS"
 )
 
 // BaseProvider contains common fields and methods

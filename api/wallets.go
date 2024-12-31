@@ -19,9 +19,9 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -453,7 +453,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		return
 	}
 
-	provider, exists := w.server.provider.GetProvider(provider.Paystack)
+	provider, exists := w.server.provider.GetProvider(providers.Paystack)
 	if !exists {
 		w.server.logger.Error("FIAT Provider does not exist - Paystack")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))

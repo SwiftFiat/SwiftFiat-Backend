@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -138,7 +138,7 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 }
 
 // / May return an arbitrary error or an error defined in [transaction_strings]
-func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, tx CryptoTransaction, prov *provider.ProviderService) (interface{}, error) {
+func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, tx CryptoTransaction, prov *providers.ProviderService) (interface{}, error) {
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {

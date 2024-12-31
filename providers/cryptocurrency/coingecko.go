@@ -7,13 +7,13 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type CoinGeckoProvider struct {
-	provider.BaseProvider
+	providers.BaseProvider
 	config *RatesProviderConfig
 }
 
@@ -33,7 +33,7 @@ func NewRatesProvider() *CoinGeckoProvider {
 	}
 
 	return &CoinGeckoProvider{
-		BaseProvider: provider.BaseProvider{
+		BaseProvider: providers.BaseProvider{
 			Name:    c.RatesProviderName,
 			BaseURL: c.CoinGeckoBaseUrl,
 			APIKey:  c.CoinGeckoAccessKey,
