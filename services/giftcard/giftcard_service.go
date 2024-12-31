@@ -8,10 +8,10 @@ import (
 	"log"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/google/uuid"
@@ -35,8 +35,8 @@ func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis 
 	}
 }
 
-func (g *GiftcardService) SyncGiftCards(prov *provider.ProviderService) error {
-	gprov, exists := prov.GetProvider(provider.Reloadly)
+func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
+	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
 		return fmt.Errorf("failed to get provider: 'RELOADLY'")
 	}
@@ -259,8 +259,8 @@ func (g *GiftcardService) SyncGiftCards(prov *provider.ProviderService) error {
 	return nil
 }
 
-func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	gprov, exists := prov.GetProvider(provider.Reloadly)
+func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*reloadlymodels.GiftCardPurchaseResponse, error) {
+	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
 		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
 	}
@@ -364,9 +364,9 @@ func (g *GiftcardService) BuyGiftCard(prov *provider.ProviderService, trans *tra
 	return giftCardPurchaseResponse, nil
 }
 
-func (g *GiftcardService) GetCardInfo(prov *provider.ProviderService, transactionID string) (interface{}, error) {
+func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID string) (interface{}, error) {
 
-	gprov, exists := prov.GetProvider(provider.Reloadly)
+	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
 		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
 	}

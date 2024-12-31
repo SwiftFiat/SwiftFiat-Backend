@@ -7,9 +7,9 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
 	"github.com/shopspring/decimal"
 )
 
@@ -57,9 +57,9 @@ func (c *CurrencyService) GetExchangeRate(ctx context.Context, fromCurrency stri
 	return decimalValue, err
 }
 
-func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin string, toCurrency string, prov *provider.ProviderService) (decimal.Decimal, error) {
+func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin string, toCurrency string, prov *providers.ProviderService) (decimal.Decimal, error) {
 	// / Get Rate
-	if provider, exists := prov.GetProvider(provider.CoinGecko); exists {
+	if provider, exists := prov.GetProvider(providers.CoinGecko); exists {
 		rateProvider, ok := provider.(*cryptocurrency.CoinGeckoProvider)
 		if !ok {
 			c.logger.Error("failed to connect to provicer")

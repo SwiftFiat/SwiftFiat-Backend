@@ -7,14 +7,14 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc/dojah_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc/dojah_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type DOJAHProvider struct {
-	provider.BaseProvider
+	providers.BaseProvider
 	config *KYCConfig
 }
 
@@ -35,7 +35,7 @@ func NewKYCProvider() *DOJAHProvider {
 	}
 
 	return &DOJAHProvider{
-		BaseProvider: provider.BaseProvider{
+		BaseProvider: providers.BaseProvider{
 			Name:    c.KYCProviderName,
 			BaseURL: c.KYCProviderBaseUrl,
 			APIKey:  c.KYCProviderKey,

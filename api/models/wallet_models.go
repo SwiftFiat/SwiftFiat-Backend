@@ -4,7 +4,7 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/google/uuid"
 )
 

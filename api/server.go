@@ -9,14 +9,15 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -35,7 +36,7 @@ type Server struct {
 	config           *utils.Config
 	logger           *logging.Logger
 	taskScheduler    *tasks.TaskScheduler
-	provider         *provider.ProviderService
+	provider         *providers.ProviderService
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
 }
@@ -68,7 +69,7 @@ func NewServer(envPath string) *Server {
 	q := db.NewStore(dbConn)
 	g := gin.Default()
 	l := logging.NewLogger()
-	p := provider.NewProviderService()
+	p := providers.NewProviderService()
 	pn := service.NewPushNotificationService(l)
 
 	// Set up KYC service
@@ -90,6 +91,10 @@ func NewServer(envPath string) *Server {
 	// Set up Paystack Fiat Provider
 	fp := fiat.NewFiatProvider()
 	p.AddProvider(fp)
+
+	// Set up Bills Provider
+	bp := bills.NewBillProvider()
+	p.AddProvider(bp)
 
 	/// Add Middleware
 	g.Use(CORSMiddleware())
@@ -149,6 +154,7 @@ func (s *Server) Start() error {
 	Currency{}.router(s)
 	CryptoAPI{}.router(s)
 	User{}.router(s)
+	Bills{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

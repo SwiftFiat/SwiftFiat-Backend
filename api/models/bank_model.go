@@ -1,9 +1,10 @@
 package models
 
 import (
+	"slices"
 	"strings"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 )
 
 type BankResponseCollection []BankResponse
@@ -28,24 +29,29 @@ func ToBankResponseCollection(banks fiat.BankCollection) BankResponseCollection 
 }
 
 func (c *BankResponseCollection) FindBanks(query string) *BankResponseCollection {
+	query = strings.ToLower(query)
+	ch := make(chan BankResponse)
+
+	// Goroutine for filtering
+	go func() {
+		for _, bank := range *c {
+			if strings.Contains(strings.ToLower(bank.Name), query) ||
+				strings.Contains(strings.ToLower(bank.Slug), query) {
+				ch <- bank
+			}
+		}
+		close(ch)
+	}()
+
 	var tempBanks BankResponseCollection
-
-	for _, bank := range *c {
-		if strings.Contains(strings.ToLower(bank.Name), strings.ToLower(query)) {
-			tempBanks = append(tempBanks, bank)
-			continue
-		}
-
-		if strings.Contains(strings.ToLower(bank.Slug), strings.ToLower(query)) {
-			tempBanks = append(tempBanks, bank)
-			continue
-		}
+	for bank := range ch {
+		tempBanks = append(tempBanks, bank)
 	}
 
-	/// So as not to show null to the user, we return an empty slice
-	if len(tempBanks) == 0 {
-		return &BankResponseCollection{}
-	}
+	// Sort the results by Name
+	slices.SortFunc(tempBanks, func(a, b BankResponse) int {
+		return strings.Compare(strings.ToLower(a.Name), strings.ToLower(b.Name))
+	})
 
 	return &tempBanks
 }

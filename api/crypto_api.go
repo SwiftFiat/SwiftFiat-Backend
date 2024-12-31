@@ -8,9 +8,9 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -80,7 +80,7 @@ func (c *CryptoAPI) createWallet(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := c.server.provider.GetProvider(provider.Bitgo); exists {
+	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
 		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
 		if ok {
 			walletData, err := cryptoProvider.CreateWallet(cryptocurrency.SupportedCoin(request.Coin))
@@ -111,7 +111,7 @@ func (c *CryptoAPI) fetchWallets(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := c.server.provider.GetProvider(provider.Bitgo); exists {
+	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
 		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
 		if ok {
 			walletData, err := cryptoProvider.FetchWallets()
@@ -160,7 +160,7 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 	var walletData *cryptocurrency.WalletAddress
 
 	/// Generate a new address
-	if provider, exists := c.server.provider.GetProvider(provider.Bitgo); exists {
+	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
 		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
 		if ok {
 			walletData, err = cryptoProvider.CreateWalletAddress(request.WalletID, cryptocurrency.SupportedCoin(request.Coin))

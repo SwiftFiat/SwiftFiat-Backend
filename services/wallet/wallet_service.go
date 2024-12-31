@@ -8,10 +8,10 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/google/uuid"
 )
@@ -135,7 +135,7 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 	return wallets, nil
 }
 
-func (w *WalletService) GetFiatBanks(prov *provider.ProviderService, query *string) (*models.BankResponseCollection, error) {
+func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *string) (*models.BankResponseCollection, error) {
 
 	/// Check existence of banks in Cache
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
@@ -159,7 +159,7 @@ func (w *WalletService) GetFiatBanks(prov *provider.ProviderService, query *stri
 
 	w.logger.Info("retrieving banks from provider")
 
-	provider, exists := prov.GetProvider(provider.Paystack)
+	provider, exists := prov.GetProvider(providers.Paystack)
 	if !exists {
 		w.logger.Error("FIAT Provider does not exist - Paystack")
 		return nil, fmt.Errorf("FIAT Provider does not exist")
@@ -197,11 +197,11 @@ func (w *WalletService) GetFiatBanks(prov *provider.ProviderService, query *stri
 	return &banksCollection, nil
 }
 
-func (w *WalletService) ResolveAccount(prov *provider.ProviderService, accountNumber *string, bankCode *string) (*fiat.AccountInfo, error) {
+func (w *WalletService) ResolveAccount(prov *providers.ProviderService, accountNumber *string, bankCode *string) (*fiat.AccountInfo, error) {
 
 	w.logger.Info("resolving account number")
 
-	provider, exists := prov.GetProvider(provider.Paystack)
+	provider, exists := prov.GetProvider(providers.Paystack)
 	if !exists {
 		w.logger.Error("FIAT Provider does not exist - Paystack")
 		return nil, fmt.Errorf("FIAT Provider does not exist")

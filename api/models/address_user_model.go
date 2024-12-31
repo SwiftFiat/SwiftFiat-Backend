@@ -3,7 +3,7 @@ package models
 import (
 	"time"
 
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/google/uuid"
 )
 

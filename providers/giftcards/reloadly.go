@@ -9,14 +9,14 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/provider"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/services/provider/giftcards/reloadly_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type ReloadlyProvider struct {
-	provider.BaseProvider
+	providers.BaseProvider
 	config *GiftCardConfig
 	token  reloadlymodels.TokenApiResponse
 }
@@ -40,7 +40,7 @@ func NewGiftCardProvider() *ReloadlyProvider {
 	}
 
 	return &ReloadlyProvider{
-		BaseProvider: provider.BaseProvider{
+		BaseProvider: providers.BaseProvider{
 			Name:    c.GiftCardName,
 			BaseURL: c.GiftCardBaseUrl,
 			APIKey:  c.GiftCardKey,
