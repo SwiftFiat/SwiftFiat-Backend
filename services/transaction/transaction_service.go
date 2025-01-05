@@ -321,20 +321,6 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 		return fromCurrency + " to " + toCurrency
 	}(tx.WalletCurrency, tx.DestinationAccountCurrency) // Default to NGN Transactions
 
-	// Handle currency conversion if needed
-	amount := tx.Amount
-	if tx.WalletCurrency != tx.DestinationAccountCurrency {
-		rate, err := s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.DestinationAccountCurrency)
-		if err != nil {
-			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.DestinationAccountCurrency)
-		}
-		// TODO: Have a function that performs multiplication like Mul instead of direct aug
-		amount = tx.Amount.Mul(rate)
-	}
-
-	/// set amount if undergone transform or not
-	tx.Amount = amount
-
 	// Create transaction record
 	tObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow)
 	if err != nil {
@@ -353,7 +339,7 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 			Amount:    tx.Amount,
 			Balance:   balance,
 		},
-		Platform: GiftCardOutflowTransaction,
+		Platform: FiatOutflowTransaction,
 	}); err != nil {
 		return nil, fmt.Errorf("create ledger entries: %w", err)
 	}
@@ -363,6 +349,16 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
+	/// convert returned amount if necessary
+	amount := tx.Amount
+	if tx.WalletCurrency != tx.DestinationAccountCurrency {
+		rate, err := s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.DestinationAccountCurrency)
+		if err != nil {
+			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.DestinationAccountCurrency)
+		}
+		amount = tx.Amount.Mul(rate)
+	}
+	tObj.Amount = amount.String()
 	return tObj, nil
 }
 
