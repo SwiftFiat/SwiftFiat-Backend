@@ -114,6 +114,7 @@ func (s *TransactionService) CreateTransaction(ctx context.Context, tx Transacti
 			Amount:    amount,
 			Balance:   toAccount.Balance,
 		},
+		Platform: WalletTransaction,
 	}); err != nil {
 		return nil, fmt.Errorf("create ledger entries: %w", err)
 	}
@@ -243,6 +244,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 			Amount:    amount,
 			Balance:   balance,
 		},
+		Platform: CryptoInflowTransaction,
 	}); err != nil {
 		return nil, fmt.Errorf("create ledger entries: %w", err)
 	}
