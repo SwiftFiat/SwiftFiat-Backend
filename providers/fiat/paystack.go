@@ -1,8 +1,10 @@
 package fiat
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -187,7 +189,18 @@ func (p *PaystackProvider) MakeTransfer(recipient string, amount int64, benefici
 
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("resp", resp)
+		// Read the response body
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			logging.NewLogger().Error("failed to read response body", err)
+			return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+		}
+
+		// Log the body
+		logging.NewLogger().Error("response body", string(bodyBytes))
+
+		// Reset the response body for further processing (if needed)
+		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
