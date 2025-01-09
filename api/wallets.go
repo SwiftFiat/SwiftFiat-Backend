@@ -436,13 +436,13 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		WalletID        string `json:"wallet_id" binding:"required"`
 		Amount          int64  `json:"amount" binding:"required"`
 		Pin             string `json:"pin" binding:"required"`
-		SaveBeneficiary bool   `json:"save_beneficiary" binding:"required"`
+		SaveBeneficiary bool   `json:"save_beneficiary,omitempty"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		w.server.logger.Error(err)
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check your entered details: 'name', 'account_numner', 'bank_code', 'wallet_id', 'amount', 'pin' and 'save_beneficiary'"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check your entered details: 'name', 'account_numner', 'bank_code', 'wallet_id', 'amount' and 'pin'"))
 		return
 	}
 
@@ -497,6 +497,10 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 	walletInfo, err := w.server.queries.WithTx(tx).GetWalletForUpdate(ctx, walletUUID)
 	if err != nil {
 		w.server.logger.Error(fmt.Errorf("failed to pull and lock wallet information: %s", err))
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -507,9 +511,11 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		return
 	}
 
-	/// Divide the amount by 100 to get the Naira value from the User's kobo input
+	// Amount in smallest denom of source wallet:
+	//  10000 Means NGN 100.00 (i.e. 10000 Kobo)
+	//  100 Means USD 1.00 (i.e. 100 pennies)
+	/// Divide the amount by 100 to get the small denom input
 	swiftWalletAmount := decimal.NewFromInt(request.Amount).Div(decimal.NewFromInt(100))
-	paystackAmount := request.Amount
 
 	val, _ := decimal.NewFromString(walletInfo.Balance.String)
 
@@ -518,7 +524,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		return
 	}
 
-	// Create GiftCardTransaction
+	// Create Withdrawal Transaction
 	transactionInfo, err := w.transactionService.CreateFiatOutflowTransactionWithTx(ctx, tx, transaction.FiatTransaction{
 		SourceWalletID:             walletInfo.ID,
 		Amount:                     swiftWalletAmount,
@@ -528,7 +534,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		DestinationAccountNumber:   request.AccountNumber,
 		DestinationAccountBankCode: request.BankCode,
 		DestinationAccountCurrency: "NGN",
-		Description:                "withdrawal-to-swift",
+		Description:                "withdrawal-from-swift",
 		Type:                       transaction.Withdrawal,
 	})
 	if err != nil {
@@ -541,6 +547,22 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 	if err != nil {
 		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	var paystackAmount int64
+
+	tempAmount, err := decimal.NewFromString(transactionInfo.Amount)
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to get transaction amount: %s", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Convert transaction amount back to smallest denom of source wallet as required by FiatProvier - Paystack
+	paystackAmount = tempAmount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
+	if paystackAmount == 0 {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot withdraw 0 amount"))
 		return
 	}
 
