@@ -12,6 +12,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -133,8 +134,14 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	}
 
 	if cursor != "" {
+		unescaped, err := url.QueryUnescape(cursor)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor format"))
+			return
+		}
+
 		// Split cursor into timestamp and UUID
-		parts := strings.Split(cursor, "_")
+		parts := strings.Split(unescaped, "_")
 		if len(parts) != 2 {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor format"))
 			return
@@ -142,8 +149,13 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		timestampStr = parts[0]
 		uuidStr = parts[1]
 
+		// Preprocess the timestamp to fix the timezone part if necessary
+		if strings.HasSuffix(timestampStr, " 00") {
+			timestampStr = strings.Replace(timestampStr, " 00", "+00:00", 1)
+		}
+
 		// Parse the timestamp
-		postgresLayout := "2006-01-02 15:04:05.999999-07"
+		postgresLayout := "2006-01-02 15:04:05.999999-07:00"
 		transactionTime, err = time.Parse(postgresLayout, timestampStr)
 		if err != nil {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Error parsing timestamp: %v", err)))

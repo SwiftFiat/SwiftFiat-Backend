@@ -194,7 +194,7 @@ has_more_check AS (
 )
 SELECT 
     jsonb_build_object(
-        'transactions', (SELECT jsonb_agg(td.*) FROM transaction_data td),
+        'transactions', COALESCE((SELECT JSON_AGG(td.*) FROM transaction_data td), '[]')::json,
         'metadata', jsonb_build_object(
             'has_more', (SELECT has_more FROM has_more_check),
             'next_cursor', (SELECT concat(created_at::timestamptz, '_', id) FROM last_transaction)
