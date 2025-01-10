@@ -84,7 +84,7 @@ func (p *VTPassProvider) GetServiceCategories() (interface{}, error) {
 	}
 
 	// Decode the response body
-	var newModel VTPassResponse[ServiceCategory]
+	var newModel VTPassResponse[[]ServiceCategory]
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {
@@ -101,8 +101,12 @@ func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, 
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
 	}
 
-	// Path params
-	base.Path += fmt.Sprintf("services?identifier=%s", identifier)
+	base.Path += "services"
+
+	// Add query
+	q := base.Query()
+	q.Set("identifier", identifier)
+	base.RawQuery = q.Encode()
 
 	resp, err := p.MakeRequest("GET", base.String(), nil, nil)
 	if err != nil {
@@ -129,7 +133,7 @@ func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, 
 	}
 
 	// Decode the response body
-	var newModel VTPassResponse[ServiceCategory]
+	var newModel VTPassResponse[[]ServiceIdentifier]
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {
@@ -137,4 +141,58 @@ func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, 
 	}
 
 	return &newModel.Content, nil
+}
+
+func (p *VTPassProvider) GetServiceVariation(serviceID string) (interface{}, error) {
+
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "service-variations"
+
+	// Add query
+	q := base.Query()
+	q.Set("serviceID", serviceID)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Log the body
+	logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+
+	// Reset the response body for further processing (if needed)
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel VTPassResponse[ServiceContentWithVariation]
+	/// TODO: We may need to parse into VTPassResponse before unmarshalling the rest
+	/// This is because VTPass is
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	if newModel.Content.Variations == nil {
+		newModel.Content.Variations = []Variation{} // Initialize empty slice
+	}
+	return &newModel.Content.Variations, nil
 }

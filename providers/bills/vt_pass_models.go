@@ -2,7 +2,8 @@ package bills
 
 type VTPassResponse[T any] struct {
 	ResponseDescription string `json:"response_description"`
-	Content             []T    `json:"content"`
+	Code                string `json:"code"`
+	Content             T      `json:"content"`
 }
 
 type ServiceCategory struct {
