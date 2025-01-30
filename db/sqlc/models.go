@@ -52,6 +52,21 @@ type CryptoAddress struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+// Metadata for cryptocurrency transactions
+type CryptoTransactionMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	DestinationWallet    uuid.NullUUID  `json:"destination_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Coin                 string         `json:"coin"`
+	SourceHash           sql.NullString `json:"source_hash"`
+	Rate                 sql.NullString `json:"rate"`
+	Fees                 sql.NullString `json:"fees"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
 type CryptoTransactionTrail struct {
 	ID              uuid.UUID      `json:"id"`
 	AddressID       string         `json:"address_id"`
@@ -69,6 +84,22 @@ type ExchangeRate struct {
 	EffectiveTime time.Time `json:"effective_time"`
 	Source        string    `json:"source"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+// Metadata for fiat currency withdrawals
+type FiatWithdrawalMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	AccountName          sql.NullString `json:"account_name"`
+	BankCode             sql.NullString `json:"bank_code"`
+	AccountNumber        sql.NullString `json:"account_number"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
 }
 
 type GiftCard struct {
@@ -113,6 +144,19 @@ type GiftCardLogoUrl struct {
 	LogoUrl    sql.NullString `json:"logo_url"`
 }
 
+// Metadata for giftcard purchases
+type GiftcardTransactionMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
 type Kyc struct {
 	ID                    int64                 `json:"id"`
 	UserID                int32                 `json:"user_id"`
@@ -147,11 +191,13 @@ type Kyc struct {
 type LedgerEntry struct {
 	ID               uuid.UUID     `json:"id"`
 	TransactionID    uuid.NullUUID `json:"transaction_id"`
-	AccountID        uuid.NullUUID `json:"account_id"`
+	WalletID         uuid.NullUUID `json:"wallet_id"`
 	Type             string        `json:"type"`
 	Amount           string        `json:"amount"`
 	Balance          string        `json:"balance"`
 	CreatedAt        time.Time     `json:"created_at"`
+	SourceType       string        `json:"source_type"`
+	DestinationType  string        `json:"destination_type"`
 	DeletedAccountID uuid.NullUUID `json:"deleted_account_id"`
 }
 
@@ -203,6 +249,38 @@ type ReferralEntry struct {
 	DeletedAt      sql.NullTime `json:"deleted_at"`
 }
 
+// Metadata for service purchases like airtime and TV subscriptions
+type ServicesMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	ServiceType          string         `json:"service_type"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	ServiceID            sql.NullString `json:"service_id"`
+	ServiceStatus        string         `json:"service_status"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
+// Metadata for wallet-to-wallet transfers and swaps
+type SwapTransferMetadatum struct {
+	ID                uuid.UUID      `json:"id"`
+	Currency          string         `json:"currency"`
+	TransactionID     uuid.UUID      `json:"transaction_id"`
+	TransferType      string         `json:"transfer_type"`
+	Description       sql.NullString `json:"description"`
+	SourceWallet      uuid.NullUUID  `json:"source_wallet"`
+	DestinationWallet uuid.NullUUID  `json:"destination_wallet"`
+	UserTag           sql.NullString `json:"user_tag"`
+	Rate              sql.NullString `json:"rate"`
+	Fees              sql.NullString `json:"fees"`
+	ReceivedAmount    sql.NullString `json:"received_amount"`
+	SentAmount        sql.NullString `json:"sent_amount"`
+}
+
 type SwiftWallet struct {
 	ID         uuid.UUID      `json:"id"`
 	CustomerID int64          `json:"customer_id"`
@@ -214,27 +292,28 @@ type SwiftWallet struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+// Core transaction table storing all financial transactions
 type Transaction struct {
-	ID                     uuid.UUID      `json:"id"`
-	Type                   string         `json:"type"`
-	Amount                 string         `json:"amount"`
-	Currency               string         `json:"currency"`
-	FromAccountID          uuid.NullUUID  `json:"from_account_id"`
-	ToAccountID            uuid.NullUUID  `json:"to_account_id"`
-	Status                 string         `json:"status"`
-	Description            sql.NullString `json:"description"`
-	CreatedAt              time.Time      `json:"created_at"`
-	UpdatedAt              time.Time      `json:"updated_at"`
-	CurrencyFlow           sql.NullString `json:"currency_flow"`
-	DeletedFromAccountID   uuid.NullUUID  `json:"deleted_from_account_id"`
-	DeletedToAccountID     uuid.NullUUID  `json:"deleted_to_account_id"`
-	SourceHash             sql.NullString `json:"source_hash"`
-	Coin                   sql.NullString `json:"coin"`
-	TransactionSource      sql.NullString `json:"transaction_source"`
-	TransactionDestination sql.NullString `json:"transaction_destination"`
-	FiatAccountName        sql.NullString `json:"fiat_account_name"`
-	FiatAccountBankCode    sql.NullString `json:"fiat_account_bank_code"`
-	FiatAccountNumber      sql.NullString `json:"fiat_account_number"`
+	ID                   uuid.UUID      `json:"id"`
+	Type                 string         `json:"type"`
+	Description          sql.NullString `json:"description"`
+	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Status               string         `json:"status"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
+}
+
+type TransactionFee struct {
+	ID              int64          `json:"id"`
+	TransactionType string         `json:"transaction_type"`
+	FeePercentage   sql.NullString `json:"fee_percentage"`
+	MaxFee          sql.NullString `json:"max_fee"`
+	FlatFee         sql.NullString `json:"flat_fee"`
+	EffectiveTime   time.Time      `json:"effective_time"`
+	Source          string         `json:"source"`
+	CreatedAt       time.Time      `json:"created_at"`
 }
 
 type User struct {

@@ -14,6 +14,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
@@ -23,15 +24,17 @@ type GiftcardService struct {
 	store  *db.Store
 	logger *logging.Logger
 	redis  *redis.RedisService
+	config *utils.Config
 	/// We may need to inject the provider service here
 	/// since it's getting used in all of the functions
 }
 
-func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService) *GiftcardService {
+func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService, config *utils.Config) *GiftcardService {
 	return &GiftcardService{
 		store:  store,
 		logger: logger,
 		redis:  redis,
+		config: config,
 	}
 }
 
@@ -271,36 +274,19 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 
 	ctx := context.Background()
 
-	tx, err := g.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
-	if err != nil {
-		g.logger.Fatalf("Failed to start transaction: %v", err)
-	}
-
-	defer tx.Rollback()
-
 	// Pull user information
-	userInfo, err := g.store.WithTx(tx).GetUserByID(ctx, userID)
+	userInfo, err := g.store.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull user information: %s", err)
 	}
 
 	// Pull product information
-	productInfo, err := g.store.WithTx(tx).FetchGiftCard(ctx, productID)
+	productInfo, err := g.store.FetchGiftCard(ctx, productID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to pull product information: %s", err)
 	}
 
-	// Pull wallet information and lock it for processing
-	walletInfo, err := g.store.WithTx(tx).GetWalletForUpdate(ctx, walletID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to pull and lock wallet information: %s", err)
-	}
-
-	// Check wallet balance with up to 100% markup on the platform
-	if walletInfo.Currency != productInfo.SenderCurrencyCode.String {
-		return nil, fmt.Errorf("cannot proceed with purchase due to conflicting currencies: %v -> %v", walletInfo.Currency, productInfo.RecipientCurrencyCode.String)
-	}
-
+	// Calculate the potential amount including service fees
 	var potentialAmount decimal.Decimal
 
 	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
@@ -310,13 +296,26 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		potentialAmount = basePrice.Add(decimal.NewFromFloat(productInfo.SenderFee.Float64).Mul(decimal.NewFromInt(int64(quantity))))
 	}
 
-	val, err := decimal.NewFromString(walletInfo.Balance.String)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse user's wallet balance: %v", err)
-	}
+	g.logger.Info("starting giftcard outflow transaction")
 
-	if val.LessThan(potentialAmount) {
-		return nil, fmt.Errorf("insufficient balance for purchase: %v", val)
+	// Start transaction
+	dbTx, err := g.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// Create GiftCardTransaction
+	tInfo, err := trans.CreateGiftCardOutflowTransactionWithTx(ctx, dbTx, &userInfo, transaction.GiftCardTransaction{
+		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
+		SourceWalletID:   walletID,
+		SentAmount:       potentialAmount,
+		GiftCardCurrency: productInfo.SenderCurrencyCode.String,
+		Description:      "giftcard-purchase",
+		Type:             transaction.GiftCard,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit customer: %s", err)
 	}
 
 	// Perform transaction
@@ -329,8 +328,8 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		SenderName:       userInfo.FirstName.String,
 		RecipientEmail:   userInfo.Email,
 		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
-			CountryCode: "NG",
-			PhoneNumber: "08022491679",
+			CountryCode: g.config.CountryCode,
+			PhoneNumber: g.config.Phone,
 		},
 	}
 
@@ -339,27 +338,22 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		return nil, fmt.Errorf("failed to perform transaction: %s", err)
 	}
 
-	// Create GiftCardTransaction
-	_, err = trans.CreateGiftCardOutflowTransactionWithTx(ctx, tx, transaction.GiftCardTransaction{
-		SourceWalletID:   walletInfo.ID,
-		Amount:           decimal.NewFromFloat(giftCardPurchaseResponse.Amount),
-		WalletCurrency:   walletInfo.Currency,
-		WalletBalance:    walletInfo.Balance.String,
-		GiftCardCurrency: productInfo.SenderCurrencyCode.String,
-		Description:      "giftcard-purchase",
-		Type:             transaction.GiftCard,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to debit customer: %s", err)
+	if _, err := g.store.WithTx(dbTx).UpdateGiftCardServiceTransactionID(ctx, db.UpdateGiftCardServiceTransactionIDParams{
+		ServiceTransactionID: sql.NullString{
+			String: fmt.Sprintf("%d", giftCardPurchaseResponse.TransactionID),
+			Valid:  true,
+		},
+		TransactionID: tInfo.ID,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to update giftcard service transaction ID: %w", err)
 	}
 
-	// Commit
-	err = tx.Commit()
-	if err != nil {
-		return nil, fmt.Errorf("failed to commit transaction: %s", err)
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	g.logger.Info("transaction (gitftcard purchase) completed successfully", tx)
+	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
 
 	return giftCardPurchaseResponse, nil
 }

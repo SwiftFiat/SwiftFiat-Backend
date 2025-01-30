@@ -18,7 +18,7 @@ import (
 type ReloadlyProvider struct {
 	providers.BaseProvider
 	config *GiftCardConfig
-	token  reloadlymodels.TokenApiResponse
+	token  reloadlymodels.TokenApiStore
 }
 
 type GiftCardConfig struct {
@@ -26,8 +26,10 @@ type GiftCardConfig struct {
 	GiftCardID      string `mapstructure:"GIFTCARD_APP_ID"`
 	GiftCardKey     string `mapstructure:"GIFTCARD_KEY"`
 	GiftCardBaseUrl string `mapstructure:"GIFTCARD_BASE_URL"`
-	GiftCardTestUrl string `mapstructure:"GIFTCARD_ALT_URL"`
 	GiftCardAuthUrl string `mapstructure:"GIFTCARD_AUTH_URL"`
+	GiftCardProdKey string `mapstructure:"GIFTCARD_PROD_KEY"`
+	GiftCardProdID  string `mapstructure:"GIFTCARD_PROD_ID"`
+	GiftCardProdUrl string `mapstructure:"GIFTCARD_PROD_URL"`
 }
 
 func NewGiftCardProvider() *ReloadlyProvider {
@@ -77,7 +79,7 @@ func BuildProductsURL(baseURL string) (*url.URL, error) {
 
 func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection, error) {
 
-	token, err := r.GetToken()
+	token, err := r.GetToken(reloadlymodels.PROD)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +88,7 @@ func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection,
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	url, err := BuildProductsURL(r.BaseURL)
+	url, err := BuildProductsURL(r.config.GiftCardProdUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -115,13 +117,27 @@ func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection,
 	return products.Content, nil
 }
 
-func (r *ReloadlyProvider) GetToken() (string, error) {
-
-	if r.token.AccessToken != "" {
-		tokenExpiry := time.Now().Add(time.Duration(r.token.ExpiresIn) * time.Second)
-		if time.Now().After(tokenExpiry) {
-			return r.token.AccessToken, nil
+// audience: The target audience for the token, specifying the environment (PROD or SANDBOX)
+func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, error) {
+	if r.token.Token.AccessToken != "" && r.token.Audience == audience {
+		tokenExpiry := time.Now().Add(time.Duration(r.token.Token.ExpiresIn) * time.Second)
+		if time.Now().Before(tokenExpiry) {
+			return r.token.Token.AccessToken, nil
 		}
+	}
+
+	var clientID string
+	var clientSecret string
+	var audienceType string
+
+	if audience == reloadlymodels.PROD {
+		clientID = r.config.GiftCardProdID
+		clientSecret = r.config.GiftCardProdKey
+		audienceType = r.config.GiftCardProdUrl
+	} else {
+		clientID = r.config.GiftCardID
+		clientSecret = r.config.GiftCardKey
+		audienceType = r.config.GiftCardBaseUrl
 	}
 
 	var requiredHeaders = make(map[string]string)
@@ -130,10 +146,10 @@ func (r *ReloadlyProvider) GetToken() (string, error) {
 
 	url := r.config.GiftCardAuthUrl
 	request := reloadlymodels.AuthConfig{
-		ClientID:     r.config.GiftCardID,
-		ClientSecret: r.config.GiftCardKey,
+		ClientID:     clientID,
+		ClientSecret: clientSecret,
 		GrantType:    "client_credentials",
-		Audience:     r.config.GiftCardTestUrl,
+		Audience:     audienceType,
 	}
 
 	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
@@ -158,12 +174,15 @@ func (r *ReloadlyProvider) GetToken() (string, error) {
 	}
 
 	/// Set AccessToken
-	r.token = apiResponse
+	r.token = reloadlymodels.TokenApiStore{
+		Token:    apiResponse,
+		Audience: audience,
+	}
 	return apiResponse.AccessToken, nil
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	token, err := r.GetToken()
+	token, err := r.GetToken(reloadlymodels.SANDBOX)
 	if err != nil {
 		return nil, err
 	}
@@ -172,7 +191,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardTestUrl)
+	base, err := url.Parse(r.config.GiftCardBaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
@@ -206,7 +225,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 }
 
 func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
-	token, err := r.GetToken()
+	token, err := r.GetToken(reloadlymodels.SANDBOX)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +234,7 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardTestUrl)
+	base, err := url.Parse(r.config.GiftCardBaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}

@@ -49,9 +49,9 @@ func IsWalletTypeValid(request string) bool {
 	return false
 }
 
-func (w *WalletService) GetWallet(ctx context.Context, dbTx *sql.Tx, walletID uuid.UUID) (*WalletModel, error) {
+func (w *WalletService) GetWalletForUpdate(ctx context.Context, dbTx *sql.Tx, walletID uuid.UUID) (*WalletModel, error) {
 	w.logger.Info("Fetching wallet")
-	db_wallet, err := w.store.WithTx(dbTx).GetWallet(ctx, walletID)
+	db_wallet, err := w.store.WithTx(dbTx).GetWalletForUpdate(ctx, walletID)
 	if err == sql.ErrNoRows {
 		return nil, ErrWalletNotFound
 	} else if err != nil {
