@@ -28,6 +28,7 @@ func (g GiftCard) router(server *Server) {
 		server.queries,
 		server.logger,
 		server.redis,
+		server.config,
 	)
 	g.transactionService = transaction.NewTransactionService(
 		server.queries,
@@ -63,14 +64,9 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	}
 
 	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
+	_, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
 		return
 	}
 
@@ -87,14 +83,9 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 
 	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
+	_, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
 		return
 	}
 
@@ -111,14 +102,9 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 func (g *GiftCard) getAllGiftCardCategories(ctx *gin.Context) {
 
 	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
+	_, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
 		return
 	}
 
@@ -166,11 +152,11 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		return
 	}
 
-	/// check varification status
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
-		return
-	}
+	// /// check varification status
+	// if !activeUser.Verified {
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
+	// 	return
+	// }
 
 	walletID, err := uuid.Parse(request.WalletID)
 	if err != nil {

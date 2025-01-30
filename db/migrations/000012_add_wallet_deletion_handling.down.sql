@@ -2,7 +2,7 @@
 ALTER TABLE ledger_entries
     DROP CONSTRAINT ledger_entries_account_id_fkey,
     ADD CONSTRAINT ledger_entries_account_id_fkey 
-        FOREIGN KEY (account_id) 
+        FOREIGN KEY (wallet_id) 
         REFERENCES swift_wallets(id);
 
 ALTER TABLE swift_wallets
@@ -19,7 +19,7 @@ DROP FUNCTION IF EXISTS preserve_wallet_id_on_delete();
 
 ALTER TABLE ledger_entries
     DROP COLUMN IF EXISTS deleted_account_id,
-    ALTER COLUMN account_id SET NOT NULL,
+    ALTER COLUMN wallet_id SET NOT NULL,
     ALTER COLUMN transaction_id SET NOT NULL;
 
 -- Remove deleted ID columns

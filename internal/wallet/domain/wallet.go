@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"fmt"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -92,19 +93,14 @@ type FiatTransferResponse struct {
 
 func ToFiatTransferResponse(fiatRes *fiat.TransferResponse, transInf *db.Transaction, benSaved bool) *FiatTransferResponse {
 	return &FiatTransferResponse{
-		ID:                  transInf.ID,
-		Type:                transInf.Type,
-		Amount:              transInf.Amount,
-		Currency:            transInf.Currency,
-		FromAccountID:       transInf.FromAccountID,
-		Status:              fiatRes.Status,
-		Description:         transInf.Description.String,
-		CreatedAt:           transInf.CreatedAt,
-		UpdatedAt:           transInf.UpdatedAt,
-		CurrencyFlow:        transInf.CurrencyFlow.String,
-		FiatAccountName:     transInf.FiatAccountName.String,
-		FiatAccountBankCode: transInf.FiatAccountBankCode.String,
-		FiatAccountNumber:   transInf.FiatAccountNumber.String,
-		SavedBeneficiary:    benSaved,
+		ID:               transInf.ID,
+		Type:             transInf.Type,
+		Amount:           fmt.Sprint(fiatRes.Amount),
+		Currency:         fiatRes.Currency,
+		Status:           fiatRes.Status,
+		Description:      transInf.Description.String,
+		CreatedAt:        transInf.CreatedAt,
+		UpdatedAt:        transInf.UpdatedAt,
+		SavedBeneficiary: benSaved,
 	}
 }

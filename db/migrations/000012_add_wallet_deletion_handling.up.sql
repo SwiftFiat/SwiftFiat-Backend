@@ -5,7 +5,7 @@ ALTER TABLE transactions
 
 ALTER TABLE ledger_entries
     ADD COLUMN deleted_account_id UUID,
-    ALTER COLUMN account_id DROP NOT NULL,
+    ALTER COLUMN wallet_id DROP NOT NULL,
     ALTER COLUMN transaction_id DROP NOT NULL;
 
 -- Create trigger function for preserving wallet IDs
@@ -26,8 +26,8 @@ BEGIN
     -- Update ledger entries for this wallet
     UPDATE ledger_entries
     SET deleted_account_id = OLD.id,
-        account_id = NULL
-    WHERE account_id = OLD.id;
+        wallet_id = NULL
+    WHERE wallet_id = OLD.id;
     
     RETURN OLD;
 END;
@@ -48,8 +48,7 @@ ALTER TABLE swift_wallets
         ON DELETE CASCADE;
 
 ALTER TABLE ledger_entries
-    DROP CONSTRAINT ledger_entries_account_id_fkey,
     ADD CONSTRAINT ledger_entries_account_id_fkey 
-        FOREIGN KEY (account_id) 
+        FOREIGN KEY (wallet_id) 
         REFERENCES swift_wallets(id)
         ON DELETE SET NULL;
