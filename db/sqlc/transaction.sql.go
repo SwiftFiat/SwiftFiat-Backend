@@ -705,6 +705,38 @@ func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactio
 	return items, nil
 }
 
+const updateBillServiceTransactionID = `-- name: UpdateBillServiceTransactionID :one
+UPDATE services_metadata
+SET service_transaction_id = $1
+WHERE transaction_id = $2
+RETURNING id, source_wallet, rate, received_amount, sent_amount, fees, transaction_id, service_type, service_provider, service_id, service_status, service_transaction_id
+`
+
+type UpdateBillServiceTransactionIDParams struct {
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+}
+
+func (q *Queries) UpdateBillServiceTransactionID(ctx context.Context, arg UpdateBillServiceTransactionIDParams) (ServicesMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateBillServiceTransactionID, arg.ServiceTransactionID, arg.TransactionID)
+	var i ServicesMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.SourceWallet,
+		&i.Rate,
+		&i.ReceivedAmount,
+		&i.SentAmount,
+		&i.Fees,
+		&i.TransactionID,
+		&i.ServiceType,
+		&i.ServiceProvider,
+		&i.ServiceID,
+		&i.ServiceStatus,
+		&i.ServiceTransactionID,
+	)
+	return i, err
+}
+
 const updateGiftCardServiceTransactionID = `-- name: UpdateGiftCardServiceTransactionID :one
 UPDATE giftcard_transaction_metadata
 SET service_transaction_id = $1

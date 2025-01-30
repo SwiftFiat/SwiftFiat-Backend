@@ -627,11 +627,13 @@ func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
+		w.server.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid transaction type, fee percentage and max fee"))
 		return
 	}
 
 	if !transaction.IsTransactionTypeValid(transaction.TransactionType(request.TransactionType)) {
+		w.server.logger.Error("invalid transaction type")
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid transaction type (Transfer | Withdrawal | Deposit | Swap | GiftCard | Airtime)"))
 		return
 	}

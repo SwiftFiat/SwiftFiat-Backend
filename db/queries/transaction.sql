@@ -61,6 +61,11 @@ SET service_transaction_id = $1
 WHERE transaction_id = $2
 RETURNING *;
 
+-- name: UpdateBillServiceTransactionID :one
+UPDATE services_metadata
+SET service_transaction_id = $1
+WHERE transaction_id = $2
+RETURNING *;
 
 -- name: CreateFiatWithdrawalMetadata :one
 INSERT INTO fiat_withdrawal_metadata (

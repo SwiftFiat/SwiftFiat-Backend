@@ -27,7 +27,7 @@ const (
 	Airtime    TransactionType = "airtime"
 )
 
-var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, Swap, GiftCard, Airtime}
+var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime}
 
 func IsTransactionTypeValid(request TransactionType) bool {
 	for _, c := range SupportedTransactions {
@@ -45,7 +45,10 @@ const (
 	CryptoInflowTransaction    TransactionPlatform = "crypto"
 	GiftCardOutflowTransaction TransactionPlatform = "giftcard"
 	FiatOutflowTransaction     TransactionPlatform = "fiat"
+	BillOutflowTransaction     TransactionPlatform = "bill"
 )
+
+var SupportedBillTransactions = []TransactionType{Airtime}
 
 type IntraTransaction struct {
 	ID             string
@@ -107,6 +110,21 @@ type FiatTransaction struct {
 	DestinationAccountBankCode string
 	Description                string
 	Type                       TransactionType
+}
+
+type BillTransaction struct {
+	ID              string
+	SourceWalletID  uuid.UUID
+	SentAmount      decimal.Decimal
+	Rate            decimal.Decimal
+	ReceivedAmount  decimal.Decimal
+	Fees            decimal.Decimal
+	WalletCurrency  string
+	WalletBalance   decimal.Decimal
+	ServiceCurrency string
+	ServiceID       string
+	Description     string
+	Type            TransactionType
 }
 
 type LedgerEntries struct {
@@ -194,8 +212,19 @@ type FiatWithdrawalMetadataResponse struct {
 	ServiceTransactionID string    `json:"service_transaction_id,omitempty"`
 }
 
+type BillMetadataResponse struct {
+	ID                   uuid.UUID `json:"id"`
+	SourceWallet         uuid.UUID `json:"source_wallet"`
+	Rate                 string    `json:"rate,omitempty"`
+	ReceivedAmount       string    `json:"received_amount,omitempty"`
+	SentAmount           string    `json:"sent_amount,omitempty"`
+	Fees                 string    `json:"fees,omitempty"`
+	ServiceProvider      string    `json:"service_provider,omitempty"`
+	ServiceTransactionID string    `json:"service_transaction_id,omitempty"`
+}
+
 type CreateTransactionFeeRequest struct {
 	TransactionType string  `json:"transaction_type" binding:"required"`
-	FeePercentage   float64 `json:"fee_percentage" binding:"required"`
-	MaxFee          float64 `json:"max_fee" binding:"required"`
+	FeePercentage   float64 `json:"fee_percentage" binding:"gte=0"` // changed to gte=0
+	MaxFee          float64 `json:"max_fee" binding:"gte=0"`
 }

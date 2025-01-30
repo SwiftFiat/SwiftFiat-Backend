@@ -481,6 +481,97 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 	return tObj, nil
 }
 
+// / May return an arbitrary error or an error defined in [transaction_strings]
+func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Context, dbTx *sql.Tx, user *db.User, tx BillTransaction) (*TransactionResponse[BillMetadataResponse], error) {
+	// Get account details
+	fromAccount, err := s.walletClient.GetWalletForUpdate(ctx, dbTx, tx.SourceWalletID)
+	if err != nil {
+		return nil, wallet.NewWalletError(err, tx.SourceWalletID.String())
+	}
+
+	// User must own source wallet - Verify Ownership
+	if user.ID != fromAccount.CustomerID {
+		s.logger.Error("illegal access: ", fmt.Sprintf("user tried accessing a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.ID, fromAccount.ID))
+		return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.SourceWalletID.String())
+	}
+
+	// set Transaction information
+	tx.WalletCurrency = fromAccount.Currency
+	tx.WalletBalance = fromAccount.Balance
+
+	// Track transaction currency type
+	// e.g. USD to USD or NGN to USD
+	// This would help for ledger tracking
+	// Anonymous function to determine the currency flow e.g NGN to USD
+	currFlow := func(fromCurrency, toCurrency string) string {
+		if fromCurrency == toCurrency {
+			return fromCurrency + " to " + toCurrency
+		}
+		return fromCurrency + " to " + toCurrency
+	}(tx.WalletCurrency, tx.ServiceCurrency) // Default to NGN Transactions
+
+	var sentAmount decimal.Decimal
+	var receivedAmount decimal.Decimal
+	var rate decimal.Decimal
+	var fees decimal.Decimal
+
+	sentAmount = tx.SentAmount
+	if tx.WalletCurrency != tx.ServiceCurrency {
+		rate, err = s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.ServiceCurrency)
+		if err != nil {
+			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.ServiceCurrency)
+		}
+		receivedAmount = tx.SentAmount.Mul(rate)
+	} else {
+		rate = decimal.New(1, 0)
+	}
+
+	/// update sent amount with FEES
+	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
+	if err != nil {
+		return nil, err
+	}
+
+	// Check sufficient balance
+	if tx.WalletBalance.LessThan(sentAmount) {
+		return nil, wallet.NewWalletError(wallet.ErrInsufficientFunds, tx.SourceWalletID.String(), fmt.Errorf("amount required: %v", sentAmount))
+	}
+
+	// Reset values in transaction object
+	tx.ReceivedAmount = receivedAmount
+	tx.Fees = fees
+	tx.Rate = rate
+
+	// Create transaction record
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, BillOutflowTransaction, &tx, currFlow)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction record: %w", err)
+	}
+	tObj := tempObj.(*TransactionResponse[BillMetadataResponse])
+
+	// Create ledger entries
+	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
+		TransactionID: tObj.ID,
+		Debit: Entry{
+			AccountID: tx.SourceWalletID,
+			Amount:    sentAmount,
+			Balance:   tx.WalletBalance,
+		},
+		Platform:        BillOutflowTransaction,
+		SourceType:      OnPlatform,
+		DestinationType: OffPlatform,
+	}); err != nil {
+		return nil, fmt.Errorf("create ledger entries: %w", err)
+	}
+
+	// Update account balances
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, sentAmount.Neg()); err != nil {
+		return nil, fmt.Errorf("update to account balance: %w", err)
+	}
+
+	return tObj, nil
+}
+
 func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string) (interface{}, error) {
 
 	if platform == WalletTransaction {
@@ -777,6 +868,83 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 	}
 
+	if platform == BillOutflowTransaction {
+		tx, ok := txx.(*BillTransaction)
+		if !ok {
+			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
+		}
+
+		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+			Type:            string(tx.Type),
+			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
+			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			Status:          string(Success),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create transaction record: %w", err)
+		}
+
+		params := db.CreateServiceMetadataParams{
+			TransactionID: tObj.ID,
+			SourceWallet: uuid.NullUUID{
+				UUID:  tx.SourceWalletID,
+				Valid: tx.SourceWalletID.URN() != "",
+			},
+			ServiceProvider: sql.NullString{
+				String: providers.VTPass,
+				Valid:  true,
+			},
+			Rate: sql.NullString{
+				String: tx.Rate.String(),
+				Valid:  true,
+			},
+			ReceivedAmount: sql.NullString{
+				String: tx.ReceivedAmount.String(),
+				Valid:  true,
+			},
+			SentAmount: sql.NullString{
+				String: tx.SentAmount.String(),
+				Valid:  true,
+			},
+			Fees: sql.NullString{
+				String: tx.Fees.String(),
+				Valid:  true,
+			},
+			ServiceType: string(tx.Type),
+			ServiceID: sql.NullString{
+				String: tx.ServiceID,
+				Valid:  true,
+			},
+		}
+
+		billMeta, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create bill metadata record: %w", err)
+		}
+
+		response := TransactionResponse[BillMetadataResponse]{
+			ID:              tObj.ID,
+			Type:            string(tx.Type),
+			Description:     tx.Description,
+			TransactionFlow: currFlow,
+			Status:          string(Success),
+			CreatedAt:       tObj.CreatedAt,
+			UpdatedAt:       tObj.UpdatedAt,
+			Metadata: &BillMetadataResponse{
+				ID:                   billMeta.ID,
+				SourceWallet:         billMeta.SourceWallet.UUID,
+				Rate:                 billMeta.Rate.String,
+				ReceivedAmount:       billMeta.ReceivedAmount.String,
+				SentAmount:           billMeta.SentAmount.String,
+				Fees:                 billMeta.Fees.String,
+				ServiceProvider:      billMeta.ServiceProvider.String,
+				ServiceTransactionID: billMeta.ServiceTransactionID.String,
+			},
+		}
+
+		return &response, nil
+	}
+
 	return nil, fmt.Errorf("cannot decipher platform type: %v", platform)
 
 }
@@ -845,8 +1013,14 @@ func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.
 		}
 		return nil
 
+	case BillOutflowTransaction:
+		if _, err := s.store.WithTx(dbTx).CreateWalletLedgerEntry(ctx, debitParams); err != nil {
+			return fmt.Errorf("failed to create debit entry: %w", err)
+		}
+		return nil
+
 	default:
-		return fmt.Errorf("invalid transaction platform: should be Wallet | Crypto | GiftCard")
+		return fmt.Errorf("invalid transaction platform: should be Wallet | Crypto | GiftCard | Bill | Fiat")
 	}
 }
 
@@ -874,7 +1048,7 @@ func (s *TransactionService) updateBalance(ctx context.Context, dbTx *sql.Tx, ac
 func (s *TransactionService) addTransactionFeesWithTx(ctx context.Context, dbTX *sql.Tx, sentAmount decimal.Decimal, fees *decimal.Decimal, transactionType string) (decimal.Decimal, error) {
 	feeObject, err := s.store.WithTx(dbTX).GetLatestTransactionFee(ctx, transactionType)
 	if err != nil {
-		return sentAmount, fmt.Errorf("failed to fetch transaction fee: %w", err)
+		return sentAmount, fmt.Errorf("failed to fetch transaction fee (%s): %w", transactionType, err)
 	}
 
 	if !feeObject.FeePercentage.Valid && !feeObject.FlatFee.Valid {
