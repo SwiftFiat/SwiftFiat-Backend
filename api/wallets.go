@@ -179,6 +179,19 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	w.server.logger.Debug(transactionTime)
 	w.server.logger.Debug(uuidValue)
 
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	params := db.GetTransactionsByUserIDParams{
+		UserID: sql.NullInt64{
+			Int64: activeUser.UserID,
+			Valid: true,
+		},
+	}
+
 	// params := db.ListWalletTransactionsByUserIDParams{
 	// 	CustomerID: activeUser.UserID,
 	// 	PageLimit:  5,
@@ -192,17 +205,17 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	// 	},
 	// }
 
-	// transactions, err := w.server.queries.ListWalletTransactionsByUserID(ctx, params)
-	// if err == sql.ErrNoRows {
-	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
-	// 	return
-	// } else if err != nil {
-	// 	w.server.logger.Error(err)
-	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-	// 	return
-	// }
+	transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	} else if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", gin.H{}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", transactions))
 
 }
 

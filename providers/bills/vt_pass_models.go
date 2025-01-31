@@ -79,3 +79,12 @@ type PurchaseAirtimeRequest struct {
 	RequestID string `json:"request_id"`
 	Amount    int64  `json:"amount"`
 }
+
+type PurchaseDataRequest struct {
+	ServiceID     string `json:"serviceID"`
+	BillersCode   string `json:"billersCode"`
+	RequestID     string `json:"request_id"`
+	VariationCode string `json:"variation_code"`
+	Phone         string `json:"phone"`
+	Amount        int64  `json:"amount"`
+}

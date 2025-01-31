@@ -13,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/go-playground/validator/v10"
 )
 
 type User struct {
@@ -40,6 +41,10 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("checktag", AuthenticatedMiddleware(), u.checkTag)
 	serverGroupV1.POST("push-token", AuthenticatedMiddleware(), u.pushToken)
 	serverGroupV1.POST("fresh-chat", AuthenticatedMiddleware(), u.freshChatID)
+	serverGroupV1.PUT("phone-number", AuthenticatedMiddleware(), u.updatePhoneNumber)
+	serverGroupV1.PUT("update-name", AuthenticatedMiddleware(), u.updateName)
+	serverGroupV1.GET("referral", AuthenticatedMiddleware(), u.referral)
+	serverGroupV1.PUT("referral", AuthenticatedMiddleware(), u.createReferral)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", AuthenticatedMiddleware(), u.testPush)
 }
@@ -258,4 +263,132 @@ func (u *User) pushToken(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
 		return
 	}
+}
+
+func (u *User) updatePhoneNumber(ctx *gin.Context) {
+	request := struct {
+		PhoneNumber string `json:"phone_number"`
+		OTP         string `json:"otp"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid Token"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if request.PhoneNumber == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a either a valid phone number"))
+		return
+	}
+
+	if request.OTP == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid OTP"))
+		return
+	}
+
+	validate := validator.New()
+	err = validate.Var(request.PhoneNumber, "e164")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhone))
+		return
+	}
+
+	dbOTP, err := u.server.queries.GetOTPByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		return
+	}
+
+	ok := utils.CompareOTP(request.OTP, utils.OTPObject{
+		OTP:    dbOTP.Otp,
+		Expiry: dbOTP.ExpiresAt,
+	})
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		return
+	}
+
+	userInfo, err := u.userService.UpdateUserPhoneNumber(ctx, activeUser.UserID, request.PhoneNumber)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting phone number %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user phone number upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
+}
+
+func (u *User) updateName(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	request := struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+	}{}
+
+	err = ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid first name and last name"))
+		return
+	}
+
+	userInfo, err := u.userService.UpdateUserNames(ctx, activeUser.UserID, request.FirstName, request.LastName)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting first name %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user name upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
+}
+
+func (u *User) referral(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	referral, err := u.userService.GetUserReferral(ctx, activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral fetched successfully", referral))
+}
+
+func (u *User) createReferral(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	referralKey := utils.GenerateRandomString(10)
+
+	referral, err := u.userService.CreateUserReferral(ctx, activeUser.UserID, referralKey)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred creating the referral %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral created successfully", referral))
 }

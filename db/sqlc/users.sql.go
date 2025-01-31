@@ -400,6 +400,47 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 	return i, err
 }
 
+const updateUserNames = `-- name: UpdateUserNames :one
+UPDATE users SET first_name = $1, last_name = $2, updated_at = $3
+WHERE id = $4 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+`
+
+type UpdateUserNamesParams struct {
+	FirstName sql.NullString `json:"first_name"`
+	LastName  sql.NullString `json:"last_name"`
+	UpdatedAt time.Time      `json:"updated_at"`
+	ID        int64          `json:"id"`
+}
+
+func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserNames,
+		arg.FirstName,
+		arg.LastName,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+	)
+	return i, err
+}
+
 const updateUserPasscodee = `-- name: UpdateUserPasscodee :one
 UPDATE users SET hashed_passcode = $1, updated_at = $2
 WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id

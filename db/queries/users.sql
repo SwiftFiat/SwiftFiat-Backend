@@ -66,6 +66,10 @@ WHERE id = $3 RETURNING *;
 UPDATE users SET last_name = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
+-- name: UpdateUserNames :one
+UPDATE users SET first_name = $1, last_name = $2, updated_at = $3
+WHERE id = $4 RETURNING *;
+
 -- name: UpdateUserVerification :one
 UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING *;

@@ -66,9 +66,15 @@ type ForgotPasswordParams struct {
 	Email string `json:"email" binding:"required"`
 }
 
-type VerifyOTPPasswordParams struct {
+type ForgotPasscodeParams struct {
 	Email string `json:"email" binding:"required"`
-	OTP   string `json:"otp" binding:"required"`
+}
+
+type ResetPasswordParams struct {
+	Email           string `json:"email" binding:"required"`
+	OTP             string `json:"otp" binding:"required"`
+	Password        string `json:"password" binding:"required"`
+	ConfirmPassword string `json:"confirm_password" binding:"required"`
 }
 
 type ChangePasswordParams struct {
@@ -77,6 +83,12 @@ type ChangePasswordParams struct {
 
 type CreatePasscodeParams struct {
 	Passcode string `json:"passcode" binding:"required"`
+}
+
+type ResetPasscodeParams struct {
+	Email string `json:"email" binding:"required"`
+	Code  string `json:"code" binding:"required"`
+	OTP   string `json:"otp" binding:"required"`
 }
 
 type CreatePinParams struct {
@@ -90,4 +102,9 @@ type UserTokenResponse struct {
 	DeviceUUID string    `json:"device_uuid"`
 	CreatedAt  time.Time `json:"created_at"`
 	UpdatedAt  time.Time `json:"updated_at"`
+}
+
+type UpdateTransactionPinParams struct {
+	Pin    string `json:"pin" binding:"required"`
+	OldPin string `json:"old_pin" binding:"required"`
 }

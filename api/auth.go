@@ -45,11 +45,14 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("register-admin", a.registerAdmin)
 	serverGroupV1.GET("otp", AuthenticatedMiddleware(), a.sendOTP)
 	serverGroupV1.POST("verify-otp", AuthenticatedMiddleware(), a.verifyOTP)
-	serverGroupV1.POST("forgot-password", a.forgotPassword)
-	serverGroupV1.POST("verify-otp-password", a.verifyOTPPassword)
 	serverGroupV1.POST("change-password", AuthenticatedMiddleware(), a.changePassword)
+	serverGroupV1.POST("forgot-password", a.forgotPassword)
+	serverGroupV1.POST("reset-password", a.resetPassword)
+	serverGroupV1.POST("forgot-passcode", a.forgotPasscode)
+	serverGroupV1.POST("reset-passcode", a.resetPasscode)
 	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
+	serverGroupV1.PUT("update-pin", AuthenticatedMiddleware(), a.updateTransactionPin)
 	serverGroupV1.GET("profile", AuthenticatedMiddleware(), a.profile)
 	serverGroupV1.GET("user", a.getUserID)
 
@@ -120,6 +123,8 @@ func (a *Auth) login(ctx *gin.Context) {
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 				return
 			}
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+			return
 		}
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -478,38 +483,28 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
 }
 
-func (a *Auth) verifyOTPPassword(ctx *gin.Context) {
-	verifyInfo := new(models.VerifyOTPPasswordParams)
+func (a *Auth) resetPasscode(ctx *gin.Context) {
+	passcode := new(models.ResetPasscodeParams)
 
-	err := ctx.ShouldBindJSON(&verifyInfo)
+	err := ctx.ShouldBindJSON(&passcode)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid OTP and Email"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'passcode'"))
 		return
 	}
 
-	//. Get User's information
-	activeUser, err := a.server.queries.GetUserByEmail(context.Background(), verifyInfo.Email)
+	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), passcode.Email)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
 		return
-	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
 	}
 
-	//. Get OTP Information from User
-	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(activeUser.ID))
+	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(dbUser.ID))
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
 		return
 	}
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred verifying your OTP %v", err.Error())))
-		return
-	}
 
-	/// If User OTP is Expired --> Returns false
-	ok := utils.CompareOTP(verifyInfo.OTP, utils.OTPObject{
+	ok := utils.CompareOTP(passcode.OTP, utils.OTPObject{
 		OTP:    dbOTP.Otp,
 		Expiry: dbOTP.ExpiresAt,
 	})
@@ -518,22 +513,26 @@ func (a *Auth) verifyOTPPassword(ctx *gin.Context) {
 		return
 	}
 
-	token, err := TokenController.CreateToken(utils.TokenObject{
-		UserID:   activeUser.ID,
-		Verified: activeUser.Verified,
-		Role:     activeUser.Role,
-	})
+	hashedPasscode, err := utils.GenerateHashValue(passcode.Code)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred with token generation"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&activeUser),
-		Token: token,
+	updateParams := db.UpdateUserPasscodeeParams{
+		HashedPasscode: sql.NullString{String: hashedPasscode, Valid: true},
+		ID:             dbUser.ID,
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userWT))
+	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	userResponse := models.UserResponse{}.ToUserResponse(&user)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
 }
 
 func (a *Auth) changePassword(ctx *gin.Context) {
@@ -618,6 +617,62 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
 }
 
+func (a *Auth) forgotPasscode(ctx *gin.Context) {
+	email := new(models.ForgotPasscodeParams)
+
+	err := ctx.ShouldBindJSON(&email)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email address"))
+		return
+	}
+
+	user, err := a.server.queries.GetUserByEmail(ctx, email.Email)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	otp := utils.GenerateOTP()
+	newParam := db.UpsertOTPParams{
+		UserID:    int32(user.ID),
+		Otp:       otp,
+		Expired:   false,
+		ExpiresAt: time.Now().Add(time.Minute * 30),
+	}
+
+	log.Default().Output(0, fmt.Sprintf("newParam Expiry: %v", newParam.ExpiresAt.Local()))
+
+	/// Add OTP to DB
+	resp, err := a.server.queries.UpsertOTP(context.Background(), newParam)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	em := service.OtpNotification{
+		Channel:     service.EMAIL,
+		PhoneNumber: user.PhoneNumber,
+		Email:       user.Email,
+		Config:      a.server.config,
+	}
+
+	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
+	log.Default().Output(0, fmt.Sprintf("FetchedOTP Expiry: %v", resp.ExpiresAt.Local()))
+
+	err = em.SendOTP(resp.Otp)
+	if err != nil {
+		log.Default().Output(6, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error sending OTP please try again later"))
+		return
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
+}
+
 func (a *Auth) createPin(ctx *gin.Context) {
 	newPin := new(models.CreatePinParams)
 
@@ -657,4 +712,110 @@ func (a *Auth) createPin(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
+}
+
+func (a *Auth) updateTransactionPin(ctx *gin.Context) {
+	pin := new(models.UpdateTransactionPinParams)
+
+	err := ctx.ShouldBindJSON(&pin)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if err := utils.VerifyHashValue(pin.OldPin, dbUser.HashedPin.String); err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("old pin does not match"))
+		return
+	}
+
+	hashedPin, err := utils.GenerateHashValue(pin.Pin)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updateParams := db.UpdateUserPinParams{
+		HashedPin: sql.NullString{String: hashedPin, Valid: true},
+		ID:        activeUser.UserID,
+	}
+
+	_, err = a.server.queries.UpdateUserPin(context.Background(), updateParams)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
+}
+
+func (a *Auth) resetPassword(ctx *gin.Context) {
+	resetPassword := new(models.ResetPasswordParams)
+
+	err := ctx.ShouldBindJSON(&resetPassword)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'password'"))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), resetPassword.Email)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
+		return
+	}
+
+	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(dbUser.ID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		return
+	}
+
+	ok := utils.CompareOTP(resetPassword.OTP, utils.OTPObject{
+		OTP:    dbOTP.Otp,
+		Expiry: dbOTP.ExpiresAt,
+	})
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
+		return
+	}
+
+	if resetPassword.Password != resetPassword.ConfirmPassword {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("password and confirm password do not match"))
+		return
+	}
+
+	hashedPassword, err := utils.GenerateHashValue(resetPassword.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updateParams := db.UpdateUserPasswordParams{
+		HashedPassword: sql.NullString{String: hashedPassword, Valid: true},
+		ID:             dbUser.ID,
+	}
+
+	user, err := a.server.queries.UpdateUserPassword(context.Background(), updateParams)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	userResponse := models.UserResponse{}.ToUserResponse(&user)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userResponse))
 }
