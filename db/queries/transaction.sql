@@ -215,3 +215,76 @@ LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 WHERE t.id = $1 LIMIT 1;
+
+-- name: GetTransactionsByUserID :many
+WITH user_wallets AS (
+    -- If user_id is provided, get all their wallets
+    SELECT id as wallet_id 
+    FROM swift_wallets
+    WHERE CASE 
+        WHEN sqlc.narg(user_id)::bigint IS NOT NULL THEN customer_id = sqlc.narg(user_id)::bigint
+        ELSE id = ANY(sqlc.arg(wallet_ids)::uuid[])
+    END
+),
+wallet_transactions AS (
+    -- Get transactions from swap_transfer_metadata where wallet is source or destination
+    SELECT t.*, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
+    FROM transactions t
+    JOIN swap_transfer_metadata st ON t.id = st.transaction_id 
+    JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from crypto_transaction_metadata where wallet is destination
+    SELECT t.*, 'crypto' as metadata_type, to_jsonb(ct.*) as metadata
+    FROM transactions t
+    JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+    JOIN user_wallets uw ON ct.destination_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from giftcard_transaction_metadata where wallet is source
+    SELECT t.*, 'giftcard' as metadata_type, to_jsonb(gt.*) as metadata
+    FROM transactions t
+    JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+    JOIN user_wallets uw ON gt.source_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from fiat_withdrawal_metadata where wallet is source
+    SELECT t.*, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
+    FROM transactions t
+    JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+    JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from services_metadata where wallet is source
+    SELECT t.*, 'service' as metadata_type, to_jsonb(sm.*) as metadata
+    FROM transactions t
+    JOIN services_metadata sm ON t.id = sm.transaction_id
+    JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
+)
+SELECT 
+    t.id,
+    t.type,
+    t.description,
+    t.transaction_flow,
+    t.status,
+    t.created_at,
+    t.updated_at,
+    jsonb_build_object(
+        'type', t.metadata_type,
+        'data', t.metadata
+    ) as metadata
+FROM wallet_transactions t
+WHERE CASE 
+    WHEN sqlc.narg(created_at)::timestamptz IS NOT NULL THEN t.created_at < sqlc.narg(created_at)::timestamptz
+    ELSE true
+END
+AND CASE
+    WHEN sqlc.narg(transaction_id)::uuid IS NOT NULL THEN t.id < sqlc.narg(transaction_id)::uuid
+    ELSE true
+END
+ORDER BY t.created_at DESC, t.id DESC
+LIMIT sqlc.arg(_limit);

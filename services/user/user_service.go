@@ -177,9 +177,10 @@ func (u *UserService) UpdateUserTag(ctx context.Context, userID int64, newTag st
 	})
 
 	if err != nil {
-		pgErr, ok := err.(*pq.Error)
-		if ok && pgErr.Code == db.DuplicateEntry {
-			return nil, NewUserError(ErrUserTagAlreadyExists, string(userID))
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == db.DuplicateEntry {
+				return nil, NewUserError(ErrUserTagAlreadyExists, fmt.Sprint(userID))
+			}
 		}
 		return nil, err
 	}
@@ -243,4 +244,45 @@ func (u *UserService) UserTagExists(ctx context.Context, newTag string) (bool, e
 	}
 
 	return exists, err
+}
+
+func (u *UserService) UpdateUserPhoneNumber(ctx context.Context, userID int64, phoneNumber string) (*db.User, error) {
+
+	user, err := u.store.UpdateUserPhone(ctx, db.UpdateUserPhoneParams{
+		PhoneNumber: phoneNumber,
+		UpdatedAt:   time.Now(),
+		ID:          userID,
+	})
+
+	return &user, err
+}
+
+func (u *UserService) UpdateUserNames(ctx context.Context, userID int64, firstName string, lastName string) (*db.User, error) {
+	user, err := u.store.UpdateUserNames(ctx, db.UpdateUserNamesParams{
+		FirstName: sql.NullString{
+			String: firstName,
+			Valid:  firstName != "",
+		},
+		LastName: sql.NullString{
+			String: lastName,
+			Valid:  lastName != "",
+		},
+		UpdatedAt: time.Now(),
+		ID:        userID,
+	})
+
+	return &user, err
+}
+
+func (u *UserService) GetUserReferral(ctx context.Context, userID int64) (*db.Referral, error) {
+	referral, err := u.store.GetReferralByUserID(ctx, int32(userID))
+	return &referral, err
+}
+
+func (u *UserService) CreateUserReferral(ctx context.Context, userID int64, referralKey string) (*db.Referral, error) {
+	referral, err := u.store.CreateNewReferral(ctx, db.CreateNewReferralParams{
+		UserID:      int32(userID),
+		ReferralKey: referralKey,
+	})
+	return &referral, err
 }

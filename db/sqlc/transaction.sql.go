@@ -8,9 +8,11 @@ package db
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 const createCryptoMetadata = `-- name: CreateCryptoMetadata :one
@@ -600,6 +602,137 @@ func (q *Queries) GetTransactionsByDateRange(ctx context.Context, arg GetTransac
 			&i.Rate,
 			&i.ReceivedAmount,
 			&i.SentAmount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getTransactionsByUserID = `-- name: GetTransactionsByUserID :many
+WITH user_wallets AS (
+    -- If user_id is provided, get all their wallets
+    SELECT id as wallet_id 
+    FROM swift_wallets
+    WHERE CASE 
+        WHEN $4::bigint IS NOT NULL THEN customer_id = $4::bigint
+        ELSE id = ANY($5::uuid[])
+    END
+),
+wallet_transactions AS (
+    -- Get transactions from swap_transfer_metadata where wallet is source or destination
+    SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
+    FROM transactions t
+    JOIN swap_transfer_metadata st ON t.id = st.transaction_id 
+    JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from crypto_transaction_metadata where wallet is destination
+    SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'crypto' as metadata_type, to_jsonb(ct.*) as metadata
+    FROM transactions t
+    JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+    JOIN user_wallets uw ON ct.destination_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from giftcard_transaction_metadata where wallet is source
+    SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'giftcard' as metadata_type, to_jsonb(gt.*) as metadata
+    FROM transactions t
+    JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+    JOIN user_wallets uw ON gt.source_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from fiat_withdrawal_metadata where wallet is source
+    SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
+    FROM transactions t
+    JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+    JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
+
+    UNION ALL
+
+    -- Get transactions from services_metadata where wallet is source
+    SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'service' as metadata_type, to_jsonb(sm.*) as metadata
+    FROM transactions t
+    JOIN services_metadata sm ON t.id = sm.transaction_id
+    JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
+)
+SELECT 
+    t.id,
+    t.type,
+    t.description,
+    t.transaction_flow,
+    t.status,
+    t.created_at,
+    t.updated_at,
+    jsonb_build_object(
+        'type', t.metadata_type,
+        'data', t.metadata
+    ) as metadata
+FROM wallet_transactions t
+WHERE CASE 
+    WHEN $1::timestamptz IS NOT NULL THEN t.created_at < $1::timestamptz
+    ELSE true
+END
+AND CASE
+    WHEN $2::uuid IS NOT NULL THEN t.id < $2::uuid
+    ELSE true
+END
+ORDER BY t.created_at DESC, t.id DESC
+LIMIT $3
+`
+
+type GetTransactionsByUserIDParams struct {
+	CreatedAt     sql.NullTime  `json:"created_at"`
+	TransactionID uuid.NullUUID `json:"transaction_id"`
+	Limit         int32         `json:"_limit"`
+	UserID        sql.NullInt64 `json:"user_id"`
+	WalletIds     []uuid.UUID   `json:"wallet_ids"`
+}
+
+type GetTransactionsByUserIDRow struct {
+	ID              uuid.UUID       `json:"id"`
+	Type            string          `json:"type"`
+	Description     sql.NullString  `json:"description"`
+	TransactionFlow sql.NullString  `json:"transaction_flow"`
+	Status          string          `json:"status"`
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
+	Metadata        json.RawMessage `json:"metadata"`
+}
+
+func (q *Queries) GetTransactionsByUserID(ctx context.Context, arg GetTransactionsByUserIDParams) ([]GetTransactionsByUserIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getTransactionsByUserID,
+		arg.CreatedAt,
+		arg.TransactionID,
+		arg.Limit,
+		arg.UserID,
+		pq.Array(arg.WalletIds),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetTransactionsByUserIDRow{}
+	for rows.Next() {
+		var i GetTransactionsByUserIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Type,
+			&i.Description,
+			&i.TransactionFlow,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.Metadata,
 		); err != nil {
 			return nil, err
 		}
