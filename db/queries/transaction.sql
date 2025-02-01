@@ -288,3 +288,111 @@ AND CASE
 END
 ORDER BY t.created_at DESC, t.id DESC
 LIMIT sqlc.arg(_limit);
+
+-- name: GetTransactionsForWallet :many
+WITH wallet_transactions AS (
+    -- Swap/Transfer transactions
+    SELECT 
+        t.*,
+        jsonb_build_object(
+            'id', stm.id,
+            'source_wallet', stm.source_wallet,
+            'destination_wallet', stm.destination_wallet,
+            'transfer_type', stm.transfer_type,
+            'rate', stm.rate,
+            'received_amount', stm.received_amount,
+            'sent_amount', stm.sent_amount,
+            'fees', stm.fees,
+            'user_tag', stm.user_tag
+        ) as metadata
+    FROM transactions t
+    JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
+    WHERE stm.source_wallet = $1 OR stm.destination_wallet = $1
+
+    UNION ALL
+
+    -- Crypto transactions
+    SELECT 
+        t.*,
+        jsonb_build_object(
+            'id', cm.id,
+            'destination_wallet', cm.destination_wallet,
+            'coin', cm.coin,
+            'rate', cm.rate,
+            'received_amount', cm.received_amount,
+            'sent_amount', cm.sent_amount,
+            'fees', cm.fees,
+            'service_provider', cm.service_provider,
+            'service_transaction_id', cm.service_transaction_id
+        ) as metadata
+    FROM transactions t
+    JOIN crypto_transaction_metadata cm ON t.id = cm.transaction_id
+    WHERE cm.destination_wallet = $1
+
+    UNION ALL
+
+    -- Giftcard transactions
+    SELECT 
+        t.*,
+        jsonb_build_object(
+            'id', gm.id,
+            'source_wallet', gm.source_wallet,
+            'rate', gm.rate,
+            'received_amount', gm.received_amount,
+            'sent_amount', gm.sent_amount,
+            'fees', gm.fees,
+            'service_provider', gm.service_provider,
+            'service_transaction_id', gm.service_transaction_id
+        ) as metadata
+    FROM transactions t
+    JOIN giftcard_transaction_metadata gm ON t.id = gm.transaction_id
+    WHERE gm.source_wallet = $1
+
+    UNION ALL
+
+    -- Fiat withdrawal transactions
+    SELECT 
+        t.*,
+        jsonb_build_object(
+            'id', fm.id,
+            'source_wallet', fm.source_wallet,
+            'rate', fm.rate,
+            'received_amount', fm.received_amount,
+            'sent_amount', fm.sent_amount,
+            'fees', fm.fees,
+            'account_name', fm.account_name,
+            'bank_code', fm.bank_code,
+            'account_number', fm.account_number,
+            'service_provider', fm.service_provider,
+            'service_transaction_id', fm.service_transaction_id
+        ) as metadata
+    FROM transactions t
+    JOIN fiat_withdrawal_metadata fm ON t.id = fm.transaction_id
+    WHERE fm.source_wallet = $1
+
+    UNION ALL
+
+    -- Services transactions
+    SELECT 
+        t.*,
+        jsonb_build_object(
+            'id', sm.id,
+            'source_wallet', sm.source_wallet,
+            'rate', sm.rate,
+            'received_amount', sm.received_amount,
+            'sent_amount', sm.sent_amount,
+            'fees', sm.fees,
+            'service_type', sm.service_type,
+            'service_provider', sm.service_provider,
+            'service_id', sm.service_id,
+            'service_status', sm.service_status,
+            'service_transaction_id', sm.service_transaction_id
+        ) as metadata
+    FROM transactions t
+    JOIN services_metadata sm ON t.id = sm.transaction_id
+    WHERE sm.source_wallet = $1
+)
+SELECT * FROM wallet_transactions
+ORDER BY created_at DESC
+LIMIT sqlc.arg(_limit)
+OFFSET sqlc.arg(_offset);

@@ -1,6 +1,10 @@
 package bills
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type VTPassResponse[T any] struct {
 	ResponseDescription string `json:"response_description"`
@@ -14,13 +18,13 @@ type ServiceCategory struct {
 }
 
 type ServiceIdentifier struct {
-	ServiceID      string `json:"serviceID"`
-	Name           string `json:"name"`
-	MinimiumAmount string `json:"minimium_amount"`
-	MaximumAmount  string `json:"maximum_amount"`
-	ConvinienceFee string `json:"convinience_fee"`
-	ProductType    string `json:"product_type"`
-	Image          string `json:"image"`
+	ServiceID      string          `json:"serviceID"`
+	Name           string          `json:"name"`
+	MinimiumAmount decimal.Decimal `json:"minimium_amount"`
+	MaximumAmount  decimal.Decimal `json:"maximum_amount"`
+	ConvinienceFee string          `json:"convinience_fee"`
+	ProductType    string          `json:"product_type"`
+	Image          string          `json:"image"`
 }
 
 type ServiceContentWithVariation struct {

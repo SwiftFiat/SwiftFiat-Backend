@@ -29,13 +29,13 @@ SELECT EXISTS (
 ) AS exists;
 
 -- name: GetUserByEmail :one
-SELECT * FROM users WHERE email = $1;
+SELECT * FROM users WHERE email = $1 and deleted_at is null;
 
 -- name: GetUserByPhone :one
-SELECT * FROM users WHERE phone_number = $1;
+SELECT * FROM users WHERE phone_number = $1 and deleted_at is null;
 
 -- name: GetUserAvatar :one
-SELECT avatar_url, avatar_blob FROM users WHERE id = $1;
+SELECT avatar_url, avatar_blob FROM users WHERE avatar_url = $1;
 
 -- name: ListUsers :many
 SELECT * FROM users WHERE deleted_at = NULL ORDER BY id
@@ -85,8 +85,14 @@ WHERE id = $3 RETURNING *;
 UPDATE users SET has_wallets = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
--- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1;
+-- name: DeleteUser :one
+UPDATE users 
+SET phone_number = $1,
+    email = $2,
+    first_name = $3,
+    deleted_at = NOW()
+WHERE id = $4
+RETURNING *;
 
 -- name: DeleteAllUsers :exec
 DELETE FROM users;

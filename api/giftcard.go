@@ -172,7 +172,21 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 	response, err := g.service.BuyGiftCard(g.server.provider, g.transactionService, activeUser.UserID, request.ProductID, walletID, request.Quantity, request.UnitPrice)
 	if err != nil {
 		g.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("error processing giftcard purchase: %v", err)))
+		if walletErr, ok := err.(*wallet.WalletError); ok {
+			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrNotYours.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
+				return
+			}
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -195,7 +209,7 @@ func (g *GiftCard) getCardInfo(ctx *gin.Context) {
 
 	/// check varification status
 	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotVerified))
 		return
 	}
 

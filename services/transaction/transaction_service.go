@@ -93,10 +93,11 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 		if err != nil {
 			return nil, currency.NewCurrencyError(err, fromAccount.Currency, toAccount.Currency)
 		}
-		receivedAmount = tx.SentAmount.Mul(rate)
 	} else {
 		rate = decimal.New(1, 0)
 	}
+	// Calculate the received amount
+	receivedAmount = tx.SentAmount.Mul(rate)
 
 	/// update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
@@ -328,7 +329,6 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	var rate decimal.Decimal
 	var fees decimal.Decimal
 
-	sentAmount = tx.SentAmount
 	if tx.WalletCurrency != tx.GiftCardCurrency {
 		// We are trying to convert from the GC-Currency to Wallet Currency because
 		// the value will be multiplied into the sentAmount
@@ -336,13 +336,14 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 		if err != nil {
 			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.GiftCardCurrency)
 		}
-		/// The received amount is static and supplied from the frontend
-		receivedAmount = tx.SentAmount
-		/// The amount to be debited from the customer is converted to the GiftCard Currency
-		sentAmount = tx.SentAmount.Mul(rate)
 	} else {
 		rate = decimal.New(1, 0)
 	}
+
+	// Calculate the received amount
+	receivedAmount = tx.SentAmount
+	/// The amount to be debited from the customer is converted to the GiftCard Currency
+	sentAmount = tx.SentAmount.Mul(rate)
 
 	/// update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))

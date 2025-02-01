@@ -262,7 +262,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 	return nil
 }
 
-func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*reloadlymodels.GiftCardPurchaseResponse, error) {
+func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
 	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
 		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
@@ -315,7 +315,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		Type:             transaction.GiftCard,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to debit customer: %s", err)
+		return nil, err
 	}
 
 	// Perform transaction
@@ -355,7 +355,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 
 	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
 
-	return giftCardPurchaseResponse, nil
+	return tInfo, nil
 }
 
 func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID string) (interface{}, error) {

@@ -185,12 +185,12 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		return
 	}
 
-	params := db.GetTransactionsByUserIDParams{
-		UserID: sql.NullInt64{
-			Int64: activeUser.UserID,
-			Valid: true,
-		},
-	}
+	// params := db.GetTransactionsByUserIDParams{
+	// 	UserID: sql.NullInt64{
+	// 		Int64: activeUser.UserID,
+	// 		Valid: true,
+	// 	},
+	// }
 
 	// params := db.ListWalletTransactionsByUserIDParams{
 	// 	CustomerID: activeUser.UserID,
@@ -205,7 +205,23 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	// 	},
 	// }
 
-	transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
+	wallet, err := w.server.queries.GetWalletByCustomerID(ctx, activeUser.UserID)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
+		SourceWallet: uuid.NullUUID{
+			UUID:  wallet[0].ID,
+			Valid: true,
+		},
+	})
+
+	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
 		return
