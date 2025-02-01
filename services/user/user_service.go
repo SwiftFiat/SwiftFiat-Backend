@@ -89,10 +89,10 @@ func (u *UserService) FetchUserByEmailWithTx(ctx context.Context, dbTx *sql.Tx, 
 	// Fetch user by email
 	dbUser, err := u.store.WithTx(dbTx).GetUserByEmail(ctx, email)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if err == sql.ErrNoRows {
 			return nil, ErrUserNotFound
 		}
-		return nil, fmt.Errorf("fetch user by email: %w", err)
+		return nil, err
 	}
 	return &dbUser, nil
 }

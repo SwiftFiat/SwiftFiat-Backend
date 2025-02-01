@@ -87,17 +87,56 @@ func (q *Queries) DeleteAllUsers(ctx context.Context) error {
 	return err
 }
 
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users WHERE id = $1
+const deleteUser = `-- name: DeleteUser :one
+UPDATE users 
+SET phone_number = $1,
+    email = $2,
+    first_name = $3,
+    deleted_at = NOW()
+WHERE id = $4
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
-func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
-	_, err := q.db.ExecContext(ctx, deleteUser, id)
-	return err
+type DeleteUserParams struct {
+	PhoneNumber string         `json:"phone_number"`
+	Email       string         `json:"email"`
+	FirstName   sql.NullString `json:"first_name"`
+	ID          int64          `json:"id"`
+}
+
+func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, deleteUser,
+		arg.PhoneNumber,
+		arg.Email,
+		arg.FirstName,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+	)
+	return i, err
 }
 
 const getUserAvatar = `-- name: GetUserAvatar :one
-SELECT avatar_url, avatar_blob FROM users WHERE id = $1
+SELECT avatar_url, avatar_blob FROM users WHERE avatar_url = $1
 `
 
 type GetUserAvatarRow struct {
@@ -105,15 +144,15 @@ type GetUserAvatarRow struct {
 	AvatarBlob []byte         `json:"avatar_blob"`
 }
 
-func (q *Queries) GetUserAvatar(ctx context.Context, id int64) (GetUserAvatarRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserAvatar, id)
+func (q *Queries) GetUserAvatar(ctx context.Context, avatarUrl sql.NullString) (GetUserAvatarRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAvatar, avatarUrl)
 	var i GetUserAvatarRow
 	err := row.Scan(&i.AvatarUrl, &i.AvatarBlob)
 	return i, err
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE email = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE email = $1 and deleted_at is null
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -173,7 +212,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE phone_number = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE phone_number = $1 and deleted_at is null
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {

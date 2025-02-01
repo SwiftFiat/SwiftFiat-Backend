@@ -45,10 +45,9 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("fresh-chat", u.server.authMiddleware.AuthenticatedMiddleware(), u.freshChatID)
 	serverGroupV1.PUT("phone-number", u.server.authMiddleware.AuthenticatedMiddleware(), u.updatePhoneNumber)
 	serverGroupV1.PUT("update-name", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateName)
-	serverGroupV1.GET("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.getAvatar)
+	serverGroupV1.GET("/:user_id/avatar", u.getAvatar)
 	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
 	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
-	serverGroupV1.PUT("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.createReferral)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -369,6 +368,10 @@ func (u *User) referral(ctx *gin.Context) {
 
 	referral, err := u.userService.GetUserReferral(ctx, activeUser.UserID)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
+			return
+		}
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
@@ -377,34 +380,7 @@ func (u *User) referral(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral fetched successfully", referral))
 }
 
-func (u *User) createReferral(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	referralKey := utils.GenerateRandomString(10)
-
-	referral, err := u.userService.CreateUserReferral(ctx, activeUser.UserID, referralKey)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred creating the referral %v", err.Error())))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral created successfully", referral))
-}
-
 func (u *User) updateAvatar(ctx *gin.Context) {
-	/// Check for file type
-	contentType := ctx.Request.Header.Get("Content-Type")
-	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/jpg" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please supply a valid image"))
-		return
-	}
-
 	file, _, err := ctx.Request.FormFile("avatar")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please supply a valid image"))
@@ -425,7 +401,17 @@ func (u *User) updateAvatar(ctx *gin.Context) {
 		return
 	}
 
-	userInfo, err := u.userService.UpdateUserAvatar(ctx, activeUser.UserID, "/avatar", imageBytes)
+	// baseURL := "https://swiftfiat.s3.amazonaws.com/user"
+	baseURL := "api/v1/user"
+	encryptedUserID, err := models.EncryptID(models.ID(activeUser.UserID))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting avatar %v", err.Error())))
+		return
+	}
+	avatarName := fmt.Sprintf("%s/%s/avatar", baseURL, encryptedUserID)
+
+	userInfo, err := u.userService.UpdateUserAvatar(ctx, activeUser.UserID, avatarName, imageBytes)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting avatar %v", err.Error())))
@@ -436,15 +422,19 @@ func (u *User) updateAvatar(ctx *gin.Context) {
 }
 
 func (u *User) getAvatar(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	param := ctx.Param("user_id")
 
-	userInfo, err := u.server.queries.GetUserAvatar(ctx, int64(activeUser.UserID))
+	baseURL := "api/v1/user"
+	avatarName := fmt.Sprintf("%s/%s/avatar", baseURL, param)
+	userInfo, err := u.server.queries.GetUserAvatar(ctx, sql.NullString{
+		String: avatarName,
+		Valid:  avatarName != "",
+	})
 	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("user avatar not found"))
+			return
+		}
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return

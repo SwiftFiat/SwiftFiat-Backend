@@ -33,10 +33,12 @@ type RegisterAdminParams struct {
 }
 
 type UserResponse struct {
-	ID          ID        `json:"id"`
-	FirstName   string    `json:"first_name"`
-	LastName    string    `json:"last_name"`
-	Email       string    `json:"email"`
+	ID        ID     `json:"id"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	AvatarURL string `json:"avatar_url"`
+	// AvatarBlob  []byte    `json:"avatar_blob"`
 	UserTag     string    `json:"user_tag"`
 	PhoneNumber string    `json:"phone_number"`
 	Verified    bool      `json:"verified"`

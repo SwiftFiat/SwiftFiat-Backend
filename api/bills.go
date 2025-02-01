@@ -119,10 +119,16 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		ServiceID string `json:"service_id" binding:"required"`
 		Phone     string `json:"phone" binding:"required"`
 		Amount    int64  `json:"amount" binding:"required"`
+		Pin       string `json:"pin" binding:"required"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if request.Pin == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
@@ -145,6 +151,11 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
 
@@ -238,10 +249,16 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		Phone         string `json:"phone" binding:"required"`
 		Amount        int64  `json:"amount" binding:"required"`
 		VariationCode string `json:"variation_code" binding:"required"`
+		Pin           string `json:"pin" binding:"required"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if request.Pin == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
@@ -264,6 +281,11 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
 

@@ -97,3 +97,11 @@ func ParseIDFromString(s string) (ID, error) {
 	}
 	return ID(result[0]), nil
 }
+
+func EncryptID(id ID) (string, error) {
+	return dbHash.EncodeInt64([]int64{int64(id)})
+}
+
+func DecryptID(id string) (ID, error) {
+	return ParseIDFromString(id)
+}

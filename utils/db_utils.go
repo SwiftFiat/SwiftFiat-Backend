@@ -3,7 +3,8 @@ package utils
 import (
 	"fmt"
 	"math/rand"
-	"time"
+	"strconv"
+	"strings"
 )
 
 const sslMode = "?sslmode=disable"
@@ -13,13 +14,13 @@ func GetDBSource(config *Config, dbName string) string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s%s", config.DBUsername, config.DBPassword, config.DBHost, config.DBPort, dbName, sslMode)
 }
 
-const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func GenerateRandomString(length int) string {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	b := make([]byte, length)
-	for i := range b {
-		b[i] = charset[r.Intn(len(charset))]
+func GenerateRandomString(prefix string, userID int64, firstName string, lastName string) string {
+	const charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	randomChars := make([]byte, 6)
+	for i := range randomChars {
+		randomChars[i] = charset[rand.Intn(len(charset))]
 	}
-	return string(b)
+
+	randomString := strings.ToUpper(prefix + firstName[:3] + lastName[:3] + strconv.FormatInt(userID, 10) + string(randomChars))
+	return randomString
 }

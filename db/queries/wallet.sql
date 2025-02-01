@@ -16,7 +16,7 @@ WHERE id = $1 LIMIT 1;
 SELECT sw.id, sw.currency, sw.status ,u.id, u.first_name, u.last_name
 FROM users u
 JOIN swift_wallets sw ON u.id = sw.customer_id
-WHERE u.user_tag = $1 AND sw.currency = $2;
+WHERE u.user_tag = $1 AND u.deleted_at IS NULL AND sw.currency = $2;
 
 -- name: GetWalletByCustomerID :many
 SELECT * FROM swift_wallets

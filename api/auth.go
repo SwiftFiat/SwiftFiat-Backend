@@ -55,6 +55,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.PUT("update-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.updateTransactionPin)
 	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
 	serverGroupV1.GET("user", a.getUserID)
+	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -98,6 +99,7 @@ func (a *Auth) profile(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user does not exist"))
 		return
 	}
+
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
@@ -118,11 +120,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
-		if userErr, ok := err.(*user_service.UserError); ok {
-			if userErr.ErrorObj == user_service.ErrUserNotFound {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-				return
-			}
+		if err.Error() == user_service.ErrUserNotFound.Error() {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 			return
 		}
@@ -177,11 +175,9 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
-		if userErr, ok := err.(*user_service.UserError); ok {
-			if userErr.ErrorObj == user_service.ErrUserNotFound {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-				return
-			}
+		if err.Error() == user_service.ErrUserNotFound.Error() {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+			return
 		}
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -265,6 +261,14 @@ func (a *Auth) register(ctx *gin.Context) {
 			}
 		}
 
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	referralKey := utils.GenerateRandomString("SWF-", newUser.ID, newUser.FirstName.String, newUser.LastName.String)
+	_, err = a.userService.CreateUserReferral(ctx, newUser.ID, referralKey)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -829,4 +833,51 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userResponse))
+}
+
+func (a *Auth) deleteAccount(ctx *gin.Context) {
+	request := struct {
+		Password string `json:"password" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter your 'password'"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if err := utils.VerifyHashValue(request.Password, dbUser.HashedPassword.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect password"))
+		return
+	}
+
+	_, err = a.server.queries.DeleteUser(context.Background(), db.DeleteUserParams{
+		ID:          activeUser.UserID,
+		PhoneNumber: dbUser.PhoneNumber + "DELETED",
+		Email:       dbUser.Email + "DELETED",
+		FirstName: sql.NullString{
+			String: dbUser.FirstName.String + "DELETED",
+			Valid:  dbUser.FirstName.Valid,
+		},
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", struct{}{}))
 }
