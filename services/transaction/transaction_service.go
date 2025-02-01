@@ -515,13 +515,19 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	var rate decimal.Decimal
 	var fees decimal.Decimal
 
+	/// We'd need the sent amount to be in the wallet currency
 	sentAmount = tx.SentAmount
+	/// The amount to be received by the service provider
+	receivedAmount = tx.SentAmount
 	if tx.WalletCurrency != tx.ServiceCurrency {
 		rate, err = s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.ServiceCurrency)
 		if err != nil {
 			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.ServiceCurrency)
 		}
-		receivedAmount = tx.SentAmount.Mul(rate)
+		/// The amount to be debited from the customer
+		// if user is buying service, we'd need to convert the amount to the wallet currency
+		// e.g if the amount is 93 and the rate is 1579.5 then the sent amount would be 0.0588
+		sentAmount = tx.SentAmount.Div(rate)
 	} else {
 		rate = decimal.New(1, 0)
 	}
@@ -538,6 +544,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	}
 
 	// Reset values in transaction object
+	tx.SentAmount = sentAmount
 	tx.ReceivedAmount = receivedAmount
 	tx.Fees = fees
 	tx.Rate = rate
@@ -1048,6 +1055,9 @@ func (s *TransactionService) updateBalance(ctx context.Context, dbTx *sql.Tx, ac
 func (s *TransactionService) addTransactionFeesWithTx(ctx context.Context, dbTX *sql.Tx, sentAmount decimal.Decimal, fees *decimal.Decimal, transactionType string) (decimal.Decimal, error) {
 	feeObject, err := s.store.WithTx(dbTX).GetLatestTransactionFee(ctx, transactionType)
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return sentAmount, nil
+		}
 		return sentAmount, fmt.Errorf("failed to fetch transaction fee (%s): %w", transactionType, err)
 	}
 
@@ -1115,6 +1125,9 @@ func (s *TransactionService) GetTransactionFee(ctx context.Context, transactionT
 
 	feeInfo, err := s.store.GetLatestTransactionFee(ctx, string(transactionType))
 	if err != nil {
+		if err == sql.ErrNoRows {
+			return feeInfo, nil
+		}
 		s.logger.Error(fmt.Sprintf("error fetching transaction Fee: %v", err))
 		return feeInfo, fmt.Errorf("error fetching transaction Fee: %v", err)
 	}

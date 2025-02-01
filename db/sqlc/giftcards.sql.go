@@ -342,6 +342,184 @@ func (q *Queries) FetchGiftCardsByCategory(ctx context.Context) ([]FetchGiftCard
 	return items, nil
 }
 
+const selectCountriesByBrandID = `-- name: SelectCountriesByBrandID :many
+SELECT country_id, product_name
+FROM 
+    gift_cards
+WHERE 
+    brand_id = $1
+`
+
+type SelectCountriesByBrandIDRow struct {
+	CountryID   sql.NullInt64  `json:"country_id"`
+	ProductName sql.NullString `json:"product_name"`
+}
+
+func (q *Queries) SelectCountriesByBrandID(ctx context.Context, brandID sql.NullInt64) ([]SelectCountriesByBrandIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectCountriesByBrandID, brandID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SelectCountriesByBrandIDRow{}
+	for rows.Next() {
+		var i SelectCountriesByBrandIDRow
+		if err := rows.Scan(&i.CountryID, &i.ProductName); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectGiftCardsByCountryIDAndBrandID = `-- name: SelectGiftCardsByCountryIDAndBrandID :many
+SELECT 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination,
+    COALESCE(
+        JSON_AGG(DISTINCT gd.denomination) FILTER (WHERE gd.denomination IS NOT NULL AND gd.type = 'sender'),
+        '[]'
+    )::json AS giftcard_denominations,
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order,
+    COALESCE(JSON_AGG(DISTINCT gl.logo_url) FILTER (WHERE gl.logo_url IS NOT NULL), '[]')::json AS logo_urls,
+    b.brand_name,
+    c.name AS category_name,
+    co.name AS country_name,
+    co.flag_url
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    brands b ON gc.brand_id = b.brand_id
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+LEFT JOIN 
+    categories c ON gc.category_id = c.id
+LEFT JOIN 
+    countries co ON gc.country_id = co.id
+LEFT JOIN 
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+WHERE
+    gc.country_id = $1 AND gc.brand_id = $2
+GROUP BY 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination, 
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order, 
+    b.brand_name, 
+    c.name, 
+    co.name, 
+    co.flag_url
+ORDER BY 
+    gc.product_id
+`
+
+type SelectGiftCardsByCountryIDAndBrandIDParams struct {
+	CountryID sql.NullInt64 `json:"country_id"`
+	BrandID   sql.NullInt64 `json:"brand_id"`
+}
+
+type SelectGiftCardsByCountryIDAndBrandIDRow struct {
+	ID                       int32                 `json:"id"`
+	ProductID                int64                 `json:"product_id"`
+	ProductName              sql.NullString        `json:"product_name"`
+	DenominationType         sql.NullString        `json:"denomination_type"`
+	DiscountPercentage       sql.NullFloat64       `json:"discount_percentage"`
+	MaxRecipientDenomination sql.NullFloat64       `json:"max_recipient_denomination"`
+	MinRecipientDenomination sql.NullFloat64       `json:"min_recipient_denomination"`
+	MaxSenderDenomination    sql.NullFloat64       `json:"max_sender_denomination"`
+	MinSenderDenomination    sql.NullFloat64       `json:"min_sender_denomination"`
+	GiftcardDenominations    json.RawMessage       `json:"giftcard_denominations"`
+	Global                   sql.NullBool          `json:"global"`
+	Metadata                 pqtype.NullRawMessage `json:"metadata"`
+	RecipientCurrencyCode    sql.NullString        `json:"recipient_currency_code"`
+	SenderCurrencyCode       sql.NullString        `json:"sender_currency_code"`
+	SenderFee                sql.NullFloat64       `json:"sender_fee"`
+	SenderFeePercentage      sql.NullFloat64       `json:"sender_fee_percentage"`
+	SupportsPreOrder         sql.NullBool          `json:"supports_pre_order"`
+	LogoUrls                 json.RawMessage       `json:"logo_urls"`
+	BrandName                sql.NullString        `json:"brand_name"`
+	CategoryName             sql.NullString        `json:"category_name"`
+	CountryName              sql.NullString        `json:"country_name"`
+	FlagUrl                  sql.NullString        `json:"flag_url"`
+}
+
+func (q *Queries) SelectGiftCardsByCountryIDAndBrandID(ctx context.Context, arg SelectGiftCardsByCountryIDAndBrandIDParams) ([]SelectGiftCardsByCountryIDAndBrandIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, selectGiftCardsByCountryIDAndBrandID, arg.CountryID, arg.BrandID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SelectGiftCardsByCountryIDAndBrandIDRow{}
+	for rows.Next() {
+		var i SelectGiftCardsByCountryIDAndBrandIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ProductID,
+			&i.ProductName,
+			&i.DenominationType,
+			&i.DiscountPercentage,
+			&i.MaxRecipientDenomination,
+			&i.MinRecipientDenomination,
+			&i.MaxSenderDenomination,
+			&i.MinSenderDenomination,
+			&i.GiftcardDenominations,
+			&i.Global,
+			&i.Metadata,
+			&i.RecipientCurrencyCode,
+			&i.SenderCurrencyCode,
+			&i.SenderFee,
+			&i.SenderFeePercentage,
+			&i.SupportsPreOrder,
+			&i.LogoUrls,
+			&i.BrandName,
+			&i.CategoryName,
+			&i.CountryName,
+			&i.FlagUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertBrand = `-- name: UpsertBrand :one
 INSERT INTO brands (brand_id, brand_name)
 VALUES ($1, $2)
