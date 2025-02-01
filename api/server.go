@@ -39,6 +39,7 @@ type Server struct {
 	provider         *providers.ProviderService
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
+	authMiddleware   *AuthMiddleware
 }
 
 func NewServer(envPath string) *Server {
@@ -119,6 +120,8 @@ func NewServer(envPath string) *Server {
 		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
 	}
 
+	am := NewAuthMiddleware(r)
+
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
 
@@ -131,6 +134,7 @@ func NewServer(envPath string) *Server {
 		provider:         p,
 		redis:            r,
 		pushNotification: pn,
+		authMiddleware:   am,
 	}
 }
 

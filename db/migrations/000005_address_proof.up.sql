@@ -1,4 +1,4 @@
-CREATE TABLE "proof_of_address_images" (
+CREATE TABLE IF NOT EXISTS "proof_of_address_images" (
     "id" SERIAL PRIMARY KEY,
     "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "filename" VARCHAR(255) NOT NULL,

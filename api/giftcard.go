@@ -46,14 +46,14 @@ func (g GiftCard) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/giftcard")
-	serverGroupV1.GET("all", AuthenticatedMiddleware(), g.getAllGiftCards)
-	serverGroupV1.GET("brands", AuthenticatedMiddleware(), g.getAllGiftCardBrands)
-	serverGroupV1.GET("categories", AuthenticatedMiddleware(), g.getAllGiftCardCategories)
-	serverGroupV1.POST("purchase", AuthenticatedMiddleware(), g.purchaseGiftCard)
-	serverGroupV1.GET("card/:transactionID", AuthenticatedMiddleware(), g.getCardInfo)
+	serverGroupV1.GET("all", g.server.authMiddleware.AuthenticatedMiddleware(), g.getAllGiftCards)
+	serverGroupV1.GET("brands", g.server.authMiddleware.AuthenticatedMiddleware(), g.getAllGiftCardBrands)
+	serverGroupV1.GET("categories", g.server.authMiddleware.AuthenticatedMiddleware(), g.getAllGiftCardCategories)
+	serverGroupV1.POST("purchase", g.server.authMiddleware.AuthenticatedMiddleware(), g.purchaseGiftCard)
+	serverGroupV1.GET("card/:transactionID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getCardInfo)
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/giftcard")
-	serverGroupV1Admin.POST("sync", AuthenticatedMiddleware(), g.syncGiftCards)
+	serverGroupV1Admin.POST("sync", g.server.authMiddleware.AuthenticatedMiddleware(), g.syncGiftCards)
 }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {

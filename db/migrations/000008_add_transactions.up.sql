@@ -91,21 +91,21 @@ CREATE TABLE IF NOT EXISTS "services_metadata" (
 );
 
 -- Create indexes for better query performance
-CREATE INDEX idx_transactions_type ON transactions(type);
-CREATE INDEX idx_transactions_status ON transactions(status);
-CREATE INDEX idx_transactions_created_at ON transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);
+CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_at);
 -- Create metadata indexes
-CREATE INDEX idx_swap_transfer_transaction_id ON swap_transfer_metadata(transaction_id);
-CREATE INDEX idx_crypto_transaction_id ON crypto_transaction_metadata(transaction_id);
-CREATE INDEX idx_giftcard_transaction_id ON giftcard_transaction_metadata(transaction_id);
-CREATE INDEX idx_fiat_transaction_id ON fiat_withdrawal_metadata(transaction_id);
-CREATE INDEX idx_services_transaction_id ON services_metadata(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_swap_transfer_transaction_id ON swap_transfer_metadata(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_crypto_transaction_id ON crypto_transaction_metadata(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_giftcard_transaction_id ON giftcard_transaction_metadata(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_fiat_transaction_id ON fiat_withdrawal_metadata(transaction_id);
+CREATE INDEX IF NOT EXISTS idx_services_transaction_id ON services_metadata(transaction_id);
 -- Other metadata table indexes
-CREATE INDEX idx_swap_transfer_source_wallet ON swap_transfer_metadata(source_wallet);
-CREATE INDEX idx_crypto_source_hash ON crypto_transaction_metadata(source_hash);
-CREATE INDEX idx_giftcard_source_wallet ON giftcard_transaction_metadata(source_wallet);
-CREATE INDEX idx_fiat_withdrawal_source_wallet ON fiat_withdrawal_metadata(source_wallet);
-CREATE INDEX idx_services_metadata_source_wallet ON services_metadata(source_wallet);
+CREATE INDEX IF NOT EXISTS idx_swap_transfer_source_wallet ON swap_transfer_metadata(source_wallet);
+CREATE INDEX IF NOT EXISTS idx_crypto_source_hash ON crypto_transaction_metadata(source_hash);
+CREATE INDEX IF NOT EXISTS idx_giftcard_source_wallet ON giftcard_transaction_metadata(source_wallet);
+CREATE INDEX IF NOT EXISTS idx_fiat_withdrawal_source_wallet ON fiat_withdrawal_metadata(source_wallet);
+CREATE INDEX IF NOT EXISTS idx_services_metadata_source_wallet ON services_metadata(source_wallet);
 
 
 -- Auto Update Functions
@@ -117,7 +117,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER set_updated_at
+CREATE OR REPLACE TRIGGER set_updated_at
 BEFORE UPDATE ON transactions
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();

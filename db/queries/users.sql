@@ -34,6 +34,9 @@ SELECT * FROM users WHERE email = $1;
 -- name: GetUserByPhone :one
 SELECT * FROM users WHERE phone_number = $1;
 
+-- name: GetUserAvatar :one
+SELECT avatar_url, avatar_blob FROM users WHERE id = $1;
+
 -- name: ListUsers :many
 SELECT * FROM users WHERE deleted_at = NULL ORDER BY id
 LIMIT $1 OFFSET $2;
@@ -68,6 +71,10 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpdateUserNames :one
 UPDATE users SET first_name = $1, last_name = $2, updated_at = $3
+WHERE id = $4 RETURNING *;
+
+-- name: UpdateUserAvatar :one
+UPDATE users SET avatar_url = $1, avatar_blob = $2, updated_at = $3
 WHERE id = $4 RETURNING *;
 
 -- name: UpdateUserVerification :one

@@ -13,9 +13,15 @@
  * - Email and phone number are unique identifiers
  * - Soft delete functionality via deleted_at
  */
-CREATE TABLE "users" (
+CREATE TABLE IF NOT EXISTS "users" (
     -- Unique identifier for each user
     "id" BIGSERIAL PRIMARY KEY,
+
+    -- User's avatar URL
+    "avatar_url" TEXT,
+
+    -- User's avatar BLOB
+    "avatar_blob" BYTEA,
     
     -- Personal information
     -- Optional to allow partial registration

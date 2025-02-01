@@ -318,6 +318,8 @@ type TransactionFee struct {
 
 type User struct {
 	ID             int64          `json:"id"`
+	AvatarUrl      sql.NullString `json:"avatar_url"`
+	AvatarBlob     []byte         `json:"avatar_blob"`
 	FirstName      sql.NullString `json:"first_name"`
 	LastName       sql.NullString `json:"last_name"`
 	Email          string         `json:"email"`

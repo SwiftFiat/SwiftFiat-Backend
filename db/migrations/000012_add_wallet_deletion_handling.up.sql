@@ -1,5 +1,5 @@
 -- Add deleted ID columns to transactions and ledger_entries
-ALTER TABLE transactions 
+ALTER TABLE transactions
     ADD COLUMN deleted_from_account_id UUID,
     ADD COLUMN deleted_to_account_id UUID;
 
@@ -34,7 +34,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create the trigger
-CREATE TRIGGER preserve_wallet_id_before_delete
+CREATE OR REPLACE TRIGGER preserve_wallet_id_before_delete
     BEFORE DELETE ON swift_wallets
     FOR EACH ROW
     EXECUTE FUNCTION preserve_wallet_id_on_delete();

@@ -1,2 +1,2 @@
 ALTER TABLE "users"
-DROP COLUMN "has_wallets"; 
+DROP COLUMN IF EXISTS "has_wallets"; 

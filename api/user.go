@@ -1,8 +1,10 @@
 package api
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -36,17 +38,19 @@ func (u User) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/user")
-	serverGroupV1.GET("profile", AuthenticatedMiddleware(), u.profile)
-	serverGroupV1.POST("usertag", AuthenticatedMiddleware(), u.userTag)
-	serverGroupV1.POST("checktag", AuthenticatedMiddleware(), u.checkTag)
-	serverGroupV1.POST("push-token", AuthenticatedMiddleware(), u.pushToken)
-	serverGroupV1.POST("fresh-chat", AuthenticatedMiddleware(), u.freshChatID)
-	serverGroupV1.PUT("phone-number", AuthenticatedMiddleware(), u.updatePhoneNumber)
-	serverGroupV1.PUT("update-name", AuthenticatedMiddleware(), u.updateName)
-	serverGroupV1.GET("referral", AuthenticatedMiddleware(), u.referral)
-	serverGroupV1.PUT("referral", AuthenticatedMiddleware(), u.createReferral)
+	serverGroupV1.GET("profile", u.server.authMiddleware.AuthenticatedMiddleware(), u.profile)
+	serverGroupV1.POST("usertag", u.server.authMiddleware.AuthenticatedMiddleware(), u.userTag)
+	serverGroupV1.POST("checktag", u.server.authMiddleware.AuthenticatedMiddleware(), u.checkTag)
+	serverGroupV1.POST("push-token", u.server.authMiddleware.AuthenticatedMiddleware(), u.pushToken)
+	serverGroupV1.POST("fresh-chat", u.server.authMiddleware.AuthenticatedMiddleware(), u.freshChatID)
+	serverGroupV1.PUT("phone-number", u.server.authMiddleware.AuthenticatedMiddleware(), u.updatePhoneNumber)
+	serverGroupV1.PUT("update-name", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateName)
+	serverGroupV1.GET("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.getAvatar)
+	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
+	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
+	serverGroupV1.PUT("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.createReferral)
 	/// For test purposes only
-	serverGroupV1.POST("get-push", AuthenticatedMiddleware(), u.testPush)
+	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
 
 func (u *User) testPush(ctx *gin.Context) {
@@ -391,4 +395,61 @@ func (u *User) createReferral(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral created successfully", referral))
+}
+
+func (u *User) updateAvatar(ctx *gin.Context) {
+	/// Check for file type
+	contentType := ctx.Request.Header.Get("Content-Type")
+	if contentType != "image/jpeg" && contentType != "image/png" && contentType != "image/jpg" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please supply a valid image"))
+		return
+	}
+
+	file, _, err := ctx.Request.FormFile("avatar")
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please supply a valid image"))
+		return
+	}
+	defer file.Close()
+
+	imageBytes, err := io.ReadAll(file)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid avatar"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	userInfo, err := u.userService.UpdateUserAvatar(ctx, activeUser.UserID, "/avatar", imageBytes)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting avatar %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user avatar upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
+}
+
+func (u *User) getAvatar(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	userInfo, err := u.server.queries.GetUserAvatar(ctx, int64(activeUser.UserID))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.Header("Content-Type", "image/png")
+	ctx.DataFromReader(http.StatusOK, int64(len(userInfo.AvatarBlob)), "image/png", bytes.NewReader(userInfo.AvatarBlob), nil)
 }

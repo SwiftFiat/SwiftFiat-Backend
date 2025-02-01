@@ -28,13 +28,13 @@ func (k KYC) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
-	serverGroupV1.GET("", AuthenticatedMiddleware(), k.getUserKyc)
-	serverGroupV1.POST("validate-bvn", AuthenticatedMiddleware(), k.validateBVN)
-	serverGroupV1.POST("validate-nin", AuthenticatedMiddleware(), k.validateNIN)
-	serverGroupV1.POST("update-address", AuthenticatedMiddleware(), k.updateAddress)
-	serverGroupV1.POST("submit-utility", AuthenticatedMiddleware(), k.submitUtility)
-	serverGroupV1.POST("upload-address-proof", AuthenticatedMiddleware(), k.uploadProofOfAddress)
-	serverGroupV1.GET("retrieve-address-proof/:id", AuthenticatedMiddleware(), k.retrieveProofOfAddress)
+	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
+	serverGroupV1.POST("validate-bvn", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateBVN)
+	serverGroupV1.POST("validate-nin", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateNIN)
+	serverGroupV1.POST("update-address", k.server.authMiddleware.AuthenticatedMiddleware(), k.updateAddress)
+	serverGroupV1.POST("submit-utility", k.server.authMiddleware.AuthenticatedMiddleware(), k.submitUtility)
+	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
+	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
 }
 
 func (k *KYC) getUserKyc(ctx *gin.Context) {

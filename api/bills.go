@@ -36,11 +36,11 @@ func (b Bills) router(server *Server) {
 	)
 
 	serverGroupV1 := server.router.Group("/api/v1/bills")
-	serverGroupV1.GET("categories", AuthenticatedMiddleware(), b.getCategories)
-	serverGroupV1.GET("services", AuthenticatedMiddleware(), b.getServices)
-	serverGroupV1.GET("service-variation", AuthenticatedMiddleware(), b.getServiceVariations)
-	serverGroupV1.POST("buy-airtime", AuthenticatedMiddleware(), b.buyAirtime)
-	serverGroupV1.POST("buy-data", AuthenticatedMiddleware(), b.buyData)
+	serverGroupV1.GET("categories", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCategories)
+	serverGroupV1.GET("services", b.server.authMiddleware.AuthenticatedMiddleware(), b.getServices)
+	serverGroupV1.GET("service-variation", b.server.authMiddleware.AuthenticatedMiddleware(), b.getServiceVariations)
+	serverGroupV1.POST("buy-airtime", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyAirtime)
+	serverGroupV1.POST("buy-data", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyData)
 }
 
 func (b *Bills) getCategories(ctx *gin.Context) {
@@ -271,6 +271,10 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	})
 	if err != nil {
 		b.server.logger.Error(err)
+		if err.(*wallet.WalletError).Error() == wallet.ErrWalletNotFound.Error() {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
