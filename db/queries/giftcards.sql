@@ -173,6 +173,78 @@ ORDER BY
     b.brand_name ASC;
 
 
+-- name: SelectCountriesByBrandID :many
+SELECT country_id, product_name
+FROM 
+    gift_cards
+WHERE 
+    brand_id = $1;
+
+-- name: SelectGiftCardsByCountryIDAndBrandID :many
+SELECT 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination,
+    COALESCE(
+        JSON_AGG(DISTINCT gd.denomination) FILTER (WHERE gd.denomination IS NOT NULL AND gd.type = 'sender'),
+        '[]'
+    )::json AS giftcard_denominations,
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order,
+    COALESCE(JSON_AGG(DISTINCT gl.logo_url) FILTER (WHERE gl.logo_url IS NOT NULL), '[]')::json AS logo_urls,
+    b.brand_name,
+    c.name AS category_name,
+    co.name AS country_name,
+    co.flag_url
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    brands b ON gc.brand_id = b.brand_id
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+LEFT JOIN 
+    categories c ON gc.category_id = c.id
+LEFT JOIN 
+    countries co ON gc.country_id = co.id
+LEFT JOIN 
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+WHERE
+    gc.country_id = $1 AND gc.brand_id = $2
+GROUP BY 
+    gc.id,
+    gc.product_id, 
+    gc.product_name, 
+    gc.denomination_type, 
+    gc.discount_percentage, 
+    gc.max_recipient_denomination, 
+    gc.min_recipient_denomination, 
+    gc.max_sender_denomination, 
+    gc.min_sender_denomination, 
+    gc.global, 
+    gc.metadata, 
+    gc.recipient_currency_code, 
+    gc.sender_currency_code, 
+    gc.sender_fee, 
+    gc.sender_fee_percentage, 
+    gc.supports_pre_order, 
+    b.brand_name, 
+    c.name, 
+    co.name, 
+    co.flag_url
+ORDER BY 
+    gc.product_id;
+
 -- name: FetchGiftCardsByCategory :many
 SELECT 
     c.name,

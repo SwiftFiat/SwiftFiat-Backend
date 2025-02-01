@@ -154,7 +154,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		return
 	}
 
-	// Create GiftCardTransaction
+	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
 		SourceWalletID:  walletID,
@@ -166,6 +166,20 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	})
 	if err != nil {
 		b.server.logger.Error(err)
+		if walletErr, ok := err.(*wallet.WalletError); ok {
+			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrNotYours.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
+				return
+			}
+		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -259,7 +273,7 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		return
 	}
 
-	// Create GiftCardTransaction
+	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
 		SourceWalletID:  walletID,
@@ -271,9 +285,19 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	})
 	if err != nil {
 		b.server.logger.Error(err)
-		if err.(*wallet.WalletError).Error() == wallet.ErrWalletNotFound.Error() {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-			return
+		if walletErr, ok := err.(*wallet.WalletError); ok {
+			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrNotYours.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
+				return
+			}
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return

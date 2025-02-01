@@ -1,11 +1,14 @@
 package api
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/giftcard"
@@ -51,6 +54,8 @@ func (g GiftCard) router(server *Server) {
 	serverGroupV1.GET("categories", g.server.authMiddleware.AuthenticatedMiddleware(), g.getAllGiftCardCategories)
 	serverGroupV1.POST("purchase", g.server.authMiddleware.AuthenticatedMiddleware(), g.purchaseGiftCard)
 	serverGroupV1.GET("card/:transactionID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getCardInfo)
+	serverGroupV1.GET("brands/:brandID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getGiftCardBrandNames)
+	serverGroupV1.GET("cards/:brandID/:countryID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getGiftCardByCountryIDAndBrandID)
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/giftcard")
 	serverGroupV1Admin.POST("sync", g.server.authMiddleware.AuthenticatedMiddleware(), g.syncGiftCards)
@@ -96,7 +101,7 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToBrandObject(giftcards)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToGiftCardBrandResponse(giftcards)))
 }
 
 func (g *GiftCard) getAllGiftCardCategories(ctx *gin.Context) {
@@ -202,4 +207,71 @@ func (g *GiftCard) getCardInfo(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift retrieved", response))
+}
+
+func (g *GiftCard) getGiftCardBrandNames(ctx *gin.Context) {
+	brandID, ok := ctx.Params.Get("brandID")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please pass brandID as a path param: /giftCardBrandNames/:brandID"))
+		return
+	}
+
+	brandIDint, err := strconv.Atoi(brandID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse brandID"))
+		return
+	}
+
+	brandNames, err := g.server.queries.SelectCountriesByBrandID(ctx, sql.NullInt64{
+		Int64: int64(brandIDint),
+		Valid: true,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brand names fetched successfully", models.ToGiftCardBrandNamesResponse(brandNames)))
+}
+
+func (g *GiftCard) getGiftCardByCountryIDAndBrandID(ctx *gin.Context) {
+	countryID, ok := ctx.Params.Get("countryID")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please pass countryID as a path param: /cards/:brandID/:countryID"))
+		return
+	}
+
+	brandID, ok := ctx.Params.Get("brandID")
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please pass brandID as a path param: /cards/:brandID"))
+		return
+	}
+
+	countryIDint, err := strconv.Atoi(countryID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse countryID"))
+		return
+	}
+	brandIDint, err := strconv.Atoi(brandID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse brandID"))
+		return
+	}
+
+	response, err := g.server.queries.SelectGiftCardsByCountryIDAndBrandID(ctx, db.SelectGiftCardsByCountryIDAndBrandIDParams{
+		CountryID: sql.NullInt64{
+			Int64: int64(countryIDint),
+			Valid: true,
+		},
+		BrandID: sql.NullInt64{
+			Int64: int64(brandIDint),
+			Valid: true,
+		},
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard by country ID fetched successfully", models.ToGiftCardSelectGiftCardsByCountryIDAndBrandIDResponse(response)))
 }
