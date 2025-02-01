@@ -19,6 +19,11 @@ func GetActiveUser(ctx *gin.Context) (TokenObject, error) {
 		return TokenObject{}, fmt.Errorf("an error occurred")
 	}
 
+	// user, err := redisClient.GetUserByID(ctx, user.UserID)
+	// if err != nil {
+	// 	return TokenObject{}, fmt.Errorf("an error occurred")
+	// }
+
 	return user, nil
 }
 

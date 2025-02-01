@@ -5,7 +5,7 @@
 BEGIN;
 
 -- Crypto Addresses table
-CREATE TABLE "crypto_addresses" (
+CREATE TABLE IF NOT EXISTS "crypto_addresses" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     "customer_id" BIGSERIAL REFERENCES users(id) ON DELETE SET NULL,
     "address_id" VARCHAR(200) NOT NULL,
@@ -17,10 +17,10 @@ CREATE TABLE "crypto_addresses" (
 );
 
 -- Create index for faster lookup
-CREATE INDEX "idx_crypto_addresses_address_id" ON crypto_addresses(address_id);
+CREATE INDEX IF NOT EXISTS "idx_crypto_addresses_address_id" ON crypto_addresses(address_id);
 
 -- Create triggers for updated_at
-CREATE TRIGGER "update_address_updated_at"
+CREATE OR REPLACE TRIGGER update_address_updated_at
     BEFORE UPDATE ON crypto_addresses
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

@@ -43,17 +43,17 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("login-passcode", a.loginWithPasscode)
 	serverGroupV1.POST("register", a.register)
 	serverGroupV1.POST("register-admin", a.registerAdmin)
-	serverGroupV1.GET("otp", AuthenticatedMiddleware(), a.sendOTP)
-	serverGroupV1.POST("verify-otp", AuthenticatedMiddleware(), a.verifyOTP)
-	serverGroupV1.POST("change-password", AuthenticatedMiddleware(), a.changePassword)
+	serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
+	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
+	serverGroupV1.POST("change-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.changePassword)
 	serverGroupV1.POST("forgot-password", a.forgotPassword)
 	serverGroupV1.POST("reset-password", a.resetPassword)
 	serverGroupV1.POST("forgot-passcode", a.forgotPasscode)
 	serverGroupV1.POST("reset-passcode", a.resetPasscode)
-	serverGroupV1.POST("create-passcode", AuthenticatedMiddleware(), a.createPasscode)
-	serverGroupV1.POST("create-pin", AuthenticatedMiddleware(), a.createPin)
-	serverGroupV1.PUT("update-pin", AuthenticatedMiddleware(), a.updateTransactionPin)
-	serverGroupV1.GET("profile", AuthenticatedMiddleware(), a.profile)
+	serverGroupV1.POST("create-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPasscode)
+	serverGroupV1.POST("create-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPin)
+	serverGroupV1.PUT("update-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.updateTransactionPin)
+	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
 	serverGroupV1.GET("user", a.getUserID)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
@@ -147,6 +147,8 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
+	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
+
 	if !dbUser.HasWallets {
 		err := a.userService.CreateSwiftWalletForUser(ctx, dbUser.ID)
 		if err != nil {
@@ -201,6 +203,8 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
 
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
@@ -274,6 +278,8 @@ func (a *Auth) register(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+
+	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", newUser.ID), token, time.Hour*2400)
 
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(newUser),
@@ -531,6 +537,9 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	}
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
+
+	/// Delete user token from redis
+	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
 }
@@ -816,6 +825,8 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	}
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
+	/// Delete user token from redis
+	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userResponse))
 }

@@ -4,7 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Accounts table
-CREATE TABLE "swift_wallets" (
+CREATE TABLE IF NOT EXISTS "swift_wallets" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     "customer_id" BIGSERIAL NOT NULL REFERENCES users(id),
     "type" VARCHAR(50) NOT NULL,
@@ -18,10 +18,10 @@ CREATE TABLE "swift_wallets" (
 );
 
 -- Indexes
-CREATE INDEX "idx_accounts_customer" ON swift_wallets(customer_id);
+CREATE INDEX IF NOT EXISTS "idx_accounts_customer" ON swift_wallets(customer_id);
 
 -- Create triggers for updated_at
-CREATE TRIGGER "update_accounts_updated_at"
+CREATE OR REPLACE TRIGGER update_accounts_updated_at
     BEFORE UPDATE ON swift_wallets
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

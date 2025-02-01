@@ -14,9 +14,9 @@ CREATE TABLE IF NOT EXISTS "transaction_fees" (
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX "idx_fees_transaction_type" ON transaction_fees(transaction_type);
-CREATE INDEX "idx_fees_effective_time" ON transaction_fees(effective_time);
-CREATE INDEX "idx_fees_lookup" ON transaction_fees(transaction_type, effective_time);
+CREATE INDEX IF NOT EXISTS "idx_fees_transaction_type" ON transaction_fees(transaction_type);
+CREATE INDEX IF NOT EXISTS "idx_fees_effective_time" ON transaction_fees(effective_time);
+CREATE INDEX IF NOT EXISTS "idx_fees_lookup" ON transaction_fees(transaction_type, effective_time);
 
 -- End Transaction
 COMMIT;

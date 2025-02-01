@@ -6,11 +6,20 @@ import (
 	"strings"
 
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	_ "github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	"github.com/gin-gonic/gin"
 )
 
-func AuthenticatedMiddleware() gin.HandlerFunc {
+type AuthMiddleware struct {
+	redisClient *redis.RedisService
+}
+
+func NewAuthMiddleware(redisClient *redis.RedisService) *AuthMiddleware {
+	return &AuthMiddleware{redisClient: redisClient}
+}
+
+func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
 		if token == "" {
@@ -29,6 +38,26 @@ func AuthenticatedMiddleware() gin.HandlerFunc {
 		user, err := TokenController.VerifyToken(tokenSplit[1])
 		if err != nil {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
+			ctx.Abort()
+			return
+		}
+
+		userToken, err := a.redisClient.Get(ctx, fmt.Sprintf("user:%d", user.UserID))
+		if err != nil {
+			if err.Error() == "redis: nil" {
+				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Not Found"))
+				ctx.Abort()
+				return
+			}
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
+			ctx.Abort()
+			return
+		}
+
+		fmt.Println("Token:", token)
+		fmt.Println("User Token:", userToken)
+		if userToken != tokenSplit[1] {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Mismatch"))
 			ctx.Abort()
 			return
 		}

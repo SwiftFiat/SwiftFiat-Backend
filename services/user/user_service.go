@@ -286,3 +286,16 @@ func (u *UserService) CreateUserReferral(ctx context.Context, userID int64, refe
 	})
 	return &referral, err
 }
+
+func (u *UserService) UpdateUserAvatar(ctx context.Context, userID int64, avatarURL string, avatarBlob []byte) (*db.User, error) {
+	user, err := u.store.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
+		AvatarUrl: sql.NullString{
+			String: avatarURL,
+			Valid:  avatarURL != "",
+		},
+		AvatarBlob: avatarBlob,
+		UpdatedAt:  time.Now(),
+		ID:         userID,
+	})
+	return &user, err
+}

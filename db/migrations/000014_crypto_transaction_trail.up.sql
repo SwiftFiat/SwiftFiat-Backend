@@ -3,7 +3,7 @@
 BEGIN;
 
 -- Crypto Transaction Trail table
-CREATE TABLE "crypto_transaction_trail" (
+CREATE TABLE IF NOT EXISTS "crypto_transaction_trail" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     "address_id" VARCHAR(200) NOT NULL,
     "transaction_hash" VARCHAR(128) NOT NULL,
@@ -13,10 +13,10 @@ CREATE TABLE "crypto_transaction_trail" (
 );
 
 -- Create index for faster lookup
-CREATE INDEX "idx_crypto_transaction_hash" ON crypto_transaction_trail(transaction_hash);
+CREATE INDEX IF NOT EXISTS "idx_crypto_transaction_hash" ON crypto_transaction_trail(transaction_hash);
 
 -- Create triggers for updated_at
-CREATE TRIGGER "update_crypt_trail_updated_at"
+CREATE OR REPLACE TRIGGER update_crypt_trail_updated_at
     BEFORE UPDATE ON crypto_transaction_trail
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();

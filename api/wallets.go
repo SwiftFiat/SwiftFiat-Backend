@@ -51,21 +51,21 @@ func (w Wallet) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
-	serverGroupV1.GET("", AuthenticatedMiddleware(), w.getUserWallets)
-	serverGroupV1.GET("transactions", AuthenticatedMiddleware(), w.getTransactions)
+	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
+	serverGroupV1.GET("transactions", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactions)
 	// serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
-	serverGroupV1.POST("transfer", AuthenticatedMiddleware(), w.walletTransfer)
-	serverGroupV1.POST("swap", AuthenticatedMiddleware(), w.swap)
-	serverGroupV1.GET("banks", AuthenticatedMiddleware(), w.banks)
-	serverGroupV1.GET("resolve-bank-account", AuthenticatedMiddleware(), w.resolveBankAccount)
-	serverGroupV1.GET("resolve-user-tag", AuthenticatedMiddleware(), w.resolveUserTag)
-	serverGroupV1.GET("beneficiaries", AuthenticatedMiddleware(), w.getBeneficiaries)
-	serverGroupV1.POST("withdraw", AuthenticatedMiddleware(), w.fiatTransfer)
-	serverGroupV1.GET("transaction-fee", AuthenticatedMiddleware(), w.getTransactionFee)
+	serverGroupV1.POST("transfer", w.server.authMiddleware.AuthenticatedMiddleware(), w.walletTransfer)
+	serverGroupV1.POST("swap", w.server.authMiddleware.AuthenticatedMiddleware(), w.swap)
+	serverGroupV1.GET("banks", w.server.authMiddleware.AuthenticatedMiddleware(), w.banks)
+	serverGroupV1.GET("resolve-bank-account", w.server.authMiddleware.AuthenticatedMiddleware(), w.resolveBankAccount)
+	serverGroupV1.GET("resolve-user-tag", w.server.authMiddleware.AuthenticatedMiddleware(), w.resolveUserTag)
+	serverGroupV1.GET("beneficiaries", w.server.authMiddleware.AuthenticatedMiddleware(), w.getBeneficiaries)
+	serverGroupV1.POST("withdraw", w.server.authMiddleware.AuthenticatedMiddleware(), w.fiatTransfer)
+	serverGroupV1.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/wallets")
-	serverGroupV1Admin.POST("transaction-fee", AuthenticatedMiddleware(), w.createTransactionFee)
-	serverGroupV1Admin.GET("transaction-fee", AuthenticatedMiddleware(), w.getTransactionFee)
+	serverGroupV1Admin.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
+	serverGroupV1Admin.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
 
 }
 

@@ -18,11 +18,11 @@ DROP TRIGGER IF EXISTS preserve_wallet_id_before_delete ON swift_wallets;
 DROP FUNCTION IF EXISTS preserve_wallet_id_on_delete();
 
 ALTER TABLE ledger_entries
-    DROP COLUMN IF EXISTS deleted_account_id,
+    DROP COLUMN deleted_account_id,
     ALTER COLUMN wallet_id SET NOT NULL,
     ALTER COLUMN transaction_id SET NOT NULL;
 
 -- Remove deleted ID columns
 ALTER TABLE transactions
-    DROP COLUMN IF EXISTS deleted_from_account_id,
-    DROP COLUMN IF EXISTS deleted_to_account_id;
+    DROP COLUMN deleted_from_account_id,
+    DROP COLUMN deleted_to_account_id;

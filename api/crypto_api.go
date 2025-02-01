@@ -50,9 +50,9 @@ func (c CryptoAPI) router(server *Server) {
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
 	/// Should be managed from the administrative view
-	serverGroupV1.POST("wallet", AuthenticatedMiddleware(), c.createWallet)
-	serverGroupV1.GET("wallets", AuthenticatedMiddleware(), c.fetchWallets)
-	serverGroupV1.POST("address/generate", AuthenticatedMiddleware(), c.generateWalletAddress)
+	serverGroupV1.POST("wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createWallet)
+	serverGroupV1.GET("wallets", c.server.authMiddleware.AuthenticatedMiddleware(), c.fetchWallets)
+	serverGroupV1.POST("address/generate", c.server.authMiddleware.AuthenticatedMiddleware(), c.generateWalletAddress)
 	serverGroupV1.POST("/webhook", c.HandleWebhook)
 }
 

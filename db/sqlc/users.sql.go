@@ -33,7 +33,7 @@ INSERT INTO users (
     phone_number,
     hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type CreateUserParams struct {
@@ -57,6 +57,8 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -94,8 +96,24 @@ func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
 	return err
 }
 
+const getUserAvatar = `-- name: GetUserAvatar :one
+SELECT avatar_url, avatar_blob FROM users WHERE id = $1
+`
+
+type GetUserAvatarRow struct {
+	AvatarUrl  sql.NullString `json:"avatar_url"`
+	AvatarBlob []byte         `json:"avatar_blob"`
+}
+
+func (q *Queries) GetUserAvatar(ctx context.Context, id int64) (GetUserAvatarRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserAvatar, id)
+	var i GetUserAvatarRow
+	err := row.Scan(&i.AvatarUrl, &i.AvatarBlob)
+	return i, err
+}
+
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE email = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE email = $1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -103,6 +121,8 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -123,7 +143,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE id = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
@@ -131,6 +151,8 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -151,7 +173,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE phone_number = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE phone_number = $1
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {
@@ -159,6 +181,8 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -195,7 +219,7 @@ func (q *Queries) GetUserNameByUserTag(ctx context.Context, userTag sql.NullStri
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE role=$1 ORDER BY id
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE role=$1 ORDER BY id
 LIMIT $2 OFFSET $3
 `
 
@@ -216,6 +240,8 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.AvatarUrl,
+			&i.AvatarBlob,
 			&i.FirstName,
 			&i.LastName,
 			&i.Email,
@@ -246,7 +272,7 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE deleted_at = NULL ORDER BY id
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id FROM users WHERE deleted_at = NULL ORDER BY id
 LIMIT $1 OFFSET $2
 `
 
@@ -266,6 +292,8 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 		var i User
 		if err := rows.Scan(
 			&i.ID,
+			&i.AvatarUrl,
+			&i.AvatarBlob,
 			&i.FirstName,
 			&i.LastName,
 			&i.Email,
@@ -295,9 +323,52 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 	return items, nil
 }
 
+const updateUserAvatar = `-- name: UpdateUserAvatar :one
+UPDATE users SET avatar_url = $1, avatar_blob = $2, updated_at = $3
+WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+`
+
+type UpdateUserAvatarParams struct {
+	AvatarUrl  sql.NullString `json:"avatar_url"`
+	AvatarBlob []byte         `json:"avatar_blob"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	ID         int64          `json:"id"`
+}
+
+func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserAvatar,
+		arg.AvatarUrl,
+		arg.AvatarBlob,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+	)
+	return i, err
+}
+
 const updateUserFirstName = `-- name: UpdateUserFirstName :one
 UPDATE users SET first_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserFirstNameParams struct {
@@ -311,6 +382,8 @@ func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNa
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -332,7 +405,7 @@ func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNa
 
 const updateUserFreshChatID = `-- name: UpdateUserFreshChatID :one
 UPDATE users SET fresh_chat_id = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserFreshChatIDParams struct {
@@ -346,6 +419,8 @@ func (q *Queries) UpdateUserFreshChatID(ctx context.Context, arg UpdateUserFresh
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -367,7 +442,7 @@ func (q *Queries) UpdateUserFreshChatID(ctx context.Context, arg UpdateUserFresh
 
 const updateUserLastName = `-- name: UpdateUserLastName :one
 UPDATE users SET last_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserLastNameParams struct {
@@ -381,6 +456,8 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -402,7 +479,7 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 
 const updateUserNames = `-- name: UpdateUserNames :one
 UPDATE users SET first_name = $1, last_name = $2, updated_at = $3
-WHERE id = $4 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserNamesParams struct {
@@ -422,6 +499,8 @@ func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -443,7 +522,7 @@ func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams
 
 const updateUserPasscodee = `-- name: UpdateUserPasscodee :one
 UPDATE users SET hashed_passcode = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserPasscodeeParams struct {
@@ -457,6 +536,8 @@ func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscod
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -478,7 +559,7 @@ func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscod
 
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET hashed_password = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserPasswordParams struct {
@@ -492,6 +573,8 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -513,7 +596,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 
 const updateUserPhone = `-- name: UpdateUserPhone :one
 UPDATE users SET phone_number = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserPhoneParams struct {
@@ -527,6 +610,8 @@ func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -548,7 +633,7 @@ func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams
 
 const updateUserPin = `-- name: UpdateUserPin :one
 UPDATE users SET hashed_pin = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserPinParams struct {
@@ -562,6 +647,8 @@ func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (U
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -583,7 +670,7 @@ func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (U
 
 const updateUserTag = `-- name: UpdateUserTag :one
 UPDATE users SET user_tag = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserTagParams struct {
@@ -597,6 +684,8 @@ func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (U
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -618,7 +707,7 @@ func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (U
 
 const updateUserVerification = `-- name: UpdateUserVerification :one
 UPDATE users SET verified = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserVerificationParams struct {
@@ -632,6 +721,8 @@ func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVeri
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,
@@ -653,7 +744,7 @@ func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVeri
 
 const updateUserWalletStatus = `-- name: UpdateUserWalletStatus :one
 UPDATE users SET has_wallets = $1, updated_at = $2
-WHERE id = $3 RETURNING id, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `
 
 type UpdateUserWalletStatusParams struct {
@@ -667,6 +758,8 @@ func (q *Queries) UpdateUserWalletStatus(ctx context.Context, arg UpdateUserWall
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
 		&i.Email,

@@ -9,6 +9,6 @@ CREATE TABLE IF NOT EXISTS "exchange_rates" (
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX "idx_currency_pair" ON exchange_rates(base_currency, quote_currency);
-CREATE INDEX "idx_effective_time" ON exchange_rates(effective_time);
-CREATE INDEX "idx_lookup" ON exchange_rates(base_currency, quote_currency, effective_time);
+CREATE INDEX IF NOT EXISTS "idx_currency_pair" ON exchange_rates(base_currency, quote_currency);
+CREATE INDEX IF NOT EXISTS "idx_effective_time" ON exchange_rates(effective_time);
+CREATE INDEX IF NOT EXISTS "idx_lookup" ON exchange_rates(base_currency, quote_currency, effective_time);
