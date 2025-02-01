@@ -143,7 +143,7 @@ func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, 
 	return &newModel.Content, nil
 }
 
-func (p *VTPassProvider) GetServiceVariation(serviceID string) (interface{}, error) {
+func (p *VTPassProvider) GetServiceVariation(serviceID string) ([]Variation, error) {
 
 	base, err := url.Parse(p.BaseURL)
 	if err != nil {
@@ -194,7 +194,7 @@ func (p *VTPassProvider) GetServiceVariation(serviceID string) (interface{}, err
 	if newModel.Content.Variations == nil {
 		newModel.Content.Variations = []Variation{} // Initialize empty slice
 	}
-	return &newModel.Content.Variations, nil
+	return newModel.Content.Variations, nil
 }
 
 func (p *VTPassProvider) BuyAirtime(request PurchaseAirtimeRequest) (*Transaction, error) {

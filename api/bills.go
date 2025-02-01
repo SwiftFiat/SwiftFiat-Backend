@@ -2,10 +2,12 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -92,6 +94,17 @@ func (b *Bills) getServices(ctx *gin.Context) {
 func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	serviceID := ctx.Query("serviceID")
 
+	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", serviceID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if len(variations) > 0 {
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched service variations", variations))
+		return
+	}
+
 	provider, exists := b.server.provider.GetProvider(providers.VTPass)
 	if !exists {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
@@ -104,9 +117,34 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 		return
 	}
 
-	variations, err := billProv.GetServiceVariation(serviceID)
+	remoteVariations, err := billProv.GetServiceVariation(serviceID)
 	if err != nil {
 		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// Store variations in Redis cache
+	if remoteVariations != nil {
+		variations := make([]models.BillVariation, len(remoteVariations))
+		for i, variation := range remoteVariations {
+			variations[i] = models.BillVariation{
+				VariationCode:   variation.VariationCode,
+				Name:            variation.Name,
+				VariationAmount: variation.VariationAmount,
+				FixedPrice:      variation.FixedPrice,
+			}
+		}
+
+		err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", serviceID), variations)
+		if err != nil {
+			b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			// Don't return error to user since this is just caching
+		}
+	}
+
+	variations, err = b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", serviceID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -244,10 +282,10 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 
 func (b *Bills) buyData(ctx *gin.Context) {
 	request := struct {
-		WalletID      string `json:"wallet_id" binding:"required"`
-		ServiceID     string `json:"service_id" binding:"required"`
-		Phone         string `json:"phone" binding:"required"`
-		Amount        int64  `json:"amount" binding:"required"`
+		WalletID  string `json:"wallet_id" binding:"required"`
+		ServiceID string `json:"service_id" binding:"required"`
+		Phone     string `json:"phone" binding:"required"`
+		// Amount        int64  `json:"amount" binding:"required"` -- User's can inject arbitrary amounts
 		VariationCode string `json:"variation_code" binding:"required"`
 		Pin           string `json:"pin" binding:"required"`
 	}{}
@@ -295,11 +333,38 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		return
 	}
 
+	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	fmt.Println(variations)
+
+	var selectedVariation *models.BillVariation
+	for _, variation := range variations {
+		if variation.VariationCode == request.VariationCode {
+			selectedVariation = &variation
+			break
+		}
+	}
+
+	if selectedVariation == nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation code"))
+		return
+	}
+
+	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation amount"))
+		return
+	}
+
 	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
 		SourceWalletID:  walletID,
-		SentAmount:      decimal.NewFromInt(request.Amount),
+		SentAmount:      amount,
 		Description:     "data-purchase",
 		Type:            transaction.Data,
 		ServiceID:       request.ServiceID,
@@ -345,7 +410,7 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		RequestID:     purchaseRequestID,
 		VariationCode: request.VariationCode,
 		Phone:         request.Phone,
-		Amount:        request.Amount,
+		Amount:        amount.IntPart(),
 	})
 	if err != nil {
 		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
