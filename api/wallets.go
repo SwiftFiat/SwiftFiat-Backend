@@ -65,7 +65,54 @@ func (w Wallet) router(server *Server) {
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/wallets")
 	serverGroupV1Admin.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
+	serverGroupV1Admin.POST("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.addToWalletBalance)
 	serverGroupV1Admin.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
+
+}
+
+func (w *Wallet) addToWalletBalance(ctx *gin.Context) {
+
+	request := struct {
+		WalletID string  `json:"wallet_id" binding:"required"`
+		Amount   float64 `json:"amount" binding:"required"`
+		Currency string  `json:"currency" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid wallet_id and amount and currency"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	wallet, err := w.server.queries.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: activeUser.UserID,
+		Currency:   request.Currency,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	}
+
+	response, err := w.server.queries.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID: wallet.ID,
+		Amount: sql.NullString{
+			String: fmt.Sprintf("%f", request.Amount),
+			Valid:  true,
+		},
+	})
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Balance Updated Successfully", response))
 
 }
 
