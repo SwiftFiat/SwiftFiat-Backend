@@ -1,10 +1,12 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -59,6 +61,16 @@ func (g GiftCard) router(server *Server) {
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/giftcard")
 	serverGroupV1Admin.POST("sync", g.server.authMiddleware.AuthenticatedMiddleware(), g.syncGiftCards)
+
+	server.taskScheduler.AddTask("sync_giftcards", "sync_giftcards", func(ctx context.Context) error {
+		err := g.service.SyncGiftCards(g.server.provider)
+		if err != nil {
+			g.server.logger.Error(fmt.Sprintf("failed to sync gift cards: %v", err))
+			return err
+		}
+		return nil
+	}, 24*time.Hour)
+	server.taskScheduler.RunTask("sync_giftcards")
 }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
