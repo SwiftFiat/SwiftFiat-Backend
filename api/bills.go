@@ -43,6 +43,8 @@ func (b Bills) router(server *Server) {
 	serverGroupV1.GET("service-variation", b.server.authMiddleware.AuthenticatedMiddleware(), b.getServiceVariations)
 	serverGroupV1.POST("buy-airtime", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyAirtime)
 	serverGroupV1.POST("buy-data", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyData)
+	serverGroupV1.POST("customer-info", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCustomerInfo)
+	serverGroupV1.POST("buy-tv", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyTVSubscription)
 }
 
 func (b *Bills) getCategories(ctx *gin.Context) {
@@ -267,12 +269,14 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	}); err != nil {
 		b.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
 	b.server.logger.Info("transaction (airtime purchase) completed successfully", tInfo)
@@ -426,15 +430,242 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	}); err != nil {
 		b.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
 	b.server.logger.Info("transaction (data purchase) completed successfully", tInfo)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", tInfo))
+}
+
+func (b *Bills) getCustomerInfo(ctx *gin.Context) {
+	request := struct {
+		ServiceID   string `json:"service_id" binding:"required"`
+		BillersCode string `json:"billers_code" binding:"required"`
+	}{}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	provider, exists := b.server.provider.GetProvider(providers.VTPass)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+		return
+	}
+
+	billProv, ok := provider.(*bills.VTPassProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+		return
+	}
+
+	customerInfo, err := billProv.GetCustomerInfo(bills.GetCustomerInfoRequest{
+		ServiceID:   request.ServiceID,
+		BillersCode: request.BillersCode,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", customerInfo))
+}
+
+func (b *Bills) buyTVSubscription(ctx *gin.Context) {
+	request := struct {
+		WalletID         string `json:"wallet_id" binding:"required"`
+		ServiceID        string `json:"service_id" binding:"required"`
+		BillersCode      string `json:"billers_code" binding:"required"`
+		SubscriptionType string `json:"subscription_type" binding:"required"`
+		VariationCode    string `json:"variation_code" binding:"required"`
+		Pin              string `json:"pin" binding:"required"`
+	}{}
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if request.Pin == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
+		return
+	}
+
+	// Start transaction
+	dbTx, err := b.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+	defer dbTx.Rollback()
+
+	// Pull user information
+	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
+		return
+	}
+
+	walletID, err := uuid.Parse(request.WalletID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
+		return
+	}
+
+	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var selectedVariation *models.BillVariation
+	for _, variation := range variations {
+		if variation.VariationCode == request.VariationCode {
+			selectedVariation = &variation
+			break
+		}
+	}
+
+	if selectedVariation == nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation code"))
+		return
+	}
+
+	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation amount"))
+		return
+	}
+
+	// Create BillTransaction
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+		SourceWalletID:  walletID,
+		SentAmount:      amount,
+		Description:     "tv-subscription-purchase",
+		Type:            transaction.TV,
+		ServiceID:       request.ServiceID,
+		ServiceCurrency: "NGN",
+	})
+	if err != nil {
+		b.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	provider, exists := b.server.provider.GetProvider(providers.VTPass)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+		return
+	}
+
+	billProv, ok := provider.(*bills.VTPassProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+		return
+	}
+
+	transaction, err := billProv.BuyTVSubscription(bills.BuyTVSubscriptionRequest{
+		ServiceID:        request.ServiceID,
+		BillersCode:      request.BillersCode,
+		VariationCode:    request.VariationCode,
+		SubscriptionType: request.SubscriptionType,
+		Amount:           amount.IntPart(),
+		Phone:            userInfo.PhoneNumber,
+		RequestID:        time.Now().Format("20060102150405"),
+	})
+	if err != nil {
+		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if _, err := b.server.queries.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
+		ServiceTransactionID: sql.NullString{
+			String: transaction.TransactionID,
+			Valid:  true,
+		},
+		TransactionID: tInfo.ID,
+	}); err != nil {
+		b.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if transaction.Status == "pending" {
+		b.server.logger.Error("tv subscription purchase status - pending")
+		if _, err := b.server.queries.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			Status: transaction.Status,
+			ID:     tInfo.ID,
+		}); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		// Change transaction status to pending
+		tInfo.Status = transaction.Status
+
+		// Commit transaction
+		if err := dbTx.Commit(); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("tv subscription purchase pending", tInfo))
+		return
+	}
+
+	if transaction.Status == "failed" {
+		b.server.logger.Error("tv subscription purchase status - failed")
+		if _, err := b.server.queries.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			Status: "failed",
+			ID:     tInfo.ID,
+		}); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		// Don't commit failed transactions
+		if err := dbTx.Rollback(); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("tv subscription purchase failed"))
+		return
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		b.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	b.server.logger.Info("transaction (tv subscription purchase) completed successfully", tInfo)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", tInfo))
 }

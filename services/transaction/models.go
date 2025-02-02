@@ -26,9 +26,10 @@ const (
 	GiftCard   TransactionType = "giftcard"
 	Airtime    TransactionType = "airtime"
 	Data       TransactionType = "data"
+	TV         TransactionType = "tv"
 )
 
-var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data}
+var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV}
 
 func IsTransactionTypeValid(request TransactionType) bool {
 	for _, c := range SupportedTransactions {
@@ -49,7 +50,7 @@ const (
 	BillOutflowTransaction     TransactionPlatform = "bill"
 )
 
-var SupportedBillTransactions = []TransactionType{Airtime, Data}
+var SupportedBillTransactions = []TransactionType{Airtime, Data, TV}
 
 type IntraTransaction struct {
 	ID             string
