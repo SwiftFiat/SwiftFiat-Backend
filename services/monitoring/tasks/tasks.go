@@ -59,6 +59,7 @@ func (ts *TaskScheduler) AddTask(id, name string, fn func(context.Context) error
 	}
 
 	ts.tasks[id] = task
+	ts.logger.Info(fmt.Sprintf("Added task %s to scheduler", id))
 	return task, nil
 }
 
@@ -72,6 +73,7 @@ func (ts *TaskScheduler) RunTask(id string) error {
 		return fmt.Errorf("task with ID %s not found", id)
 	}
 
+	ts.logger.Info(fmt.Sprintf("Running task %s", id))
 	go func() {
 		if err := task.Fn(ts.ctx); err != nil {
 			ts.logger.Error(fmt.Sprintf("Task %s failed: %v", task.Name, err))
@@ -93,6 +95,8 @@ func (ts *TaskScheduler) ScheduleTask(id string, delay time.Duration) error {
 		return fmt.Errorf("task with ID %s not found", id)
 	}
 
+	ts.logger.Info(fmt.Sprintf("Scheduling task %s to run in %s", id, delay))
+
 	go func() {
 		timer := time.NewTimer(delay)
 		defer timer.Stop()
@@ -100,6 +104,7 @@ func (ts *TaskScheduler) ScheduleTask(id string, delay time.Duration) error {
 		for {
 			select {
 			case <-ts.ctx.Done():
+				ts.logger.Info(fmt.Sprintf("Task %s context cancelled", id))
 				return
 			case <-timer.C:
 				if err := task.Fn(ts.ctx); err != nil {
@@ -131,6 +136,7 @@ func (ts *TaskScheduler) StopTask(id string) error {
 
 	ts.cancel()
 	ts.ctx, ts.cancel = context.WithCancel(context.Background())
+	ts.logger.Info(fmt.Sprintf("Stopped task %s", id))
 	return nil
 }
 
@@ -144,6 +150,7 @@ func (ts *TaskScheduler) RemoveTask(id string) error {
 	}
 
 	delete(ts.tasks, id)
+	ts.logger.Info(fmt.Sprintf("Removed task %s from scheduler", id))
 	return nil
 }
 
@@ -154,6 +161,7 @@ func (ts *TaskScheduler) GetTask(id string) (*Task, error) {
 
 	task, exists := ts.tasks[id]
 	if !exists {
+		ts.logger.Error(fmt.Sprintf("Task with ID %s not found", id))
 		return nil, fmt.Errorf("task with ID %s not found", id)
 	}
 
@@ -169,5 +177,6 @@ func (ts *TaskScheduler) ListTasks() map[string]*Task {
 	for id, task := range ts.tasks {
 		tasks[id] = task
 	}
+	ts.logger.Info(fmt.Sprintf("Listing tasks: %v", tasks))
 	return tasks
 }
