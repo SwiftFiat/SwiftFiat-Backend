@@ -19,17 +19,18 @@ const (
 type TransactionType string
 
 const (
-	Transfer   TransactionType = "transfer"
-	Withdrawal TransactionType = "withdrawal"
-	Deposit    TransactionType = "deposit"
-	Swap       TransactionType = "swap"
-	GiftCard   TransactionType = "giftcard"
-	Airtime    TransactionType = "airtime"
-	Data       TransactionType = "data"
-	TV         TransactionType = "tv"
+	Transfer    TransactionType = "transfer"
+	Withdrawal  TransactionType = "withdrawal"
+	Deposit     TransactionType = "deposit"
+	Swap        TransactionType = "swap"
+	GiftCard    TransactionType = "giftcard"
+	Airtime     TransactionType = "airtime"
+	Data        TransactionType = "data"
+	TV          TransactionType = "tv"
+	Electricity TransactionType = "electricity"
 )
 
-var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV}
+var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV, Electricity}
 
 func IsTransactionTypeValid(request TransactionType) bool {
 	for _, c := range SupportedTransactions {
@@ -50,7 +51,7 @@ const (
 	BillOutflowTransaction     TransactionPlatform = "bill"
 )
 
-var SupportedBillTransactions = []TransactionType{Airtime, Data, TV}
+var SupportedBillTransactions = []TransactionType{Airtime, Data, TV, Electricity}
 
 type IntraTransaction struct {
 	ID             string
@@ -215,14 +216,30 @@ type FiatWithdrawalMetadataResponse struct {
 }
 
 type BillMetadataResponse struct {
-	ID                   uuid.UUID `json:"id"`
-	SourceWallet         uuid.UUID `json:"source_wallet"`
-	Rate                 string    `json:"rate,omitempty"`
-	ReceivedAmount       string    `json:"received_amount,omitempty"`
-	SentAmount           string    `json:"sent_amount,omitempty"`
-	Fees                 string    `json:"fees,omitempty"`
-	ServiceProvider      string    `json:"service_provider,omitempty"`
-	ServiceTransactionID string    `json:"service_transaction_id,omitempty"`
+	ID                   uuid.UUID                    `json:"id"`
+	SourceWallet         uuid.UUID                    `json:"source_wallet"`
+	Rate                 string                       `json:"rate,omitempty"`
+	ReceivedAmount       string                       `json:"received_amount,omitempty"`
+	SentAmount           string                       `json:"sent_amount,omitempty"`
+	Fees                 string                       `json:"fees,omitempty"`
+	ServiceProvider      string                       `json:"service_provider,omitempty"`
+	ServiceTransactionID string                       `json:"service_transaction_id,omitempty"`
+	ElectricityMetadata  *ElectricityMetadataResponse `json:"electricity_metadata,omitempty"`
+}
+
+type ElectricityMetadataResponse struct {
+	PurchasedCode     string  `json:"purchased_code"`
+	CustomerName      *string `json:"customerName"`
+	CustomerAddress   *string `json:"customerAddress"`
+	Token             string  `json:"token"`
+	TokenAmount       float64 `json:"tokenAmount"`
+	ExchangeReference string  `json:"exchangeReference"`
+	ResetToken        *string `json:"resetToken"`
+	ConfigureToken    *string `json:"configureToken"`
+	Units             string  `json:"units"`
+	FixChargeAmount   *string `json:"fixChargeAmount"`
+	Tariff            string  `json:"tariff"`
+	TaxAmount         *string `json:"taxAmount"`
 }
 
 type CreateTransactionFeeRequest struct {

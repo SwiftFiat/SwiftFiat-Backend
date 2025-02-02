@@ -127,3 +127,53 @@ type BuyTVSubscriptionRequest struct {
 	RequestID        string `json:"request_id"`         // Unique identifier for this transaction
 	Quantity         int64  `json:"quantity,omitempty"` // Number of subscriptions to purchase (optional) - months
 }
+
+type GetCustomerMeterInfoRequest struct {
+	ServiceID   string `json:"serviceID"`
+	BillersCode string `json:"billersCode"`
+	Type        string `json:"type"` // "postpaid" or "prepaid"
+}
+
+type GetCustomerMeterInfoResponse struct {
+	CustomerName        string  `json:"Customer_Name"`
+	Address             string  `json:"Address"`
+	MeterNumber         string  `json:"Meter_Number"`
+	CustomerArrears     any     `json:"Customer_Arrears"`
+	MinimumAmount       float64 `json:"Minimum_Amount"`
+	MinPurchaseAmount   float64 `json:"Min_Purchase_Amount"`
+	CanVend             string  `json:"Can_Vend"`
+	BusinessUnit        string  `json:"Business_Unit"`
+	CustomerAccountType string  `json:"Customer_Account_Type"`
+	MeterType           string  `json:"Meter_Type"`
+	WrongBillersCode    bool    `json:"WrongBillersCode"`
+}
+
+type PurchaseElectricityResponse struct {
+	Code                string  `json:"code"`
+	Content             Content `json:"content"`
+	ResponseDescription string  `json:"response_description"`
+	RequestID           string  `json:"requestId"`
+	Amount              string  `json:"amount"`
+	TransactionDate     string  `json:"transaction_date"`
+	PurchasedCode       string  `json:"purchased_code"`
+	CustomerName        *string `json:"customerName"`
+	CustomerAddress     *string `json:"customerAddress"`
+	Token               string  `json:"token"`
+	TokenAmount         float64 `json:"tokenAmount"`
+	ExchangeReference   string  `json:"exchangeReference"`
+	ResetToken          *string `json:"resetToken"`
+	ConfigureToken      *string `json:"configureToken"`
+	Units               string  `json:"units"`
+	FixChargeAmount     *string `json:"fixChargeAmount"`
+	Tariff              string  `json:"tariff"`
+	TaxAmount           *string `json:"taxAmount"`
+}
+
+type PurchaseElectricityRequest struct {
+	RequestID     string  `json:"request_id"`
+	ServiceID     string  `json:"serviceID"`
+	BillersCode   string  `json:"billersCode"`
+	VariationCode string  `json:"variation_code"`
+	Amount        float64 `json:"amount"`
+	Phone         string  `json:"phone"`
+}
