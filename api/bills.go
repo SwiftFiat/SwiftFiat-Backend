@@ -45,6 +45,8 @@ func (b Bills) router(server *Server) {
 	serverGroupV1.POST("buy-data", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyData)
 	serverGroupV1.POST("customer-info", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCustomerInfo)
 	serverGroupV1.POST("buy-tv", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyTVSubscription)
+	serverGroupV1.POST("customer-meter-info", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCustomerMeterInfo)
+	serverGroupV1.POST("buy-electricity", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyElectricity)
 }
 
 func (b *Bills) getCategories(ctx *gin.Context) {
@@ -668,4 +670,246 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	b.server.logger.Info("transaction (tv subscription purchase) completed successfully", tInfo)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", tInfo))
+}
+
+func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
+	request := struct {
+		ServiceID   string `json:"service_id" binding:"required"`
+		BillersCode string `json:"billers_code" binding:"required"`
+		Type        string `json:"type" binding:"required"` // "postpaid" or "prepaid"
+	}{}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	provider, exists := b.server.provider.GetProvider(providers.VTPass)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+		return
+	}
+
+	billProv, ok := provider.(*bills.VTPassProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+		return
+	}
+
+	customerMeterInfo, err := billProv.GetCustomerMeterInfo(bills.GetCustomerMeterInfoRequest{
+		ServiceID:   request.ServiceID,
+		BillersCode: request.BillersCode,
+		Type:        request.Type,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", customerMeterInfo))
+}
+
+func (b *Bills) buyElectricity(ctx *gin.Context) {
+	request := struct {
+		WalletID      string  `json:"wallet_id" binding:"required"`
+		ServiceID     string  `json:"service_id" binding:"required"`
+		BillersCode   string  `json:"billers_code" binding:"required"`
+		VariationCode string  `json:"variation_code" binding:"required"`
+		Amount        float64 `json:"amount" binding:"required"`
+		Pin           string  `json:"pin" binding:"required"`
+	}{}
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if request.Pin == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
+		return
+	}
+
+	// Start transaction
+	dbTx, err := b.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+	defer dbTx.Rollback()
+
+	// Pull user information
+	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
+		return
+	}
+
+	walletID, err := uuid.Parse(request.WalletID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
+		return
+	}
+
+	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var selectedVariation *models.BillVariation
+	for _, variation := range variations {
+		if variation.VariationCode == request.VariationCode {
+			selectedVariation = &variation
+			break
+		}
+	}
+
+	if selectedVariation == nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation code"))
+		return
+	}
+
+	// Create BillTransaction
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+		SourceWalletID:  walletID,
+		SentAmount:      decimal.NewFromFloat(request.Amount),
+		Description:     "electricity-purchase",
+		Type:            transaction.Electricity,
+		ServiceID:       request.ServiceID,
+		ServiceCurrency: "NGN",
+	})
+	if err != nil {
+		b.server.logger.Error(err)
+		if err.Error() == wallet.ErrInsufficientFunds.Error() {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+		if err.Error() == wallet.ErrWalletNotFound.Error() {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	provider, exists := b.server.provider.GetProvider(providers.VTPass)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+		return
+	}
+
+	billProv, ok := provider.(*bills.VTPassProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+		return
+	}
+
+	purchTrans, err := billProv.BuyElectricity(bills.PurchaseElectricityRequest{
+		ServiceID:     request.ServiceID,
+		BillersCode:   request.BillersCode,
+		VariationCode: request.VariationCode,
+		Amount:        request.Amount,
+		Phone:         userInfo.PhoneNumber,
+		RequestID:     time.Now().Format("20060102150405"),
+	})
+	if err != nil {
+		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if _, err := b.server.queries.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
+		ServiceTransactionID: sql.NullString{
+			String: purchTrans.Content.Transaction.TransactionID,
+			Valid:  true,
+		},
+		TransactionID: tInfo.ID,
+	}); err != nil {
+		b.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	/// Update transaction metadata
+	tInfo.Metadata.ElectricityMetadata = &transaction.ElectricityMetadataResponse{
+		PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
+		CustomerName:      purchTrans.CustomerName,
+		CustomerAddress:   purchTrans.CustomerAddress,
+		Token:             purchTrans.Token,
+		TokenAmount:       purchTrans.TokenAmount,
+		ExchangeReference: purchTrans.ExchangeReference,
+		ResetToken:        purchTrans.ResetToken,
+		ConfigureToken:    purchTrans.ConfigureToken,
+		Units:             purchTrans.Units,
+		FixChargeAmount:   purchTrans.FixChargeAmount,
+		Tariff:            purchTrans.Tariff,
+		TaxAmount:         purchTrans.TaxAmount,
+	}
+
+	if purchTrans.Content.Transaction.Status == "pending" {
+		b.server.logger.Error("electricity purchase status - pending")
+		if _, err := b.server.queries.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			Status: purchTrans.Content.Transaction.Status,
+			ID:     tInfo.ID,
+		}); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		// Change transaction status to pending
+		tInfo.Status = purchTrans.Content.Transaction.Status
+		// Commit transaction
+		if err := dbTx.Commit(); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("electricity purchase pending", tInfo))
+		return
+	}
+
+	if purchTrans.Content.Transaction.Status == "failed" {
+		b.server.logger.Error("electricity purchase status - failed")
+		if _, err := b.server.queries.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			Status: "failed",
+			ID:     tInfo.ID,
+		}); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		// Don't commit failed transactions
+		if err := dbTx.Rollback(); err != nil {
+			b.server.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("electricity purchase failed"))
+		return
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		b.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	b.server.logger.Info("transaction (electricity purchase) completed successfully", tInfo)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase electricity successful", tInfo))
 }

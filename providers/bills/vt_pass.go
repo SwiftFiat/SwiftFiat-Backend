@@ -290,6 +290,10 @@ func (p *VTPassProvider) BuyData(request PurchaseDataRequest) (*Transaction, err
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
+	if newModel.Code != "000" {
+		return nil, fmt.Errorf("error purchasing data: %s", newModel.ResponseDescription)
+	}
+
 	return &newModel.Content.Transaction, nil
 }
 
@@ -391,5 +395,109 @@ func (p *VTPassProvider) BuyTVSubscription(request BuyTVSubscriptionRequest) (*T
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
+	if newModel.Code != "000" {
+		return nil, fmt.Errorf("error purchasing tv subscription: %s", newModel.ResponseDescription)
+	}
+
 	return &newModel.Content.Transaction, nil
+}
+
+func (p *VTPassProvider) GetCustomerMeterInfo(request GetCustomerMeterInfoRequest) (*GetCustomerMeterInfoResponse, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "merchant-verify"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	resp, err := p.MakeRequest("POST", base.String(), request, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Log the body
+	logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+
+	// Reset the response body for further processing (if needed)
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel VTPassResponse[GetCustomerMeterInfoResponse]
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Content, nil
+}
+
+func (p *VTPassProvider) BuyElectricity(request PurchaseElectricityRequest) (*PurchaseElectricityResponse, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "pay"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	resp, err := p.MakeRequest("POST", base.String(), request, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Log the body
+	logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+
+	// Reset the response body for further processing (if needed)
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel PurchaseElectricityResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	if newModel.Code != "000" {
+		return nil, fmt.Errorf("error purchasing electricity: %s", newModel.ResponseDescription)
+	}
+
+	return &newModel, nil
 }
