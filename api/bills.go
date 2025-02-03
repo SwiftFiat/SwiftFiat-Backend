@@ -92,7 +92,7 @@ func (b *Bills) getServices(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched bill services", services))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched bill services", models.ToServiceIdentifierResponseList(services)))
 }
 
 func (b *Bills) getServiceVariations(ctx *gin.Context) {
