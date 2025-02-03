@@ -94,7 +94,7 @@ func (p *VTPassProvider) GetServiceCategories() (interface{}, error) {
 	return &newModel.Content, nil
 }
 
-func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, error) {
+func (p *VTPassProvider) GetServiceIdentifiers(identifier string) ([]ServiceIdentifier, error) {
 
 	base, err := url.Parse(p.BaseURL)
 	if err != nil {
@@ -137,10 +137,11 @@ func (p *VTPassProvider) GetServiceIdentifiers(identifier string) (interface{}, 
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {
-		return nil, fmt.Errorf("error decoding response body: %w", err)
+		logging.NewLogger().Error(fmt.Sprintf("error decoding response body: %+v", err))
+		return nil, fmt.Errorf("error decoding response body: %+v", err)
 	}
 
-	return &newModel.Content, nil
+	return newModel.Content, nil
 }
 
 func (p *VTPassProvider) GetServiceVariation(serviceID string) ([]Variation, error) {
