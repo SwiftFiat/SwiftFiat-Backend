@@ -3,6 +3,4 @@ SwiftFiat-Backend
 bin/*
 *.env
 redis_data/*
-*.json
-*json
 *.log
