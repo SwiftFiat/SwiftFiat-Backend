@@ -25,7 +25,8 @@ jobs:
       with:
          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-         aws-region: ${{ secrets.AWS_REGION }} 
+         aws-region: ${{ secrets.AWS_REGION }}
+         audience: token.actions.githubusercontent.com 
 
 
     - name: creating env file and make build. 
