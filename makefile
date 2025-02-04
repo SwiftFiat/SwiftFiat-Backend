@@ -31,26 +31,27 @@ db_password ?= 438a8e2e6c0521233a53602831bf4410add45e52
 db_host ?= localhost
 db_port ?= 5432
 db_name ?= swiftfiat_db
+ssl_mode ?= disable
 
 # Run database migrations up to apply pending changes
 m_up: # migrate-up
-	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" up $(count)
+	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" up $(count)
 
 # Fix dirty database state by forcing to previous clean version
 m_fix: # migrate-fix: fix dirty database state
-	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" force $(version)
+	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" force $(version)
 
 # Check current migration version number
 m_version: # migrate-version
-	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" version
+	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" version
 
 # Force database migration version without running migrations
 m_fup: # migreate-force up
-	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" force $(count)
+	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" force $(count)
 
 # Roll back database migrations
 m_down: # migrate-down
-	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=disable" down $(count)
+	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" down $(count)
 
 # Start services - PostgreSQL | Bitgo | Redis containers in detached mode
 s_up: # 
