@@ -1,0 +1,71 @@
+name: Deploy to Production 
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  id-token: write 
+  contents: read      
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: checkout 
+      uses: actions/checkout@v3
+
+    - name: configure aws credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+         role-session-name: GitHub_to_AWS_via_FederatedOIDC
+         aws-region: ${{ secrets.AWS_REGION }} 
+
+
+    - name: creating env file and make build. 
+      run: |
+        echo "${{ secrets.PROD_ENV }}" >> .env
+
+    - name: Save JSON Content to a File
+      env:
+         JSON_CONTENT: ${{ secrets.GOOGLE_CRED }}
+      run: |
+        echo "$JSON_CONTENT" > swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json
+        echo "JSON file created: $(cat swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json)"      
+        
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v1
+
+    - name: Build, tag, and push image to Aws ECR
+      id: build-image
+      env:
+        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPO}}
+        IMAGE_TAG: latest
+      run: |
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+    - name: Fill in the new image ID in the Amazon ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: .github/workflows/task-definition.json
+        container-name: swift-api
+        image: ${{ steps.build-image.outputs.image }}
+
+    - name: Deploy Amazon ECS task definition
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: api-service
+        cluster: api-cluster
+        wait-for-service-stability: true
