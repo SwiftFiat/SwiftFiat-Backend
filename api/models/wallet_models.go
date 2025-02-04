@@ -1,6 +1,8 @@
 package models
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -69,4 +71,76 @@ func ToBeneficiaryResponse(benRow db.Beneficiary) *BeneficiaryResponse {
 		CreatedAt:       benRow.CreatedAt,
 		UpdatedAt:       benRow.UpdatedAt,
 	}
+}
+
+type TransactionResponseCollection []TransactionResponse
+
+type TransactionResponse struct {
+	ID                   uuid.UUID   `json:"id"`
+	Type                 string      `json:"type"`
+	Description          string      `json:"description"`
+	TransactionFlow      string      `json:"transaction_flow"`
+	Status               string      `json:"status"`
+	CreatedAt            time.Time   `json:"created_at"`
+	UpdatedAt            time.Time   `json:"updated_at"`
+	DeletedFromAccountID uuid.UUID   `json:"deleted_from_account_id,omitempty"`
+	DeletedToAccountID   uuid.UUID   `json:"deleted_to_account_id,omitempty"`
+	Metadata             interface{} `json:"metadata"`
+}
+
+func ToTransactionResponseCollection(transRows []db.GetTransactionsForWalletRow) TransactionResponseCollection {
+	var responses TransactionResponseCollection
+	for _, transRow := range transRows {
+		responses = append(responses, *ToTransactionResponse(transRow))
+	}
+	return responses
+}
+
+func ToTransactionResponse(transRow db.GetTransactionsForWalletRow) *TransactionResponse {
+	metadata, err := InterfaceToMap(transRow.Metadata)
+	if err != nil {
+		fmt.Println("Error unmarshalling metadata: ", err)
+		return nil
+	}
+
+	response := &TransactionResponse{
+		ID:                   transRow.ID,
+		Type:                 transRow.Type,
+		Description:          transRow.Description.String,
+		TransactionFlow:      transRow.TransactionFlow.String,
+		Status:               transRow.Status,
+		CreatedAt:            transRow.CreatedAt,
+		UpdatedAt:            transRow.UpdatedAt,
+		DeletedFromAccountID: transRow.DeletedFromAccountID.UUID,
+		DeletedToAccountID:   transRow.DeletedToAccountID.UUID,
+		Metadata:             metadata,
+	}
+
+	return response
+}
+
+func InterfaceToMap(metadata interface{}) (map[string]interface{}, error) {
+	var metadataMap map[string]interface{}
+
+	switch v := metadata.(type) {
+	case []byte: // Handle if metadata is []byte
+		err := json.Unmarshal(v, &metadataMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	case string: // Handle if metadata is string
+		err := json.Unmarshal([]byte(v), &metadataMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	case json.RawMessage: // Directly unmarshal if it’s json.RawMessage
+		err := json.Unmarshal(v, &metadataMap)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	default:
+		return nil, fmt.Errorf("unexpected type for metadata: %T", metadata)
+	}
+
+	return metadataMap, nil
 }
