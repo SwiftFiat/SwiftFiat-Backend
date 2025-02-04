@@ -23,6 +23,7 @@ type Config struct {
 	DBPort             string `mapstructure:"DB_PORT"`
 	DBDriver           string `mapstructure:"DB_DRIVER"`
 	DBName             string `mapstructure:"DB_NAME"`
+	SSLMode            string `mapstructure:"SSLMODE"`
 	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
 	Papertrail         string `mapstructure:"PAPERTRAIL"`
 	PapertrailAppName  string `mapstructure:"PAPERTRAIL_APP_NAME"`
