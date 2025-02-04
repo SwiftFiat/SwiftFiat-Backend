@@ -18,7 +18,7 @@
  * - Proof of Address (One of: Utility Bill, Bank Statement, Tenancy Agreement)
  *   Documents must not be older than 3 months
  */
-CREATE TABLE "kyc" (
+CREATE TABLE IF NOT EXISTS "kyc" (
     "id" BIGSERIAL PRIMARY KEY,
     "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "tier" INTEGER NOT NULL DEFAULT 0 CHECK ("tier" BETWEEN 0 AND 3),  -- Tier can be 0, 1, 2, or 3
@@ -58,7 +58,7 @@ CREATE TABLE "kyc" (
 );
 
 -- Create an index on user_id for faster lookups
-CREATE INDEX idx_kyc_user_id ON kyc(user_id);
+CREATE INDEX IF NOT EXISTS idx_kyc_user_id ON kyc(user_id);
 
 -- Create a trigger to automatically update the updated_at timestamp
 CREATE OR REPLACE FUNCTION update_updated_at_column()
@@ -69,7 +69,7 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_kyc_updated_at
+CREATE OR REPLACE TRIGGER update_kyc_updated_at
     BEFORE UPDATE ON kyc
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
@@ -143,7 +143,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create trigger to run before insert or update
-CREATE TRIGGER trigger_update_kyc_tier
+CREATE OR REPLACE TRIGGER trigger_update_kyc_tier
     BEFORE INSERT OR UPDATE ON kyc
     FOR EACH ROW
     EXECUTE FUNCTION update_kyc_tier();

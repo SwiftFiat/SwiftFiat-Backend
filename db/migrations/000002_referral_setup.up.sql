@@ -14,7 +14,7 @@
  * with potential new users to track referrals and possibly reward
  * successful referrals.
  */
-CREATE TABLE "referrals" (
+CREATE TABLE IF NOT EXISTS "referrals" (
     -- Unique identifier for each referral record
     "id" BIGSERIAL PRIMARY KEY,
     
@@ -40,7 +40,7 @@ CREATE TABLE "referrals" (
  * an entry is created in this table to record the relationship
  * and any relevant details.
  */
-CREATE TABLE "referral_entries" (
+CREATE TABLE IF NOT EXISTS "referral_entries" (
     -- Unique identifier for each referral entry
     "id" BIGSERIAL PRIMARY KEY,
     

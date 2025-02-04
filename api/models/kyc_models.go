@@ -7,6 +7,11 @@ type KYCVerificationData struct {
 	NIN bool `json:"nin,omitempty"`
 }
 
+type UserKYCInformationExtended struct {
+	KYC           *UserKYCInformation           `json:"kyc"`
+	POICollection []ProofOfAddressOutputElement `json:"document_collection"`
+}
+
 type UserKYCInformation struct {
 	ID                    ID        `json:"id"`
 	UserID                ID        `json:"user_id"`
@@ -33,4 +38,10 @@ type UserKYCInformation struct {
 	ProofOfAddressType    string    `json:"proof_of_address_type"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
+}
+
+type ProofOfAddressOutputElement struct {
+	Filename  string `json:"filename"`
+	ProofType string `json:"proof_type"`
+	Verified  bool   `json:"verified"`
 }

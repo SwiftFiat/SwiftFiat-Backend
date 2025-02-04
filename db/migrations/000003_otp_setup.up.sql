@@ -13,7 +13,7 @@
  * - Each user can only have one active OTP at a time (UNIQUE constraint on user_id)
  * - Automatic cleanup should be implemented for expired OTPs
  */
-CREATE TABLE "otps" (
+CREATE TABLE IF NOT EXISTS "otps" (
     -- Unique identifier for each OTP record
     "id" BIGSERIAL PRIMARY KEY,
     

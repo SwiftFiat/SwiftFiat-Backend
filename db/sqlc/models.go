@@ -8,8 +8,154 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
+
+type Beneficiary struct {
+	ID              uuid.UUID     `json:"id"`
+	UserID          sql.NullInt64 `json:"user_id"`
+	BankCode        string        `json:"bank_code"`
+	AccountNumber   string        `json:"account_number"`
+	BeneficiaryName string        `json:"beneficiary_name"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
+}
+
+type Brand struct {
+	ID        int32          `json:"id"`
+	BrandID   int64          `json:"brand_id"`
+	BrandName sql.NullString `json:"brand_name"`
+}
+
+type Category struct {
+	ID         int32  `json:"id"`
+	CategoryID int64  `json:"category_id"`
+	Name       string `json:"name"`
+}
+
+type Country struct {
+	ID      int32          `json:"id"`
+	IsoName sql.NullString `json:"iso_name"`
+	Name    sql.NullString `json:"name"`
+	FlagUrl sql.NullString `json:"flag_url"`
+}
+
+type CryptoAddress struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID sql.NullInt64  `json:"customer_id"`
+	AddressID  string         `json:"address_id"`
+	Coin       string         `json:"coin"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+// Metadata for cryptocurrency transactions
+type CryptoTransactionMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	DestinationWallet    uuid.NullUUID  `json:"destination_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Coin                 string         `json:"coin"`
+	SourceHash           sql.NullString `json:"source_hash"`
+	Rate                 sql.NullString `json:"rate"`
+	Fees                 sql.NullString `json:"fees"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
+type CryptoTransactionTrail struct {
+	ID              uuid.UUID      `json:"id"`
+	AddressID       string         `json:"address_id"`
+	TransactionHash string         `json:"transaction_hash"`
+	Amount          sql.NullString `json:"amount"`
+	CreatedAt       time.Time      `json:"created_at"`
+	UpdatedAt       time.Time      `json:"updated_at"`
+}
+
+type ExchangeRate struct {
+	ID            int64     `json:"id"`
+	BaseCurrency  string    `json:"base_currency"`
+	QuoteCurrency string    `json:"quote_currency"`
+	Rate          string    `json:"rate"`
+	EffectiveTime time.Time `json:"effective_time"`
+	Source        string    `json:"source"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+// Metadata for fiat currency withdrawals
+type FiatWithdrawalMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	AccountName          sql.NullString `json:"account_name"`
+	BankCode             sql.NullString `json:"bank_code"`
+	AccountNumber        sql.NullString `json:"account_number"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
+type GiftCard struct {
+	ID                       int32                 `json:"id"`
+	ProductID                int64                 `json:"product_id"`
+	ProductName              sql.NullString        `json:"product_name"`
+	DenominationType         sql.NullString        `json:"denomination_type"`
+	DiscountPercentage       sql.NullFloat64       `json:"discount_percentage"`
+	MaxRecipientDenomination sql.NullFloat64       `json:"max_recipient_denomination"`
+	MinRecipientDenomination sql.NullFloat64       `json:"min_recipient_denomination"`
+	MaxSenderDenomination    sql.NullFloat64       `json:"max_sender_denomination"`
+	MinSenderDenomination    sql.NullFloat64       `json:"min_sender_denomination"`
+	Global                   sql.NullBool          `json:"global"`
+	Metadata                 pqtype.NullRawMessage `json:"metadata"`
+	RecipientCurrencyCode    sql.NullString        `json:"recipient_currency_code"`
+	SenderCurrencyCode       sql.NullString        `json:"sender_currency_code"`
+	SenderFee                sql.NullFloat64       `json:"sender_fee"`
+	SenderFeePercentage      sql.NullFloat64       `json:"sender_fee_percentage"`
+	SupportsPreOrder         sql.NullBool          `json:"supports_pre_order"`
+	BrandID                  sql.NullInt64         `json:"brand_id"`
+	CategoryID               sql.NullInt64         `json:"category_id"`
+	CountryID                sql.NullInt64         `json:"country_id"`
+}
+
+type GiftCardDenominationMap struct {
+	ID                    int32           `json:"id"`
+	GiftCardID            sql.NullInt64   `json:"gift_card_id"`
+	RecipientCurrencyCode sql.NullString  `json:"recipient_currency_code"`
+	SenderCurrencyValue   sql.NullFloat64 `json:"sender_currency_value"`
+}
+
+type GiftCardFixedDenomination struct {
+	ID           int32           `json:"id"`
+	GiftCardID   sql.NullInt64   `json:"gift_card_id"`
+	Type         sql.NullString  `json:"type"`
+	Denomination sql.NullFloat64 `json:"denomination"`
+}
+
+type GiftCardLogoUrl struct {
+	ID         int32          `json:"id"`
+	GiftCardID sql.NullInt64  `json:"gift_card_id"`
+	LogoUrl    sql.NullString `json:"logo_url"`
+}
+
+// Metadata for giftcard purchases
+type GiftcardTransactionMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
 
 type Kyc struct {
 	ID                    int64                 `json:"id"`
@@ -42,6 +188,19 @@ type Kyc struct {
 	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
 }
 
+type LedgerEntry struct {
+	ID               uuid.UUID     `json:"id"`
+	TransactionID    uuid.NullUUID `json:"transaction_id"`
+	WalletID         uuid.NullUUID `json:"wallet_id"`
+	Type             string        `json:"type"`
+	Amount           string        `json:"amount"`
+	Balance          string        `json:"balance"`
+	CreatedAt        time.Time     `json:"created_at"`
+	SourceType       string        `json:"source_type"`
+	DestinationType  string        `json:"destination_type"`
+	DeletedAccountID uuid.NullUUID `json:"deleted_account_id"`
+}
+
 type Otp struct {
 	ID        int64     `json:"id"`
 	UserID    int32     `json:"user_id"`
@@ -50,6 +209,25 @@ type Otp struct {
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type ProofOfAddressImage struct {
+	ID         int32        `json:"id"`
+	UserID     int32        `json:"user_id"`
+	Filename   string       `json:"filename"`
+	ProofType  string       `json:"proof_type"`
+	ImageData  []byte       `json:"image_data"`
+	CreatedAt  time.Time    `json:"created_at"`
+	UpdatedAt  time.Time    `json:"updated_at"`
+	Verified   bool         `json:"verified"`
+	VerifiedAt sql.NullTime `json:"verified_at"`
+}
+
+type RedeemInstruction struct {
+	ID                  int32          `json:"id"`
+	GiftCardID          sql.NullInt64  `json:"gift_card_id"`
+	Concise             sql.NullString `json:"concise"`
+	DetailedInstruction sql.NullString `json:"detailed_instruction"`
 }
 
 type Referral struct {
@@ -71,8 +249,77 @@ type ReferralEntry struct {
 	DeletedAt      sql.NullTime `json:"deleted_at"`
 }
 
+// Metadata for service purchases like airtime and TV subscriptions
+type ServicesMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	ServiceType          string         `json:"service_type"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	ServiceID            sql.NullString `json:"service_id"`
+	ServiceStatus        string         `json:"service_status"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
+// Metadata for wallet-to-wallet transfers and swaps
+type SwapTransferMetadatum struct {
+	ID                uuid.UUID      `json:"id"`
+	Currency          string         `json:"currency"`
+	TransactionID     uuid.UUID      `json:"transaction_id"`
+	TransferType      string         `json:"transfer_type"`
+	Description       sql.NullString `json:"description"`
+	SourceWallet      uuid.NullUUID  `json:"source_wallet"`
+	DestinationWallet uuid.NullUUID  `json:"destination_wallet"`
+	UserTag           sql.NullString `json:"user_tag"`
+	Rate              sql.NullString `json:"rate"`
+	Fees              sql.NullString `json:"fees"`
+	ReceivedAmount    sql.NullString `json:"received_amount"`
+	SentAmount        sql.NullString `json:"sent_amount"`
+}
+
+type SwiftWallet struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID int64          `json:"customer_id"`
+	Type       string         `json:"type"`
+	Currency   string         `json:"currency"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+// Core transaction table storing all financial transactions
+type Transaction struct {
+	ID                   uuid.UUID      `json:"id"`
+	Type                 string         `json:"type"`
+	Description          sql.NullString `json:"description"`
+	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Status               string         `json:"status"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
+}
+
+type TransactionFee struct {
+	ID              int64          `json:"id"`
+	TransactionType string         `json:"transaction_type"`
+	FeePercentage   sql.NullString `json:"fee_percentage"`
+	MaxFee          sql.NullString `json:"max_fee"`
+	FlatFee         sql.NullString `json:"flat_fee"`
+	EffectiveTime   time.Time      `json:"effective_time"`
+	Source          string         `json:"source"`
+	CreatedAt       time.Time      `json:"created_at"`
+}
+
 type User struct {
 	ID             int64          `json:"id"`
+	AvatarUrl      sql.NullString `json:"avatar_url"`
+	AvatarBlob     []byte         `json:"avatar_blob"`
 	FirstName      sql.NullString `json:"first_name"`
 	LastName       sql.NullString `json:"last_name"`
 	Email          string         `json:"email"`
@@ -85,4 +332,17 @@ type User struct {
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`
+	HasWallets     bool           `json:"has_wallets"`
+	UserTag        sql.NullString `json:"user_tag"`
+	FreshChatID    sql.NullString `json:"fresh_chat_id"`
+}
+
+type UserToken struct {
+	ID         int32          `json:"id"`
+	UserID     int64          `json:"user_id"`
+	Token      string         `json:"token"`
+	Provider   string         `json:"provider"`
+	DeviceUuid sql.NullString `json:"device_uuid"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
 }

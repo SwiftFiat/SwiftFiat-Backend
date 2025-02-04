@@ -394,42 +394,36 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 	return i, err
 }
 
-const updateKYCLevel1 = `-- name: UpdateKYCLevel1 :one
+const updateKYCAddress = `-- name: UpdateKYCAddress :one
 UPDATE kyc 
 SET 
-    full_name = $2,
-    phone_number = $3,
-    email = $4,
-    bvn = $5,
-    nin = $6,
-    gender = $7,
-    selfie_url = $8,
+    state = $2,
+    lga = $3,
+    house_number = $4,
+    street_name = $5,
+    nearest_landmark = $6,
     updated_at = now()
 WHERE id = $1 
 RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-type UpdateKYCLevel1Params struct {
-	ID          int64          `json:"id"`
-	FullName    sql.NullString `json:"full_name"`
-	PhoneNumber sql.NullString `json:"phone_number"`
-	Email       sql.NullString `json:"email"`
-	Bvn         sql.NullString `json:"bvn"`
-	Nin         sql.NullString `json:"nin"`
-	Gender      sql.NullString `json:"gender"`
-	SelfieUrl   sql.NullString `json:"selfie_url"`
+type UpdateKYCAddressParams struct {
+	ID              int64          `json:"id"`
+	State           sql.NullString `json:"state"`
+	Lga             sql.NullString `json:"lga"`
+	HouseNumber     sql.NullString `json:"house_number"`
+	StreetName      sql.NullString `json:"street_name"`
+	NearestLandmark sql.NullString `json:"nearest_landmark"`
 }
 
-func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCLevel1,
+func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCAddress,
 		arg.ID,
-		arg.FullName,
-		arg.PhoneNumber,
-		arg.Email,
-		arg.Bvn,
-		arg.Nin,
-		arg.Gender,
-		arg.SelfieUrl,
+		arg.State,
+		arg.Lga,
+		arg.HouseNumber,
+		arg.StreetName,
+		arg.NearestLandmark,
 	)
 	var i Kyc
 	err := row.Scan(
@@ -465,45 +459,39 @@ func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params
 	return i, err
 }
 
-const updateKYCLevel2 = `-- name: UpdateKYCLevel2 :one
+const updateKYCLevel1 = `-- name: UpdateKYCLevel1 :one
 UPDATE kyc 
 SET 
-    id_type = $2,
-    id_number = $3,
-    id_image_url = $4,
-    state = $5,
-    lga = $6,
-    house_number = $7,
-    street_name = $8,
-    nearest_landmark = $9,
+    full_name = $2,
+    phone_number = $3,
+    email = $4,
+    bvn = $5,
+    gender = $6,
+    selfie_url = $7,
     updated_at = now()
 WHERE id = $1 
 RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-type UpdateKYCLevel2Params struct {
-	ID              int64          `json:"id"`
-	IDType          sql.NullString `json:"id_type"`
-	IDNumber        sql.NullString `json:"id_number"`
-	IDImageUrl      sql.NullString `json:"id_image_url"`
-	State           sql.NullString `json:"state"`
-	Lga             sql.NullString `json:"lga"`
-	HouseNumber     sql.NullString `json:"house_number"`
-	StreetName      sql.NullString `json:"street_name"`
-	NearestLandmark sql.NullString `json:"nearest_landmark"`
+type UpdateKYCLevel1Params struct {
+	ID          int64          `json:"id"`
+	FullName    sql.NullString `json:"full_name"`
+	PhoneNumber sql.NullString `json:"phone_number"`
+	Email       sql.NullString `json:"email"`
+	Bvn         sql.NullString `json:"bvn"`
+	Gender      sql.NullString `json:"gender"`
+	SelfieUrl   sql.NullString `json:"selfie_url"`
 }
 
-func (q *Queries) UpdateKYCLevel2(ctx context.Context, arg UpdateKYCLevel2Params) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCLevel2,
+func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCLevel1,
 		arg.ID,
-		arg.IDType,
-		arg.IDNumber,
-		arg.IDImageUrl,
-		arg.State,
-		arg.Lga,
-		arg.HouseNumber,
-		arg.StreetName,
-		arg.NearestLandmark,
+		arg.FullName,
+		arg.PhoneNumber,
+		arg.Email,
+		arg.Bvn,
+		arg.Gender,
+		arg.SelfieUrl,
 	)
 	var i Kyc
 	err := row.Scan(
