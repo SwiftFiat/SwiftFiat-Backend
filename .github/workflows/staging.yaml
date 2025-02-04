@@ -1,4 +1,4 @@
-name: Deploy to staging
+name: Deploy to Dev
 
 on:
   push:
@@ -20,11 +20,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Creating env file and make build
+      - name: Creating env file and json file
         run: |
-          echo "${{ secrets.STAGING_ENV }}" > .env   
-          cat .env
-    
+          echo "${{ secrets.STAGING_ENV }}" > .env  
+         
+
+      - name: Save JSON Content to a File
+        env:
+          JSON_CONTENT: ${{ secrets.GOOGLE_CRED }}
+        run: |
+          echo "$JSON_CONTENT" > swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json
+          echo "JSON file created: $(cat swift-dev-be547-firebase-adminsdk-xs6po-33bfff6f7d.json)"     
+          
 
       - name: Remove old containers
         run: |
