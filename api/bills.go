@@ -706,7 +706,7 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", customerMeterInfo))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", models.ToMeterInfoResponse(*customerMeterInfo)))
 }
 
 func (b *Bills) buyElectricity(ctx *gin.Context) {

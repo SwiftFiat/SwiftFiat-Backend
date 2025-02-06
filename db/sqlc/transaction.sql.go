@@ -839,135 +839,135 @@ func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactio
 }
 
 const getTransactionsForWallet = `-- name: GetTransactionsForWallet :many
-WITH wallet_transactions AS (
-    -- Swap/Transfer transactions
-    SELECT 
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        jsonb_build_object(
-            'id', stm.id,
-            'source_wallet', stm.source_wallet,
-            'destination_wallet', stm.destination_wallet,
-            'transfer_type', stm.transfer_type,
-            'rate', stm.rate,
-            'received_amount', stm.received_amount,
-            'sent_amount', stm.sent_amount,
-            'fees', stm.fees,
-            'user_tag', stm.user_tag
-        ) as metadata
-    FROM transactions t
-    JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
-    WHERE stm.source_wallet = $1 OR stm.destination_wallet = $1
-
+SELECT 
+    t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    CASE 
+        WHEN t.type = 'deposit' THEN (
+            SELECT jsonb_build_object(
+                'destination_wallet', cm.destination_wallet,
+                'coin', cm.coin,
+                'rate', cm.rate,
+                'fees', cm.fees,
+                'received_amount', cm.received_amount,
+                'sent_amount', cm.sent_amount,
+                'service_provider', cm.service_provider,
+                'service_transaction_id', cm.service_transaction_id
+            )::jsonb
+            FROM public.crypto_transaction_metadata cm
+            WHERE cm.transaction_id = t.id
+        )
+        WHEN t.type = 'withdrawal' THEN (
+            SELECT jsonb_build_object(
+                'source_wallet', fm.source_wallet,
+                'rate', fm.rate,
+                'received_amount', fm.received_amount,
+                'sent_amount', fm.sent_amount,
+                'fees', fm.fees,
+                'account_name', fm.account_name,
+                'bank_code', fm.bank_code,
+                'account_number', fm.account_number,
+                'service_provider', fm.service_provider,
+                'service_transaction_id', fm.service_transaction_id
+            )::jsonb
+            FROM public.fiat_withdrawal_metadata fm
+            WHERE fm.transaction_id = t.id
+        )
+        WHEN t.type = 'giftcard' THEN (
+            SELECT jsonb_build_object(
+                'source_wallet', gm.source_wallet,
+                'rate', gm.rate,
+                'received_amount', gm.received_amount,
+                'sent_amount', gm.sent_amount,
+                'fees', gm.fees,
+                'service_provider', gm.service_provider,
+                'service_transaction_id', gm.service_transaction_id
+            )::jsonb
+            FROM public.giftcard_transaction_metadata gm
+            WHERE gm.transaction_id = t.id
+        )
+        WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
+            SELECT jsonb_build_object(
+                'source_wallet', sm.source_wallet,
+                'rate', sm.rate,
+                'received_amount', sm.received_amount,
+                'sent_amount', sm.sent_amount,
+                'fees', sm.fees,
+                'service_type', sm.service_type,
+                'service_provider', sm.service_provider,
+                'service_id', sm.service_id,
+                'service_status', sm.service_status,
+                'service_transaction_id', sm.service_transaction_id
+            )::jsonb
+            FROM public.services_metadata sm
+            WHERE sm.transaction_id = t.id
+        )
+        WHEN t.type IN ('transfer', 'swap') THEN (
+            SELECT jsonb_build_object(
+                'currency', stm.currency,
+                'transfer_type', stm.transfer_type,
+                'description', stm.description,
+                'source_wallet', stm.source_wallet,
+                'destination_wallet', stm.destination_wallet,
+                'user_tag', stm.user_tag,
+                'rate', stm.rate,
+                'fees', stm.fees,
+                'received_amount', stm.received_amount,
+                'sent_amount', stm.sent_amount
+            )::jsonb
+            FROM public.swap_transfer_metadata stm
+            WHERE stm.transaction_id = t.id
+        )
+    END as metadata
+FROM (
+    SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
+    WHERE cm.destination_wallet = $1 OR cm.destination_wallet = $2
     UNION ALL
-
-    -- Crypto transactions
-    SELECT 
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        jsonb_build_object(
-            'id', cm.id,
-            'destination_wallet', cm.destination_wallet,
-            'coin', cm.coin,
-            'rate', cm.rate,
-            'received_amount', cm.received_amount,
-            'sent_amount', cm.sent_amount,
-            'fees', cm.fees,
-            'service_provider', cm.service_provider,
-            'service_transaction_id', cm.service_transaction_id
-        ) as metadata
-    FROM transactions t
-    JOIN crypto_transaction_metadata cm ON t.id = cm.transaction_id
-    WHERE cm.destination_wallet = $1
-
+    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    WHERE fm.source_wallet = $1 OR fm.source_wallet = $2
     UNION ALL
-
-    -- Giftcard transactions
-    SELECT 
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        jsonb_build_object(
-            'id', gm.id,
-            'source_wallet', gm.source_wallet,
-            'rate', gm.rate,
-            'received_amount', gm.received_amount,
-            'sent_amount', gm.sent_amount,
-            'fees', gm.fees,
-            'service_provider', gm.service_provider,
-            'service_transaction_id', gm.service_transaction_id
-        ) as metadata
-    FROM transactions t
-    JOIN giftcard_transaction_metadata gm ON t.id = gm.transaction_id
-    WHERE gm.source_wallet = $1
-
+    SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
+    WHERE gm.source_wallet = $1 OR gm.source_wallet = $2
     UNION ALL
-
-    -- Fiat withdrawal transactions
-    SELECT 
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        jsonb_build_object(
-            'id', fm.id,
-            'source_wallet', fm.source_wallet,
-            'rate', fm.rate,
-            'received_amount', fm.received_amount,
-            'sent_amount', fm.sent_amount,
-            'fees', fm.fees,
-            'account_name', fm.account_name,
-            'bank_code', fm.bank_code,
-            'account_number', fm.account_number,
-            'service_provider', fm.service_provider,
-            'service_transaction_id', fm.service_transaction_id
-        ) as metadata
-    FROM transactions t
-    JOIN fiat_withdrawal_metadata fm ON t.id = fm.transaction_id
-    WHERE fm.source_wallet = $1
-
+    SELECT sm.transaction_id FROM public.services_metadata sm
+    WHERE sm.source_wallet = $1 OR sm.source_wallet = $2
     UNION ALL
-
-    -- Services transactions
-    SELECT 
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        jsonb_build_object(
-            'id', sm.id,
-            'source_wallet', sm.source_wallet,
-            'rate', sm.rate,
-            'received_amount', sm.received_amount,
-            'sent_amount', sm.sent_amount,
-            'fees', sm.fees,
-            'service_type', sm.service_type,
-            'service_provider', sm.service_provider,
-            'service_id', sm.service_id,
-            'service_status', sm.service_status,
-            'service_transaction_id', sm.service_transaction_id
-        ) as metadata
-    FROM transactions t
-    JOIN services_metadata sm ON t.id = sm.transaction_id
-    WHERE sm.source_wallet = $1
-)
-SELECT id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id, metadata FROM wallet_transactions
-ORDER BY created_at DESC
-LIMIT $3
-OFFSET $2
+    SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
+    WHERE stm.source_wallet = $1 OR stm.source_wallet = $2
+    OR stm.destination_wallet = $1 OR stm.destination_wallet = $2
+) matching_ids
+JOIN public.transactions t ON t.id = matching_ids.transaction_id
+ORDER BY t.created_at DESC
+LIMIT $4
+OFFSET $3
 `
 
 type GetTransactionsForWalletParams struct {
-	SourceWallet uuid.NullUUID `json:"source_wallet"`
-	Offset       int32         `json:"_offset"`
-	Limit        int32         `json:"_limit"`
+	UsdWalletID uuid.NullUUID `json:"usd_wallet_id"`
+	NgnWalletID uuid.NullUUID `json:"ngn_wallet_id"`
+	Offset      int32         `json:"_offset"`
+	Limit       int32         `json:"_limit"`
 }
 
 type GetTransactionsForWalletRow struct {
-	ID                   uuid.UUID       `json:"id"`
-	Type                 string          `json:"type"`
-	Description          sql.NullString  `json:"description"`
-	TransactionFlow      sql.NullString  `json:"transaction_flow"`
-	Status               string          `json:"status"`
-	CreatedAt            time.Time       `json:"created_at"`
-	UpdatedAt            time.Time       `json:"updated_at"`
-	DeletedFromAccountID uuid.NullUUID   `json:"deleted_from_account_id"`
-	DeletedToAccountID   uuid.NullUUID   `json:"deleted_to_account_id"`
-	Metadata             json.RawMessage `json:"metadata"`
+	ID                   uuid.UUID      `json:"id"`
+	Type                 string         `json:"type"`
+	Description          sql.NullString `json:"description"`
+	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Status               string         `json:"status"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
+	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
+	Metadata             interface{}    `json:"metadata"`
 }
 
 func (q *Queries) GetTransactionsForWallet(ctx context.Context, arg GetTransactionsForWalletParams) ([]GetTransactionsForWalletRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTransactionsForWallet, arg.SourceWallet, arg.Offset, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getTransactionsForWallet,
+		arg.UsdWalletID,
+		arg.NgnWalletID,
+		arg.Offset,
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}

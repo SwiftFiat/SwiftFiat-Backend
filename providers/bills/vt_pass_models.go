@@ -66,19 +66,19 @@ type Transaction struct {
 	Status              string      `json:"status"`
 	ProductName         string      `json:"product_name"`
 	UniqueElement       string      `json:"unique_element"`
-	UnitPrice           int64       `json:"unit_price"`
-	Quantity            int64       `json:"quantity"`
+	UnitPrice           *float64    `json:"unit_price"`
+	Quantity            *float64    `json:"quantity"`
 	ServiceVerification interface{} `json:"service_verification"`
 	Channel             string      `json:"channel"`
-	Commission          int64       `json:"commission"`
-	TotalAmount         float64     `json:"total_amount"`
+	Commission          *float64    `json:"commission"`
+	TotalAmount         *float64    `json:"total_amount"`
 	Discount            interface{} `json:"discount"`
 	Type                string      `json:"type"`
 	Email               string      `json:"email"`
 	Phone               string      `json:"phone"`
 	Name                interface{} `json:"name"`
-	ConvinienceFee      int64       `json:"convinience_fee"`
-	Amount              int64       `json:"amount"`
+	ConvinienceFee      *float64    `json:"convinience_fee"`
+	Amount              *float64    `json:"amount"`
 	Platform            string      `json:"platform"`
 	Method              string      `json:"method"`
 	TransactionID       string      `json:"transactionId"`
@@ -133,17 +133,17 @@ type GetCustomerMeterInfoRequest struct {
 }
 
 type GetCustomerMeterInfoResponse struct {
-	CustomerName        string  `json:"Customer_Name"`
-	Address             string  `json:"Address"`
-	MeterNumber         string  `json:"Meter_Number"`
-	CustomerArrears     any     `json:"Customer_Arrears"`
-	MinimumAmount       float64 `json:"Minimum_Amount"`
-	MinPurchaseAmount   float64 `json:"Min_Purchase_Amount"`
-	CanVend             string  `json:"Can_Vend"`
-	BusinessUnit        string  `json:"Business_Unit"`
-	CustomerAccountType string  `json:"Customer_Account_Type"`
-	MeterType           string  `json:"Meter_Type"`
-	WrongBillersCode    bool    `json:"WrongBillersCode"`
+	CustomerName        string `json:"Customer_Name"`
+	Address             string `json:"Address"`
+	MeterNumber         string `json:"Meter_Number"`
+	CustomerArrears     any    `json:"Customer_Arrears"`
+	MinimumAmount       any    `json:"Minimum_Amount"`      // it's either float64 or string
+	MinPurchaseAmount   any    `json:"Min_Purchase_Amount"` // it's either float64 or string
+	CanVend             string `json:"Can_Vend"`
+	BusinessUnit        string `json:"Business_Unit"`
+	CustomerAccountType string `json:"Customer_Account_Type"`
+	MeterType           string `json:"Meter_Type"`
+	WrongBillersCode    bool   `json:"WrongBillersCode"`
 }
 
 type PurchaseElectricityResponse struct {

@@ -68,6 +68,7 @@ func NewServer(envPath string) *Server {
 	}
 
 	q := db.NewStore(dbConn)
+	gin.SetMode(c.Env)
 	g := gin.Default()
 	l := logging.NewLogger()
 	p := providers.NewProviderService()
