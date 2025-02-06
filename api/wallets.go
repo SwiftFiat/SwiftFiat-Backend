@@ -262,10 +262,16 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	}
 
 	transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
-		SourceWallet: uuid.NullUUID{
+		UsdWalletID: uuid.NullUUID{
 			UUID:  wallet[0].ID,
 			Valid: true,
 		},
+		NgnWalletID: uuid.NullUUID{
+			UUID:  wallet[1].ID,
+			Valid: true,
+		},
+		Limit:  10,
+		Offset: 0,
 	})
 
 	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
@@ -278,7 +284,7 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", transactions))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseCollection(transactions)))
 
 }
 
@@ -348,7 +354,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		ToAccountID:   destinationAccount,
 		SentAmount:    amount,
 		// ReceivedAmount: to be set after rate is decided
-		UserTag:     request.Description,
+		UserTag:     request.DestinationUserTag,
 		Description: request.Description,
 		Type:        transaction.Transfer,
 	}
