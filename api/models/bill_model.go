@@ -51,3 +51,45 @@ func ToServiceIdentifierResponseList(s []bills.ServiceIdentifier) []ServiceIdent
 	}
 	return response
 }
+
+func ToMeterInfoResponse(m bills.GetCustomerMeterInfoResponse) MeterInfoResponse {
+
+	var minAmount, minPurchaseAmount, customerArrears float64
+	if str, ok := m.MinimumAmount.(string); ok {
+		minAmount, _ = strconv.ParseFloat(str, 64)
+	}
+	if str, ok := m.MinPurchaseAmount.(string); ok {
+		minPurchaseAmount, _ = strconv.ParseFloat(str, 64)
+	}
+	if str, ok := m.CustomerArrears.(string); ok {
+		customerArrears, _ = strconv.ParseFloat(str, 64)
+	}
+
+	return MeterInfoResponse{
+		CustomerName:        m.CustomerName,
+		Address:             m.Address,
+		MeterNumber:         m.MeterNumber,
+		CustomerArrears:     customerArrears,
+		MinimumAmount:       minAmount,
+		MinPurchaseAmount:   minPurchaseAmount,
+		CanVend:             m.CanVend,
+		BusinessUnit:        m.BusinessUnit,
+		CustomerAccountType: m.CustomerAccountType,
+		MeterType:           m.MeterType,
+		WrongBillersCode:    m.WrongBillersCode,
+	}
+}
+
+type MeterInfoResponse struct {
+	CustomerName        string  `json:"customer_name"`
+	Address             string  `json:"address"`
+	MeterNumber         string  `json:"meter_number"`
+	CustomerArrears     float64 `json:"customer_arrears"`
+	MinimumAmount       float64 `json:"minimum_amount"`
+	MinPurchaseAmount   float64 `json:"min_purchase_amount"`
+	CanVend             string  `json:"can_vend"`
+	BusinessUnit        string  `json:"business_unit"`
+	CustomerAccountType string  `json:"customer_account_type"`
+	MeterType           string  `json:"meter_type"`
+	WrongBillersCode    bool    `json:"wrong_billers_code"`
+}
