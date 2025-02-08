@@ -249,7 +249,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		return
 	}
 
-	purchaseRequestID := time.Now().Format("20060102150405")
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	transaction, err := billProv.BuyAirtime(bills.PurchaseAirtimeRequest{
 		ServiceID: request.ServiceID,
@@ -408,7 +408,7 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		return
 	}
 
-	purchaseRequestID := time.Now().Format("20060102150405")
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	transaction, err := billProv.BuyData(bills.PurchaseDataRequest{
 		ServiceID:     request.ServiceID,
@@ -594,7 +594,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		SubscriptionType: request.SubscriptionType,
 		Amount:           amount.IntPart(),
 		Phone:            userInfo.PhoneNumber,
-		RequestID:        time.Now().Format("20060102150405"),
+		RequestID:        time.Now().UTC().Add(time.Hour * 1).Format("20060102150405"),
 	})
 	if err != nil {
 		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
@@ -821,7 +821,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		VariationCode: request.VariationCode,
 		Amount:        request.Amount,
 		Phone:         userInfo.PhoneNumber,
-		RequestID:     time.Now().Format("20060102150405"),
+		RequestID:     time.Now().UTC().Add(time.Hour * 1).Format("20060102150405"),
 	})
 	if err != nil {
 		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))

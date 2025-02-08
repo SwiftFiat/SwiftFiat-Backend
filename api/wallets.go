@@ -12,9 +12,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"net/url"
-	"strings"
-	"time"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -172,85 +170,33 @@ func (w *Wallet) getUserWallets(ctx *gin.Context) {
 
 func (w *Wallet) getTransactions(ctx *gin.Context) {
 	/// Pagination
-	cursor := ctx.Query("cursor")
-
-	var timestampStr string
-	var uuidStr string
-	var transactionTime time.Time
-	var uuidValue uuid.UUID
-
-	// Fetch user details
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
-
-	if cursor != "" {
-		unescaped, err := url.QueryUnescape(cursor)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor format"))
-			return
-		}
-
-		// Split cursor into timestamp and UUID
-		parts := strings.Split(unescaped, "_")
-		if len(parts) != 2 {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor format"))
-			return
-		}
-		timestampStr = parts[0]
-		uuidStr = parts[1]
-
-		// Preprocess the timestamp to fix the timezone part if necessary
-		if strings.HasSuffix(timestampStr, " 00") {
-			timestampStr = strings.Replace(timestampStr, " 00", "+00:00", 1)
-		}
-
-		// Parse the timestamp
-		postgresLayout := "2006-01-02 15:04:05.999999-07:00"
-		transactionTime, err = time.Parse(postgresLayout, timestampStr)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Error parsing timestamp: %v", err)))
-			return
-		}
-
-		// Extract the UUID
-		uuidValue, err = uuid.Parse(uuidStr)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Error parsing UUID: %v", err)))
-			return
-		}
+	// cursor := ctx.Query("cursor")
+	pageLimit := ctx.Query("page_limit")
+	pageLimitInt, err := strconv.Atoi(pageLimit)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid page limit"))
+		return
+	}
+	pageOffset := ctx.Query("page_offset")
+	pageOffsetInt, err := strconv.Atoi(pageOffset)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid page offset"))
+		return
 	}
 
-	w.server.logger.Debug(transactionTime)
-	w.server.logger.Debug(uuidValue)
+	if pageLimitInt == 0 {
+		pageLimitInt = 10
+	}
+
+	if pageOffsetInt == 0 {
+		pageOffsetInt = 0
+	}
 
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
-	// params := db.GetTransactionsByUserIDParams{
-	// 	UserID: sql.NullInt64{
-	// 		Int64: activeUser.UserID,
-	// 		Valid: true,
-	// 	},
-	// }
-
-	// params := db.ListWalletTransactionsByUserIDParams{
-	// 	CustomerID: activeUser.UserID,
-	// 	PageLimit:  5,
-	// 	TransactionCreated: sql.NullTime{
-	// 		Time:  transactionTime,
-	// 		Valid: cursor != "",
-	// 	},
-	// 	TransactionID: uuid.NullUUID{
-	// 		UUID:  uuidValue,
-	// 		Valid: cursor != "",
-	// 	},
-	// }
 
 	wallet, err := w.server.queries.GetWalletByCustomerID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
@@ -270,8 +216,8 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 			UUID:  wallet[1].ID,
 			Valid: true,
 		},
-		Limit:  10,
-		Offset: 0,
+		Limit:  int32(pageLimitInt),
+		Offset: int32(pageOffsetInt),
 	})
 
 	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
@@ -284,7 +230,7 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseCollection(transactions)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseObject(transactions)))
 
 }
 
