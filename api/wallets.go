@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -51,6 +52,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
 	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
 	serverGroupV1.GET("transactions", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactions)
+	serverGroupV1.GET("transactions-cursor", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionsCursor)
 	// serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
 	serverGroupV1.POST("transfer", w.server.authMiddleware.AuthenticatedMiddleware(), w.walletTransfer)
 	serverGroupV1.POST("swap", w.server.authMiddleware.AuthenticatedMiddleware(), w.swap)
@@ -231,6 +233,103 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseObject(transactions)))
+
+}
+
+func (w *Wallet) getTransaction(ctx *gin.Context) {
+	transactionID := ctx.Param("id")
+
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
+
+	transactions, err := w.server.queries.GetTransactionWithMetadata(ctx, uuid.MustParse(transactionID))
+
+	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	} else if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseObject(transactions)))
+
+}
+
+func (w *Wallet) getTransactionsCursor(ctx *gin.Context) {
+	/// Pagination
+	var cursorDate time.Time
+	cursorDateQuery := ctx.Query("cursor_date")
+	if cursorDateQuery != "" {
+		var err error
+		cursorDate, err = time.Parse(time.RFC3339, cursorDateQuery)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor date"))
+			return
+		}
+	}
+
+	var cursorTransactionIDUUID uuid.UUID
+	cursorTransactionIDQuery := ctx.Query("cursor_transaction_id")
+	if cursorTransactionIDQuery != "" {
+		var err error
+		cursorTransactionIDUUID, err = uuid.Parse(cursorTransactionIDQuery)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor transaction id"))
+			return
+		}
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	wallet, err := w.server.queries.GetWalletByCustomerID(ctx, activeUser.UserID)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	transactions, err := w.server.queries.GetTransactionsForWalletCursor(ctx, db.GetTransactionsForWalletCursorParams{
+		UsdWalletID: uuid.NullUUID{
+			UUID:  wallet[0].ID,
+			Valid: true,
+		},
+		NgnWalletID: uuid.NullUUID{
+			UUID:  wallet[1].ID,
+			Valid: true,
+		},
+		CreatedAt: sql.NullTime{
+			Time:  cursorDate,
+			Valid: true,
+		},
+		TransactionID: uuid.NullUUID{
+			UUID:  cursorTransactionIDUUID,
+			Valid: true,
+		},
+	})
+
+	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
+		return
+	} else if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", transactions))
 
 }
 

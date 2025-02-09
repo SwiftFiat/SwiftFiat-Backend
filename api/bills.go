@@ -840,17 +840,29 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		return
 	}
 
+	units := fmt.Sprintf("%v", purchTrans.Units)
+	tokenAmountString := fmt.Sprintf("%v", purchTrans.TokenAmount)
+	var tokenAmount float64
+	if tokenAmountString != "" {
+		temp, err := decimal.NewFromString(tokenAmountString)
+		if err != nil {
+			tokenAmount = 0
+		} else {
+			tokenAmount, _ = temp.Float64()
+		}
+	}
+
 	/// Update transaction metadata
 	tInfo.Metadata.ElectricityMetadata = &transaction.ElectricityMetadataResponse{
 		PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
 		CustomerName:      purchTrans.CustomerName,
 		CustomerAddress:   purchTrans.CustomerAddress,
 		Token:             purchTrans.Token,
-		TokenAmount:       purchTrans.TokenAmount,
+		TokenAmount:       tokenAmount,
 		ExchangeReference: purchTrans.ExchangeReference,
 		ResetToken:        purchTrans.ResetToken,
 		ConfigureToken:    purchTrans.ConfigureToken,
-		Units:             purchTrans.Units,
+		Units:             units,
 		FixChargeAmount:   purchTrans.FixChargeAmount,
 		Tariff:            purchTrans.Tariff,
 		TaxAmount:         purchTrans.TaxAmount,
