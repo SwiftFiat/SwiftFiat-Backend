@@ -409,3 +409,230 @@ SELECT
         'has_more', (SELECT (page_offset + page_limit) < total FROM pagination, total_count)
     ) as result
 FROM transaction_data;
+
+-- name: GetTransactionsForWalletCursor :one
+WITH pagination AS (
+    SELECT sqlc.arg(_limit)::int as page_limit
+),
+matching_transactions AS (
+    SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
+    WHERE cm.destination_wallet = sqlc.arg(usd_wallet_id) OR cm.destination_wallet = sqlc.arg(ngn_wallet_id)
+    UNION ALL
+    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    WHERE fm.source_wallet = sqlc.arg(usd_wallet_id) OR fm.source_wallet = sqlc.arg(ngn_wallet_id)
+    UNION ALL
+    SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
+    WHERE gm.source_wallet = sqlc.arg(usd_wallet_id) OR gm.source_wallet = sqlc.arg(ngn_wallet_id)
+    UNION ALL
+    SELECT sm.transaction_id FROM public.services_metadata sm
+    WHERE sm.source_wallet = sqlc.arg(usd_wallet_id) OR sm.source_wallet = sqlc.arg(ngn_wallet_id)
+    UNION ALL
+    SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
+    WHERE stm.source_wallet = sqlc.arg(usd_wallet_id) OR stm.source_wallet = sqlc.arg(ngn_wallet_id)
+    OR stm.destination_wallet = sqlc.arg(usd_wallet_id) OR stm.destination_wallet = sqlc.arg(ngn_wallet_id)
+),
+transaction_data AS (
+    SELECT 
+        t.*,
+        CASE 
+            WHEN t.type = 'deposit' THEN (
+                SELECT jsonb_build_object(
+                    'destination_wallet', cm.destination_wallet,
+                    'coin', cm.coin,
+                    'rate', cm.rate,
+                    'fees', cm.fees,
+                    'received_amount', cm.received_amount,
+                    'sent_amount', cm.sent_amount,
+                    'service_provider', cm.service_provider,
+                    'service_transaction_id', cm.service_transaction_id
+                )::jsonb
+                FROM public.crypto_transaction_metadata cm
+                WHERE cm.transaction_id = t.id
+            )
+            WHEN t.type = 'withdrawal' THEN (
+                SELECT jsonb_build_object(
+                    'source_wallet', fm.source_wallet,
+                    'rate', fm.rate,
+                    'received_amount', fm.received_amount,
+                    'sent_amount', fm.sent_amount,
+                    'fees', fm.fees,
+                    'account_name', fm.account_name,
+                    'bank_code', fm.bank_code,
+                    'account_number', fm.account_number,
+                    'service_provider', fm.service_provider,
+                    'service_transaction_id', fm.service_transaction_id
+                )::jsonb
+                FROM public.fiat_withdrawal_metadata fm
+                WHERE fm.transaction_id = t.id
+            )
+            WHEN t.type = 'giftcard' THEN (
+                SELECT jsonb_build_object(
+                    'source_wallet', gm.source_wallet,
+                    'rate', gm.rate,
+                    'received_amount', gm.received_amount,
+                    'sent_amount', gm.sent_amount,
+                    'fees', gm.fees,
+                    'service_provider', gm.service_provider,
+                    'service_transaction_id', gm.service_transaction_id
+                )::jsonb
+                FROM public.giftcard_transaction_metadata gm
+                WHERE gm.transaction_id = t.id
+            )
+            WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
+                SELECT jsonb_build_object(
+                    'source_wallet', sm.source_wallet,
+                    'rate', sm.rate,
+                    'received_amount', sm.received_amount,
+                    'sent_amount', sm.sent_amount,
+                    'fees', sm.fees,
+                    'service_type', sm.service_type,
+                    'service_provider', sm.service_provider,
+                    'service_id', sm.service_id,
+                    'service_status', sm.service_status,
+                    'service_transaction_id', sm.service_transaction_id
+                )::jsonb
+                FROM public.services_metadata sm
+                WHERE sm.transaction_id = t.id
+            )
+            WHEN t.type IN ('transfer', 'swap') THEN (
+                SELECT jsonb_build_object(
+                    'currency', stm.currency,
+                    'transfer_type', stm.transfer_type,
+                    'description', stm.description,
+                    'source_wallet', stm.source_wallet,
+                    'destination_wallet', stm.destination_wallet,
+                    'user_tag', stm.user_tag,
+                    'rate', stm.rate,
+                    'fees', stm.fees,
+                    'received_amount', stm.received_amount,
+                    'sent_amount', stm.sent_amount
+                )::jsonb
+                FROM public.swap_transfer_metadata stm
+                WHERE stm.transaction_id = t.id
+            )
+        END as metadata
+    FROM matching_transactions mt
+    JOIN public.transactions t ON t.id = mt.transaction_id
+    WHERE CASE 
+        WHEN sqlc.narg(created_at)::timestamptz IS NOT NULL THEN t.created_at < sqlc.narg(created_at)::timestamptz
+        ELSE true
+    END
+    AND CASE
+        WHEN sqlc.narg(transaction_id)::uuid IS NOT NULL THEN t.id < sqlc.narg(transaction_id)::uuid
+        ELSE true
+    END
+    ORDER BY t.created_at DESC, t.id DESC
+    LIMIT (SELECT page_limit FROM pagination) + 1
+),
+result_set AS (
+    SELECT * FROM transaction_data
+    LIMIT (SELECT page_limit FROM pagination)
+)
+SELECT 
+    jsonb_build_object(
+        'transactions', jsonb_agg(to_jsonb(result_set.*)),
+        'has_more', (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination),
+        'next_cursor', CASE 
+            WHEN (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination) THEN
+                jsonb_build_object(
+                    'created_at', (SELECT created_at FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1),
+                    'transaction_id', (SELECT id FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1)
+                )
+            ELSE NULL
+        END
+    ) as result
+FROM result_set;
+
+-- name: GetTransactionWithMetadata :one
+SELECT 
+    jsonb_build_object(
+        'transaction', jsonb_build_object(
+            'id', t.id,
+            'type', t.type,
+            'description', t.description,
+            'transaction_flow', t.transaction_flow,
+            'status', t.status,
+            'created_at', t.created_at,
+            'updated_at', t.updated_at,
+            'metadata', CASE 
+                WHEN t.type = 'deposit' THEN (
+                    SELECT jsonb_build_object(
+                        'destination_wallet', cm.destination_wallet,
+                        'coin', cm.coin,
+                        'rate', cm.rate,
+                        'fees', cm.fees,
+                        'received_amount', cm.received_amount,
+                        'sent_amount', cm.sent_amount,
+                        'service_provider', cm.service_provider,
+                        'service_transaction_id', cm.service_transaction_id
+                    )::jsonb
+                    FROM public.crypto_transaction_metadata cm
+                    WHERE cm.transaction_id = t.id
+                )
+                WHEN t.type = 'withdrawal' THEN (
+                    SELECT jsonb_build_object(
+                        'source_wallet', fm.source_wallet,
+                        'rate', fm.rate,
+                        'received_amount', fm.received_amount,
+                        'sent_amount', fm.sent_amount,
+                        'fees', fm.fees,
+                        'account_name', fm.account_name,
+                        'bank_code', fm.bank_code,
+                        'account_number', fm.account_number,
+                        'service_provider', fm.service_provider,
+                        'service_transaction_id', fm.service_transaction_id
+                    )::jsonb
+                    FROM public.fiat_withdrawal_metadata fm
+                    WHERE fm.transaction_id = t.id
+                )
+                WHEN t.type = 'giftcard' THEN (
+                    SELECT jsonb_build_object(
+                        'source_wallet', gm.source_wallet,
+                        'rate', gm.rate,
+                        'received_amount', gm.received_amount,
+                        'sent_amount', gm.sent_amount,
+                        'fees', gm.fees,
+                        'service_provider', gm.service_provider,
+                        'service_transaction_id', gm.service_transaction_id
+                    )::jsonb
+                    FROM public.giftcard_transaction_metadata gm
+                    WHERE gm.transaction_id = t.id
+                )
+                WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
+                    SELECT jsonb_build_object(
+                        'source_wallet', sm.source_wallet,
+                        'rate', sm.rate,
+                        'received_amount', sm.received_amount,
+                        'sent_amount', sm.sent_amount,
+                        'fees', sm.fees,
+                        'service_type', sm.service_type,
+                        'service_provider', sm.service_provider,
+                        'service_id', sm.service_id,
+                        'service_status', sm.service_status,
+                        'service_transaction_id', sm.service_transaction_id
+                    )::jsonb
+                    FROM public.services_metadata sm
+                    WHERE sm.transaction_id = t.id
+                )
+                WHEN t.type IN ('transfer', 'swap') THEN (
+                    SELECT jsonb_build_object(
+                        'currency', stm.currency,
+                        'transfer_type', stm.transfer_type,
+                        'description', stm.description,
+                        'source_wallet', stm.source_wallet,
+                        'destination_wallet', stm.destination_wallet,
+                        'user_tag', stm.user_tag,
+                        'rate', stm.rate,
+                        'fees', stm.fees,
+                        'received_amount', stm.received_amount,
+                        'sent_amount', stm.sent_amount
+                    )::jsonb
+                    FROM public.swap_transfer_metadata stm
+                    WHERE stm.transaction_id = t.id
+                )
+            END
+        )
+    ) as result
+FROM public.transactions t
+WHERE t.id = sqlc.arg(transaction_id)
+LIMIT 1;
