@@ -309,10 +309,7 @@ func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
 
 const getUserAndKYCByID = `-- name: GetUserAndKYCByID :one
 SELECT 
-    u.id as user_id,
-    u.first_name as first_name,
-    u.last_name as last_name,
-    u.email as user_email,
+    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id,
     k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -320,20 +317,34 @@ WHERE k.id = $1 LIMIT 1
 `
 
 type GetUserAndKYCByIDRow struct {
-	UserID                sql.NullInt64         `json:"user_id"`
+	ID                    sql.NullInt64         `json:"id"`
+	AvatarUrl             sql.NullString        `json:"avatar_url"`
+	AvatarBlob            []byte                `json:"avatar_blob"`
 	FirstName             sql.NullString        `json:"first_name"`
 	LastName              sql.NullString        `json:"last_name"`
-	UserEmail             sql.NullString        `json:"user_email"`
-	ID                    int64                 `json:"id"`
-	UserID_2              int32                 `json:"user_id_2"`
+	Email                 sql.NullString        `json:"email"`
+	HashedPassword        sql.NullString        `json:"hashed_password"`
+	HashedPasscode        sql.NullString        `json:"hashed_passcode"`
+	HashedPin             sql.NullString        `json:"hashed_pin"`
+	PhoneNumber           sql.NullString        `json:"phone_number"`
+	Role                  sql.NullString        `json:"role"`
+	Verified              sql.NullBool          `json:"verified"`
+	CreatedAt             sql.NullTime          `json:"created_at"`
+	UpdatedAt             sql.NullTime          `json:"updated_at"`
+	DeletedAt             sql.NullTime          `json:"deleted_at"`
+	HasWallets            sql.NullBool          `json:"has_wallets"`
+	UserTag               sql.NullString        `json:"user_tag"`
+	FreshChatID           sql.NullString        `json:"fresh_chat_id"`
+	ID_2                  int64                 `json:"id_2"`
+	UserID                int32                 `json:"user_id"`
 	Tier                  int32                 `json:"tier"`
 	DailyTransferLimitNgn sql.NullString        `json:"daily_transfer_limit_ngn"`
 	WalletBalanceLimitNgn sql.NullString        `json:"wallet_balance_limit_ngn"`
 	Status                string                `json:"status"`
 	VerificationDate      sql.NullTime          `json:"verification_date"`
 	FullName              sql.NullString        `json:"full_name"`
-	PhoneNumber           sql.NullString        `json:"phone_number"`
-	Email                 sql.NullString        `json:"email"`
+	PhoneNumber_2         sql.NullString        `json:"phone_number_2"`
+	Email_2               sql.NullString        `json:"email_2"`
 	Bvn                   sql.NullString        `json:"bvn"`
 	Nin                   sql.NullString        `json:"nin"`
 	Gender                sql.NullString        `json:"gender"`
@@ -349,8 +360,8 @@ type GetUserAndKYCByIDRow struct {
 	ProofOfAddressType    sql.NullString        `json:"proof_of_address_type"`
 	ProofOfAddressUrl     sql.NullString        `json:"proof_of_address_url"`
 	ProofOfAddressDate    sql.NullTime          `json:"proof_of_address_date"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
+	CreatedAt_2           time.Time             `json:"created_at_2"`
+	UpdatedAt_2           time.Time             `json:"updated_at_2"`
 	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
 }
 
@@ -358,20 +369,34 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 	row := q.db.QueryRowContext(ctx, getUserAndKYCByID, id)
 	var i GetUserAndKYCByIDRow
 	err := row.Scan(
-		&i.UserID,
+		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
 		&i.FirstName,
 		&i.LastName,
-		&i.UserEmail,
-		&i.ID,
-		&i.UserID_2,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+		&i.ID_2,
+		&i.UserID,
 		&i.Tier,
 		&i.DailyTransferLimitNgn,
 		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
-		&i.PhoneNumber,
-		&i.Email,
+		&i.PhoneNumber_2,
+		&i.Email_2,
 		&i.Bvn,
 		&i.Nin,
 		&i.Gender,
@@ -387,8 +412,8 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
-		&i.CreatedAt,
-		&i.UpdatedAt,
+		&i.CreatedAt_2,
+		&i.UpdatedAt_2,
 		&i.AdditionalInfo,
 	)
 	return i, err

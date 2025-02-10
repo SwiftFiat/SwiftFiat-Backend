@@ -76,48 +76,64 @@ func ToBeneficiaryResponse(benRow db.Beneficiary) *BeneficiaryResponse {
 type TransactionResponseCollection []TransactionResponse
 
 type TransactionResponse struct {
-	ID                   uuid.UUID   `json:"id"`
-	Type                 string      `json:"type"`
-	Description          string      `json:"description"`
-	TransactionFlow      string      `json:"transaction_flow"`
-	Status               string      `json:"status"`
-	CreatedAt            time.Time   `json:"created_at"`
-	UpdatedAt            time.Time   `json:"updated_at"`
-	DeletedFromAccountID uuid.UUID   `json:"deleted_from_account_id,omitempty"`
-	DeletedToAccountID   uuid.UUID   `json:"deleted_to_account_id,omitempty"`
-	Metadata             interface{} `json:"metadata"`
+	ID              uuid.UUID `json:"id"`
+	Type            string    `json:"type"`
+	Description     string    `json:"description"`
+	TransactionFlow string    `json:"transaction_flow"`
+	Status          string    `json:"status"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+	// DeletedFromAccountID uuid.UUID   `json:"deleted_from_account_id,omitempty"`
+	// DeletedToAccountID   uuid.UUID   `json:"deleted_to_account_id,omitempty"`
+	Metadata interface{} `json:"metadata"`
 }
 
-func ToTransactionResponseCollection(transRows []db.GetTransactionsForWalletRow) TransactionResponseCollection {
-	var responses TransactionResponseCollection
-	for _, transRow := range transRows {
-		responses = append(responses, *ToTransactionResponse(transRow))
-	}
-	return responses
+type TransactionResponseObject struct {
+	Transactions []TransactionResponse `json:"transactions"`
+	PageLimit    int32                 `json:"page_limit"`
+	PageOffset   int32                 `json:"page_offset"`
+	TotalCount   int64                 `json:"total_count"`
+	HasMore      bool                  `json:"has_more"`
 }
 
-func ToTransactionResponse(transRow db.GetTransactionsForWalletRow) *TransactionResponse {
-	metadata, err := InterfaceToMap(transRow.Metadata)
+func ToTransactionResponseObject(transRows json.RawMessage) TransactionResponseObject {
+	var transactionResponseObject TransactionResponseObject
+	err := json.Unmarshal(transRows, &transactionResponseObject)
 	if err != nil {
-		fmt.Println("Error unmarshalling metadata: ", err)
-		return nil
+		fmt.Println("Error unmarshalling transactions: ", err)
+		return TransactionResponseObject{}
 	}
-
-	response := &TransactionResponse{
-		ID:                   transRow.ID,
-		Type:                 transRow.Type,
-		Description:          transRow.Description.String,
-		TransactionFlow:      transRow.TransactionFlow.String,
-		Status:               transRow.Status,
-		CreatedAt:            transRow.CreatedAt,
-		UpdatedAt:            transRow.UpdatedAt,
-		DeletedFromAccountID: transRow.DeletedFromAccountID.UUID,
-		DeletedToAccountID:   transRow.DeletedToAccountID.UUID,
-		Metadata:             metadata,
-	}
-
-	return response
+	return transactionResponseObject
 }
+
+// func ToTransactionResponse(transRow json.RawMessage) *TransactionResponse {
+// 	var transRowObject db.GetTransactionsForWalletRow
+// 	err := json.Unmarshal(transRow, &transRowObject)
+// 	if err != nil {
+// 		fmt.Println("Error unmarshalling transactions: ", err)
+// 		return nil
+// 	}
+// 	metadata, err := InterfaceToMap(transRowObject.Metadata)
+// 	if err != nil {
+// 		fmt.Println("Error unmarshalling metadata: ", err)
+// 		return nil
+// 	}
+
+// 	response := &TransactionResponse{
+// 		ID:                   transRow.ID,
+// 		Type:                 transRow.Type,
+// 		Description:          transRow.Description.String,
+// 		TransactionFlow:      transRow.TransactionFlow.String,
+// 		Status:               transRow.Status,
+// 		CreatedAt:            transRow.CreatedAt,
+// 		UpdatedAt:            transRow.UpdatedAt,
+// 		DeletedFromAccountID: transRow.DeletedFromAccountID.UUID,
+// 		DeletedToAccountID:   transRow.DeletedToAccountID.UUID,
+// 		Metadata:             metadata,
+// 	}
+
+// 	return response
+// }
 
 func InterfaceToMap(metadata interface{}) (map[string]interface{}, error) {
 	var metadataMap map[string]interface{}

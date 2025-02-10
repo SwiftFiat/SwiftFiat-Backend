@@ -1,8 +1,10 @@
 package kyc
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -11,6 +13,7 @@ import (
 	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc/dojah_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/sirupsen/logrus"
 )
 
 type DOJAHProvider struct {
@@ -67,8 +70,8 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	// Query params
 	params := url.Values{}
 	params.Add("bvn", bvn)
-	params.Add("first name", first_name)
-	params.Add("last name", last_name)
+	params.Add("first_name", first_name)
+	params.Add("last_name", last_name)
 	if dob != nil {
 		params.Add("dob", *dob)
 	}
@@ -80,9 +83,29 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	}
 	defer resp.Body.Close()
 
-	// Check the status code
+	// Read and log the full response body for tracking
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("Failed to read response body", err)
+	} else {
+		logFields := logrus.Fields{
+			"status_code": resp.StatusCode,
+			"url":         resp.Request.URL,
+			"headers":     resp.Header,
+			"body":        string(bodyBytes),
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			logging.NewLogger().WithFields(logFields).Info("Successful response from Dojah API")
+		} else {
+			logging.NewLogger().WithFields(logFields).Error("Unexpected response from Dojah API")
+		}
+	}
+
+	// Reset the response body for subsequent reads
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("resp", resp)
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
@@ -120,9 +143,31 @@ func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity
 	}
 	defer resp.Body.Close()
 
-	// Check the status code
+	// Read response body for logging
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	// Log request and response details
+	logFields := logrus.Fields{
+		"status_code": resp.StatusCode,
+		"url":         resp.Request.URL,
+		"method":      resp.Request.Method,
+		"response":    string(bodyBytes),
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		logging.NewLogger().WithFields(logFields).Info("Successful response from Dojah API")
+	} else {
+		logging.NewLogger().WithFields(logFields).Error("Unexpected response from Dojah API")
+	}
+
+	// Reset the response body for subsequent reads
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
 	// Decode the response body
