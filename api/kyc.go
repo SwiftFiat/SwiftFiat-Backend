@@ -94,122 +94,124 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := k.server.provider.GetProvider(providers.Dojah); exists {
-		kycProvider, ok := provider.(*kyc.DOJAHProvider)
-		if ok {
-			verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, nil)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to KYC Provider Error: %s", err)))
-				return
-			}
-			/// Log Verification DATA
-			k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
-
-			/// FirstName does not match First Name on BVN
-			if !verificationData.FirstName.Status {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
-				return
-			}
-
-			/// LastName does not match Last Name on BVN
-			if !verificationData.LastName.Status {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
-				return
-			}
-
-			/// DOB does not match DOB on BVN
-			/// TODO: SKIP the DOB for now
-			// if !verificationData.DOB.Status {
-			// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
-			// 	return
-			// }
-
-			/// check verification data status
-			if verificationData.FirstName.Status || verificationData.LastName.Status || verificationData.DOB.Status {
-
-				/// Check for User's KYC file or create one if it doesn't exist
-				userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-				if err == sql.ErrNoRows {
-					userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
-						UserID: int32(activeUser.UserID),
-						Tier:   0,
-					})
-					if err == sql.ErrNoRows {
-						ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-						return
-					} else if err != nil {
-						ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-						return
-					}
-				} else if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-					return
-				}
-
-				// Determine gender first
-				/// Default user's gender to male unless explicitly specified
-				/// Suggested by Joel SwiftFiat => 06/Oct/'24 - 5:41pm
-				genderString := "male"
-				if request.Gender != "" {
-					genderString = request.Gender
-				}
-
-				args := db.UpdateKYCLevel1Params{
-					ID: userKyc.ID,
-					FullName: sql.NullString{
-						String: dbUser.FirstName.String + " " + dbUser.LastName.String,
-						Valid:  dbUser.FirstName.Valid && dbUser.LastName.Valid,
-					},
-					PhoneNumber: sql.NullString{
-						String: dbUser.PhoneNumber,
-						Valid:  true,
-					},
-					Email: sql.NullString{
-						String: dbUser.Email,
-						Valid:  true,
-					},
-					Bvn: sql.NullString{
-						String: verificationData.BVN,
-						Valid:  verificationData.BVN != "",
-					},
-					SelfieUrl: sql.NullString{
-						String: "https://www.example.com",
-						Valid:  true,
-					},
-					Gender: sql.NullString{
-						String: genderString,
-						Valid:  true,
-					},
-				}
-
-				tx, err := k.server.queries.DB.Begin()
-				if err != nil {
-					panic(err)
-				}
-				defer tx.Rollback()
-
-				kyc, err := k.server.queries.WithTx(tx).UpdateKYCLevel1(ctx, args)
-				if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-					return
-				}
-
-				err = tx.Commit()
-				if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-					return
-				}
-
-				ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
-				return
-			}
-
-			ctx.JSON(http.StatusOK, basemodels.NewError("BVN Validation Failure, please try again later"))
-			return
-		}
+	provider, exists := k.server.provider.GetProvider(providers.Dojah)
+	if !exists {
+		k.server.logger.Error("Dojah Provider not found")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
-	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+	kycProvider, ok := provider.(*kyc.DOJAHProvider)
+	if !ok {
+		k.server.logger.Error("Cannot convert provider to DOJAHProvider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, &request.DOB)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to KYC Provider Error: %s", err)))
+		return
+	}
+	/// Log Verification DATA
+	k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
+
+	/// FirstName does not match First Name on BVN
+	if !verificationData.FirstName.Status {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
+		return
+	}
+
+	/// LastName does not match Last Name on BVN
+	if !verificationData.LastName.Status {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
+		return
+	}
+
+	/// DOB does not match DOB on BVN
+	if !verificationData.DOB.Status {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
+		return
+	}
+
+	/// Check for User's KYC file or create one if it doesn't exist
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
+			UserID: int32(activeUser.UserID),
+			Tier:   0,
+		})
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+			return
+		} else if err != nil {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Determine gender first
+	/// Default user's gender to male unless explicitly specified
+	/// Suggested by Joel SwiftFiat => 06/Oct/'24 - 5:41pm
+	genderString := "male"
+	if request.Gender != "" {
+		genderString = request.Gender
+	}
+
+	args := db.UpdateKYCLevel1Params{
+		ID: userKyc.ID,
+		FullName: sql.NullString{
+			String: dbUser.FirstName.String + " " + dbUser.LastName.String,
+			Valid:  dbUser.FirstName.Valid && dbUser.LastName.Valid,
+		},
+		PhoneNumber: sql.NullString{
+			String: dbUser.PhoneNumber,
+			Valid:  true,
+		},
+		Email: sql.NullString{
+			String: dbUser.Email,
+			Valid:  true,
+		},
+		Bvn: sql.NullString{
+			String: verificationData.BVN.Value,
+			Valid:  verificationData.BVN.Status,
+		},
+		SelfieUrl: sql.NullString{
+			String: "https://www.example.com",
+			Valid:  true,
+		},
+		Gender: sql.NullString{
+			String: genderString,
+			Valid:  true,
+		},
+	}
+
+	tx, err := k.server.queries.DB.Begin()
+	if err != nil {
+		k.server.logger.Error(err)
+		panic(err)
+	}
+	defer tx.Rollback()
+
+	kyc, err := k.server.queries.WithTx(tx).UpdateKYCLevel1(ctx, args)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		return
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
+	return
 }
 
 func (k *KYC) validateNIN(ctx *gin.Context) {
