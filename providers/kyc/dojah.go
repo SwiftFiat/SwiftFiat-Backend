@@ -70,8 +70,8 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	// Query params
 	params := url.Values{}
 	params.Add("bvn", bvn)
-	params.Add("first name", first_name)
-	params.Add("last name", last_name)
+	params.Add("first_name", first_name)
+	params.Add("last_name", last_name)
 	if dob != nil {
 		params.Add("dob", *dob)
 	}

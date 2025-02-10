@@ -5,15 +5,16 @@ type BVNResponse struct {
 }
 
 type BVNEntity struct {
-	BVN       string   `json:"bvn"`
-	FirstName NameInfo `json:"first_name"`
-	LastName  NameInfo `json:"last_name"`
-	DOB       NameInfo `json:"dob"`
+	BVN       EntityInfo `json:"bvn"`
+	FirstName EntityInfo `json:"first_name"`
+	LastName  EntityInfo `json:"last_name"`
+	DOB       EntityInfo `json:"date_of_birth"`
 }
 
-type NameInfo struct {
-	ConfidenceValue int  `json:"confidence_value"`
-	Status          bool `json:"status"`
+type EntityInfo struct {
+	ConfidenceValue int    `json:"confidence_value"`
+	Value           string `json:"value"`
+	Status          bool   `json:"status"`
 }
 
 type SelfieVerification struct {
