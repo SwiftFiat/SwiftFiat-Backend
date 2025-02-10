@@ -10,10 +10,7 @@ SELECT * FROM kyc WHERE id = $1 LIMIT 1;
 
 -- name: GetUserAndKYCByID :one
 SELECT 
-    u.id as user_id,
-    u.first_name as first_name,
-    u.last_name as last_name,
-    u.email as user_email,
+    u.*,
     k.*
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
