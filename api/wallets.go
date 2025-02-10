@@ -360,13 +360,18 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	dbUserValue, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	dbUserValue, err := w.server.queries.GetUserAndKYCByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	if dbUserValue.Tier < 1 {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("KYC is not active"))
 		return
 	}
 
@@ -393,6 +398,17 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
+	tierLimit, err := decimal.NewFromString(dbUserValue.DailyTransferLimitNgn.String)
+	if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if amount.GreaterThan(tierLimit) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
+		return
+	}
 
 	tparams := transaction.IntraTransaction{
 		FromAccountID: sourceAccount,
@@ -445,13 +461,18 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		return
 	}
 
-	dbUserValue, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	dbUserValue, err := w.server.queries.GetUserAndKYCByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	if dbUserValue.Tier < 1 {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("KYC is not active"))
 		return
 	}
 
@@ -478,6 +499,17 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
+	tierLimit, err := decimal.NewFromString(dbUserValue.DailyTransferLimitNgn.String)
+	if err != nil {
+		w.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if amount.GreaterThan(tierLimit) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
+		return
+	}
 
 	tparams := transaction.IntraTransaction{
 		FromAccountID: sourceAccount,

@@ -110,7 +110,8 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 
 	verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, &request.DOB)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to KYC Provider Error: %s", err)))
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure, please try again later: %s", err)))
 		return
 	}
 	/// Log Verification DATA
@@ -211,13 +212,12 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
-	return
 }
 
 func (k *KYC) validateNIN(ctx *gin.Context) {
 	request := struct {
-		NIN string `json:"nin" binding:"required"`
-		// Selfie    string `json:"selfie_image" binding:"required"`
+		NIN    string `json:"nin" binding:"required"`
+		Selfie string `json:"selfie_image" binding:"required"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -250,86 +250,85 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := k.server.provider.GetProvider(providers.Dojah); exists {
-		kycProvider, ok := provider.(*kyc.DOJAHProvider)
-		if ok {
-			verificationData, err := kycProvider.ValidateNIN(request)
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to KYC Provider Error: %s", err)))
-				return
-			}
-			/// Log Verification DATA
-			k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
-
-			/// FirstName does not match First Name on BVN
-			if verificationData.FirstName == "" {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on NIN"))
-				return
-			}
-
-			/// LastName does not match Last Name on BVN
-			if verificationData.LastName == "" {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on NIN"))
-				return
-			}
-
-			/// LastName does not match Last Name on BVN
-			if !verificationData.SelfieVerification.Match {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided Image does not match Image on NIN"))
-				return
-			}
-
-			/// DOB does not match DOB on BVN
-			/// TODO: SKIP the DOB for now
-			// if !verificationData.DOB.Status {
-			// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
-			// 	return
-			// }
-
-			/// check verification data status
-			if verificationData.SelfieVerification.Match {
-
-				/// Check for User's KYC file or create one if it doesn't exist
-				userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-				if err == sql.ErrNoRows {
-					userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
-						UserID: int32(activeUser.UserID),
-						Tier:   0,
-					})
-					if err == sql.ErrNoRows {
-						ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-						return
-					} else if err != nil {
-						ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-						return
-					}
-				} else if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-					return
-				}
-
-				args := db.UpdateKYCNINParams{
-					ID: userKyc.ID,
-					Nin: sql.NullString{
-						String: verificationData.NIN,
-						Valid:  verificationData.NIN != "",
-					},
-				}
-				kyc, err := k.server.queries.UpdateKYCNIN(ctx, args)
-				if err != nil {
-					ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-					return
-				}
-				ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN Success", models.ToUserKYCInformation(&kyc)))
-				return
-			}
-
-			ctx.JSON(http.StatusOK, basemodels.NewError("NIN Validation Failure, please try again later"))
-			return
-		}
+	provider, exists := k.server.provider.GetProvider(providers.Dojah)
+	if !exists {
+		k.server.logger.Error("Dojah Provider not found")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+	kycProvider, ok := provider.(*kyc.DOJAHProvider)
+	if !ok {
+		k.server.logger.Error("Cannot convert provider to DOJAHProvider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
 	}
 
-	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+	verificationData, err := kycProvider.ValidateNIN(request)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("NIN Validation Failure, please try again later"))
+		return
+	}
+
+	/// Log Verification DATA
+	k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
+
+	/// FirstName does not match First Name on BVN
+	if verificationData.FirstName == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on NIN"))
+		return
+	}
+
+	/// LastName does not match Last Name on BVN
+	if verificationData.LastName == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on NIN"))
+		return
+	}
+
+	/// LastName does not match Last Name on BVN
+	if !verificationData.SelfieVerification.Match {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided Image does not match Image on NIN"))
+		return
+	}
+
+	/// check verification data status
+	if !verificationData.SelfieVerification.Match {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided Image does not match Image on NIN"))
+		return
+	}
+
+	/// Check for User's KYC file or create one if it doesn't exist
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
+			UserID: int32(activeUser.UserID),
+			Tier:   0,
+		})
+		if err == sql.ErrNoRows {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+			return
+		} else if err != nil {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	args := db.UpdateKYCNINParams{
+		ID: userKyc.ID,
+		Nin: sql.NullString{
+			String: verificationData.NIN,
+			Valid:  verificationData.NIN != "",
+		},
+	}
+	kyc, err := k.server.queries.UpdateKYCNIN(ctx, args)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		return
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN Validation Success", models.ToUserKYCInformation(&kyc)))
 }
 
 func (k *KYC) updateAddress(ctx *gin.Context) {
