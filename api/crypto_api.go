@@ -80,53 +80,67 @@ func (c *CryptoAPI) createWallet(ctx *gin.Context) {
 		return
 	}
 
-	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
-		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
-		if ok {
-			walletData, err := cryptoProvider.CreateWallet(cryptocurrency.SupportedCoin(request.Coin))
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
-				return
-			}
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Created", walletData))
-			return
-		}
+	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
-	ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+
+	walletData, err := cryptoProvider.CreateWallet(cryptocurrency.SupportedCoin(request.Coin))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Created", walletData))
 }
 
 func (c *CryptoAPI) fetchWallets(ctx *gin.Context) {
 	// Get Active User
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
+		c.server.logger.Error("failed to get active user", err)
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
 	/// check varification status
 	if !activeUser.Verified {
+		c.server.logger.Error("user not verified")
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
 	}
 
-	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
-		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
-		if ok {
-			walletData, err := cryptoProvider.FetchWallets()
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
-				return
-			}
-			ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallets Fetched", walletData))
-			return
-		}
+	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
 
-	ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+	walletData, err := cryptoProvider.FetchWallets()
+	if err != nil {
+		c.server.logger.Error("failed to fetch wallets", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallets Fetched", walletData))
 }
 
 func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
@@ -160,15 +174,24 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 	var walletData *cryptocurrency.WalletAddress
 
 	/// Generate a new address
-	if provider, exists := c.server.provider.GetProvider(providers.Bitgo); exists {
-		cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
-		if ok {
-			walletData, err = cryptoProvider.CreateWalletAddress(request.WalletID, cryptocurrency.SupportedCoin(request.Coin))
-			if err != nil {
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
-				return
-			}
-		}
+	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	walletData, err = cryptoProvider.CreateWalletAddress(request.WalletID, cryptocurrency.SupportedCoin(request.Coin))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
 	}
 
 	/// Assign address to user
