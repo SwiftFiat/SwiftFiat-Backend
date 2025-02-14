@@ -183,7 +183,7 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 
 	response, err := g.service.BuyGiftCard(g.server.provider, g.transactionService, activeUser.UserID, request.ProductID, walletID, request.Quantity, request.UnitPrice)
 	if err != nil {
-		g.server.logger.Error(err)
+		g.server.logger.Error("failed to buy gift card", "error", err)
 		if walletErr, ok := err.(*wallet.WalletError); ok {
 			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
@@ -202,6 +202,7 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		return
 	}
 
+	g.server.logger.Info("gift card purchased", "response", response)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
 }
 
