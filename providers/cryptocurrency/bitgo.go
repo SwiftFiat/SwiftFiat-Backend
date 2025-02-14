@@ -129,30 +129,30 @@ func (p *BitgoProvider) FetchWallets() (interface{}, error) {
 	}
 	defer resp.Body.Close()
 
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Log request details
+	logging.NewLogger().Error("request details",
+		"method", resp.Request.Method,
+		"url", resp.Request.URL.String(),
+		"headers", resp.Request.Header)
+
+	// Log response details
+	logging.NewLogger().Error("response details",
+		"status_code", resp.StatusCode,
+		"headers", resp.Header,
+		"body", string(bodyBytes))
+
+	// Reset the response body for further processing
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
-		// Read the response body
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			logging.NewLogger().Error("failed to read response body", err)
-			return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
-		}
-
-		// Log request details
-		logging.NewLogger().Error("request details",
-			"method", resp.Request.Method,
-			"url", resp.Request.URL.String(),
-			"headers", resp.Request.Header)
-
-		// Log response details
-		logging.NewLogger().Error("response details",
-			"status_code", resp.StatusCode,
-			"headers", resp.Header,
-			"body", string(bodyBytes))
-
-		// Reset the response body for further processing
-		resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
-
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 

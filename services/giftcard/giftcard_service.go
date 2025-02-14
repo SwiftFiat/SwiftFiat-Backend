@@ -288,12 +288,30 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 
 	// Calculate the potential amount including service fees
 	var potentialAmount decimal.Decimal
-
 	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
+
+	g.logger.Info("base price", "basePrice", basePrice)
+
+	// Calculate percentage-based fee if applicable
+	var percentageFee decimal.Decimal
 	if productInfo.SenderFeePercentage.Float64 != 0 {
-		potentialAmount = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64).Mul(decimal.NewFromInt(int64(quantity)))).Add(basePrice)
-	} else {
-		potentialAmount = basePrice.Add(decimal.NewFromFloat(productInfo.SenderFee.Float64).Mul(decimal.NewFromInt(int64(quantity))))
+		percentageFee = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64))
+	}
+
+	g.logger.Info("percentage fee", "percentageFee", percentageFee)
+
+	// Calculate flat fee
+	flatFee := decimal.NewFromFloat(productInfo.SenderFee.Float64)
+
+	g.logger.Info("flat fee", "flatFee", flatFee)
+
+	// Sum up all components
+	potentialAmount = basePrice.Add(percentageFee).Add(flatFee)
+
+	g.logger.Info("potential amount", "potentialAmount", potentialAmount)
+
+	if potentialAmount.LessThan(decimal.NewFromInt(0)) {
+		return nil, fmt.Errorf("potential amount is less than 0")
 	}
 
 	g.logger.Info("starting giftcard outflow transaction")
