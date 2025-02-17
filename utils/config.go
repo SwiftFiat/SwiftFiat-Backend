@@ -33,6 +33,7 @@ type Config struct {
 	RedisPassword      string `mapstructure:"REDIS_PASSWORD"`
 	Phone              string `mapstructure:"PHONE"`
 	CountryCode        string `mapstructure:"COUNTRYCODE"`
+	Email              string `mapstructure:"EMAIL"`
 }
 
 func LoadConfig(path string) (*Config, error) {
