@@ -344,7 +344,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		UnitPrice:        float64(unitPrice),
 		CustomIdentifier: fmt.Sprintf("%v:%v", userInfo.Email, uuid.NewString()),
 		SenderName:       userInfo.FirstName.String,
-		RecipientEmail:   userInfo.Email,
+		RecipientEmail:   g.config.Email,
 		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
 			CountryCode: g.config.CountryCode,
 			PhoneNumber: g.config.Phone,
