@@ -475,11 +475,12 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 		BillersCode: request.BillersCode,
 	})
 	if err != nil {
+		b.server.logger.Error(fmt.Sprintf("error fetching customer info: %s", err.Error()))
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", customerInfo))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", models.ToCustomerInfoResponse(*customerInfo)))
 }
 
 func (b *Bills) buyTVSubscription(ctx *gin.Context) {
