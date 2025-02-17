@@ -93,3 +93,42 @@ type MeterInfoResponse struct {
 	MeterType           string  `json:"meter_type"`
 	WrongBillersCode    bool    `json:"wrong_billers_code"`
 }
+
+type CustomerInfoResponse struct {
+	CustomerName       string  `json:"Customer_Name"`
+	Status             string  `json:"Status"`
+	DueDate            string  `json:"Due_Date"`
+	CustomerNumber     string  `json:"Customer_Number"`
+	CustomerType       string  `json:"Customer_Type"`
+	CurrentBouquet     string  `json:"Current_Bouquet"`
+	CurrentBouquetCode string  `json:"Current_Bouquet_Code"`
+	RenewalAmount      float64 `json:"Renewal_Amount"`
+}
+
+func ToCustomerInfoResponse(c bills.CustomerInfo) CustomerInfoResponse {
+
+	var renewalAmount float64
+	if str, ok := c.RenewalAmount.(string); ok {
+		renewalAmount, _ = strconv.ParseFloat(str, 64)
+	} else {
+		renewalAmount = 0
+	}
+
+	var customerNumber string
+	if str, ok := c.CustomerNumber.(string); ok {
+		customerNumber = str
+	} else {
+		customerNumber = ""
+	}
+
+	return CustomerInfoResponse{
+		CustomerName:       c.CustomerName,
+		Status:             c.Status,
+		DueDate:            c.DueDate,
+		CustomerNumber:     customerNumber,
+		CustomerType:       c.CustomerType,
+		CurrentBouquet:     c.CurrentBouquet,
+		CurrentBouquetCode: c.CurrentBouquetCode,
+		RenewalAmount:      renewalAmount,
+	}
+}

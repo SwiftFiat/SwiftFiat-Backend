@@ -100,14 +100,14 @@ type PurchaseDataRequest struct {
 	Amount        int64  `json:"amount"`
 }
 type CustomerInfo struct {
-	CustomerName       string `json:"Customer_Name"`
-	Status             string `json:"Status"`
-	DueDate            string `json:"Due_Date"`
-	CustomerNumber     int64  `json:"Customer_Number"`
-	CustomerType       string `json:"Customer_Type"`
-	CurrentBouquet     string `json:"Current_Bouquet"`
-	CurrentBouquetCode string `json:"Current_Bouquet_Code"`
-	RenewalAmount      int64  `json:"Renewal_Amount"`
+	CustomerName       string      `json:"Customer_Name"`
+	Status             string      `json:"Status"`
+	DueDate            string      `json:"Due_Date"`
+	CustomerNumber     interface{} `json:"Customer_Number"`
+	CustomerType       string      `json:"Customer_Type"`
+	CurrentBouquet     string      `json:"Current_Bouquet"`
+	CurrentBouquetCode string      `json:"Current_Bouquet_Code"`
+	RenewalAmount      interface{} `json:"Renewal_Amount"`
 }
 
 type GetCustomerInfoRequest struct {
