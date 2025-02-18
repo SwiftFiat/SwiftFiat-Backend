@@ -214,7 +214,10 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	}
 
 	/// Convert satoshis to coin
-	coinAmount := tx.AmountInSatoshis.Div(decimal.NewFromFloat(1e8))
+	coinAmount, err := s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
+	}
 	amount := coinAmount.Mul(rate)
 
 	// Get Address Info from DB
