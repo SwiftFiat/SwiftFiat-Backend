@@ -32,3 +32,23 @@ type Keychain struct {
 	Type         string  `json:"type"`
 	IsBitGo      *bool   `json:"isBitGo,omitempty"`
 }
+
+type BitGoWalletResponse struct {
+	Wallets []Wallet `json:"wallets"`
+}
+
+type Wallet struct {
+	ApprovalsRequired               int64              `json:"approvalsRequired"`
+	Coin                            string             `json:"coin"`
+	CoinSpecific                    WalletCoinSpecific `json:"coinSpecific"`
+	Deleted                         bool               `json:"deleted"`
+	DisableTransactionNotifications bool               `json:"disableTransactionNotifications"`
+	HasLargeNumberOfAddresses       bool               `json:"hasLargeNumberOfAddresses"`
+	ID                              string             `json:"id"`
+}
+type WalletCoinSpecific struct {
+	CreationFailure            []interface{} `json:"creationFailure,omitempty"`
+	PendingChainInitialization *bool         `json:"pendingChainInitialization,omitempty"`
+	RootAddress                *string       `json:"rootAddress,omitempty"`
+	TrustedTokens              []interface{} `json:"trustedTokens,omitempty"`
+}

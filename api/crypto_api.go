@@ -52,8 +52,10 @@ func (c CryptoAPI) router(server *Server) {
 	/// Should be managed from the administrative view
 	serverGroupV1.POST("wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createWallet)
 	serverGroupV1.GET("wallets", c.server.authMiddleware.AuthenticatedMiddleware(), c.fetchWallets)
+	serverGroupV1.GET("coinwallets", c.server.authMiddleware.AuthenticatedMiddleware(), c.getCoinWallets)
 	serverGroupV1.POST("address/generate", c.server.authMiddleware.AuthenticatedMiddleware(), c.generateWalletAddress)
 	serverGroupV1.POST("/webhook", c.HandleWebhook)
+	serverGroupV1.Static("/assets", "./assets")
 }
 
 func (c *CryptoAPI) createWallet(ctx *gin.Context) {
@@ -141,6 +143,46 @@ func (c *CryptoAPI) fetchWallets(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallets Fetched", walletData))
+}
+
+func (c *CryptoAPI) getCoinWallets(ctx *gin.Context) {
+	// Get Active User
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		c.server.logger.Error("failed to get active user", err)
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	/// check varification status
+	if !activeUser.Verified {
+		c.server.logger.Error("user not verified")
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
+		return
+	}
+
+	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	walletData, err := cryptoProvider.FetchWallets()
+	if err != nil {
+		c.server.logger.Error("failed to fetch wallets", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Coin Wallets Fetched", models.ToCryptoWalletsResponse(walletData)))
 }
 
 func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
