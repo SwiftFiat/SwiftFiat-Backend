@@ -113,7 +113,7 @@ func (p *BitgoProvider) CreateWallet(coin SupportedCoin) (interface{}, error) {
 	return &newModel, nil
 }
 
-func (p *BitgoProvider) FetchWallets() (interface{}, error) {
+func (p *BitgoProvider) FetchWallets() (*BitGoWalletResponse, error) {
 
 	base, err := url.Parse(p.BaseURL)
 	if err != nil {
@@ -157,7 +157,7 @@ func (p *BitgoProvider) FetchWallets() (interface{}, error) {
 	}
 
 	// Decode the response body
-	var newModel interface{}
+	var newModel BitGoWalletResponse
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {
