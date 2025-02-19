@@ -356,15 +356,18 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		return nil, fmt.Errorf("failed to perform transaction: %s", err)
 	}
 
-	if _, err := g.store.WithTx(dbTx).UpdateGiftCardServiceTransactionID(ctx, db.UpdateGiftCardServiceTransactionIDParams{
+	updatedTransaction, err := g.store.WithTx(dbTx).UpdateGiftCardServiceTransactionID(ctx, db.UpdateGiftCardServiceTransactionIDParams{
 		ServiceTransactionID: sql.NullString{
 			String: fmt.Sprintf("%d", giftCardPurchaseResponse.TransactionID),
 			Valid:  true,
 		},
 		TransactionID: tInfo.ID,
-	}); err != nil {
+	})
+	if err != nil {
 		return nil, fmt.Errorf("failed to update giftcard service transaction ID: %w", err)
 	}
+
+	tInfo.Metadata.ServiceTransactionID = updatedTransaction.ServiceTransactionID.String
 
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
