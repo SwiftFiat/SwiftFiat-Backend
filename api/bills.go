@@ -853,6 +853,9 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		}
 	}
 
+	fixChargeAmountString := fmt.Sprintf("%v", purchTrans.FixChargeAmount)
+	taxAmountString := fmt.Sprintf("%v", purchTrans.TaxAmount)
+
 	/// Update transaction metadata
 	tInfo.Metadata.ElectricityMetadata = &transaction.ElectricityMetadataResponse{
 		PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
@@ -864,9 +867,9 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		ResetToken:        purchTrans.ResetToken,
 		ConfigureToken:    purchTrans.ConfigureToken,
 		Units:             units,
-		FixChargeAmount:   purchTrans.FixChargeAmount,
+		FixChargeAmount:   &fixChargeAmountString,
 		Tariff:            purchTrans.Tariff,
-		TaxAmount:         purchTrans.TaxAmount,
+		TaxAmount:         &taxAmountString,
 	}
 
 	if purchTrans.Content.Transaction.Status == "pending" {
