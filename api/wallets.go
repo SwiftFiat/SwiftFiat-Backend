@@ -362,7 +362,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			ctx.JSON(errors.KYCNotActive, basemodels.NewError("KYC is not active"))
+			ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
@@ -370,7 +370,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	if kycUser.Status != "active" {
-		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", "KYC is not active", models.ToUserKYCInformation(&kycUser)))
+		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
@@ -385,7 +385,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	if kycUser.Tier < 1 {
-		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", "Please upgrade KYC", models.ToUserKYCInformation(&kycUser)))
+		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
@@ -478,7 +478,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err != nil {
 		if err == sql.ErrNoRows {
-			ctx.JSON(errors.KYCNotActive, basemodels.NewError("KYC is not active"))
+			ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
 			return
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
@@ -486,7 +486,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	if kycUser.Status != "active" {
-		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", "KYC is not active", models.ToUserKYCInformation(&kycUser)))
+		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
@@ -501,7 +501,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	if kycUser.Tier < 1 {
-		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", "Please upgrade KYC", models.ToUserKYCInformation(&kycUser)))
+		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
