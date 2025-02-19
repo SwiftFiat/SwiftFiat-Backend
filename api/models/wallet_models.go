@@ -106,6 +106,36 @@ func ToTransactionResponseObject(transRows json.RawMessage) TransactionResponseO
 	return transactionResponseObject
 }
 
+type TransactionResponseObjectWithMetadata struct {
+	TransactionResponse TransactionResponse `json:"transaction"`
+}
+
+func ToTransactionResponse(transRow json.RawMessage) *TransactionResponse {
+	var transRowObject TransactionResponseObjectWithMetadata
+	err := json.Unmarshal(transRow, &transRowObject)
+	if err != nil {
+		fmt.Println("Error unmarshalling transactions: ", err)
+		return nil
+	}
+
+	metadata, err := InterfaceToMap(transRowObject.TransactionResponse.Metadata)
+	if err != nil {
+		fmt.Println("Error unmarshalling metadata: ", err)
+		return nil
+	}
+
+	return &TransactionResponse{
+		ID:              transRowObject.TransactionResponse.ID,
+		Type:            transRowObject.TransactionResponse.Type,
+		Description:     transRowObject.TransactionResponse.Description,
+		TransactionFlow: transRowObject.TransactionResponse.TransactionFlow,
+		Status:          transRowObject.TransactionResponse.Status,
+		CreatedAt:       transRowObject.TransactionResponse.CreatedAt,
+		UpdatedAt:       transRowObject.TransactionResponse.UpdatedAt,
+		Metadata:        metadata,
+	}
+}
+
 // func ToTransactionResponse(transRow json.RawMessage) *TransactionResponse {
 // 	var transRowObject db.GetTransactionsForWalletRow
 // 	err := json.Unmarshal(transRow, &transRowObject)
@@ -154,6 +184,8 @@ func InterfaceToMap(metadata interface{}) (map[string]interface{}, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 		}
+	case map[string]interface{}:
+		return v, nil
 	default:
 		return nil, fmt.Errorf("unexpected type for metadata: %T", metadata)
 	}
