@@ -152,7 +152,7 @@ type PurchaseElectricityResponse struct {
 	Content             Content     `json:"content"`
 	ResponseDescription string      `json:"response_description"`
 	RequestID           string      `json:"requestId"`
-	Amount              string      `json:"amount"`
+	Amount              interface{} `json:"amount"`
 	TransactionDate     string      `json:"transaction_date"`
 	PurchasedCode       string      `json:"purchased_code"`
 	CustomerName        *string     `json:"customerName"`
@@ -163,9 +163,9 @@ type PurchaseElectricityResponse struct {
 	ResetToken          *string     `json:"resetToken"`
 	ConfigureToken      *string     `json:"configureToken"`
 	Units               interface{} `json:"units"`
-	FixChargeAmount     *string     `json:"fixChargeAmount"`
+	FixChargeAmount     interface{} `json:"fixChargeAmount"`
 	Tariff              string      `json:"tariff"`
-	TaxAmount           *string     `json:"taxAmount"`
+	TaxAmount           interface{} `json:"taxAmount"`
 }
 
 type PurchaseElectricityRequest struct {
