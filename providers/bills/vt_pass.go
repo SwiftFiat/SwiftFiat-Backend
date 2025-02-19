@@ -243,6 +243,10 @@ func (p *VTPassProvider) BuyAirtime(request PurchaseAirtimeRequest) (*Transactio
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
+	if newModel.Code != TransactionProcessed {
+		return nil, fmt.Errorf("error purchasing airtime: %s", newModel.ResponseDescription)
+	}
+
 	return &newModel.Content.Transaction, nil
 }
 
@@ -291,7 +295,7 @@ func (p *VTPassProvider) BuyData(request PurchaseDataRequest) (*Transaction, err
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
-	if newModel.Code != "000" {
+	if newModel.Code != TransactionProcessed {
 		return nil, fmt.Errorf("error purchasing data: %s", newModel.ResponseDescription)
 	}
 
@@ -396,7 +400,7 @@ func (p *VTPassProvider) BuyTVSubscription(request BuyTVSubscriptionRequest) (*T
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
-	if newModel.Code != "000" {
+	if newModel.Code != TransactionProcessed {
 		return nil, fmt.Errorf("error purchasing tv subscription: %s", newModel.ResponseDescription)
 	}
 
@@ -448,6 +452,10 @@ func (p *VTPassProvider) GetCustomerMeterInfo(request GetCustomerMeterInfoReques
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
+	if newModel.Code != TransactionProcessed {
+		return nil, fmt.Errorf("error getting customer meter info: %s", newModel.ResponseDescription)
+	}
+
 	return &newModel.Content, nil
 }
 
@@ -496,7 +504,7 @@ func (p *VTPassProvider) BuyElectricity(request PurchaseElectricityRequest) (*Pu
 		return nil, fmt.Errorf("error decoding response body: %w", err)
 	}
 
-	if newModel.Code != "000" {
+	if newModel.Code != TransactionProcessed {
 		return nil, fmt.Errorf("error purchasing electricity: %s", newModel.ResponseDescription)
 	}
 
