@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/errors"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -53,7 +54,7 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
 	serverGroupV1.GET("transactions", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactions)
 	serverGroupV1.GET("transactions-cursor", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionsCursor)
-	// serverGroupV1.GET("transactions/:id", AuthenticatedMiddleware(), w.getSingleTransaction)
+	serverGroupV1.GET("transactions/:id", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransaction)
 	serverGroupV1.POST("transfer", w.server.authMiddleware.AuthenticatedMiddleware(), w.walletTransfer)
 	serverGroupV1.POST("swap", w.server.authMiddleware.AuthenticatedMiddleware(), w.swap)
 	serverGroupV1.GET("banks", w.server.authMiddleware.AuthenticatedMiddleware(), w.banks)
@@ -239,15 +240,13 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 func (w *Wallet) getTransaction(ctx *gin.Context) {
 	transactionID := ctx.Param("id")
 
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	if transactionID == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("transaction id is required"))
+		return
+	}
 
-	transactions, err := w.server.queries.GetTransactionWithMetadata(ctx, uuid.MustParse(transactionID))
+	transaction, err := w.server.queries.GetTransactionWithMetadata(ctx, uuid.MustParse(transactionID))
 
-	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
 		return
@@ -257,7 +256,7 @@ func (w *Wallet) getTransaction(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseObject(transactions)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Fetched Successfully", models.ToTransactionResponse(transaction)))
 
 }
 
@@ -360,7 +359,22 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	dbUserValue, err := w.server.queries.GetUserAndKYCByID(ctx, activeUser.UserID)
+	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(errors.KYCNotActive, basemodels.NewError("KYC is not active"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	if kycUser.Status != "active" {
+		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", "KYC is not active", models.ToUserKYCInformation(&kycUser)))
+		return
+	}
+
+	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
@@ -370,12 +384,12 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	if dbUserValue.Tier < 1 {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("KYC is not active"))
+	if kycUser.Tier < 1 {
+		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", "Please upgrade KYC", models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
-	if err = utils.VerifyHashValue(request.Pin, dbUserValue.HashedPin.String); err != nil {
+	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
@@ -398,7 +412,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
-	tierLimit, err := decimal.NewFromString(dbUserValue.DailyTransferLimitNgn.String)
+	tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
 	if err != nil {
 		w.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -461,7 +475,22 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		return
 	}
 
-	dbUserValue, err := w.server.queries.GetUserAndKYCByID(ctx, activeUser.UserID)
+	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			ctx.JSON(errors.KYCNotActive, basemodels.NewError("KYC is not active"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	if kycUser.Status != "active" {
+		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", "KYC is not active", models.ToUserKYCInformation(&kycUser)))
+		return
+	}
+
+	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
@@ -471,12 +500,12 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		return
 	}
 
-	if dbUserValue.Tier < 1 {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("KYC is not active"))
+	if kycUser.Tier < 1 {
+		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", "Please upgrade KYC", models.ToUserKYCInformation(&kycUser)))
 		return
 	}
 
-	if err = utils.VerifyHashValue(request.Pin, dbUserValue.HashedPin.String); err != nil {
+	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
@@ -499,7 +528,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
-	tierLimit, err := decimal.NewFromString(dbUserValue.DailyTransferLimitNgn.String)
+	tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
 	if err != nil {
 		w.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))

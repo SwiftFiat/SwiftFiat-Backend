@@ -9,6 +9,13 @@ type SuccessResponse struct {
 	Version string      `json:"version"`
 }
 
+type CustomResponse struct {
+	Status  string      `json:"status"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+	Version string      `json:"version"`
+}
+
 type ErrorResponse struct {
 	Status  string   `json:"status"`
 	Message string   `json:"message"`
@@ -27,6 +34,15 @@ func NewError(msg string) *ErrorResponse {
 func NewSuccess(msg string, data interface{}) *SuccessResponse {
 	return &SuccessResponse{
 		Status:  "successful",
+		Message: msg,
+		Data:    data,
+		Version: utils.REVISION,
+	}
+}
+
+func NewCustomResponse(status string, msg string, data interface{}) *CustomResponse {
+	return &CustomResponse{
+		Status:  status,
 		Message: msg,
 		Data:    data,
 		Version: utils.REVISION,

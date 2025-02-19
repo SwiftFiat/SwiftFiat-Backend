@@ -133,6 +133,7 @@ type GetCustomerMeterInfoRequest struct {
 }
 
 type GetCustomerMeterInfoResponse struct {
+	Error               string `json:"error"`
 	CustomerName        string `json:"Customer_Name"`
 	Address             string `json:"Address"`
 	MeterNumber         string `json:"Meter_Number"`

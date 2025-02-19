@@ -16,7 +16,7 @@ const (
 	Unknown TransactionStatus = "unknown"
 )
 
-type TransactionType string
+type TransactionType string // type of transaction
 
 const (
 	Transfer    TransactionType = "transfer"
@@ -41,7 +41,7 @@ func IsTransactionTypeValid(request TransactionType) bool {
 	return false
 }
 
-type TransactionPlatform string
+type TransactionPlatform string // platform that the transaction was initiated for
 
 const (
 	WalletTransaction          TransactionPlatform = "wallet"
