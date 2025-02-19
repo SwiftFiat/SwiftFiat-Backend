@@ -71,14 +71,14 @@ type Transaction struct {
 	ServiceVerification interface{} `json:"service_verification"`
 	Channel             string      `json:"channel"`
 	Commission          interface{} `json:"commission"`
-	TotalAmount         *float64    `json:"total_amount"`
+	TotalAmount         interface{} `json:"total_amount"`
 	Discount            interface{} `json:"discount"`
 	Type                string      `json:"type"`
 	Email               string      `json:"email"`
 	Phone               string      `json:"phone"`
 	Name                interface{} `json:"name"`
-	ConvinienceFee      *float64    `json:"convinience_fee"`
-	Amount              *float64    `json:"amount"`
+	ConvinienceFee      interface{} `json:"convinience_fee"`
+	Amount              interface{} `json:"amount"`
 	Platform            string      `json:"platform"`
 	Method              string      `json:"method"`
 	TransactionID       string      `json:"transactionId"`
