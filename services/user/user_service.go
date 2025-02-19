@@ -27,7 +27,7 @@ func NewUserService(store *db.Store, logger *logging.Logger, walletClient *walle
 	}
 }
 
-func (u *UserService) CreateUserWithWallets(ctx context.Context, arg *db.CreateUserParams) (*db.User, error) {
+func (u *UserService) CreateUserWithWalletsAndKYC(ctx context.Context, arg *db.CreateUserParams) (*db.User, error) {
 
 	/// Start a new transaction if none is provided
 	dbTx, err := u.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
@@ -51,6 +51,14 @@ func (u *UserService) CreateUserWithWallets(ctx context.Context, arg *db.CreateU
 	_, err = u.walletClient.CreateWallets(ctx, dbTx, newUser.ID, true)
 	if err != nil {
 		u.logger.Error(fmt.Sprintf("failed to create wallets for user: %v", newUser.ID))
+	}
+
+	_, err = u.store.WithTx(dbTx).CreateNewKYC(ctx, db.CreateNewKYCParams{
+		UserID: int32(newUser.ID),
+		Tier:   0,
+	})
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to create kyc for user: %v", newUser.ID))
 	}
 
 	// Commit transaction

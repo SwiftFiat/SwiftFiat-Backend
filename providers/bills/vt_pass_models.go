@@ -66,11 +66,11 @@ type Transaction struct {
 	Status              string      `json:"status"`
 	ProductName         string      `json:"product_name"`
 	UniqueElement       string      `json:"unique_element"`
-	UnitPrice           *float64    `json:"unit_price"`
-	Quantity            *float64    `json:"quantity"`
+	UnitPrice           interface{} `json:"unit_price"`
+	Quantity            interface{} `json:"quantity"`
 	ServiceVerification interface{} `json:"service_verification"`
 	Channel             string      `json:"channel"`
-	Commission          *float64    `json:"commission"`
+	Commission          interface{} `json:"commission"`
 	TotalAmount         *float64    `json:"total_amount"`
 	Discount            interface{} `json:"discount"`
 	Type                string      `json:"type"`
@@ -133,6 +133,7 @@ type GetCustomerMeterInfoRequest struct {
 }
 
 type GetCustomerMeterInfoResponse struct {
+	Error               string `json:"error"`
 	CustomerName        string `json:"Customer_Name"`
 	Address             string `json:"Address"`
 	MeterNumber         string `json:"Meter_Number"`

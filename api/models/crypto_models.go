@@ -10,6 +10,7 @@ import (
 type CryptoWalletsResponse []CryptoWalletResponse
 
 type CryptoWalletResponse struct {
+	Label                           string      `json:"label"`
 	ApprovalsRequired               int64       `json:"approvalsRequired"`
 	Coin                            string      `json:"coin"`
 	CoinSpecific                    interface{} `json:"coinSpecific"`
@@ -22,6 +23,7 @@ type CryptoWalletResponse struct {
 
 func ToCryptoWalletResponse(wallet *cryptocurrency.Wallet) *CryptoWalletResponse {
 	return &CryptoWalletResponse{
+		Label:                           cryptocurrency.GetWalletLabel(wallet.Coin),
 		ApprovalsRequired:               wallet.ApprovalsRequired,
 		Coin:                            wallet.Coin,
 		CoinSpecific:                    wallet.CoinSpecific,

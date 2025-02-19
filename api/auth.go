@@ -251,7 +251,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		Role: models.USER,
 	}
 
-	newUser, err := a.userService.CreateUserWithWallets(ctx, &arg)
+	newUser, err := a.userService.CreateUserWithWalletsAndKYC(ctx, &arg)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		if userErr, ok := err.(*user_service.UserError); ok {
