@@ -456,6 +456,10 @@ func (p *VTPassProvider) GetCustomerMeterInfo(request GetCustomerMeterInfoReques
 		return nil, fmt.Errorf("error getting customer meter info: %s", newModel.ResponseDescription)
 	}
 
+	if newModel.Content.Error != "" {
+		return nil, fmt.Errorf("error getting customer meter info: %s", newModel.Content.Error)
+	}
+
 	return &newModel.Content, nil
 }
 
