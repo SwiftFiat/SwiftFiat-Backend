@@ -1,6 +1,11 @@
 package errors
 
 const (
-	KYCNotActive   = 1001
-	KYCLevelTooLow = 1002
+	KYCNotActive   = 700
+	KYCLevelTooLow = 701
+)
+
+const (
+	KYCNotActiveMessage   = "KYC is not active"
+	KYCLevelTooLowMessage = "KYC level is too low"
 )
