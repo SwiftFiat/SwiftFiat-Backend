@@ -373,6 +373,7 @@ func (a *Auth) sendOTP(ctx *gin.Context) {
 		Channel:     service.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
+		Name:        user.FirstName.String,
 		Config:      a.server.config,
 	}
 
@@ -478,6 +479,7 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 		Channel:     service.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
+		Name:        user.FirstName.String,
 		Config:      a.server.config,
 	}
 
@@ -671,6 +673,7 @@ func (a *Auth) forgotPasscode(ctx *gin.Context) {
 		Channel:     service.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
+		Name:        user.FirstName.String,
 		Config:      a.server.config,
 	}
 
