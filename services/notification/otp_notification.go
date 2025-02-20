@@ -27,13 +27,15 @@ type OtpNotification struct {
 	Channel     Channel       `json:"channel"`
 	PhoneNumber string        `json:"phone_number"`
 	Email       string        `json:"email"`
+	Name        string        `json:"name"`
 	Config      *utils.Config `json:"config"`
 }
 
 func (o *OtpNotification) SendOTP(otp string) error {
 
 	otpTemplate, err := getTemplate(OTPData{
-		OTP: otp,
+		OTP:  otp,
+		Name: o.Name,
 	})
 	if err != nil {
 		return err
@@ -79,7 +81,8 @@ func (o *OtpNotification) SendOTP(otp string) error {
 }
 
 type OTPData struct {
-	OTP string
+	OTP  string
+	Name string
 }
 
 func getTemplate(otp OTPData) (*strings.Builder, error) {
