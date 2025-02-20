@@ -110,6 +110,33 @@ func (q *Queries) FetchActiveByCustomerID(ctx context.Context, customerID sql.Nu
 	return items, nil
 }
 
+const fetchActiveByCustomerIDAndCoin = `-- name: FetchActiveByCustomerIDAndCoin :one
+SELECT id, customer_id, address_id, coin, balance, status, created_at, updated_at
+FROM crypto_addresses
+WHERE customer_id = $1 AND coin = $2 AND status = 'active'
+`
+
+type FetchActiveByCustomerIDAndCoinParams struct {
+	CustomerID sql.NullInt64 `json:"customer_id"`
+	Coin       string        `json:"coin"`
+}
+
+func (q *Queries) FetchActiveByCustomerIDAndCoin(ctx context.Context, arg FetchActiveByCustomerIDAndCoinParams) (CryptoAddress, error) {
+	row := q.db.QueryRowContext(ctx, fetchActiveByCustomerIDAndCoin, arg.CustomerID, arg.Coin)
+	var i CryptoAddress
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.AddressID,
+		&i.Coin,
+		&i.Balance,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const fetchAllAddressesAndCustomers = `-- name: FetchAllAddressesAndCustomers :many
 SELECT 
     ca.id AS address_id, 
