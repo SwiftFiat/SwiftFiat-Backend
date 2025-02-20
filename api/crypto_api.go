@@ -230,6 +230,12 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 		return
 	}
 
+	userAddress, err := c.userService.GetUserCryptoWalletAddress(ctx, activeUser.UserID, request.Coin)
+	if err == nil {
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", userAddress))
+		return
+	}
+
 	walletData, err = cryptoProvider.CreateWalletAddress(request.WalletID, cryptocurrency.SupportedCoin(request.Coin))
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
