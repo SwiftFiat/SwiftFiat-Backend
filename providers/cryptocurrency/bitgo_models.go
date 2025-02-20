@@ -5,6 +5,8 @@ var supportedCoinLabels = map[string]string{
 	"bch":   "Bitcoin Cash",
 	"BNB":   "Binance Coin",
 	"bnb":   "Binance Coin",
+	"BSC":   "Binance Smart Chain",
+	"bsc":   "Binance Smart Chain",
 	"BTC":   "Bitcoin",
 	"btc":   "Bitcoin",
 	"DOGE":  "Dogecoin",
@@ -29,18 +31,19 @@ var supportedCoinLabels = map[string]string{
 	"uni":   "Uniswap",
 	"USDC":  "USD Coin",
 	"usdc":  "USD Coin",
-	"USDT":  "Tether",
-	"usdt":  "Tether",
+	"USDT":  "USD Tether",
+	"usdt":  "USD Tether",
 	"XLM":   "Stellar",
 	"xlm":   "Stellar",
-	"XRP":   "XRP",
-	"xrp":   "XRP",
+	"XRP":   "Ripple",
+	"xrp":   "Ripple",
 
 	// Testnet
 	"tbtc":   "Test Bitcoin",
 	"tbtc4":  "Test Bitcoin",
 	"tbch":   "Test Bitcoin Cash",
 	"tbnb":   "Test Binance Coin",
+	"tbsc":   "Test Binance Smart Chain",
 	"tdoge":  "Test Dogecoin",
 	"tdot":   "Test Polkadot",
 	"teth":   "Test Ethereum",
@@ -54,7 +57,7 @@ var supportedCoinLabels = map[string]string{
 	"tusdc":  "Test USD Coin",
 	"tusdt":  "Test Tether",
 	"txlm":   "Test Stellar",
-	"txrp":   "Test XRP",
+	"txrp":   "Test Ripple",
 }
 
 type WalletCreationModel struct {
