@@ -232,7 +232,7 @@ func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
 
 	userAddress, err := c.userService.GetUserCryptoWalletAddress(ctx, activeUser.UserID, request.Coin)
 	if err == nil {
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", userAddress))
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapExistingWalletAddressToAddressUserResponse(userAddress)))
 		return
 	}
 
