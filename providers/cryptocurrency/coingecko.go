@@ -12,6 +12,28 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
+// CoinGecko Supported Coin Names
+var supportedCoins = map[string]string{
+	"btc":       "bitcoin",
+	"tbtc":      "bitcoin",
+	"tbtc4":     "bitcoin",
+	"sol":       "solana",
+	"tsol":      "solana",
+	"xrp":       "ripple",
+	"txrp":      "ripple",
+	"usdt":      "tether",
+	"sol:usdt":  "tether",
+	"tusdt":     "tether",
+	"usdc":      "usd-coin",
+	"eth":       "ethereum",
+	"teth":      "ethereum",
+	"sol:usdc":  "usd-coin",
+	"tusdc":     "usd-coin",
+	"usdc:usdt": "tether",
+	"eth:usdt":  "tether",
+	"eth:usdc":  "usd-coin",
+}
+
 type CoinGeckoProvider struct {
 	providers.BaseProvider
 	config *RatesProviderConfig
@@ -45,15 +67,6 @@ func NewRatesProvider() *CoinGeckoProvider {
 	}
 }
 
-var supportedCoins = map[string]string{
-	"btc":   "bitcoin",
-	"tbtc":  "bitcoin",
-	"tbtc4": "bitcoin",
-	"sol":   "solana",
-	"tsol":  "solana",
-	"xrp":   "",
-}
-
 func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 
 	base, err := url.Parse(c.BaseURL)
@@ -84,7 +97,6 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 	}
 
 	// Decode the response body
-
 	coinID := supportedCoins[*coin]
 	var newModel map[string]interface{}
 	decoder := json.NewDecoder(resp.Body)
@@ -92,6 +104,8 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding response body: %w", err)
 	}
+
+	logging.NewLogger().Info("newModel From CoinGecko", newModel)
 
 	// Type assertion to convert interface{} to *string
 	coinRate, ok := newModel[coinID].(map[string]interface{})["usd"].(float64)
