@@ -26,6 +26,21 @@ func (r *RedisService) StoreVariations(ctx context.Context, key string, variatio
 	return nil
 }
 
+func (r *RedisService) DeleteVariations(ctx context.Context, key string) error {
+	keys, err := r.client.Keys(ctx, fmt.Sprintf("%s:*", key)).Result()
+	if err != nil {
+		return fmt.Errorf("failed to get variation keys: %w", err)
+	}
+
+	for _, key := range keys {
+		err := r.client.Del(ctx, key).Err()
+		if err != nil {
+			return fmt.Errorf("failed to delete variation %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
 func (r *RedisService) GetVariations(ctx context.Context, key string) ([]models.BillVariation, error) {
 	// Get all keys that match the pattern
 	keys, err := r.client.Keys(ctx, fmt.Sprintf("%s:*", key)).Result()
