@@ -8,6 +8,11 @@ SELECT *
 FROM crypto_addresses
 WHERE customer_id = $1 AND status = 'active';
 
+-- name: FetchActiveByCustomerIDAndCoin :one
+SELECT *
+FROM crypto_addresses
+WHERE customer_id = $1 AND coin = $2 AND status = 'active';
+
 -- name: FetchByAddressID :one
 SELECT *
 FROM crypto_addresses

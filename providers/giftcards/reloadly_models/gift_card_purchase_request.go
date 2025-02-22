@@ -8,7 +8,7 @@ type GiftCardPurchaseRequest struct {
 	CustomIdentifier      string                `json:"customIdentifier"`
 	SenderName            string                `json:"senderName"`
 	RecipientEmail        string                `json:"recipientEmail"`
-	RecipientPhoneDetails RecipientPhoneDetails `json:"recipientPhoneDetails"`
+	RecipientPhoneDetails RecipientPhoneDetails `json:"recipientPhoneDetails,omitempty"`
 }
 
 type RecipientPhoneDetails struct {

@@ -363,6 +363,7 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	tx.ReceivedAmount = receivedAmount
 	tx.Fees = fees
 	tx.Rate = rate
+	tx.SentAmount = sentAmount
 
 	// Create transaction record
 	tempObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow)
