@@ -139,6 +139,12 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 			}
 		}
 
+		err = b.server.redis.DeleteVariations(ctx, fmt.Sprintf("variations:%s", serviceID))
+		if err != nil {
+			b.server.logger.Error(fmt.Sprintf("failed to delete variations in cache: %v", err))
+			// Don't return error to user since this is just caching
+		}
+
 		err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", serviceID), variations)
 		if err != nil {
 			b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
