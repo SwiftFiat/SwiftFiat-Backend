@@ -3,6 +3,7 @@ package models
 import (
 	"time"
 
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/google/uuid"
 )
@@ -30,5 +31,19 @@ func MapWalletAddressToAddressUserResponse(walletAddress *cryptocurrency.WalletA
 		Status:     status,
 		CreatedAt:  createdAt,
 		UpdatedAt:  updatedAt,
+	}
+}
+
+func MapExistingWalletAddressToAddressUserResponse(walletAddress *db.CryptoAddress) *AddressUserResponse {
+	return &AddressUserResponse{
+		AddressID:  walletAddress.ID,
+		CustomerID: ID(walletAddress.CustomerID.Int64),
+		Address:    walletAddress.AddressID,
+		// Chain:      walletAddress.Chain,
+		Coin:      walletAddress.Coin,
+		Balance:   walletAddress.Balance.String,
+		Status:    walletAddress.Status,
+		CreatedAt: walletAddress.CreatedAt,
+		UpdatedAt: walletAddress.UpdatedAt,
 	}
 }
