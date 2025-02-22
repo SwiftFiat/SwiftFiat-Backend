@@ -173,6 +173,20 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	return nil
 }
 
+func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID int64, coin string) (string, error) {
+	address, err := u.store.FetchActiveByCustomerIDAndCoin(ctx, db.FetchActiveByCustomerIDAndCoinParams{
+		CustomerID: sql.NullInt64{
+			Int64: userID,
+			Valid: userID != 0,
+		},
+		Coin: coin,
+	})
+	if err != nil {
+		return "", err
+	}
+	return address.AddressID, nil
+}
+
 func (u *UserService) UpdateUserTag(ctx context.Context, userID int64, newTag string) (*db.User, error) {
 
 	user, err := u.store.UpdateUserTag(ctx, db.UpdateUserTagParams{
