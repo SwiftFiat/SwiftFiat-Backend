@@ -295,7 +295,8 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	// Calculate percentage-based fee if applicable
 	var percentageFee decimal.Decimal
 	if productInfo.SenderFeePercentage.Float64 != 0 {
-		percentageFee = basePrice.Mul(decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64))
+		percentageValue := decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64).Div(decimal.NewFromInt(100))
+		percentageFee = basePrice.Mul(percentageValue)
 	}
 
 	g.logger.Info("percentage fee", "percentageFee", percentageFee)
