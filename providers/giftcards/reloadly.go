@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -78,7 +79,6 @@ func BuildProductsURL(baseURL string) (*url.URL, error) {
 }
 
 func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection, error) {
-
 	token, err := r.GetToken(reloadlymodels.PROD)
 	if err != nil {
 		return nil, err
@@ -88,33 +88,77 @@ func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection,
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	url, err := BuildProductsURL(r.config.GiftCardProdUrl)
+	baseURL, err := BuildProductsURL(r.config.GiftCardProdUrl)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := r.MakeRequest("GET", url.String(), nil, requiredHeaders)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
+	logger := logging.NewLogger()
+	var allContent reloadlymodels.GiftCardCollection
+	pageNumber := 0
+	lastPage := false
 
-	// Check the status code
-	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		logging.NewLogger().Error("resp", string(respBody))
-		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	for !lastPage {
+		// Create URL with page parameter
+		queryParams := baseURL.Query()
+		queryParams.Set("page", strconv.Itoa(pageNumber))
+		baseURL.RawQuery = queryParams.Encode()
+
+		resp, err := r.MakeRequest("GET", baseURL.String(), nil, requiredHeaders)
+		if err != nil {
+			return nil, err
+		}
+
+		// Read the response body
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close() // Close the body after reading
+
+		if err != nil {
+			return nil, fmt.Errorf("error reading response body: %w", err)
+		}
+
+		// Create truncated body for logging
+		bodyStr := string(respBody)
+		maxLen := 2000000000000000000 // Maximum length for logging
+		truncatedBody := bodyStr
+		if len(bodyStr) > maxLen {
+			truncatedBody = bodyStr[:maxLen] + "... [truncated]"
+		}
+
+		logData := map[string]interface{}{
+			"status_code":   resp.StatusCode,
+			"url":           resp.Request.URL.String(),
+			"headers":       resp.Header,
+			"method":        resp.Request.Method,
+			"response_body": truncatedBody,
+			"page_number":   pageNumber,
+		}
+
+		// Check if status code indicates an error
+		if resp.StatusCode != http.StatusOK {
+			logger.Error("Reloadly API Error", logData)
+			return nil, fmt.Errorf("unexpected status code: %d, URL: %s, Response: %s",
+				resp.StatusCode, resp.Request.URL, truncatedBody)
+		}
+
+		// Log success response
+		logger.Info("Reloadly API Response", logData)
+
+		// Decode the response body
+		var products reloadlymodels.PageResponse[reloadlymodels.GiftCardCollectionElement]
+		if err := json.Unmarshal(respBody, &products); err != nil {
+			return nil, fmt.Errorf("error parsing products: %w", err)
+		}
+
+		// Append content from this page to our collection
+		allContent = append(allContent, products.Content...)
+
+		// Check if this is the last page
+		lastPage = products.Last
+		pageNumber++
 	}
 
-	// Decode the response body
-	var products reloadlymodels.PageResponse[reloadlymodels.GiftCardCollectionElement]
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&products)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing products: %w", err)
-	}
-
-	return products.Content, nil
+	return allContent, nil
 }
 
 // audience: The target audience for the token, specifying the environment (PROD or SANDBOX)
