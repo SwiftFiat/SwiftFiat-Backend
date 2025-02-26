@@ -95,6 +95,12 @@ func (b *Bills) getServices(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched bill services", models.ToServiceIdentifierResponseList(services)))
 }
 
+// getServiceVariations fetches service variations from Redis cache or remote API
+// It first checks if the variations are already cached in Redis
+// If not, it fetches them from the remote API and stores them in Redis
+// It then returns the variations to the client
+// The cache is set to expire in 10 minutes
+// If the cache is empty, it will be set to expire in 10 seconds
 func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	serviceID := ctx.Query("serviceID")
 
@@ -158,6 +164,9 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 		return
 	}
 
+	fromCache := len(remoteVariations) == 0 || remoteVariations == nil
+
+	b.server.logger.Info(fmt.Sprintf("fetched service variations: %v %v", variations, fromCache))
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched service variations", variations))
 }
 

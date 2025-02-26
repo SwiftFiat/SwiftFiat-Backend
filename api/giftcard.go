@@ -70,7 +70,7 @@ func (g GiftCard) router(server *Server) {
 		}
 		return nil
 	}, 24*time.Hour)
-	server.taskScheduler.RunTask("sync_giftcards")
+	server.taskScheduler.ScheduleTask("sync_giftcards", 1*time.Minute)
 }
 
 func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
