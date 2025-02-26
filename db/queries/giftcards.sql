@@ -26,8 +26,23 @@ INSERT INTO gift_cards (
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 ON CONFLICT (product_id) DO UPDATE SET
-    product_name = EXCLUDED.product_name, denomination_type = EXCLUDED.denomination_type,
-    discount_percentage = EXCLUDED.discount_percentage
+    product_name = EXCLUDED.product_name, 
+    denomination_type = EXCLUDED.denomination_type,
+    discount_percentage = EXCLUDED.discount_percentage,
+    max_recipient_denomination = EXCLUDED.max_recipient_denomination,
+    min_recipient_denomination = EXCLUDED.min_recipient_denomination,
+    max_sender_denomination = EXCLUDED.max_sender_denomination, 
+    min_sender_denomination = EXCLUDED.min_sender_denomination,
+    global = EXCLUDED.global,
+    metadata = EXCLUDED.metadata,
+    recipient_currency_code = EXCLUDED.recipient_currency_code,
+    sender_currency_code = EXCLUDED.sender_currency_code,
+    sender_fee = EXCLUDED.sender_fee,
+    sender_fee_percentage = EXCLUDED.sender_fee_percentage,
+    supports_pre_order = EXCLUDED.supports_pre_order,
+    brand_id = EXCLUDED.brand_id,
+    category_id = EXCLUDED.category_id,
+    country_id = EXCLUDED.country_id
 RETURNING id;
 
 -- name: UpsertFixedDenominations :exec
@@ -248,11 +263,26 @@ ORDER BY
 -- name: FetchGiftCardsByCategory :many
 SELECT 
     c.name,
-    COUNT(gc.id) AS gift_card_count
+    COUNT(DISTINCT gc.id) AS gift_card_count,
+    COALESCE(
+        JSON_AGG(
+            DISTINCT jsonb_build_object(
+                'id', b.id,
+                'brand_id', b.brand_id,
+                'brand_name', b.brand_name,
+                'brand_logo_url', gl.logo_url
+            )
+        ) FILTER (WHERE b.brand_id IS NOT NULL),
+        '[]'
+    )::json AS brands
 FROM 
     categories c 
 LEFT JOIN
     gift_cards gc ON gc.category_id = c.id
+LEFT JOIN
+    brands b ON gc.brand_id = b.id
+LEFT JOIN
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
 GROUP BY 
     c.id,
     c.category_id,

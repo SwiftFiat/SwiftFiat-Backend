@@ -13,6 +13,7 @@ import (
 type Task struct {
 	ID          string
 	Name        string
+	Group       string
 	Fn          func(context.Context) error
 	Interval    time.Duration // For recurring tasks. Zero means run once
 	LastRun     time.Time
@@ -80,6 +81,142 @@ func (ts *TaskScheduler) RunTask(id string) error {
 			task.ErrorChan <- err
 		}
 		task.LastRun = time.Now()
+	}()
+
+	return nil
+}
+
+// RunAfterAndRemove schedules a task to run after a specific duration and then removes it from the scheduler
+func (ts *TaskScheduler) RunAfterAndRemove(id string, duration time.Duration) error {
+	ts.mu.Lock()
+	task, exists := ts.tasks[id]
+	if !exists {
+		ts.mu.Unlock()
+		return fmt.Errorf("task with ID %s not found", id)
+	}
+
+	// Create a copy of task properties under lock
+	taskCopy := *task
+	ts.mu.Unlock()
+
+	ts.logger.Info(fmt.Sprintf("Scheduling task %s to run after %s and then be removed", id, duration))
+
+	go func() {
+		timer := time.NewTimer(duration)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			// Execute the task
+			if err := taskCopy.Fn(ts.ctx); err != nil {
+				ts.logger.Error(fmt.Sprintf("Task %s failed: %v", taskCopy.Name, err))
+
+				// Non-blocking send to error channel
+				select {
+				case taskCopy.ErrorChan <- err:
+					// Sent successfully
+				default:
+					// Channel is full or no one is listening
+					ts.logger.Warn(fmt.Sprintf("Could not send error to channel for task %s", id))
+				}
+			}
+
+			// Update LastRun under lock before removing
+			ts.mu.Lock()
+			if task, stillExists := ts.tasks[id]; stillExists {
+				task.LastRun = time.Now()
+
+				// Remove the task from the scheduler
+				delete(ts.tasks, id)
+				ts.logger.Info(fmt.Sprintf("Task %s executed and removed from scheduler", id))
+			}
+			ts.mu.Unlock()
+
+		case <-ts.ctx.Done():
+			ts.logger.Info(fmt.Sprintf("Task %s canceled before execution", id))
+			return
+		}
+	}()
+
+	return nil
+}
+
+func (ts *TaskScheduler) RunAfter(id string, duration time.Duration) error {
+	ts.mu.RLock()
+	task, exists := ts.tasks[id]
+	ts.mu.RUnlock()
+
+	if !exists {
+		return fmt.Errorf("task with ID %s not found", id)
+	}
+
+	ts.logger.Info(fmt.Sprintf("Scheduling task %s to run after %s", id, duration))
+
+	go func() {
+		timer := time.NewTimer(duration)
+		defer timer.Stop()
+
+		<-timer.C
+
+		if err := task.Fn(ts.ctx); err != nil {
+			ts.logger.Error(fmt.Sprintf("Task %s failed: %v", task.Name, err))
+			task.ErrorChan <- err
+		}
+		task.LastRun = time.Now()
+	}()
+
+	return nil
+}
+
+func (ts *TaskScheduler) RunAt(id string, t time.Time) error {
+	ts.mu.Lock()
+	task, exists := ts.tasks[id]
+	if !exists {
+		ts.mu.Unlock()
+		return fmt.Errorf("task with ID %s not found", id)
+	}
+
+	// Create a copy or update task properties under lock
+	taskCopy := *task // Copy to avoid race conditions
+	ts.mu.Unlock()
+
+	ts.logger.Info(fmt.Sprintf("Scheduling task %s to run at %s", id, t))
+
+	go func() {
+		duration := time.Until(t)
+		if duration < 0 {
+			duration = 0
+		}
+
+		timer := time.NewTimer(duration)
+		defer timer.Stop()
+
+		select {
+		case <-timer.C:
+			if err := taskCopy.Fn(ts.ctx); err != nil {
+				ts.logger.Error(fmt.Sprintf("Task %s failed: %v", taskCopy.Name, err))
+
+				// Non-blocking send to error channel
+				select {
+				case taskCopy.ErrorChan <- err:
+					// Sent successfully
+				default:
+					// Channel is full or no one is listening
+					ts.logger.Warn(fmt.Sprintf("Could not send error to channel for task %s", id))
+				}
+			}
+
+			// Update LastRun under lock
+			ts.mu.Lock()
+			if task, stillExists := ts.tasks[id]; stillExists {
+				task.LastRun = time.Now()
+			}
+			ts.mu.Unlock()
+
+		case <-ts.ctx.Done():
+			ts.logger.Info(fmt.Sprintf("Task %s canceled before execution", id))
+			return
+		}
 	}()
 
 	return nil
@@ -166,6 +303,19 @@ func (ts *TaskScheduler) GetTask(id string) (*Task, error) {
 	}
 
 	return task, nil
+}
+
+func (ts *TaskScheduler) GetTaskByName(name string) (*Task, error) {
+	ts.mu.RLock()
+	defer ts.mu.RUnlock()
+
+	for _, task := range ts.tasks {
+		if task.Name == name {
+			return task, nil
+		}
+	}
+
+	return nil, fmt.Errorf("task with name %s not found", name)
 }
 
 // ListTasks returns all registered tasks
