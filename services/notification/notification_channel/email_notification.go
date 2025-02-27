@@ -1,4 +1,4 @@
-package service
+package notification_channel
 
 // assumes you have the following environment variables setup for AWS session creation
 // AWS_SDK_LOAD_CONFIG=1
@@ -46,7 +46,7 @@ func (e *EmailNotification) SendEmail() error {
 	to := e.Email
 
 	// Set the email subject and body
-	subject := "OTP"
+	subject := e.Subject
 	body := e.Message
 
 	// Send the email

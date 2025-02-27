@@ -1,4 +1,4 @@
-package service
+package notification_channel
 
 // assumes you have the following environment variables setup for AWS session creation
 // AWS_SDK_LOAD_CONFIG=1

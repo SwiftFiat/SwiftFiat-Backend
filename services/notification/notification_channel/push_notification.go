@@ -1,4 +1,4 @@
-package service
+package notification_channel
 
 /// We need to set up FCM for this project
 

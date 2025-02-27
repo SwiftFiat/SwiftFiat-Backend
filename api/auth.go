@@ -12,7 +12,8 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/notification/notification_channel"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/notification/notification_type.go"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -369,12 +370,13 @@ func (a *Auth) sendOTP(ctx *gin.Context) {
 		return
 	}
 
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
+	em := notification_type.OtpNotification{
+		Channel:     notification_channel.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
+		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
 	}
 
 	a.server.logger.Log(logrus.DebugLevel, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
@@ -475,12 +477,13 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 		return
 	}
 
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
+	em := notification_type.OtpNotification{
+		Channel:     notification_channel.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
+		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
 	}
 
 	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
@@ -669,12 +672,13 @@ func (a *Auth) forgotPasscode(ctx *gin.Context) {
 		return
 	}
 
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
+	em := notification_type.OtpNotification{
+		Channel:     notification_channel.EMAIL,
 		PhoneNumber: user.PhoneNumber,
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
+		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
 	}
 
 	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))

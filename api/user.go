@@ -10,7 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/notification/notification_channel"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -64,16 +64,16 @@ func (u *User) testPush(ctx *gin.Context) {
 		return
 	}
 
-	var provider service.PushProvider
+	var provider notification_channel.PushProvider
 	if request.FCMToken != "" {
-		provider = service.PushProviderFCM
+		provider = notification_channel.PushProviderFCM
 	}
 
 	if request.ExpoToken != "" {
-		provider = service.PushProviderExpo
+		provider = notification_channel.PushProviderExpo
 	}
 
-	err = u.server.pushNotification.SendPush(&service.PushNotificationInfo{
+	err = u.server.pushNotification.SendPush(&notification_channel.PushNotificationInfo{
 		Title:          "Test Push",
 		Message:        "Current USER Testing Push Notifications",
 		Provider:       provider,

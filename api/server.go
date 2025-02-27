@@ -17,7 +17,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
-	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/notification/notification_channel"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -38,7 +38,7 @@ type Server struct {
 	taskScheduler    *tasks.TaskScheduler
 	provider         *providers.ProviderService
 	redis            *redis.RedisService
-	pushNotification *service.PushNotificationService
+	pushNotification *notification_channel.PushNotificationService
 	authMiddleware   *AuthMiddleware
 }
 
@@ -72,7 +72,7 @@ func NewServer(envPath string) *Server {
 	g := gin.Default()
 	l := logging.NewLogger()
 	p := providers.NewProviderService()
-	pn := service.NewPushNotificationService(l)
+	pn := notification_channel.NewPushNotificationService(l)
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
