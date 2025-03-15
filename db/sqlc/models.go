@@ -337,6 +337,16 @@ type User struct {
 	FreshChatID    sql.NullString `json:"fresh_chat_id"`
 }
 
+type UserDailyFiatTransaction struct {
+	ID                int64     `json:"id"`
+	UserID            int64     `json:"user_id"`
+	TransactionCount  int64     `json:"transaction_count"`
+	TransactionAmount int64     `json:"transaction_amount"`
+	CurrencyCode      string    `json:"currency_code"`
+	Date              time.Time `json:"date"`
+	CreatedAt         time.Time `json:"created_at"`
+}
+
 type UserToken struct {
 	ID         int32          `json:"id"`
 	UserID     int64          `json:"user_id"`

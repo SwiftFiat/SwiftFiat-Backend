@@ -39,7 +39,7 @@ SET
 WHERE id = $1 
 RETURNING *;
 
--- name: UpdateKYCLevel1 :one
+-- name: UpdateKYCBVNInfo :one
 UPDATE kyc 
 SET 
     full_name = $2,
@@ -47,15 +47,24 @@ SET
     email = $4,
     bvn = $5,
     gender = $6,
-    selfie_url = $7,
     updated_at = now()
 WHERE id = $1 
 RETURNING *;
 
--- name: UpdateKYCNIN :one
+-- name: UpdateKYCNINInfo :one
 UPDATE kyc 
 SET 
     nin = $2,
+    gender = $3,
+    selfie_url = $4,
+    updated_at = now()
+WHERE id = $1 
+RETURNING *;
+
+-- name: UpdateKYCSelfie :one
+UPDATE kyc 
+SET 
+    selfie_url = $2,
     updated_at = now()
 WHERE id = $1 
 RETURNING *;

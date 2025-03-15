@@ -38,3 +38,21 @@ type NINEntity struct {
 	NIN                string             `json:"nin"`
 	SelfieVerification SelfieVerification `json:"selfie_verification"`
 }
+
+type BVNVerificationResponse struct {
+	Entity BVNVerificationEntity `json:"entity"`
+}
+
+type BVNVerificationEntity struct {
+	Bvn                string             `json:"bvn"`
+	FirstName          string             `json:"first_name"`
+	MiddleName         string             `json:"middle_name"`
+	LastName           string             `json:"last_name"`
+	DateOfBirth        string             `json:"date_of_birth"`
+	PhoneNumber1       string             `json:"phone_number1"`
+	PhoneNumber2       string             `json:"phone_number2"`
+	Gender             string             `json:"gender"`
+	Image              string             `json:"image"`
+	SelfieVerification SelfieVerification `json:"selfie_verification"`
+	SelfieImageURL     string             `json:"selfie_image_url"`
+}

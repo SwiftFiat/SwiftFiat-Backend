@@ -1,0 +1,3 @@
+[submodule "static/templates"]
+	path = static/templates
+	url = https://github.com/SwiftFiat/email-templates.git

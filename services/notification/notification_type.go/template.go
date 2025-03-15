@@ -8,7 +8,7 @@ import (
 
 func getTemplate(data interface{}, templateName string) (*strings.Builder, error) {
 	// Parse the HTML template file
-	tmpl, err := template.ParseFiles("templates/" + templateName)
+	tmpl, err := template.ParseFiles("static/templates/" + templateName)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing template: %v", err)
 	}

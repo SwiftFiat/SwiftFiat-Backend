@@ -152,6 +152,7 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 
 	// Validate responses
 	if response.ValidateResponse() != nil {
+		p.logger.Error(fmt.Sprintf("failed: %v", response.ValidateResponse()))
 		return fmt.Errorf("failed: %v", response.PushMessage.To)
 	}
 

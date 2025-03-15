@@ -51,7 +51,7 @@ func NewKYCProvider() *DOJAHProvider {
 }
 
 func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name string, dob *string) (*dojahmodels.BVNEntity, error) {
-	// Implementation for BVN verification
+	// Implementation for BVN Validation
 	// This would use the BaseProvider's fields to make the actual HTTP request
 	// ...
 
@@ -120,8 +120,69 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	return &newModel.Entity, nil
 }
 
-func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity, error) {
+func (p *DOJAHProvider) VerifyBVN(request interface{}) (*dojahmodels.BVNVerificationEntity, error) {
 	// Implementation for BVN verification
+	// This would use the BaseProvider's fields to make the actual HTTP request
+	// ...
+
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["AppId"] = p.config.KYCProviderID
+	requiredHeaders["Authorization"] = p.config.KYCProviderKey
+
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	// Path params
+	base.Path += "api/v1/kyc/bvn/verify"
+
+	resp, err := p.MakeRequest("POST", base.String(), request, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body for logging
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	// Log request and response details
+	logFields := logrus.Fields{
+		"status_code": resp.StatusCode,
+		"url":         resp.Request.URL,
+		"method":      resp.Request.Method,
+		"response":    string(bodyBytes),
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		logging.NewLogger().WithFields(logFields).Info("Successful response from Dojah API")
+	} else {
+		logging.NewLogger().WithFields(logFields).Error("Unexpected response from Dojah API")
+	}
+
+	// Reset the response body for subsequent reads
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel dojahmodels.BVNVerificationResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Entity, nil
+}
+
+func (p *DOJAHProvider) VerifyNIN(request interface{}) (*dojahmodels.NINEntity, error) {
+	// Implementation for NIN Verification
 	// This would use the BaseProvider's fields to make the actual HTTP request
 	// ...
 

@@ -376,7 +376,7 @@ func (a *Auth) sendOTP(ctx *gin.Context) {
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
-		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
+		Expiry:      "30 minutes",
 	}
 
 	a.server.logger.Log(logrus.DebugLevel, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
@@ -439,6 +439,21 @@ func (a *Auth) verifyOTP(ctx *gin.Context) {
 		return
 	}
 
+	em := notification_type.WelcomeNotification{
+		Channel:     notification_channel.EMAIL,
+		PhoneNumber: newUser.PhoneNumber,
+		Email:       newUser.Email,
+		Name:        newUser.FirstName.String,
+		Config:      a.server.config,
+	}
+
+	err = em.SendWelcome()
+	if err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account status verified successfully", (models.UserResponse{}.ToUserResponse(&newUser))))
 }
 
@@ -483,7 +498,7 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
-		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
+		Expiry:      "30 minutes",
 	}
 
 	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
@@ -678,7 +693,7 @@ func (a *Auth) forgotPasscode(ctx *gin.Context) {
 		Email:       user.Email,
 		Name:        user.FirstName.String,
 		Config:      a.server.config,
-		Expiry:      resp.ExpiresAt.Format(time.RFC3339),
+		Expiry:      "30 minutes",
 	}
 
 	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))

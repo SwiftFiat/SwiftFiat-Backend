@@ -263,7 +263,7 @@ func (u *User) pushToken(ctx *gin.Context) {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
 			return
 		}
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user Expo Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
 		return
 	}
 }
