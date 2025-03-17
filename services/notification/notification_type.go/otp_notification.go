@@ -2,6 +2,7 @@ package notification_type
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/notification/notification_channel"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -55,6 +56,7 @@ func (o *OtpNotification) SendOTP(otp string) error {
 	}
 
 	if o.Channel == notification_channel.EMAIL {
+		log.Default().Output(0, fmt.Sprintf("Sending email to %v", o.Email))
 		param := notification_channel.EmailNotification{
 			Message: otpTemplate.String(),
 			Email:   o.Email,

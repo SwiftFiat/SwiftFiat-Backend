@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 type KYCVerificationData struct {
 	BVN bool `json:"bvn,omitempty"`
@@ -44,4 +48,11 @@ type ProofOfAddressOutputElement struct {
 	Filename  string `json:"filename"`
 	ProofType string `json:"proof_type"`
 	Verified  bool   `json:"verified"`
+}
+
+type KYCTransaction struct {
+	UserID      string          `json:"user_id"`
+	TotalAmount decimal.Decimal `json:"amount"`
+	Currency    string          `json:"currency"`
+	CreatedAt   time.Time       `json:"created_at"`
 }

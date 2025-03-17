@@ -99,7 +99,7 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	// Calculate the received amount
 	receivedAmount = tx.SentAmount.Mul(rate)
 
-	/// update sent amount with FEES
+	// / update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 		return nil, fmt.Errorf("transaction already recorded, please check transaction hash: %v", tx.SourceHash)
 	}
 
-	/// Update amount in transaction object to prevent future problems
+	// / Update amount in transaction object to prevent future problems
 	params := db.CreateCryptoTransactionTrailParams{
 		AddressID:       tx.DestinationAddress,
 		TransactionHash: tx.SourceHash,
@@ -213,7 +213,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
 	}
 
-	/// Convert satoshis to coin
+	// / Convert satoshis to coin
 	coinAmount, err := s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
@@ -345,10 +345,10 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 
 	// Calculate the received amount
 	receivedAmount = tx.SentAmount
-	/// The amount to be debited from the customer is converted to the GiftCard Currency
+	// / The amount to be debited from the customer is converted to the GiftCard Currency
 	sentAmount = tx.SentAmount.Mul(rate)
 
-	/// update sent amount with FEES
+	// / update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
 	if err != nil {
 		return nil, err
@@ -440,7 +440,7 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 		rate = decimal.New(1, 0)
 	}
 
-	/// update sent amount with FEES
+	// / update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
 	if err != nil {
 		return nil, err
@@ -520,16 +520,16 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	var rate decimal.Decimal
 	var fees decimal.Decimal
 
-	/// We'd need the sent amount to be in the wallet currency
+	// / We'd need the sent amount to be in the wallet currency
 	sentAmount = tx.SentAmount
-	/// The amount to be received by the service provider
+	// / The amount to be received by the service provider
 	receivedAmount = tx.SentAmount
 	if tx.WalletCurrency != tx.ServiceCurrency {
 		rate, err = s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.ServiceCurrency)
 		if err != nil {
 			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.ServiceCurrency)
 		}
-		/// The amount to be debited from the customer
+		// / The amount to be debited from the customer
 		// if user is buying service, we'd need to convert the amount to the wallet currency
 		// e.g if the amount is 93 and the rate is 1579.5 then the sent amount would be 0.0588
 		sentAmount = tx.SentAmount.Div(rate)
@@ -537,7 +537,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 		rate = decimal.New(1, 0)
 	}
 
-	/// update sent amount with FEES
+	// / update sent amount with FEES
 	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
 	if err != nil {
 		return nil, err
@@ -963,8 +963,8 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 func (s *TransactionService) createLedgerEntries(ctx context.Context, dbTx *sql.Tx, le LedgerEntries) error {
 
-	/// TODO: Figure out how to always have a ledger entry even though destination | source may be off-platform
-	/// e.g. CryptoInflow | GiftCard outflow
+	// / TODO: Figure out how to always have a ledger entry even though destination | source may be off-platform
+	// / e.g. CryptoInflow | GiftCard outflow
 	debitParams := db.CreateWalletLedgerEntryParams{
 		TransactionID: uuid.NullUUID{
 			UUID:  le.TransactionID,
