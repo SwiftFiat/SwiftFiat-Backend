@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type CryptoWalletsResponse []CryptoWalletResponse
@@ -19,6 +20,12 @@ type CryptoWalletResponse struct {
 	HasLargeNumberOfAddresses       bool        `json:"hasLargeNumberOfAddresses"`
 	ID                              string      `json:"id"`
 	CoinAsset                       string      `json:"coinAsset"`
+}
+
+type CryptoServicesResponse struct {
+	Coin      string `json:"coin"`
+	CoinAsset string `json:"coinAsset"`
+	Network   string `json:"network"`
 }
 
 func ToCryptoWalletResponse(wallet *cryptocurrency.Wallet) *CryptoWalletResponse {
@@ -43,4 +50,26 @@ func ToCryptoWalletsResponse(wallets *cryptocurrency.BitGoWalletResponse) *Crypt
 		}
 	}
 	return &cryptoWallets
+}
+
+func ToCryptoServiceResponse(service *cryptocurrency.CryptomusService) *CryptoServicesResponse {
+	return &CryptoServicesResponse{
+		Coin:      service.Currency,
+		Network:   service.Network,
+		CoinAsset: fmt.Sprintf("/crypto/assets/%s.svg", strings.ToLower(service.Currency)),
+	}
+}
+
+func ToCryptoServicesResponse(services []cryptocurrency.CryptomusService) *[]CryptoServicesResponse {
+	var cryptoServices []CryptoServicesResponse
+	for _, service := range services {
+		if service.IsAvailable {
+			cryptoServices = append(cryptoServices, *ToCryptoServiceResponse(&service))
+		}
+	}
+	return &cryptoServices
+}
+
+func GetCryptoCallbackURL(config *utils.Config, orderID string) string {
+	return fmt.Sprintf("%s/crypto/callback/%s", config.ServerBaseURL, orderID)
 }

@@ -14,6 +14,7 @@ var (
 type Config struct {
 	Env                string `mapstructure:"ENV"`
 	ServerPort         int    `mapstructure:"SERVER_PORT"`
+	ServerBaseURL      string `mapstructure:"SERVER_BASE_URL"`
 	SigningKey         string `mapstructure:"SIGNING_KEY"`
 	AWSRegion          string `mapstructure:"AWS_REGION"`
 	AWSAccessKeyID     string `mapstructure:"AWS_ACCESS_KEY"`

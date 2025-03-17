@@ -83,8 +83,11 @@ func NewServer(envPath string) *Server {
 	p.AddProvider(gp)
 
 	// Set up Crypto service
-	cp := cryptocurrency.NewCryptoProvider()
+	cp := cryptocurrency.NewCryptomusProvider()
 	p.AddProvider(cp)
+
+	bg := cryptocurrency.NewCryptoBitgoProvider()
+	p.AddProvider(bg)
 
 	// Set up Crypto (Rates) service
 	rp := cryptocurrency.NewRatesProvider()

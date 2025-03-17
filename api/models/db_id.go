@@ -13,8 +13,8 @@ import (
 type ID int64
 
 var (
-	hd        = hashids.NewData()
-	dbHash, _ = hashids.NewWithData(hd)
+	hd     *hashids.HashIDData
+	dbHash *hashids.HashID
 )
 
 func init() {
@@ -22,11 +22,15 @@ func init() {
 	if err != nil {
 		panic(fmt.Errorf("could not load config: %v", err))
 	}
+
+	hd = hashids.NewData()
 	hd.Salt = c.SigningKey
 	hd.MinLength = 32
+	hd.Alphabet = hashids.DefaultAlphabet
+
 	dbHash, err = hashids.NewWithData(hd)
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("could not create hash ID: %v", err))
 	}
 }
 

@@ -173,6 +173,34 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	return nil
 }
 
+func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUUID string, UUID string, walletAddress string, userID int64, walletCurrency string, walletNetwork string, paymentURL string, callbackURL string) error {
+	_, err := u.store.UpsertCryptomusAddress(ctx, db.UpsertCryptomusAddressParams{
+		CustomerID: sql.NullInt64{
+			Int64: userID,
+			Valid: userID != 0,
+		},
+		WalletUuid: walletUUID,
+		Uuid:       UUID,
+		Address:    walletAddress,
+		Network:    walletNetwork,
+		Currency:   walletCurrency,
+		PaymentUrl: sql.NullString{
+			String: paymentURL,
+			Valid:  paymentURL != "",
+		},
+		CallbackUrl: sql.NullString{
+			String: callbackURL,
+			Valid:  callbackURL != "",
+		},
+	})
+
+	if err != nil {
+		return fmt.Errorf("failed to upsert cryptomus address: %w", err)
+	}
+
+	return nil
+}
+
 func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID int64, coin string) (*db.CryptoAddress, error) {
 	address, err := u.store.FetchActiveByCustomerIDAndCoin(ctx, db.FetchActiveByCustomerIDAndCoinParams{
 		CustomerID: sql.NullInt64{
@@ -180,6 +208,27 @@ func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID int
 			Valid: userID != 0,
 		},
 		Coin: coin,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &address, nil
+}
+
+func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID int64, Currency string, Network string) (*db.CryptomusAddress, error) {
+	address, err := u.store.GetCryptomusAddressByNetworkAndCurrencyAndCustomerID(ctx, db.GetCryptomusAddressByNetworkAndCurrencyAndCustomerIDParams{
+		Network: sql.NullString{
+			String: Network,
+			Valid:  Network != "",
+		},
+		Currency: sql.NullString{
+			String: Currency,
+			Valid:  Currency != "",
+		},
+		CustomerID: sql.NullInt64{
+			Int64: userID,
+			Valid: userID != 0,
+		},
 	})
 	if err != nil {
 		return nil, err

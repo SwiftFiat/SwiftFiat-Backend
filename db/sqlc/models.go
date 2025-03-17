@@ -76,6 +76,21 @@ type CryptoTransactionTrail struct {
 	UpdatedAt       time.Time      `json:"updated_at"`
 }
 
+type CryptomusAddress struct {
+	ID          uuid.UUID      `json:"id"`
+	CustomerID  sql.NullInt64  `json:"customer_id"`
+	WalletUuid  string         `json:"wallet_uuid"`
+	Uuid        string         `json:"uuid"`
+	Address     string         `json:"address"`
+	Network     string         `json:"network"`
+	Currency    string         `json:"currency"`
+	PaymentUrl  sql.NullString `json:"payment_url"`
+	CallbackUrl sql.NullString `json:"callback_url"`
+	Status      string         `json:"status"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   sql.NullTime   `json:"updated_at"`
+}
+
 type ExchangeRate struct {
 	ID            int64     `json:"id"`
 	BaseCurrency  string    `json:"base_currency"`
@@ -335,16 +350,6 @@ type User struct {
 	HasWallets     bool           `json:"has_wallets"`
 	UserTag        sql.NullString `json:"user_tag"`
 	FreshChatID    sql.NullString `json:"fresh_chat_id"`
-}
-
-type UserDailyFiatTransaction struct {
-	ID                int64     `json:"id"`
-	UserID            int64     `json:"user_id"`
-	TransactionCount  int64     `json:"transaction_count"`
-	TransactionAmount int64     `json:"transaction_amount"`
-	CurrencyCode      string    `json:"currency_code"`
-	Date              time.Time `json:"date"`
-	CreatedAt         time.Time `json:"created_at"`
 }
 
 type UserToken struct {

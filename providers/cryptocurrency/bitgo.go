@@ -29,7 +29,7 @@ type CryptoConfig struct {
 	BitgoWalletPasskey string `mapstructure:"BITGO_WALLET_PASSKEY"`
 }
 
-func NewCryptoProvider() *BitgoProvider {
+func NewCryptoBitgoProvider() *BitgoProvider {
 
 	var c CryptoConfig
 
