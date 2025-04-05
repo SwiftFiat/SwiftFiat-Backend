@@ -163,6 +163,7 @@ func (s *Server) Start() error {
 	CryptoAPI{}.router(s)
 	User{}.router(s)
 	Bills{}.router(s)
+	Referral{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

@@ -23,7 +23,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: Register all services to be accessible from SERVER
+// Auth TODO: Register all services to be accessible from SERVER
 type Auth struct {
 	server      *Server
 	userService *user_service.UserService
