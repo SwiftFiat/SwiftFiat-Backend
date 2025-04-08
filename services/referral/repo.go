@@ -26,6 +26,11 @@ type WithdrawRequest struct {
 
 type WithdrawalRequestStatus string
 
+const (
+	WithdrawalStatusPending   WithdrawalRequestStatus = "pending"
+	WithdrawalStatusCompleted WithdrawalRequestStatus = "completed"
+)
+
 var (
 	ErrInsufficientBalance = errors.New("insufficient available balance")
 	ErrWithdrawalThreshold = errors.New("amount below withdrawal threshold")
@@ -276,7 +281,7 @@ func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, req Wi
 		ID:             wr.ID,
 		UserID:         wr.UserID,
 		Amount:         wr.Amount,
-		Status:         wr.Status,
+		Status:         string(WithdrawalStatusPending),
 		PaymentMethod:  wr.PaymentMethod,
 		PaymentDetails: pd,
 		AdminNotes:     wr.AdminNotes,
@@ -303,7 +308,7 @@ func (r *Repo) UpdateWithdrawalRequestStatus(ctx context.Context, requestID int6
 		return nil, err
 	}
 
-	var paymentDetails map[string]interface{}
+	var paymentDetails map[string]any
 	if err := json.Unmarshal(wr.PaymentDetails, &paymentDetails); err != nil {
 		return nil, err
 	}

@@ -69,6 +69,23 @@ func (q *Queries) GetReferralByID(ctx context.Context, id int64) (Referral, erro
 	return i, err
 }
 
+const getReferralByReferralKey = `-- name: GetReferralByReferralKey :one
+SELECT id, user_id, referral_key, created_at, updated_at FROM referrals WHERE referral_key = $1
+`
+
+func (q *Queries) GetReferralByReferralKey(ctx context.Context, referralKey string) (Referral, error) {
+	row := q.db.QueryRowContext(ctx, getReferralByReferralKey, referralKey)
+	var i Referral
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.ReferralKey,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getReferralByUserID = `-- name: GetReferralByUserID :one
 SELECT id, user_id, referral_key, created_at, updated_at FROM referrals WHERE user_id = $1
 `

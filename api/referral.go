@@ -9,7 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/shopspring/decimal"
 	"net/http"
-	"strconv"
 )
 
 type Referral struct {
@@ -29,7 +28,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/test", r.testReferral)
 	serverGroupV1.GET("/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferrals)
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
-	serverGroupV1.POST("/withdraw", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
+	serverGroupV1.POST("/request=withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	//serverGroupV1.GET("/referral/withdrawals", r.ListWithdrawals)
 	//serverGroupV1.PUT("/withdrawals/:id", r.AdminProcessWithdrawal)
 	serverGroupV1.POST("/track-referral", r.server.authMiddleware.AuthenticatedMiddleware(), r.TrackReferral)
@@ -61,7 +60,7 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 		Status:  "success",
 		Message: "referrals retrieved successfully",
 		Data:    referrals,
-})
+	})
 }
 
 func (r *Referral) GetEarnings(c *gin.Context) {
@@ -169,30 +168,30 @@ func (r *Referral) TrackReferral(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	referrerIDStr := c.Query("ref")
-	if referrerIDStr == "" {
+	// Step 2: Get the referral code from query parameter
+	referralCode := c.Query("ref")
+	if referralCode == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("referral code required"))
 		return
 	}
 
-	referrerID, err := strconv.ParseInt(referrerIDStr, 10, 64)
+	// Step 3: Call the service to track the referral
+	refT, err := r.service.TrackReferral(c.Request.Context(), referralCode, activeUser.UserID, r.AmountEarnedPerReferral)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid referral code"})
+		switch err.Error() {
+		case "invalid referral code":
+			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid referral code"))
+		case "user already referred":
+			c.JSON(http.StatusBadRequest, basemodels.NewError("user already referred"))
+		case "cannot refer yourself":
+			c.JSON(http.StatusBadRequest, basemodels.NewError("cannot refer yourself"))
+		default:
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to track referral"))
+		}
 		return
 	}
 
-	if referrerID == activeUser.UserID {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "cannot refer yourself"})
-		return
-	}
-
-	refT, err := r.service.TrackReferral(c.Request.Context(), referrerID, activeUser.UserID, r.AmountEarnedPerReferral)
-
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to track referral"))
-		return
-	}
-
+	// Step 4: Return success response
 	c.JSON(http.StatusOK, basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "referral tracked successfully",
