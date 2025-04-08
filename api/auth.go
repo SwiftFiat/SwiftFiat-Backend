@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
+	"github.com/shopspring/decimal"
 	"log"
 	"net/http"
 	"time"
@@ -22,10 +24,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TODO: Register all services to be accessible from SERVER
+// Auth TODO: Register all services to be accessible from SERVER
 type Auth struct {
-	server      *Server
-	userService *user_service.UserService
+	server          *Server
+	userService     *user_service.UserService
+	referralService *referral.Service
+	refRepo         *referral.Repo
 }
 
 func (a Auth) router(server *Server) {
@@ -35,6 +39,8 @@ func (a Auth) router(server *Server) {
 		a.server.logger,
 		wallet.NewWalletService(a.server.queries, a.server.logger),
 	)
+	a.refRepo = referral.NewReferralRepository(server.queries)
+	a.referralService = referral.NewReferralService(a.refRepo)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
@@ -271,6 +277,15 @@ func (a *Auth) register(ctx *gin.Context) {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
+	}
+
+	if user.ReferralCode != "" {
+		_, err = a.referralService.TrackReferral(ctx, user.ReferralCode, newUser.ID, decimal.NewFromFloat(1000))
+		if err != nil {
+			a.server.logger.Error(logrus.ErrorLevel, err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			return
+		}
 	}
 
 	token, err := TokenController.CreateToken(utils.TokenObject{
