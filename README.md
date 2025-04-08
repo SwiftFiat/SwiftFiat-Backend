@@ -20,10 +20,13 @@ To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and 
 
 1. **Create an Environment File:**
    - Create a new file named `.env` in the root directory of the project.
+   - Copy .env.example to .env
 
 2. **Start Docker Services:**
    - ensure you have Docker installed on your local machine
    - run `make s_up` to start services
+   - run `make db_up` to create the database
+   - run `make m_up` to run existing migrations
 
 3. **Install Dependencies:**
    - `go mod tidy`
@@ -32,4 +35,4 @@ To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and 
    - run `make start` to start the app using `CompileDaemon` or `make start_d` to start the app in debug mode using `CompileDaemon` and `Delve Debugger`
 
 
-By following these steps, you can easily get the services up and running and start yout app.
+By following these steps, you can easily get the services up and running and start your app.
