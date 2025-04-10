@@ -40,7 +40,7 @@ func (a Auth) router(server *Server) {
 		wallet.NewWalletService(a.server.queries, a.server.logger),
 	)
 	a.refRepo = referral.NewReferralRepository(server.queries)
-	a.referralService = referral.NewReferralService(a.refRepo)
+	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")

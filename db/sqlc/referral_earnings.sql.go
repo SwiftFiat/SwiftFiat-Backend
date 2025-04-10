@@ -7,8 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
-	"encoding/json"
 )
 
 const createReferral = `-- name: CreateReferral :one
@@ -58,34 +56,25 @@ func (q *Queries) CreateReferralEarnings(ctx context.Context, userID int32) (Ref
 }
 
 const createWithdrawalRequest = `-- name: CreateWithdrawalRequest :one
-INSERT INTO withdrawal_requests (user_id, amount, payment_method, payment_details)
-VALUES ($1, $2, $3, $4)
-    RETURNING id, user_id, amount, status, payment_method, payment_details, admin_notes, created_at, updated_at
+INSERT INTO withdrawal_requests (user_id, amount)
+VALUES ($1, $2)
+    RETURNING id, user_id, amount, status, wallet_id, created_at, updated_at
 `
 
 type CreateWithdrawalRequestParams struct {
-	UserID         int32           `json:"user_id"`
-	Amount         string          `json:"amount"`
-	PaymentMethod  string          `json:"payment_method"`
-	PaymentDetails json.RawMessage `json:"payment_details"`
+	UserID int32  `json:"user_id"`
+	Amount string `json:"amount"`
 }
 
 func (q *Queries) CreateWithdrawalRequest(ctx context.Context, arg CreateWithdrawalRequestParams) (WithdrawalRequest, error) {
-	row := q.db.QueryRowContext(ctx, createWithdrawalRequest,
-		arg.UserID,
-		arg.Amount,
-		arg.PaymentMethod,
-		arg.PaymentDetails,
-	)
+	row := q.db.QueryRowContext(ctx, createWithdrawalRequest, arg.UserID, arg.Amount)
 	var i WithdrawalRequest
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Amount,
 		&i.Status,
-		&i.PaymentMethod,
-		&i.PaymentDetails,
-		&i.AdminNotes,
+		&i.WalletID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -163,7 +152,7 @@ func (q *Queries) GetUserReferrals(ctx context.Context, referrerID int32) ([]Use
 }
 
 const getWithdrawalRequest = `-- name: GetWithdrawalRequest :one
-SELECT id, user_id, amount, status, payment_method, payment_details, admin_notes, created_at, updated_at FROM withdrawal_requests WHERE id = $1
+SELECT id, user_id, amount, status, wallet_id, created_at, updated_at FROM withdrawal_requests WHERE id = $1
 `
 
 func (q *Queries) GetWithdrawalRequest(ctx context.Context, id int64) (WithdrawalRequest, error) {
@@ -174,9 +163,7 @@ func (q *Queries) GetWithdrawalRequest(ctx context.Context, id int64) (Withdrawa
 		&i.UserID,
 		&i.Amount,
 		&i.Status,
-		&i.PaymentMethod,
-		&i.PaymentDetails,
-		&i.AdminNotes,
+		&i.WalletID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -184,7 +171,7 @@ func (q *Queries) GetWithdrawalRequest(ctx context.Context, id int64) (Withdrawa
 }
 
 const listUserWithdrawalRequests = `-- name: ListUserWithdrawalRequests :many
-SELECT id, user_id, amount, status, payment_method, payment_details, admin_notes, created_at, updated_at FROM withdrawal_requests WHERE user_id = $1
+SELECT id, user_id, amount, status, wallet_id, created_at, updated_at FROM withdrawal_requests WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
@@ -202,9 +189,7 @@ func (q *Queries) ListUserWithdrawalRequests(ctx context.Context, userID int32) 
 			&i.UserID,
 			&i.Amount,
 			&i.Status,
-			&i.PaymentMethod,
-			&i.PaymentDetails,
-			&i.AdminNotes,
+			&i.WalletID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -222,7 +207,7 @@ func (q *Queries) ListUserWithdrawalRequests(ctx context.Context, userID int32) 
 }
 
 const listWithdrawalRequests = `-- name: ListWithdrawalRequests :many
-SELECT id, user_id, amount, status, payment_method, payment_details, admin_notes, created_at, updated_at FROM withdrawal_requests
+SELECT id, user_id, amount, status, wallet_id, created_at, updated_at FROM withdrawal_requests
 ORDER BY created_at DESC
 `
 
@@ -240,9 +225,7 @@ func (q *Queries) ListWithdrawalRequests(ctx context.Context) ([]WithdrawalReque
 			&i.UserID,
 			&i.Amount,
 			&i.Status,
-			&i.PaymentMethod,
-			&i.PaymentDetails,
-			&i.AdminNotes,
+			&i.WalletID,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -323,29 +306,25 @@ const updateWithdrawalRequest = `-- name: UpdateWithdrawalRequest :one
 UPDATE withdrawal_requests
 SET
     status = $2,
-    admin_notes = $3,
     updated_at = NOW()
 WHERE id = $1
-    RETURNING id, user_id, amount, status, payment_method, payment_details, admin_notes, created_at, updated_at
+    RETURNING id, user_id, amount, status, wallet_id, created_at, updated_at
 `
 
 type UpdateWithdrawalRequestParams struct {
-	ID         int64          `json:"id"`
-	Status     string         `json:"status"`
-	AdminNotes sql.NullString `json:"admin_notes"`
+	ID     int64  `json:"id"`
+	Status string `json:"status"`
 }
 
 func (q *Queries) UpdateWithdrawalRequest(ctx context.Context, arg UpdateWithdrawalRequestParams) (WithdrawalRequest, error) {
-	row := q.db.QueryRowContext(ctx, updateWithdrawalRequest, arg.ID, arg.Status, arg.AdminNotes)
+	row := q.db.QueryRowContext(ctx, updateWithdrawalRequest, arg.ID, arg.Status)
 	var i WithdrawalRequest
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Amount,
 		&i.Status,
-		&i.PaymentMethod,
-		&i.PaymentDetails,
-		&i.AdminNotes,
+		&i.WalletID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
