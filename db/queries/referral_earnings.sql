@@ -28,15 +28,14 @@ WHERE user_id = $1
     RETURNING *;
 
 -- name: CreateWithdrawalRequest :one
-INSERT INTO withdrawal_requests (user_id, amount, payment_method, payment_details)
-VALUES ($1, $2, $3, $4)
+INSERT INTO withdrawal_requests (user_id, amount)
+VALUES ($1, $2)
     RETURNING *;
 
 -- name: UpdateWithdrawalRequest :one
 UPDATE withdrawal_requests
 SET
     status = $2,
-    admin_notes = $3,
     updated_at = NOW()
 WHERE id = $1
     RETURNING *;

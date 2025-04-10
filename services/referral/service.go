@@ -4,67 +4,34 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 )
 
-// type referral interface {
-// 	TrackReferral(ctx context.Context, referrerID, refereeID int64, referralAmount float64) (*Referral, error)
-// 	GetUserReferrals(ctx context.Context, userID int64) ([]Referral, error)
-// 	GetReferralEarnings(ctx context.Context, userID int64) (*db.ReferralEarning, error)
-// 	RequestWithdrawal(ctx context.Context, userID int64, req WithdrawRequest) (*db.WithdrawalRequest, error)
-// 	// ProcessWithdrawalRequest ListWithdrawalRequests(ctx context.Context, filter models.WithdrawalFilter) ([]db.WithdrawalRequest, error)
-// 	ProcessWithdrawalRequest(ctx context.Context, requestID int64, status WithdrawalRequestStatus, adminID int64, notes string) (*db.WithdrawalRequest, error)
-// }
-
 type Service struct {
-	repo *Repo
+	repo   *Repo
+	logger *logging.Logger
 	//notifier  NotificationService // assuming you have a notification service
 }
 
-func NewReferralService(repo *Repo) *Service {
+func NewReferralService(repo *Repo, logger *logging.Logger) *Service {
 	return &Service{
-		repo: repo,
+		repo:   repo,
+		logger: logger,
 		//notifier: notifier,
 	}
 }
 
-//func (s *Service) TrackReferral(ctx context.Context, referrerID, refereeID int64, referralAmount decimal.Decimal) (*Referral, error) {
-//	// Check if this referee was already referred
-//	existing, err := s.repo.queries.GetReferralByRefereeID(ctx, int32(refereeID))
-//	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-//		return nil, err
-//	}
-//	if existing != (db.UserReferral{}) {
-//		return nil, errors.New("user already referred")
-//	}
-//
-//	// Create the referral
-//	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	params := db.UpdateReferralEarningsParams{
-//		UserID:      int32(referrerID),
-//		TotalEarned: referralAmount.String(),
-//	}
-//
-//	// Update the referrer's earnings
-//	_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
-//	if err != nil {
-//		return nil, err
-//	}
-//
-//	// Todo: Send notification to the referrer
-//	return referral, nil
-//}
-
 func (s *Service) TrackReferral(ctx context.Context, referralCode string, refereeID int64, referralAmount decimal.Decimal) (*Referral, error) {
+	// Get the record of the referrer
 	referralRecord, err := s.repo.queries.GetReferralByReferralKey(ctx, referralCode)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Error(fmt.Errorf("invalid referral code: %s", referralCode))
 			return nil, errors.New("invalid referral code")
 		}
 		return nil, err
@@ -77,17 +44,14 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		return nil, err
 	}
 	if existing != (db.UserReferral{}) {
+		s.logger.Error(fmt.Errorf("referrer with id %d already exists", refereeID))
 		return nil, errors.New("user already referred")
-	}
-
-	// Step 3: Prevent self-referral
-	if referrerID == refereeID {
-		return nil, errors.New("cannot refer yourself")
 	}
 
 	// Step 4: Create the referral
 	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount)
 	if err != nil {
+		s.logger.Error(err)
 		return nil, err
 	}
 
@@ -98,10 +62,11 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 	}
 	_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
 	if err != nil {
+		s.logger.Error(err)
 		return nil, err
 	}
 
-	// TODO: Send notification to the referrer
+	// TODO: Send email notification to the referrer
 	return referral, nil
 }
 
@@ -113,59 +78,95 @@ func (s *Service) GetReferralEarnings(ctx context.Context, userID int64) (*db.Re
 	return s.repo.GetReferralEarnings(ctx, userID)
 }
 
-func (s *Service) RequestWithdrawal(ctx context.Context, userID int64, req WithdrawRequest) (*db.WithdrawalRequest, error) {
-	wr, err := s.repo.CreateWithdrawalRequest(ctx, userID, req)
+func (s *Service) RequestWithdrawal(ctx context.Context, userID int64, amount decimal.Decimal) (*db.WithdrawalRequest, error) {
+	wr, err := s.repo.CreateWithdrawalRequest(ctx, userID, amount)
 	if err != nil {
-		return nil, err
-	}
-	// Todo: Notify user and admin
+        if errors.Is(err, ErrInsufficientBalance) {
+            return nil, fmt.Errorf("insufficient balance: %w", err)
+        }
+        if errors.Is(err, ErrWithdrawalThreshold) {
+            return nil, fmt.Errorf("amount below withdrawal threshold: %w", err)
+        }
+        s.logger.Error(fmt.Errorf("requestwithdrawal service error: %v", err))
+        return nil, err
+    }
+	// Todo: email Notify user and admin
 	return wr, nil
 }
 
-func (s *Service) ProcessWithdrawalRequest(ctx context.Context, requestID int64, status WithdrawalRequestStatus, adminID int64, notes string) (*db.WithdrawalRequest, error) {
-	wr, err := s.repo.UpdateWithdrawalRequestStatus(ctx, requestID, status, notes)
+// UpdateWithdrawalRequest Admin feature
+func (s *Service) UpdateWithdrawalRequest(ctx context.Context, withdrawalRequestID int64, status WithdrawalRequestStatus) (*db.WithdrawalRequest, error) {
+	if status != WithdrawalStatusApproved && status != WithdrawalStatusCompleted && status != WithdrawalStatusPending {
+        return nil, errors.New("invalid withdrawal status")
+    }
+
+	wr, err := s.repo.UpdateWithdrawalRequestStatus(ctx, withdrawalRequestID, status)
 	if err != nil {
+		s.logger.Error(fmt.Errorf("process referral withdrawal request service error 1: %v", err))
 		return nil, err
 	}
-
-	// If status is not "completed"
-	if status != WithdrawalStatusCompleted {
-		return wr, nil
-	}
-
-	// Retrieve the withdrawal request details
-	withdrawalRequest, err := s.repo.queries.GetWithdrawalRequest(ctx, requestID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New("withdrawal request not found")
-		}
-		return nil, err
-	}
-
-	// Retrieve the user's wallet
-	wallet, err := s.repo.queries.GetWalletByCustomerID(ctx, int64(withdrawalRequest.UserID))
-	if err != nil {
-		return nil, errors.New("user wallet not found")
-	}
-
-	// Ensure the user has at least one wallet
-	if len(wallet) == 0 {
-		return nil, errors.New("user does not have a wallet")
-	}
-
-	// Update the wallet balance
-	_, err = s.repo.queries.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		Amount: sql.NullString{
-			String: withdrawalRequest.Amount,
-			Valid:  true,
-		},
-		ID: wallet[0].ID, // Assuming the first wallet is the default wallet
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// Todo: Notify user
-
 	return wr, nil
+}
+
+func (s *Service) Withdraw(ctx context.Context, requestID int64, userID int32, amount decimal.Decimal, walletID uuid.UUID) (*db.SwiftWallet, error) {
+    var balance db.SwiftWallet
+
+    err := s.repo.queries.ExecTx(ctx, func(q *db.Queries) error {
+        // Get the withdrawal request
+        wr, err := q.GetWithdrawalRequest(ctx, requestID)
+        if err != nil {
+            return err
+        }
+
+        if wr.Status != string(WithdrawalStatusApproved) {
+            return errors.New("withdrawal request is not approved")
+        }
+
+        // Get referral earnings
+        earnings, err := q.GetReferralEarnings(ctx, userID)
+        if err != nil {
+            return fmt.Errorf("failed to get referral earnings: %w", err)
+        }
+
+        availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
+        if err != nil {
+            return err
+        }
+
+        if availableBalance.LessThan(amount) {
+            return errors.New("insufficient available balance")
+        }
+
+        // Deduct the amount from available balance
+        newAvailableBalance := availableBalance.Sub(amount)
+        updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
+            UserID:           userID,
+            AvailableBalance: newAvailableBalance.String(),
+        }
+        if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
+            return err
+        }
+
+        // Update wallet balance
+        updateWalletParams := db.UpdateWalletBalanceParams{
+            Amount: sql.NullString{String: amount.String(), Valid: true},
+            ID:     walletID,
+        }
+        balance, err = q.UpdateWalletBalance(ctx, updateWalletParams)
+        if err != nil {
+            return err
+        }
+
+        return nil
+    })
+
+    if err != nil {
+        s.logger.Error(fmt.Errorf("withdrawal failed: %v", err))
+        return nil, err
+    }
+
+    // Notify user (if applicable)
+    // ...
+
+    return &balance, nil
 }

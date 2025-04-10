@@ -10,6 +10,7 @@ const (
 	InvalidPhoneEmailInput    = "please enter a valid email and password"
 	InvalidCodeEmailInput     = "please enter a valid email and passcode"
 	IncorrectEmailPass        = "incorrect email or password"
+	UnauthorizedAccess        = "Only admin can access this resource"
 
 	/// Core Functionality Error
 	ServerError = "a server error occurred, please try again later"

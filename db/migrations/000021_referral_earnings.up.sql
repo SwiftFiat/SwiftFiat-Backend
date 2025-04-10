@@ -57,9 +57,6 @@ CREATE TABLE withdrawal_requests (
                                      "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                      "amount" DECIMAL(10, 2) NOT NULL,
                                      "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
-                                     "payment_method" VARCHAR(50) NOT NULL,
-                                     "payment_details" JSONB NOT NULL,
-                                     "admin_notes" TEXT,
                                      "created_at" timestamptz NOT NULL DEFAULT (now()),
                                      "updated_at" timestamptz NOT NULL DEFAULT (now())
 );

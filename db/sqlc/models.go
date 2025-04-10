@@ -6,7 +6,6 @@ package db
 
 import (
 	"database/sql"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -367,13 +366,11 @@ type UserToken struct {
 }
 
 type WithdrawalRequest struct {
-	ID             int64           `json:"id"`
-	UserID         int32           `json:"user_id"`
-	Amount         string          `json:"amount"`
-	Status         string          `json:"status"`
-	PaymentMethod  string          `json:"payment_method"`
-	PaymentDetails json.RawMessage `json:"payment_details"`
-	AdminNotes     sql.NullString  `json:"admin_notes"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	ID        int64     `json:"id"`
+	UserID    int32     `json:"user_id"`
+	Amount    string    `json:"amount"`
+	Status    string    `json:"status"`
+	WalletID  uuid.UUID `json:"wallet_id"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }

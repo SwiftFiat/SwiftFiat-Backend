@@ -2,11 +2,14 @@ package api
 
 import (
 	"errors"
+	"fmt"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"net/http"
 )
@@ -15,6 +18,7 @@ type Referral struct {
 	server                  *Server
 	service                 *referral.Service
 	repo                    *referral.Repo
+	logger                  *logging.Logger
 	AmountEarnedPerReferral decimal.Decimal
 }
 
@@ -22,7 +26,8 @@ func (r Referral) router(server *Server) {
 	r.server = server
 	r.repo = referral.NewReferralRepository(server.queries)
 	r.AmountEarnedPerReferral = decimal.NewFromFloat(1000.00) // TODO: make this configurable
-	r.service = referral.NewReferralService(r.repo)
+	r.logger = r.server.logger
+	r.service = referral.NewReferralService(r.repo, r.logger)
 
 	serverGroupV1 := server.router.Group("/api/v1/referral")
 	serverGroupV1.GET("/test", r.testReferral)
@@ -31,7 +36,6 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/request=withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	//serverGroupV1.GET("/referral/withdrawals", r.ListWithdrawals)
 	//serverGroupV1.PUT("/withdrawals/:id", r.AdminProcessWithdrawal)
-	serverGroupV1.POST("/track-referral", r.server.authMiddleware.AuthenticatedMiddleware(), r.TrackReferral)
 }
 
 func (a Referral) testReferral(ctx *gin.Context) {
@@ -92,13 +96,15 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 		return
 	}
 
-	var req referral.WithdrawRequest
+	var req struct {
+		Amount decimal.Decimal `json:"amount" binding:"required"`
+	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	wr, err := r.service.RequestWithdrawal(c, activeUser.UserID, req)
+	wr, err := r.service.RequestWithdrawal(c, activeUser.UserID, req.Amount)
 	if err != nil {
 		if errors.Is(err, referral.ErrInsufficientBalance) {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance"))
@@ -118,83 +124,84 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 	})
 }
 
-//func (r *Referral) ListWithdrawals(c *gin.Context) {
-//	activeUser, err := utils.GetActiveUser(c)
-//	if err != nil {
-//		// Todo: add logging
-//		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-//		return
-//	}
-//}
-
-//func (r *Referral) AdminProcessWithdrawal(c *gin.Context) {
-//	//	check if active user is admin
-//	activeUser, err := utils.GetActiveUser(c)
-//	if err != nil {
-//		// Todo: add logging
-//		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-//		return
-//	}
-//
-//	var req struct {
-//		Status referral.WithdrawalRequestStatus `json:"status" binding:"required"`
-//		Notes  string                           `json:"notes"`
-//	}
-//
-//	if err := c.ShouldBindJSON(&req); err != nil {
-//		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-//		return
-//	}
-//
-//	requestID, err := strconv.ParseInt(c.Param("id"), 10, 64)
-//	if err != nil {
-//		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request ID"})
-//		return
-//	}
-//
-//	wr, err := r.service.ProcessWithdrawalRequest(c.Request.Context(), requestID, req.Status, adminID, req.Notes)
-//	if err != nil {
-//		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to process withdrawal"})
-//		return
-//	}
-//
-//	c.JSON(http.StatusOK, wr)
-//}
-
-func (r *Referral) TrackReferral(c *gin.Context) {
+func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		// Todo: add logging
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	// Step 2: Get the referral code from query parameter
-	referralCode := c.Query("ref")
-	if referralCode == "" {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("referral code required"))
+
+	//	check if active user is admin
+	if activeUser.Role != "admin" {
+		r.logger.Error(fmt.Errorf("unauthorized access: only admin can process withdrawal request"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
-	// Step 3: Call the service to track the referral
-	refT, err := r.service.TrackReferral(c.Request.Context(), referralCode, activeUser.UserID, r.AmountEarnedPerReferral)
+	var req struct {
+		ID     int64                            `json:"id" binding:"required"`
+		Status referral.WithdrawalRequestStatus `json:"status" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	wr, err := r.service.UpdateWithdrawalRequest(c, req.ID, req.Status)
 	if err != nil {
-		switch err.Error() {
-		case "invalid referral code":
-			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid referral code"))
-		case "user already referred":
-			c.JSON(http.StatusBadRequest, basemodels.NewError("user already referred"))
-		case "cannot refer yourself":
-			c.JSON(http.StatusBadRequest, basemodels.NewError("cannot refer yourself"))
-		default:
-			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to track referral"))
-		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update withdrawal request"})
 		return
 	}
 
-	// Step 4: Return success response
-	c.JSON(http.StatusOK, basemodels.SuccessResponse{
-		Status:  "success",
-		Message: "referral tracked successfully",
-		Data:    refT,
-	})
+	c.JSON(http.StatusOK, wr)
+}
+
+func (r *Referral) Withdraw(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		// Todo: add logging
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var req struct {
+		WalletID          uuid.UUID `json:"wallet_id" binding:"required"`
+		WithdrawRequestID int64     `json:"withdraw_request_id" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+	}
+
+	wallet, err := r.server.queries.GetWallet(c, req.WalletID)
+	if err != nil {
+		r.logger.Error(fmt.Errorf("failed to get wallet [api/referral.go - Withdraw]: %w", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.InvalidWalletInput))
+		return
+	}
+
+	wr, err := r.server.queries.GetWithdrawalRequest(c, req.WithdrawRequestID)
+	if err != nil {
+		return
+	}
+
+	amt, err := decimal.NewFromString(wr.Amount)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	wallett, err := r.service.Withdraw(c, req.WithdrawRequestID, int32(activeUser.UserID), amt, wallet.ID)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wallett))
+
 }

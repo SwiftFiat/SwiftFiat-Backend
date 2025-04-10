@@ -3,11 +3,11 @@ package referral
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
+	"time"
+
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/shopspring/decimal"
-	"time"
 )
 
 type Referral struct {
@@ -18,16 +18,11 @@ type Referral struct {
 	CreatedAt    time.Time       `json:"created_at"`
 }
 
-type WithdrawRequest struct {
-	Amount         decimal.Decimal        `json:"amount" binding:"required,gt=0"`
-	PaymentMethod  string                 `json:"payment_method" binding:"required"`
-	PaymentDetails map[string]interface{} `json:"payment_details" binding:"required"`
-}
-
 type WithdrawalRequestStatus string
 
 const (
 	WithdrawalStatusPending   WithdrawalRequestStatus = "pending"
+	WithdrawalStatusApproved  WithdrawalRequestStatus = "approved"
 	WithdrawalStatusCompleted WithdrawalRequestStatus = "completed"
 )
 
@@ -98,7 +93,7 @@ type Repository interface {
 		Example: UserA requests ₦1000 withdrawal to their Wallet
 	*/
 	// CreateWithdrawalRequest Initiates a withdrawal of referral earnings
-	CreateWithdrawalRequest(ctx context.Context, userID int64, req WithdrawRequest) (db.WithdrawalRequest, error)
+	CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (db.WithdrawalRequest, error)
 
 	/*
 		Parameters:
@@ -139,7 +134,7 @@ type Repo struct {
 }
 
 func NewReferralRepository(queries *db.Store) *Repo {
-	return &Repo{queries: queries}
+	return &Repo{queries}
 }
 
 func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, amount decimal.Decimal) (*Referral, error) {
@@ -209,125 +204,119 @@ func (r *Repo) GetReferralEarnings(ctx context.Context, userID int64) (*db.Refer
 	}, nil
 }
 
-func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, req WithdrawRequest) (*db.WithdrawalRequest, error) {
-	const withdrawalThreshold = 10000.00 // 10,000 Naira
+func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (*db.WithdrawalRequest, error) {
+    const withdrawalThreshold = 10000.00 // 10,000 Naira
 
-	// Check if user has enough balance
-	earnings, err := r.GetReferralEarnings(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
+    var wr db.WithdrawalRequest // Change to non-pointer type
 
-	aBToDecimal, err := decimal.NewFromString(earnings.AvailableBalance)
-	if err != nil {
-		return nil, err
-	}
+    err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
+        // Check if user has enough balance
+        earnings, err := q.GetReferralEarnings(ctx, int32(userID))
+        if err != nil {
+            return err
+        }
 
-	if aBToDecimal.LessThan(req.Amount) {
-		return nil, ErrInsufficientBalance
-	}
+        aBToDecimal, err := decimal.NewFromString(earnings.AvailableBalance)
+        if err != nil {
+            return err
+        }
 
-	wtToDecimal := decimal.NewFromFloat(withdrawalThreshold)
-	if req.Amount.LessThan(wtToDecimal) {
-		return nil, ErrWithdrawalThreshold
-	}
+        if aBToDecimal.LessThan(amount) {
+            return ErrInsufficientBalance
+        }
 
-	paymentDetails, err := json.Marshal(req.PaymentDetails)
-	if err != nil {
-		return nil, err
-	}
+        wtToDecimal := decimal.NewFromFloat(withdrawalThreshold)
+        if amount.LessThan(wtToDecimal) {
+            return ErrWithdrawalThreshold
+        }
 
-	params := db.CreateWithdrawalRequestParams{
-		UserID:         int32(userID),
-		Amount:         req.Amount.String(),
-		PaymentMethod:  req.PaymentMethod,
-		PaymentDetails: paymentDetails,
-	}
+        // Deduct the amount from available balance
+        newAvailableBalance := aBToDecimal.Sub(amount)
+        updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
+            UserID:           int32(userID),
+            AvailableBalance: newAvailableBalance.String(),
+        }
+        if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
+            return err
+        }
 
-	// Start transaction
-	tx, err := r.queries.DB.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback()
+        // Create withdrawal request
+        params := db.CreateWithdrawalRequestParams{
+            UserID: int32(userID),
+            Amount: amount.String(),
+        }
+        wr, err = q.CreateWithdrawalRequest(ctx, params) 
+        if err != nil {
+            return err
+        }
 
-	q := r.queries.WithTx(tx)
+        return nil
+    })
 
-	// Create withdrawal request
-	wr, err := q.CreateWithdrawalRequest(ctx, params)
-	if err != nil {
-		return nil, err
-	}
+    if err != nil {
+        return nil, err
+    }
 
-	// Update available balance
-	_, err = q.UpdateAvailableBalanceAfterWithdrawal(ctx, db.UpdateAvailableBalanceAfterWithdrawalParams{
-		UserID:           int32(userID),
-		AvailableBalance: req.Amount.String(),
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
-
-	pd, err := json.Marshal(req.PaymentDetails)
-	if err != nil {
-		return nil, err
-	}
-
-	return &db.WithdrawalRequest{
-		ID:             wr.ID,
-		UserID:         wr.UserID,
-		Amount:         wr.Amount,
-		Status:         string(WithdrawalStatusPending),
-		PaymentMethod:  wr.PaymentMethod,
-		PaymentDetails: pd,
-		AdminNotes:     wr.AdminNotes,
-		CreatedAt:      wr.CreatedAt,
-		UpdatedAt:      wr.UpdatedAt,
-	}, nil
-
+    return &wr, nil 
 }
 
-func (r *Repo) UpdateWithdrawalRequestStatus(ctx context.Context, requestID int64, status WithdrawalRequestStatus, notes string) (*db.WithdrawalRequest, error) {
-	// Convert string to sql.NullString
-	adminNotes := sql.NullString{
-		String: notes,
-		Valid:  notes != "", // Valid is true if the string is non-empty
-	}
-	params := db.UpdateWithdrawalRequestParams{
-		ID:         requestID,
-		Status:     string(status),
-		AdminNotes: adminNotes,
-	}
+func (r *Repo) UpdateWithdrawalRequestStatus(ctx context.Context, requestID int64, status WithdrawalRequestStatus) (*db.WithdrawalRequest, error) {
+    var wr db.WithdrawalRequest
 
-	wr, err := r.queries.UpdateWithdrawalRequest(ctx, params)
-	if err != nil {
-		return nil, err
-	}
+    err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
+        // Fetch the withdrawal request
+        requested, err := q.GetWithdrawalRequest(ctx, requestID)
+        if err != nil {
+            return err
+        }
 
-	var paymentDetails map[string]any
-	if err := json.Unmarshal(wr.PaymentDetails, &paymentDetails); err != nil {
-		return nil, err
-	}
+        if requested.Status == string(WithdrawalStatusCompleted) {
+            return errors.New("status is already completed")
+        }
 
-	pdls, err := json.Marshal(paymentDetails)
-	if err != nil {
-		return nil, err
-	}
+        // Update the withdrawal request status
+        params := db.UpdateWithdrawalRequestParams{
+            ID:     requestID,
+            Status: string(status),
+        }
+        wr, err = q.UpdateWithdrawalRequest(ctx, params)
+        if err != nil {
+            return err
+        }
 
-	return &db.WithdrawalRequest{
-		ID:             wr.ID,
-		UserID:         wr.UserID,
-		Amount:         wr.Amount,
-		Status:         wr.Status,
-		PaymentMethod:  wr.PaymentMethod,
-		PaymentDetails: pdls,
-		AdminNotes:     wr.AdminNotes,
-		CreatedAt:      wr.CreatedAt,
-		UpdatedAt:      wr.UpdatedAt,
-	}, nil
+        // If the status is rejected, return the funds to the user's available balance
+        if status == WithdrawalStatusPending {
+            amount, err := decimal.NewFromString(requested.Amount)
+            if err != nil {
+                return err
+            }
 
+            earnings, err := q.GetReferralEarnings(ctx, requested.UserID)
+            if err != nil {
+                return err
+            }
+
+            availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
+            if err != nil {
+                return err
+            }
+
+            newAvailableBalance := availableBalance.Add(amount)
+            updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
+                UserID:           requested.UserID,
+                AvailableBalance: newAvailableBalance.String(),
+            }
+            if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
+                return err
+            }
+        }
+
+        return nil
+    })
+
+    if err != nil {
+        return nil, err
+    }
+
+    return &wr, nil
 }
