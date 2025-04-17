@@ -54,6 +54,7 @@ func (c CryptoAPI) router(server *Server) {
 	/// Should be managed from the administrative view
 	serverGroupV1.POST("/create-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStaticWallet)
 	serverGroupV1.POST("/qr-code", c.GenerateQRCode)
+	serverGroupV1.GET("services", c.fetchServices)
 	serverGroupV1.POST("/webhook", c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.GetCoinData)
