@@ -33,7 +33,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/test", r.testReferral)
 	serverGroupV1.GET("/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferrals)
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
-	serverGroupV1.POST("/request=withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
+	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	//serverGroupV1.GET("/referral/withdrawals", r.ListWithdrawals)
 	//serverGroupV1.PUT("/withdrawals/:id", r.AdminProcessWithdrawal)
 }
@@ -156,9 +156,24 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, wr)
+	amt, err := decimal.NewFromString(wr.Amount)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	_, err = r.service.Withdraw(c, req.ID, int32(activeUser.UserID), amt, wr.WalletID)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wr))
 }
 
+// deprecate this, it has been added to UpdateWithdrawalRequest
 func (r *Referral) Withdraw(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
