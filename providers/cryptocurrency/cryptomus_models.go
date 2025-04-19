@@ -50,3 +50,22 @@ type GenerateQRCodeRawResponse struct {
 	Result *GenerateQRCodeResponse `json:"result"`
 	State  int8                    `json:"state"`
 }
+
+type CoinRankingResponse struct {
+	UUID              string   `json:"uuid"`
+	Symbol            string   `json:"symbol"`
+	Name              string   `json:"name"`
+	Color             string   `json:"color"`
+	IconURL           string   `json:"iconUrl"`
+	MarketCap         string   `json:"marketCap"`
+	Price             string   `json:"price"`
+	ListedAt          int64    `json:"listedAt"`
+	Change            string   `json:"change"`
+	Rank              int      `json:"rank"`
+	Sparkline         []string `json:"sparkline"`
+	LowVolume         bool     `json:"lowVolume"`
+	CoinrankingURL    string   `json:"coinrankingUrl"`
+	Volume24h         string   `json:"24hVolume"`
+	BTCPrice          string   `json:"btcPrice"`
+	ContractAddresses []string `json:"contractAddresses"`
+}
