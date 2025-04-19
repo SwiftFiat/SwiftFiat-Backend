@@ -116,3 +116,37 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 	s := fmt.Sprintf("%f", coinRate)
 	return s, nil
 }
+
+func (c *CoinGeckoProvider) GetCoinData(coin string) (map[string]interface{}, error) {
+	coinID, ok := supportedCoins[coin]
+	if !ok {
+		return nil, fmt.Errorf("unsupported coin: %s", coin)
+	}
+
+	base, err := url.Parse(c.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("invalid base URL: %w", err)
+	}
+
+	// CoinGecko coin info endpoint
+	base.Path += fmt.Sprintf("/coins/%s", coinID)
+
+	resp, err := c.MakeRequest("GET", base.String(), nil, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error("resp", resp)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	var data map[string]interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	logging.NewLogger().Info("Coin Data", data)
+	return data, nil
+}

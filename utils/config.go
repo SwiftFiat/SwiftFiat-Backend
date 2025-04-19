@@ -12,28 +12,33 @@ var (
 )
 
 type Config struct {
-	Env                string `mapstructure:"ENV"`
-	ServerPort         int    `mapstructure:"SERVER_PORT"`
-	SigningKey         string `mapstructure:"SIGNING_KEY"`
-	AWSRegion          string `mapstructure:"AWS_REGION"`
-	AWSAccessKeyID     string `mapstructure:"AWS_ACCESS_KEY"`
-	AWSSecretAccessKey string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
-	DBUsername         string `mapstructure:"DB_USERNAME"`
-	DBPassword         string `mapstructure:"DB_PASSWORD"`
-	DBHost             string `mapstructure:"DB_HOST"`
-	DBPort             string `mapstructure:"DB_PORT"`
-	DBDriver           string `mapstructure:"DB_DRIVER"`
-	DBName             string `mapstructure:"DB_NAME"`
-	SSLMode            string `mapstructure:"SSLMODE"`
-	OTPSourceMail      string `mapstructure:"OTP_SOURCE_MAIL"`
-	Papertrail         string `mapstructure:"PAPERTRAIL"`
-	PapertrailAppName  string `mapstructure:"PAPERTRAIL_APP_NAME"`
-	RedisHost          string `mapstructure:"REDIS_HOST"`
-	RedisPort          string `mapstructure:"REDIS_PORT"`
-	RedisPassword      string `mapstructure:"REDIS_PASSWORD"`
-	Phone              string `mapstructure:"PHONE"`
-	CountryCode        string `mapstructure:"COUNTRYCODE"`
-	Email              string `mapstructure:"EMAIL"`
+	Env                  string `mapstructure:"ENV"`
+	ServerPort           int    `mapstructure:"SERVER_PORT"`
+	SigningKey           string `mapstructure:"SIGNING_KEY"`
+	ServerBaseURL        string `mapstructure:"SERVER_BASE_URL"`
+	AWSRegion            string `mapstructure:"AWS_REGION"`
+	AWSAccessKeyID       string `mapstructure:"AWS_ACCESS_KEY"`
+	AWSSecretAccessKey   string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
+	DBUsername           string `mapstructure:"DB_USERNAME"`
+	DBPassword           string `mapstructure:"DB_PASSWORD"`
+	DBHost               string `mapstructure:"DB_HOST"`
+	DBPort               string `mapstructure:"DB_PORT"`
+	DBDriver             string `mapstructure:"DB_DRIVER"`
+	DBName               string `mapstructure:"DB_NAME"`
+	SSLMode              string `mapstructure:"SSLMODE"`
+	OTPSourceMail        string `mapstructure:"OTP_SOURCE_MAIL"`
+	Papertrail           string `mapstructure:"PAPERTRAIL"`
+	PapertrailAppName    string `mapstructure:"PAPERTRAIL_APP_NAME"`
+	RedisHost            string `mapstructure:"REDIS_HOST"`
+	RedisPort            string `mapstructure:"REDIS_PORT"`
+	RedisPassword        string `mapstructure:"REDIS_PASSWORD"`
+	Phone                string `mapstructure:"PHONE"`
+	CountryCode          string `mapstructure:"COUNTRYCODE"`
+	Email                string `mapstructure:"EMAIL"`
+	CryptomusBaseUrl     string `mapstructure:"CRYPTOMUS_BASE_URL"`
+	CryptomusApiKey      string `mapstructure:"CRYPTOMUS_API_KEY"`
+	CryptomusMerchantId  string `mapstructure:"CRYPTOMUS_MERCHANT_ID"`
+	CryptomusCallbackUrl string `mapstructure:"CRYPTOMUS_CALLBACK_URL"`
 }
 
 func LoadConfig(path string) (*Config, error) {

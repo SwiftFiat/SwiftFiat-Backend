@@ -16,6 +16,8 @@ const (
 	CoinGecko = "COINGECKO"
 	Paystack  = "PAYSTACK"
 	VTPass    = "VTPASS"
+	Cryptomus = "CRYPTOMUS"
+	CoinRanking = "COINRANKING"
 )
 
 // BaseProvider contains common fields and methods

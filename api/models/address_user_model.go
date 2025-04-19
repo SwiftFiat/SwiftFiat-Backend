@@ -47,3 +47,32 @@ func MapExistingWalletAddressToAddressUserResponse(walletAddress *db.CryptoAddre
 		UpdatedAt: walletAddress.UpdatedAt,
 	}
 }
+
+// / Cryptomus Addresses
+type CryptomusAddressResponse struct {
+	Address    string `json:"address"`
+	Network    string `json:"network"`
+	Currency   string `json:"currency"`
+	PaymentUrl string `json:"payment_url"`
+	Callback   string `json:"callback"`
+}
+
+func MapCryptomusStaticWalletResponseToCryptomusAddressResponse(cryptomusStaticWalletResponse *cryptocurrency.StaticWalletResponse, callbackURL string) *CryptomusAddressResponse {
+	return &CryptomusAddressResponse{
+		Address:    cryptomusStaticWalletResponse.Address,
+		Network:    cryptomusStaticWalletResponse.Network,
+		Currency:   cryptomusStaticWalletResponse.Currency,
+		PaymentUrl: cryptomusStaticWalletResponse.Url,
+		Callback:   callbackURL,
+	}
+}
+
+func MapDBCryptomusAddressToCryptomusAddressResponse(cryptomusAddress *db.CryptomusAddress) *CryptomusAddressResponse {
+	return &CryptomusAddressResponse{
+		Address:    cryptomusAddress.Address,
+		Network:    cryptomusAddress.Network,
+		Currency:   cryptomusAddress.Currency,
+		PaymentUrl: cryptomusAddress.PaymentUrl.String,
+		Callback:   cryptomusAddress.CallbackUrl.String,
+	}
+}
