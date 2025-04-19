@@ -5,35 +5,10 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/db/queries/cryptomus_addresses.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.env.example" beforeDir="false" afterPath="$PROJECT_DIR$/.env.example" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/api/crypto_api.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/crypto_api.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/models/address_user_model.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/models/address_user_model.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/models/crypto_models.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/models/crypto_models.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/address_images.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/address_images.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/beneficiaries.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/beneficiaries.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/crypto_trail.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/crypto_trail.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/cryptpo_address.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/cryptpo_address.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/db.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/db.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/exchange_rates.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/exchange_rates.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/giftcards.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/giftcards.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/kyc.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/kyc.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/kyc_joined.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/kyc_joined.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/ledger.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/ledger.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/models.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/models.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/otps.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/otps.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/referral.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/referral.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/referral_entry.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/referral_entry.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/transaction.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/transaction.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/transaction_fees.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/transaction_fees.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/user_tokens.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/user_tokens.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/users.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/users.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/sqlc/wallet.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/wallet.sql.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/providers/cryptocurrency/coingecko.go" beforeDir="false" afterPath="$PROJECT_DIR$/providers/cryptocurrency/coingecko.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/providers/cryptocurrency/webhooks.go" beforeDir="false" afterPath="$PROJECT_DIR$/providers/cryptocurrency/webhooks.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/providers/provider.go" beforeDir="false" afterPath="$PROJECT_DIR$/providers/provider.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/user/user_service.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/user/user_service.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/utils/config.go" beforeDir="false" afterPath="$PROJECT_DIR$/utils/config.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/server.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/server.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/providers/cryptocurrency/coinranking.go" beforeDir="false" afterPath="$PROJECT_DIR$/providers/cryptocurrency/coinranking.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -49,6 +24,11 @@
   </component>
   <component name="GOROOT" url="file://$PROJECT_DIR$/../sdk/go1.23.4" />
   <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="referral-patch" />
+      </map>
+    </option>
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
   </component>
   <component name="GitHubPullRequestSearchHistory">{
