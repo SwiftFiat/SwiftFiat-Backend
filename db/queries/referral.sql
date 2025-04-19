@@ -10,6 +10,9 @@ SELECT * FROM referrals WHERE id = $1;
 -- name: GetReferralByUserID :one
 SELECT * FROM referrals WHERE user_id = $1;
 
+-- name: GetReferralByReferralKey :one
+SELECT * FROM referrals WHERE referral_key = $1;
+
 -- name: DeleteReferral :exec
 DELETE FROM referrals WHERE id = $1;
 
