@@ -3,6 +3,7 @@ package cryptocurrency
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -17,7 +18,7 @@ type CoinRankingProvider struct {
 }
 
 type CoinRankingProviderConfig struct {
-	RatesProviderName    string `mapstructure:"RATES_PROVIDER_NAME"`
+	CoinDataProviderName string `mapstructure:"COIN_DATA_PROVIDER_NAME"`
 	CoinRankingBaseUrl   string `mapstructure:"COINRANKING_BASE_URL"`
 	CoinRankingAccessKey string `mapstructure:"COINRANKING_ACCESS_KEY"`
 }
@@ -32,7 +33,7 @@ func NewCoinRankingProvider() *CoinRankingProvider {
 
 	return &CoinRankingProvider{
 		BaseProvider: providers.BaseProvider{
-			Name:    c.RatesProviderName,
+			Name:    c.CoinDataProviderName,
 			BaseURL: c.CoinRankingBaseUrl,
 			APIKey:  c.CoinRankingAccessKey,
 			Client:  &http.Client{Timeout: 10 * time.Second},
@@ -43,7 +44,8 @@ func NewCoinRankingProvider() *CoinRankingProvider {
 
 // GetCoinUUIDBySymbol fetches the UUID for a given coin symbol from the CoinRanking API
 func (p *CoinRankingProvider) GetCoinUUIDBySymbol(symbol string) (string, error) {
-	url := fmt.Sprintf("%s/coin?symbols=%s", p.BaseURL, strings.ToUpper(symbol))
+	url := fmt.Sprintf("%s/coins?symbols=%s", p.BaseURL, strings.ToUpper(symbol))
+	log.Println("fetchingCoinUUID", url)
 
 	headers := map[string]string{
 		"x-access-token": p.APIKey,
@@ -88,17 +90,12 @@ func (p *CoinRankingProvider) GetCoinUUIDBySymbol(symbol string) (string, error)
 
 // GetCoinDetailsBySymbol fetches coin details by symbol, resolving the UUID internally
 func (p *CoinRankingProvider) GetCoinDetailsBySymbol(symbol string) (*CoinRankingResponse, error) {
-	// First, check if the symbol exists in supportedCoins
-	uuid, exists := supportedCoins[strings.ToLower(symbol)]
-	if !exists {
-		// If not in supportedCoins, fetch UUID from API
-		var err error
-		uuid, err = p.GetCoinUUIDBySymbol(symbol)
-		if err != nil {
-			return nil, err
-		}
-	}
+	var err error
+	uuid, err := p.GetCoinUUIDBySymbol(symbol)
+	if err != nil {
+		return nil, err
 
+	}
 	// Use the UUID to fetch coin details
 	url := fmt.Sprintf("%s/coin/%s", p.BaseURL, uuid)
 

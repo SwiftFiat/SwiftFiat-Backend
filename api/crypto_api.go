@@ -73,27 +73,28 @@ func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
 
 func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 	coin := ctx.Query("coin")
+	c.server.logger.Info(fmt.Sprintf("getting info on %s", coin))
 
 	if coin == "" {
 		ctx.JSON(400, basemodels.NewError("coin parameter is required"))
 		return
 	}
 
-	provider, exists := c.server.provider.GetProvider(providers.CoinGecko)
+	provider, exists := c.server.provider.GetProvider(providers.CoinRanking)
 	if !exists {
 		c.server.logger.Error("failed to get provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
 		return
 	}
 
-	dataProvider, ok := provider.(*cryptocurrency.CoinGeckoProvider)
+	dataProvider, ok := provider.(*cryptocurrency.CoinRankingProvider)
 	if !ok {
 		c.server.logger.Error("failed to parse crypto provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
 
-	coinData, err := dataProvider.GetCoinData(coin)
+	coinData, err := dataProvider.GetCoinDetailsBySymbol(coin)
 	if err != nil {
 		c.server.logger.Errorf("failed to get coinData: %v", err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
