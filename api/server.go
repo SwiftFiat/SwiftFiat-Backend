@@ -90,6 +90,13 @@ func NewServer(envPath string) *Server {
 	rp := cryptocurrency.NewRatesProvider()
 	p.AddProvider(rp)
 
+	// Setup Coin data service
+	cd := cryptocurrency.NewCoinRankingProvider()
+	p.AddProvider(cd)
+
+	cryptomus := cryptocurrency.NewCryptomusProvider()
+	p.AddProvider(cryptomus)
+
 	// Set up Paystack Fiat Provider
 	fp := fiat.NewFiatProvider()
 	p.AddProvider(fp)

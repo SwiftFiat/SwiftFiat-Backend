@@ -1,22 +1,24 @@
 package api
 
 import (
+	"bytes"
 	"fmt"
-	"net/http"
-	"time"
-
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"io"
+	"net/http"
 )
 
 type CryptoAPI struct {
@@ -50,237 +52,279 @@ func (c CryptoAPI) router(server *Server) {
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
 	/// Should be managed from the administrative view
-	serverGroupV1.POST("wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createWallet)
-	serverGroupV1.GET("wallets", c.server.authMiddleware.AuthenticatedMiddleware(), c.fetchWallets)
-	serverGroupV1.GET("coinwallets", c.server.authMiddleware.AuthenticatedMiddleware(), c.getCoinWallets)
-	serverGroupV1.POST("address/generate", c.server.authMiddleware.AuthenticatedMiddleware(), c.generateWalletAddress)
-	serverGroupV1.POST("/webhook", c.HandleWebhook)
+	serverGroupV1.POST("/create-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStaticWallet)
+	serverGroupV1.POST("/qr-code", c.GenerateQRCode)
+	serverGroupV1.GET("services", c.fetchServices)
+	serverGroupV1.POST("/webhook", c.HandleCryptomusWebhook)
+	serverGroupV1.GET("/test", c.testCryptoAPI)
+	serverGroupV1.GET("/coin-data", c.GetCoinData)
 	serverGroupV1.Static("/assets", "./assets")
 }
 
-func (c *CryptoAPI) createWallet(ctx *gin.Context) {
-	request := struct {
-		Coin string `json:"coin" binding:"required"`
-	}{}
+func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
+	dr := basemodels.SuccessResponse{
+		Status:  "success",
+		Message: "Authentication API is active",
+		Version: utils.REVISION,
+	}
 
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter coin"))
+	ctx.JSON(http.StatusOK, dr)
+}
+
+func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
+	coin := ctx.Query("coin")
+	c.server.logger.Info(fmt.Sprintf("getting info on %s", coin))
+
+	if coin == "" {
+		ctx.JSON(400, basemodels.NewError("coin parameter is required"))
 		return
 	}
 
-	// Get Active User
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	/// check varification status
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
-	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	provider, exists := c.server.provider.GetProvider(providers.CoinRanking)
 	if !exists {
 		c.server.logger.Error("failed to get provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
 		return
 	}
 
-	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	dataProvider, ok := provider.(*cryptocurrency.CoinRankingProvider)
 	if !ok {
 		c.server.logger.Error("failed to parse crypto provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
 
-	walletData, err := cryptoProvider.CreateWallet(cryptocurrency.SupportedCoin(request.Coin))
+	coinData, err := dataProvider.GetCoinDetailsBySymbol(coin)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		c.server.logger.Errorf("failed to get coinData: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin data is successful", coinData))
+}
+
+func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
+	request := struct {
+		Currency string `json:"currency" binding:"required"`
+		Network  string `json:"network" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Created", walletData))
-}
-
-func (c *CryptoAPI) fetchWallets(ctx *gin.Context) {
 	// Get Active User
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		c.server.logger.Error("failed to get active user", err)
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
+	// Get User from DB
+	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		c.server.logger.Error("failed to get user", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
+	}
+
 	/// check varification status
-	if !activeUser.Verified {
+	if !dbUser.Verified {
 		c.server.logger.Error("user not verified")
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
 	}
 
-	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
 		c.server.logger.Error("failed to get provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
 		return
 	}
 
-	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
 	if !ok {
 		c.server.logger.Error("failed to parse crypto provider")
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
 
-	walletData, err := cryptoProvider.FetchWallets()
+	orderID, err := models.EncryptID(models.ID(dbUser.ID))
 	if err != nil {
-		c.server.logger.Error("failed to fetch wallets", err)
+		c.server.logger.Error("failed to encrypt user id", err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallets Fetched", walletData))
-}
+	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-func (c *CryptoAPI) getCoinWallets(ctx *gin.Context) {
-	// Get Active User
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		c.server.logger.Error("failed to get active user", err)
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	/// check varification status
-	if !activeUser.Verified {
-		c.server.logger.Error("user not verified")
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
-	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
-	if !exists {
-		c.server.logger.Error("failed to get provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
-		return
-	}
-
-	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
-	if !ok {
-		c.server.logger.Error("failed to parse crypto provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
-		return
-	}
-
-	walletData, err := cryptoProvider.FetchWallets()
-	if err != nil {
-		c.server.logger.Error("failed to fetch wallets", err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Coin Wallets Fetched", models.ToCryptoWalletsResponse(walletData)))
-}
-
-func (c *CryptoAPI) generateWalletAddress(ctx *gin.Context) {
-
-	request := struct {
-		WalletID string `json:"walletID" binding:"required"`
-		Coin     string `json:"coin" binding:"required"`
-	}{}
-
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter coin and walletID"))
-		return
-	}
-
-	// Get Active User
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	/// check varification status
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
-	/// Maybe we should check if user already has an address with this coin, and use that instead.
-
-	var walletData *cryptocurrency.WalletAddress
-
-	/// Generate a new address
-	provider, exists := c.server.provider.GetProvider(providers.Bitgo)
-	if !exists {
-		c.server.logger.Error("failed to get provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
-		return
-	}
-
-	cryptoProvider, ok := provider.(*cryptocurrency.BitgoProvider)
-	if !ok {
-		c.server.logger.Error("failed to parse crypto provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
-		return
-	}
-
-	userAddress, err := c.userService.GetUserCryptoWalletAddress(ctx, activeUser.UserID, request.Coin)
+	userAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)
 	if err == nil {
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapExistingWalletAddressToAddressUserResponse(userAddress)))
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
 		return
 	}
 
-	walletData, err = cryptoProvider.CreateWalletAddress(request.WalletID, cryptocurrency.SupportedCoin(request.Coin))
+	callbackURL := models.GetCryptoCallbackURL(c.server.config, orderID)
+
+	walletRequest := &cryptocurrency.StaticWalletRequest{
+		Currency:    request.Currency,
+		Network:     request.Network,
+		OrderId:     orderID,
+		UrlCallback: callbackURL,
+	}
+
+	staticWallet, err := cryptoProvider.CreateStaticWallet(walletRequest)
 	if err != nil {
+		c.server.logger.Error("failed to create static wallet", err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
 		return
 	}
 
 	/// Assign address to user
-	err = c.userService.AssignWalletAddressToUser(ctx, walletData.Address, activeUser.UserID, walletData.Coin)
+	err = c.userService.AssignCryptomusAddressToUser(ctx, staticWallet.UUID, staticWallet.UUID, staticWallet.Address, activeUser.UserID, staticWallet.Currency, staticWallet.Network, staticWallet.Url, callbackURL)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to assign wallet to User Error: %s", err)))
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("New Wallet Address Generated", models.MapWalletAddressToAddressUserResponse(walletData, models.ID(activeUser.UserID), "0", "active", time.Now(), time.Now())))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", models.MapCryptomusStaticWalletResponseToCryptomusAddressResponse(staticWallet, callbackURL)))
 }
 
-func (c *CryptoAPI) HandleWebhook(ctx *gin.Context) {
-	var payload cryptocurrency.WebhookTransferPayload
-
-	c.server.logger.Info(ctx.Request.Body)
-
-	if err := ctx.ShouldBindJSON(&payload); err != nil {
-		c.server.logger.Error("failed to decode webhook payload", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid payload"})
+func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
 		return
 	}
-	// Process the webhook event
-	if *payload.State == "confirmed" {
 
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	services, err := cryptoProvider.ListServices()
+	if err != nil {
+		c.server.logger.Error("failed to fetch services", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Services Fetched", models.ToCryptoServicesResponse(services)))
+}
+
+func (c *CryptoAPI) GenerateQRCode(ctx *gin.Context) {
+	var req = struct {
+		WalletUUID uuid.UUID `json:"wallet_uuid"`
+	}{}
+
+	if err := ctx.ShouldBind(&req); err != nil {
+		c.server.logger.Error("failed to bind request", err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Failed to bind request: %v", err)))
+		return
+	}
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	code, err := cryptoProvider.GenerateQRCode(req.WalletUUID)
+	if err != nil {
+		c.server.logger.Error("failed to generate QR Code", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to generate QR Code: %v", err)))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("QR Code Generated", code))
+}
+
+func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
+	// Read raw body for signature verification
+	rawBody, err := io.ReadAll(ctx.Request.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read webhook body", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		return
+	}
+
+	ctx.Request.Body = io.NopCloser(bytes.NewBuffer(rawBody))
+
+	// Parse JSON payload
+	var payload cryptocurrency.WebhookPayload
+	if err := ctx.ShouldBindJSON(&payload); err != nil {
+		logging.NewLogger().Error("invalid webhook JSON payload", err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		return
+	}
+
+	// Log incoming webhook
+	logging.NewLogger().Info("received webhook",
+		"order_id", payload.OrderID,
+		"status", payload.Status)
+
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	// Verify signature
+	if err := cryptoProvider.VerifyWebhook(&payload, rawBody); err != nil {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Process webhook
+	message, err := cryptoProvider.ProcessWebhook(&payload)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if message == "paid" {
 		// Call the wallet service and credit the user basse
-		c.server.logger.Info(fmt.Sprintf("Payload BaseValue %v", *payload.BaseValue))
-		c.server.logger.Info(fmt.Sprintf("Payload Coin %v", *payload.Coin))
+		c.server.logger.Info(fmt.Sprintf("sent amount %v", payload.PaymentAmount))
+		c.server.logger.Info(fmt.Sprintf("received amount %v", payload.MerchantAmount))
+		c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
+		c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
+		c.server.logger.Info(fmt.Sprintf("convert to %v", payload.Convert.ToCurrency))
+		c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
+		c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
 
-		amountInSatoshis, err := decimal.NewFromString(*payload.BaseValueString)
+		amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
 		if err != nil {
-			c.server.logger.Error("could not parse payloadBaseValue to decimal", err)
+			c.server.logger.Errorf("conversion error: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
 
 		cryptoTransaction := transaction.CryptoTransaction{
-			SourceHash:         *payload.Hash,
-			DestinationAddress: *payload.Receiver,
+			SourceHash:         payload.Sign,
+			DestinationAddress: payload.From,
 			AmountInSatoshis:   amountInSatoshis,
-			Coin:               *payload.Coin,
-			Description:        "Cypto Inflow",
+			Coin:               payload.Currency,
+			Description:        "Crypto Inflow",
 			Type:               transaction.Deposit,
 		}
 
@@ -290,6 +334,10 @@ func (c *CryptoAPI) HandleWebhook(ctx *gin.Context) {
 		}
 	}
 
-	c.server.logger.Info(fmt.Sprintf("transaction %v successful", *payload.Hash))
-	ctx.JSON(http.StatusOK, gin.H{"status": "success"})
+	// Respond with success
+	ctx.JSON(http.StatusOK, gin.H{
+		"message":  message,
+		"order_id": payload.OrderID,
+		"status":   payload.Status,
+	})
 }
