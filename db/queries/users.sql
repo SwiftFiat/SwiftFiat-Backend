@@ -45,6 +45,12 @@ LIMIT $1 OFFSET $2;
 SELECT * FROM users WHERE role=$1 ORDER BY id
 LIMIT $2 OFFSET $3;
 
+-- name: CountNewUsersToday :one
+SELECT COUNT(*)
+FROM users
+WHERE created_at::date = CURRENT_DATE
+  AND deleted_at IS NULL;
+
 -- name: UpdateUserPassword :one
 UPDATE users SET hashed_password = $1, updated_at = $2
 WHERE id = $3 RETURNING *;

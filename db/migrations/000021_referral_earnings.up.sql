@@ -56,6 +56,7 @@ CREATE TABLE withdrawal_requests (
                                      "id" BIGSERIAL PRIMARY KEY,
                                      "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                      "amount" DECIMAL(10, 2) NOT NULL,
+                                     "wallet_id" UUID NOT NULL REFERENCES swift_wallets(id) ON DELETE CASCADE,
                                      "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
                                      "created_at" timestamptz NOT NULL DEFAULT (now()),
                                      "updated_at" timestamptz NOT NULL DEFAULT (now())
