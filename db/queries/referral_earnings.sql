@@ -28,8 +28,8 @@ WHERE user_id = $1
     RETURNING *;
 
 -- name: CreateWithdrawalRequest :one
-INSERT INTO withdrawal_requests (user_id, amount)
-VALUES ($1, $2)
+INSERT INTO withdrawal_requests (user_id, amount, wallet_id)
+VALUES ($1, $2, $3)
     RETURNING *;
 
 -- name: UpdateWithdrawalRequest :one

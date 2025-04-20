@@ -240,10 +240,22 @@ func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount
             return err
         }
 
+		// Get user naira wallet
+		walletParams := db.GetWalletByCurrencyParams {
+			CustomerID:    userID,
+			Currency:  "NGN",
+		}
+
+		wallet, err := q.GetWalletByCurrency(ctx, walletParams)
+		if err != nil {
+			return err
+		}
+
         // Create withdrawal request
         params := db.CreateWithdrawalRequestParams{
             UserID: int32(userID),
             Amount: amount.String(),
+			WalletID: wallet.ID,
         }
         wr, err = q.CreateWithdrawalRequest(ctx, params) 
         if err != nil {

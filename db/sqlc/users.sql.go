@@ -25,6 +25,20 @@ func (q *Queries) CheckUserTag(ctx context.Context, userTag sql.NullString) (boo
 	return exists, err
 }
 
+const countNewUsersToday = `-- name: CountNewUsersToday :one
+SELECT COUNT(*)
+FROM users
+WHERE created_at::date = CURRENT_DATE
+  AND deleted_at IS NULL
+`
+
+func (q *Queries) CountNewUsersToday(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNewUsersToday)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (
     first_name,

@@ -384,8 +384,8 @@ type WithdrawalRequest struct {
 	ID        int64     `json:"id"`
 	UserID    int32     `json:"user_id"`
 	Amount    string    `json:"amount"`
-	Status    string    `json:"status"`
 	WalletID  uuid.UUID `json:"wallet_id"`
+	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
