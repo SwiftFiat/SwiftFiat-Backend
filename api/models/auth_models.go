@@ -30,6 +30,7 @@ type RegisterAdminParams struct {
 	LastName    string `json:"last_name" binding:"required"`
 	Email       string `json:"email" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
+	Password    string `json:"password" binding:"required"`
 	AdminKey    string `json:"admin_key" binding:"required" validate:"oneof=919d89nd3uinnwe2K 283d9h29nc3uncsa"`
 }
 

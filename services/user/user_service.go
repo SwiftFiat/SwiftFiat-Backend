@@ -370,3 +370,12 @@ func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUU
 
 	return nil
 }
+
+// Get new users in a day.
+func (u *UserService) GetNewUsersToday(ctx context.Context) (int64, error) {
+	userCount, err := u.store.CountNewUsersToday(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get new users: %w", err)
+	}
+	return userCount, nil
+}

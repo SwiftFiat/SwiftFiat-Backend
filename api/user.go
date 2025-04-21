@@ -36,7 +36,7 @@ func (u User) router(server *Server) {
 		u.walletService,
 	)
 
-	// serverGroupV1 := server.router.Group("/auth")
+	// serverGroupV1 := server.router.Group("/user")
 	serverGroupV1 := server.router.Group("/api/v1/user")
 	serverGroupV1.GET("profile", u.server.authMiddleware.AuthenticatedMiddleware(), u.profile)
 	serverGroupV1.POST("usertag", u.server.authMiddleware.AuthenticatedMiddleware(), u.userTag)
@@ -48,6 +48,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/:user_id/avatar", u.getAvatar)
 	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
 	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
+	serverGroupV1.GET("get-new-users-today", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNewUsersToday)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -442,4 +443,25 @@ func (u *User) getAvatar(ctx *gin.Context) {
 
 	ctx.Header("Content-Type", "image/png")
 	ctx.DataFromReader(http.StatusOK, int64(len(userInfo.AvatarBlob)), "image/png", bytes.NewReader(userInfo.AvatarBlob), nil)
+}
+
+func (u *User) GetNewUsersToday(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	newUsers, err := u.userService.GetNewUsersToday(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("new users fetched successfully", newUsers))
 }

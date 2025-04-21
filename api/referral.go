@@ -34,8 +34,6 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferrals)
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
 	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
-	//serverGroupV1.GET("/referral/withdrawals", r.ListWithdrawals)
-	//serverGroupV1.PUT("/withdrawals/:id", r.AdminProcessWithdrawal)
 }
 
 func (a Referral) testReferral(ctx *gin.Context) {
