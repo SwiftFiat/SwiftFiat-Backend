@@ -311,17 +311,24 @@ func (a *Auth) register(ctx *gin.Context) {
 func (a *Auth) registerAdmin(ctx *gin.Context) {
 	var user models.RegisterAdminParams
 
+	err := ctx.ShouldBindJSON(&user)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+
 	/// Validate Presence of Placeholder Values
 	validate := validator.New(validator.WithRequiredStructEnabled())
-	err := validate.Struct(user)
+	err = validate.Struct(user)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	err = ctx.ShouldBindJSON(&user)
+	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -330,6 +337,10 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		LastName:    sql.NullString{String: user.LastName, Valid: true},
 		Email:       user.Email,
 		PhoneNumber: user.PhoneNumber,
+		HashedPassword: sql.NullString{
+			Valid:  true,
+			String: hashedPassword,
+		},
 		Role:        models.ADMIN,
 	}
 
