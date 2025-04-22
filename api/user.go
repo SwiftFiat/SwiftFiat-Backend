@@ -38,6 +38,7 @@ func (u User) router(server *Server) {
 
 	// serverGroupV1 := server.router.Group("/user")
 	serverGroupV1 := server.router.Group("/api/v1/user")
+
 	serverGroupV1.GET("profile", u.server.authMiddleware.AuthenticatedMiddleware(), u.profile)
 	serverGroupV1.POST("usertag", u.server.authMiddleware.AuthenticatedMiddleware(), u.userTag)
 	serverGroupV1.POST("checktag", u.server.authMiddleware.AuthenticatedMiddleware(), u.checkTag)
