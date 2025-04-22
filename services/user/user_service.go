@@ -66,6 +66,8 @@ func (u *UserService) CreateUserWithWalletsAndKYC(ctx context.Context, arg *db.C
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// add activity lo
+
 	return &newUser, nil
 }
 

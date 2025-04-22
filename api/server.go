@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/middleware"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
@@ -15,6 +16,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
+	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
@@ -40,6 +42,7 @@ type Server struct {
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
 	authMiddleware   *AuthMiddleware
+	activityLogMiddleware *middleware.ActivityLogMiddleware
 }
 
 func NewServer(envPath string) *Server {
@@ -129,9 +132,13 @@ func NewServer(envPath string) *Server {
 	}
 
 	am := NewAuthMiddleware(r)
+	al := middleware.NewActivityLogMiddleware(*q)
 
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
+
+	// Add ActivityLogMiddleware globally
+	g.Use(al.ActivityLogger(*activitylogs.NewActivityLog(*q)))
 
 	return &Server{
 		router:           g,
@@ -143,6 +150,7 @@ func NewServer(envPath string) *Server {
 		redis:            r,
 		pushNotification: pn,
 		authMiddleware:   am,
+		activityLogMiddleware: al,
 	}
 }
 
@@ -168,6 +176,7 @@ func (s *Server) Start() error {
 	User{}.router(s)
 	Bills{}.router(s)
 	Referral{}.router(s)
+	ActivityLog{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
