@@ -38,12 +38,12 @@ SELECT * FROM users WHERE phone_number = $1 and deleted_at is null;
 SELECT avatar_url, avatar_blob FROM users WHERE avatar_url = $1;
 
 -- name: ListUsers :many
-SELECT * FROM users WHERE deleted_at = NULL ORDER BY id
+SELECT * FROM users WHERE deleted_at IS NULL ORDER BY id
 LIMIT $1 OFFSET $2;
 
 -- name: ListAdmins :many
 SELECT * FROM users WHERE role=$1 ORDER BY id
-LIMIT $2 OFFSET $3;
+LIMIT $2 OFFSET $3; 
 
 -- name: CountNewUsersToday :one
 SELECT COUNT(*)

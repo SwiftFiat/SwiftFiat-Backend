@@ -381,3 +381,21 @@ func (u *UserService) GetNewUsersToday(ctx context.Context) (int64, error) {
 	}
 	return userCount, nil
 }
+
+func (u *UserService) ListUsers(ctx context.Context, limit, offset int32) ([]db.User, error) {
+	users, err := u.store.ListUsers(ctx, db.ListUsersParams{Limit: limit, Offset: offset})
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to list users: %v", err))
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	return users, nil
+}
+
+func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {
+	kycs, err := u.store.ListAllKYC(ctx)
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to list all kyc: %v", err))
+		return nil, fmt.Errorf("failed to list all kyc: %w", err)
+	}
+	return kycs, nil
+}

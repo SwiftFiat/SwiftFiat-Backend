@@ -419,6 +419,64 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 	return i, err
 }
 
+const listAllKYC = `-- name: ListAllKYC :many
+SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info 
+FROM kyc 
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListAllKYC(ctx context.Context) ([]Kyc, error) {
+	rows, err := q.db.QueryContext(ctx, listAllKYC)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Kyc{}
+	for rows.Next() {
+		var i Kyc
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Tier,
+			&i.DailyTransferLimitNgn,
+			&i.WalletBalanceLimitNgn,
+			&i.Status,
+			&i.VerificationDate,
+			&i.FullName,
+			&i.PhoneNumber,
+			&i.Email,
+			&i.Bvn,
+			&i.Nin,
+			&i.Gender,
+			&i.SelfieUrl,
+			&i.IDType,
+			&i.IDNumber,
+			&i.IDImageUrl,
+			&i.State,
+			&i.Lga,
+			&i.HouseNumber,
+			&i.StreetName,
+			&i.NearestLandmark,
+			&i.ProofOfAddressType,
+			&i.ProofOfAddressUrl,
+			&i.ProofOfAddressDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AdditionalInfo,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateKYCAddress = `-- name: UpdateKYCAddress :one
 UPDATE kyc 
 SET 

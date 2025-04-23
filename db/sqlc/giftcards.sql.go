@@ -139,7 +139,7 @@ LEFT JOIN
 LEFT JOIN 
     countries co ON gc.country_id = co.id
 LEFT JOIN 
-    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id 
 GROUP BY 
     gc.id,
     gc.product_id, 
@@ -345,6 +345,67 @@ func (q *Queries) FetchGiftCardsByCategory(ctx context.Context) ([]FetchGiftCard
 	for rows.Next() {
 		var i FetchGiftCardsByCategoryRow
 		if err := rows.Scan(&i.Name, &i.GiftCardCount, &i.Brands); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGiftCards = `-- name: ListGiftCards :many
+SELECT 
+    gc.product_name AS name,
+    gd.denomination AS value,
+    gc.recipient_currency_code AS currency,
+    gc.discount_percentage AS purchase_rate,
+    (100 - gc.discount_percentage) AS sale_rate,
+    CASE 
+        WHEN gc.global THEN 'Active'
+        ELSE 'Inactive'
+    END AS status,
+    gc.global AS activate_deactivate
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+ORDER BY 
+    gc.product_name ASC
+`
+
+type ListGiftCardsRow struct {
+	Name               sql.NullString  `json:"name"`
+	Value              sql.NullFloat64 `json:"value"`
+	Currency           sql.NullString  `json:"currency"`
+	PurchaseRate       sql.NullFloat64 `json:"purchase_rate"`
+	SaleRate           int32           `json:"sale_rate"`
+	Status             string          `json:"status"`
+	ActivateDeactivate sql.NullBool    `json:"activate_deactivate"`
+}
+
+func (q *Queries) ListGiftCards(ctx context.Context) ([]ListGiftCardsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGiftCards)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGiftCardsRow{}
+	for rows.Next() {
+		var i ListGiftCardsRow
+		if err := rows.Scan(
+			&i.Name,
+			&i.Value,
+			&i.Currency,
+			&i.PurchaseRate,
+			&i.SaleRate,
+			&i.Status,
+			&i.ActivateDeactivate,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

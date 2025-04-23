@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS "transactions" (
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending', -- e.g success | pending | failed | unknown
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
+); 
 
 -- Swift Wallet Transactions metadata for transfer or swap
 CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (

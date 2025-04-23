@@ -1139,3 +1139,13 @@ func (s *TransactionService) GetTransactionFee(ctx context.Context, transactionT
 
 	return feeInfo, nil
 }
+
+func (s *TransactionService) ListAllTransactions(ctx context.Context) ([]db.ListAllTransactionsWithUsersRow, error) {
+	transactions, err := s.store.ListAllTransactionsWithUsers(ctx)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("error fetching all transactions: %v", err))
+		return nil, fmt.Errorf("error fetching all transactions: %v", err)
+	}
+
+	return transactions, nil
+}
