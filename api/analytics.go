@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -12,7 +13,7 @@ import (
 )
 
 type ActivityLog struct {
-	server *Server
+	server  *Server
 	service activitylogs.ActivityLog
 }
 
@@ -20,9 +21,10 @@ func (h ActivityLog) router(server *Server) {
 	h.server = server
 	h.service = *activitylogs.NewActivityLog(*h.server.queries)
 
-	serverGroupV1 := server.router.Group("/api/v1/activitylogs")
-	serverGroupV1.GET("/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivity)
-	serverGroupV1.GET("/recent",h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivity)
+	serverGroupV1 := server.router.Group("/api/v1/analytics")
+	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivity)
+	serverGroupV1.GET("/activity-logs/recent", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivity)
+	serverGroupV1.GET("/active-users-today", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetActiveUsersCount)
 }
 
 func (h *ActivityLog) GetUserActivity(c *gin.Context) {
@@ -72,4 +74,41 @@ func (h *ActivityLog) GetRecentActivity(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", logs))
+}
+
+func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+	// Parse date from query params (default to today)
+	dateStr := c.DefaultQuery("date", time.Now().Format("2025-04-22"))
+	date, err := time.Parse("2025-04-22", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use YYYY-MM-DD"})
+		return
+	}
+
+	// Calculate time range (whole day)
+	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
+	end := start.Add(24 * time.Hour)
+
+	count, err := h.service.CountActiveUsers(c, start, end)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count active users"})
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Active Users count retrieved successfully", gin.H{
+		"count": count,
+		"date":  dateStr,
+	}))
+
 }

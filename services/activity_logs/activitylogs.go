@@ -42,19 +42,27 @@ func (a *ActivityLog) Create(ctx context.Context, params CreateActivityLogParams
 	})
 }
 
-func (r *ActivityLog) GetByUser(ctx context.Context, userID int32, limit, offset int32) ([]db.ActivityLog, error) {
-	return r.store.GetActivityLogsByUser(ctx, db.GetActivityLogsByUserParams{
+func (a *ActivityLog) GetByUser(ctx context.Context, userID int32, limit, offset int32) ([]db.ActivityLog, error) {
+	return a.store.GetActivityLogsByUser(ctx, db.GetActivityLogsByUserParams{
 		UserID: toNullInt32(&userID),
 		Limit:  limit,
 		Offset: offset,
 	})
 }
 
-func (r *ActivityLog) GetRecent(ctx context.Context, limit, offset int32) ([]db.ActivityLog, error) {
-	return r.store.GetRecentActivityLogs(ctx, db.GetRecentActivityLogsParams{
+func (a *ActivityLog) GetRecent(ctx context.Context, limit, offset int32) ([]db.ActivityLog, error) {
+	return a.store.GetRecentActivityLogs(ctx, db.GetRecentActivityLogsParams{
 		Limit:  limit,
 		Offset: offset,
 	})
+}
+
+func (a *ActivityLog) CountActiveUsers(ctx context.Context, start, end time.Time) (int64, error) {
+	count, err := a.store.CountActiveUsers(ctx, db.CountActiveUsersParams{CreatedAt: start, CreatedAt_2: end})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 // Helper functions

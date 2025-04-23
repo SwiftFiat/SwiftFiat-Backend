@@ -16,3 +16,9 @@ LIMIT $2 OFFSET $3;
 SELECT * FROM activity_logs
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2;
+
+-- name: CountActiveUsers :one
+SELECT COUNT(DISTINCT user_id) as active_users
+FROM activity_logs
+WHERE created_at >= $1 AND created_at < $2
+  AND user_id IS NOT NULL;

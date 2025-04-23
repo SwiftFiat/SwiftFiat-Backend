@@ -13,6 +13,25 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const countActiveUsers = `-- name: CountActiveUsers :one
+SELECT COUNT(DISTINCT user_id) as active_users
+FROM activity_logs
+WHERE created_at >= $1 AND created_at < $2
+  AND user_id IS NOT NULL
+`
+
+type CountActiveUsersParams struct {
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+}
+
+func (q *Queries) CountActiveUsers(ctx context.Context, arg CountActiveUsersParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countActiveUsers, arg.CreatedAt, arg.CreatedAt_2)
+	var active_users int64
+	err := row.Scan(&active_users)
+	return active_users, err
+}
+
 const createActivityLog = `-- name: CreateActivityLog :one
 INSERT INTO activity_logs (
     user_id, action, entity_type, entity_id, ip_address, user_agent, created_at
