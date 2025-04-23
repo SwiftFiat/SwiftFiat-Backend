@@ -6,7 +6,7 @@ INSERT INTO transactions (
     status
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING *;
+) RETURNING *; 
 
 -- name: CreateSwapTransferMetadata :one
 INSERT INTO swap_transfer_metadata (
@@ -636,3 +636,22 @@ SELECT
 FROM public.transactions t
 WHERE t.id = sqlc.arg(transaction_id)
 LIMIT 1;
+
+-- name: ListAllTransactionsWithUsers :many
+SELECT 
+    t.id AS transaction_id,
+    t.type AS transaction_type,
+    t.description AS transaction_description,
+    t.transaction_flow,
+    t.status AS transaction_status,
+    t.created_at AS transaction_created_at,
+    t.updated_at AS transaction_updated_at,
+    u.id AS user_id,
+    u.first_name AS user_first_name,
+    u.last_name AS user_last_name,
+    u.email AS user_email,
+    u.phone_number AS user_phone_number
+FROM transactions t
+LEFT JOIN swift_wallets sw ON t.id = sw.id
+LEFT JOIN users u ON sw.customer_id = u.id
+ORDER BY t.created_at DESC;

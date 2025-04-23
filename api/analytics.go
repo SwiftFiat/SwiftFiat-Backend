@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -23,8 +24,10 @@ func (h ActivityLog) router(server *Server) {
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivity)
-	serverGroupV1.GET("/activity-logs/recent", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivity)
+	serverGroupV1.GET("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivity)
 	serverGroupV1.GET("/active-users-today", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetActiveUsersCount)
+	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
+	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
 }
 
 func (h *ActivityLog) GetUserActivity(c *gin.Context) {
@@ -111,4 +114,55 @@ func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
 		"date":  dateStr,
 	}))
 
+}
+
+func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListAllTransactionsWithUsers(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching all transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Transactions retrieved successfully", gin.H{
+		"transactions": transactions,
+		"count":        len(transactions),
+	}))
+}
+
+
+func (h *ActivityLog) ListGiftCards(c *gin.Context)  {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+	
+	giftCards, err := h.server.queries.ListGiftCards(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching all gift cards: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch gift cards"))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Gift cards retrieved successfully", gin.H{
+		"gift_cards": giftCards,
+		"count":      len(giftCards),
+	}))
 }

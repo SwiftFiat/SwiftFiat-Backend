@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -50,6 +51,8 @@ func (u User) router(server *Server) {
 	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
 	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
 	serverGroupV1.GET("get-new-users-today", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNewUsersToday)
+	serverGroupV1.POST("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
+	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -465,4 +468,59 @@ func (u *User) GetNewUsersToday(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("new users fetched successfully", newUsers))
+}
+
+func (u *User) ListUsers(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(ctx.DefaultQuery("offset", "0"))
+
+	users, err := u.userService.ListUsers(ctx, int32(limit), int32(offset))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
+		"users":  users,
+		"total_users":  len(users),
+		"offset": offset,
+		"limit":  limit,
+	}))
+}
+
+func (u *User) ListKYCs(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	kycList, err := u.userService.ListAllKYC(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
+		"kycs":  kycList,
+		"count": len(kycList),
+	}))
 }

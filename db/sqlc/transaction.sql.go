@@ -1236,6 +1236,77 @@ func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTra
 	return result, err
 }
 
+const listAllTransactionsWithUsers = `-- name: ListAllTransactionsWithUsers :many
+SELECT 
+    t.id AS transaction_id,
+    t.type AS transaction_type,
+    t.description AS transaction_description,
+    t.transaction_flow,
+    t.status AS transaction_status,
+    t.created_at AS transaction_created_at,
+    t.updated_at AS transaction_updated_at,
+    u.id AS user_id,
+    u.first_name AS user_first_name,
+    u.last_name AS user_last_name,
+    u.email AS user_email,
+    u.phone_number AS user_phone_number
+FROM transactions t
+LEFT JOIN swift_wallets sw ON t.id = sw.id
+LEFT JOIN users u ON sw.customer_id = u.id
+ORDER BY t.created_at DESC
+`
+
+type ListAllTransactionsWithUsersRow struct {
+	TransactionID          uuid.UUID      `json:"transaction_id"`
+	TransactionType        string         `json:"transaction_type"`
+	TransactionDescription sql.NullString `json:"transaction_description"`
+	TransactionFlow        sql.NullString `json:"transaction_flow"`
+	TransactionStatus      string         `json:"transaction_status"`
+	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
+	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
+	UserID                 sql.NullInt64  `json:"user_id"`
+	UserFirstName          sql.NullString `json:"user_first_name"`
+	UserLastName           sql.NullString `json:"user_last_name"`
+	UserEmail              sql.NullString `json:"user_email"`
+	UserPhoneNumber        sql.NullString `json:"user_phone_number"`
+}
+
+func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTransactionsWithUsersRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllTransactionsWithUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllTransactionsWithUsersRow{}
+	for rows.Next() {
+		var i ListAllTransactionsWithUsersRow
+		if err := rows.Scan(
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.TransactionDescription,
+			&i.TransactionFlow,
+			&i.TransactionStatus,
+			&i.TransactionCreatedAt,
+			&i.TransactionUpdatedAt,
+			&i.UserID,
+			&i.UserFirstName,
+			&i.UserLastName,
+			&i.UserEmail,
+			&i.UserPhoneNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateBillServiceTransactionID = `-- name: UpdateBillServiceTransactionID :one
 UPDATE services_metadata
 SET service_transaction_id = $1

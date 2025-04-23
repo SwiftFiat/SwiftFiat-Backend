@@ -104,6 +104,11 @@ ORDER BY created_at DESC;
 -- name: DeleteKYC :execrows
 DELETE FROM kyc WHERE id = $1;
 
+-- name: ListAllKYC :many
+SELECT * 
+FROM kyc 
+ORDER BY created_at DESC;
+
 -- name: GetKYCStats :one
 SELECT 
     COUNT(*) as total_kyc,

@@ -136,7 +136,7 @@ LEFT JOIN
 LEFT JOIN 
     countries co ON gc.country_id = co.id
 LEFT JOIN 
-    gift_card_logo_urls gl ON gc.id = gl.gift_card_id
+    gift_card_logo_urls gl ON gc.id = gl.gift_card_id 
 GROUP BY 
     gc.id,
     gc.product_id, 
@@ -289,3 +289,23 @@ GROUP BY
     c.name
 ORDER BY 
     c.name;
+
+
+-- name: ListGiftCards :many
+SELECT 
+    gc.product_name AS name,
+    gd.denomination AS value,
+    gc.recipient_currency_code AS currency,
+    gc.discount_percentage AS purchase_rate,
+    (100 - gc.discount_percentage) AS sale_rate,
+    CASE 
+        WHEN gc.global THEN 'Active'
+        ELSE 'Inactive'
+    END AS status,
+    gc.global AS activate_deactivate
+FROM 
+    gift_cards gc
+LEFT JOIN 
+    gift_card_fixed_denominations gd ON gc.id = gd.gift_card_id
+ORDER BY 
+    gc.product_name ASC;
