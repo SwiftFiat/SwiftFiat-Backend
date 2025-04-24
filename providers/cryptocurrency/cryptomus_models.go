@@ -28,7 +28,6 @@ type StaticWalletRequest struct {
 }
 
 type StaticWalletResponse struct {
-	OrderId    string `json:"order_id"`
 	WalletUUID string `json:"wallet_uuid"`
 	UUID       string `json:"uuid"`
 	Address    string `json:"address"`

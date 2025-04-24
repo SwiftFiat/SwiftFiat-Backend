@@ -12,6 +12,20 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
+type CoinHistoryData struct {
+	Change  string `json:"change"`
+	History []struct {
+		Price     string `json:"price"`
+		Timestamp int64  `json:"timestamp"`
+	} `json:"history"`
+}
+
+type CoinHistoryResponse struct {
+	Status string           `json:"status"`
+	Data   CoinHistoryData  `json:"data"`
+}
+
+
 type CoinRankingProvider struct {
 	providers.BaseProvider
 	config *CoinRankingProviderConfig
@@ -138,18 +152,13 @@ type CoinPriceData struct {
 
 // GetCoinPrice fetches the coin price by symbol and an optional timestamp (epoch seconds).
 // Timestamp controls the granularity of the data: minute, hourly, or daily.
-func (p *CoinRankingProvider) GetCoinPrice(symbol string, timestamp ...int64) (*CoinPriceData, error) {
+func (p *CoinRankingProvider) GetCoinHistoryData(symbol string) (*CoinHistoryData, error) {
 	uuid, err := p.GetCoinUUIDBySymbol(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get coin UUID: %v", err)
 	}
 
-	url := fmt.Sprintf("%s/coin/%s/price", p.BaseURL, uuid)
-
-	// Append timestamp as query param if provided
-	if len(timestamp) > 0 {
-		url = fmt.Sprintf("%s?timestamp=%d", url, timestamp[0])
-	}
+	url := fmt.Sprintf("%s/coin/%s/price-history", p.BaseURL, uuid)
 
 	headers := map[string]string{
 		"x-access-token": p.APIKey,
@@ -167,7 +176,7 @@ func (p *CoinRankingProvider) GetCoinPrice(symbol string, timestamp ...int64) (*
 
 	var result struct {
 		Status string        `json:"status"`
-		Data   CoinPriceData `json:"data"`
+		Data   CoinHistoryData `json:"data"`
 	}
 
 	if err := json.NewDecoder(response.Body).Decode(&result); err != nil {
