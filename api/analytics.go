@@ -92,8 +92,8 @@ func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
 		return
 	}
 	// Parse date from query params (default to today)
-	dateStr := c.DefaultQuery("date", time.Now().Format("2025-04-22"))
-	date, err := time.Parse("2025-04-22", dateStr)
+	dateStr := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
+	date, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use YYYY-MM-DD"})
 		return

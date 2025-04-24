@@ -69,3 +69,7 @@ type CoinRankingResponse struct {
 	BTCPrice          string   `json:"btcPrice"`
 	ContractAddresses []string `json:"contractAddresses"`
 }
+
+type CryptomusCoinPrice struct {
+	
+}
