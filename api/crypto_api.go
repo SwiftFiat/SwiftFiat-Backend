@@ -3,6 +3,10 @@ package api
 import (
 	"bytes"
 	"fmt"
+	"io"
+	"net/http"
+	"strconv"
+
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -17,8 +21,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"io"
-	"net/http"
 )
 
 type CryptoAPI struct {
@@ -58,6 +60,7 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.POST("/webhook", c.server.authMiddleware.AuthenticatedMiddleware(), c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinData)
+	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceData)
 	//serverGroupV1.Static("/assets", "./assets")
 }
 
@@ -343,4 +346,54 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		"order_id": payload.OrderID,
 		"status":   payload.Status,
 	})
+}
+
+func (c *CryptoAPI) GetCoinPriceData(ctx *gin.Context) {
+	coin := ctx.Query("coin")
+	timestamp := ctx.Query("timestamp") // Optional timestamp query parameter
+
+	c.server.logger.Info(fmt.Sprintf("getting price data for %s", coin))
+
+	if coin == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("coin parameter is required"))
+		return
+	}
+
+	provider, exists := c.server.provider.GetProvider(providers.CoinRanking)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		return
+	}
+
+	dataProvider, ok := provider.(*cryptocurrency.CoinRankingProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		return
+	}
+
+	var priceData *cryptocurrency.CoinPriceData
+	var err error
+
+	if timestamp != "" {
+		// Parse the timestamp if provided
+		parsedTimestamp, parseErr := strconv.ParseInt(timestamp, 10, 64)
+		if parseErr != nil {
+			c.server.logger.Error("invalid timestamp format", parseErr)
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid timestamp format"))
+			return
+		}
+		priceData, err = dataProvider.GetCoinPrice(coin, parsedTimestamp)
+	} else {
+		priceData, err = dataProvider.GetCoinPrice(coin)
+	}
+
+	if err != nil {
+		c.server.logger.Errorf("failed to get coin price data: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin price data is successful", priceData))
 }
