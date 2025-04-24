@@ -189,20 +189,28 @@ func (p *CryptomusProvider) processRequest(method string, endpoint string, paylo
 }
 
 func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*GenerateQRCodeResponse, error) {
-	qrCode, err := p.processRequest("POST", "/wallet/qr", walletAddressUuid)
-	if err != nil {
-		logging.NewLogger().Error(fmt.Sprintf("error creating qr code: %v", err.Error()))
-		return nil, err
-	}
+    // Create the request payload
+    payload := map[string]string{
+        "wallet_address_uuid": walletAddressUuid.String(),
+    }
 
-	var GenerateWalletResponse GenerateQRCodeRawResponse
-	decoder := json.NewDecoder(qrCode.Body)
-	err = decoder.Decode(&GenerateWalletResponse)
-	if err != nil {
-		logging.NewLogger().Error(fmt.Sprintf("error decoding response body: %v", err))
-	}
+    // Send the request
+    qrCode, err := p.processRequest("POST", "/wallet/qr", payload)
+    if err != nil {
+        logging.NewLogger().Error(fmt.Sprintf("error creating qr code: %v", err.Error()))
+        return nil, err
+    }
 
-	return GenerateWalletResponse.Result, nil
+    // Decode the response
+    var GenerateWalletResponse GenerateQRCodeRawResponse
+    decoder := json.NewDecoder(qrCode.Body)
+    err = decoder.Decode(&GenerateWalletResponse)
+    if err != nil {
+        logging.NewLogger().Error(fmt.Sprintf("error decoding response body: %v", err))
+        return nil, err
+    }
+
+    return GenerateWalletResponse.Result, nil
 }
 
 // VerifyWebhook verifies the webhook signature

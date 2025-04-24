@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -60,7 +59,7 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.POST("/webhook", c.server.authMiddleware.AuthenticatedMiddleware(), c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinData)
-	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceData)
+	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
 	//serverGroupV1.Static("/assets", "./assets")
 }
 
@@ -134,11 +133,11 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	}
 
 	/// check varification status
-	if !dbUser.Verified {
-		c.server.logger.Error("user not verified")
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
+	// if !dbUser.Verified {
+	// 	c.server.logger.Error("user not verified")
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
+	// 	return
+	// }
 
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
@@ -175,8 +174,9 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		Currency:    request.Currency,
 		Network:     request.Network,
 		OrderId:     orderID,
-		UrlCallback: callbackURL,
+		UrlCallback: "https://your-callback-url.com",
 	}
+	c.server.logger.Info(fmt.Sprintf("Creating static wallet with request: %+v", walletRequest))
 
 	staticWallet, err := cryptoProvider.CreateStaticWallet(walletRequest)
 	if err != nil {
@@ -192,7 +192,18 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", models.MapCryptomusStaticWalletResponseToCryptomusAddressResponse(staticWallet, callbackURL)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", gin.H{
+		"wallet_uuid": staticWallet.UUID,
+		"address":     staticWallet.Address,
+		"network":     staticWallet.Network,
+		"currency":    staticWallet.Currency,
+		"url":        staticWallet.Url,
+		"callback_url": callbackURL,
+		"uuid": 	staticWallet.UUID,
+		"order_id":    orderID,
+		"status":      "success",
+		"message":     "Static wallet created successfully",
+	}))
 }
 
 func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
@@ -348,10 +359,8 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	})
 }
 
-func (c *CryptoAPI) GetCoinPriceData(ctx *gin.Context) {
+func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 	coin := ctx.Query("coin")
-	timestamp := ctx.Query("timestamp") // Optional timestamp query parameter
-
 	c.server.logger.Info(fmt.Sprintf("getting price data for %s", coin))
 
 	if coin == "" {
@@ -372,22 +381,7 @@ func (c *CryptoAPI) GetCoinPriceData(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
-
-	var priceData *cryptocurrency.CoinPriceData
-	var err error
-
-	if timestamp != "" {
-		// Parse the timestamp if provided
-		parsedTimestamp, parseErr := strconv.ParseInt(timestamp, 10, 64)
-		if parseErr != nil {
-			c.server.logger.Error("invalid timestamp format", parseErr)
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid timestamp format"))
-			return
-		}
-		priceData, err = dataProvider.GetCoinPrice(coin, parsedTimestamp)
-	} else {
-		priceData, err = dataProvider.GetCoinPrice(coin)
-	}
+	historydata, err := dataProvider.GetCoinHistoryData(coin)
 
 	if err != nil {
 		c.server.logger.Errorf("failed to get coin price data: %v", err)
@@ -395,5 +389,5 @@ func (c *CryptoAPI) GetCoinPriceData(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin price data is successful", priceData))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin price data is successful", basemodels.NewSuccess("coin price data", historydata)))
 }
