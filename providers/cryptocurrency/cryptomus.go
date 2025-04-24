@@ -70,20 +70,57 @@ func (p *CryptomusProvider) CreateStaticWallet(request *StaticWalletRequest) (*S
 }
 
 func (p *CryptomusProvider) ListServices() ([]CryptomusService, error) {
-	serviceResponse, err := p.processRequest("POST", "/payment/services", nil)
-	if err != nil {
-		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
-	}
+    serviceResponse, err := p.processRequest("POST", "/payment/services", nil)
+    if err != nil {
+        return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+    }
 
-	// Decode the response body
-	var services ServicesRawResponse
-	decoder := json.NewDecoder(serviceResponse.Body)
-	err = decoder.Decode(&services)
-	if err != nil {
-		return nil, fmt.Errorf("error decoding response body: %w", err)
-	}
+    // Decode the response body
+    var services ServicesRawResponse
+    decoder := json.NewDecoder(serviceResponse.Body)
+    err = decoder.Decode(&services)
+    if err != nil {
+        return nil, fmt.Errorf("error decoding response body: %w", err)
+    }
 
-	return services.Result, nil
+    // Filter the services based on the specified criteria
+    var filteredServices []CryptomusService
+    for _, service := range services.Result {
+        if (service.Currency == "USDT" && service.Network == "TON") ||
+            (service.Currency == "ETH" && service.Network == "BSC") ||
+            (service.Currency == "ETH" && service.Network == "TON") ||
+            service.Currency == "BNB" ||
+            service.Currency == "BTC" ||
+            service.Currency == "LTC" ||
+            service.Currency == "TRX" {
+            filteredServices = append(filteredServices, service)
+        }
+    }
+
+    // Add any random 3 services if available
+    if len(filteredServices) < len(services.Result) {
+        randomCount := 0
+        for _, service := range services.Result {
+            // Ensure the service is not already in the filtered list
+            isAlreadyIncluded := false
+            for _, filtered := range filteredServices {
+                if filtered.Currency == service.Currency && filtered.Network == service.Network {
+                    isAlreadyIncluded = true
+                    break
+                }
+            }
+            if !isAlreadyIncluded {
+                filteredServices = append(filteredServices, service)
+                randomCount++
+            }
+            if randomCount >= 3 {
+                break
+            }
+        }
+    }
+
+    // Ensure the final list contains at least the specified currencies and random 3
+    return filteredServices, nil
 }
 
 func (p *CryptomusProvider) processRequest(method string, endpoint string, payload any) (*http.Response, error) {
@@ -154,7 +191,7 @@ func (p *CryptomusProvider) processRequest(method string, endpoint string, paylo
 func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*GenerateQRCodeResponse, error) {
 	qrCode, err := p.processRequest("POST", "/wallet/qr", walletAddressUuid)
 	if err != nil {
-		logging.NewLogger().Error("error creating qr code: %v", err.Error())
+		logging.NewLogger().Error(fmt.Sprintf("error creating qr code: %v", err.Error()))
 		return nil, err
 	}
 
@@ -162,7 +199,7 @@ func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*Genera
 	decoder := json.NewDecoder(qrCode.Body)
 	err = decoder.Decode(&GenerateWalletResponse)
 	if err != nil {
-		logging.NewLogger().Error("error decoding response body: %v", err)
+		logging.NewLogger().Error(fmt.Sprintf("error decoding response body: %v", err))
 	}
 
 	return GenerateWalletResponse.Result, nil
