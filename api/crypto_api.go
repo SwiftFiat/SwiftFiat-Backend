@@ -214,7 +214,10 @@ func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Services Fetched", models.ToCryptoServicesResponse(services)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Services Fetched", gin.H{
+		"services": models.ToCryptoServicesResponse(services),
+		"count":    len(services),
+	}))
 }
 
 func (c *CryptoAPI) GenerateQRCode(ctx *gin.Context) {
