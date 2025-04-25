@@ -44,7 +44,7 @@ type Config struct {
 func LoadConfig(path string) (*Config, error) {
 	// Validate that the path is not empty
 	if path == "" {
-		path = "/app/.env"
+		path = "."
 	}
 
 	// Create a new Viper instance to avoid global state
