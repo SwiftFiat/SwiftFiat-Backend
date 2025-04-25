@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -60,7 +61,8 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinData)
 	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
-	//serverGroupV1.Static("/assets", "./assets")
+	serverGroupV1.Static("/assets", "./assets")
+	serverGroupV1.GET("/images", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetImages)
 }
 
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
@@ -390,4 +392,22 @@ func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin price data is successful", basemodels.NewSuccess("coin price data", historydata)))
+}
+
+func (c *CryptoAPI) GetImages(ctx *gin.Context) {
+	files, err := os.ReadDir("./assets")
+	if err != nil {
+		c.server.logger.Error("failed to read assets directory", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to read assets directory"))
+		return
+	}
+
+	var images []string
+
+	for _, file := range files {
+		if !file.IsDir() {
+			images = append(images, file.Name())
+		}
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
 }
