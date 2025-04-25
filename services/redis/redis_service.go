@@ -20,24 +20,30 @@ type RedisConfig struct {
 }
 
 func NewRedisService(config *RedisConfig) (*RedisService, error) {
-	client := redis.NewClient(&redis.Options{
-		Addr:     fmt.Sprintf("%s:%s", config.Host, config.Port),
-		Password: config.Password,
-		DB:       config.DB,
-	})
+    // Sanitize the Host to remove "redis://" if present
+    host := config.Host
+    if len(host) > 8 && host[:8] == "redis://" {
+        host = host[8:] // Remove the "redis://" prefix
+    }
 
-	// Test the connection
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+    client := redis.NewClient(&redis.Options{
+        Addr:     fmt.Sprintf("%s:%s", host, config.Port),
+        Password: config.Password,
+        DB:       config.DB,
+    })
 
-	_, err := client.Ping(ctx).Result()
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect to Redis: %v", err)
-	}
+    // Test the connection
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
 
-	return &RedisService{
-		client: client,
-	}, nil
+    _, err := client.Ping(ctx).Result()
+    if err != nil {
+        return nil, fmt.Errorf("failed to connect to Redis: %v", err)
+    }
+
+    return &RedisService{
+        client: client,
+    }, nil
 }
 
 // Set stores a key-value pair with optional expiration
