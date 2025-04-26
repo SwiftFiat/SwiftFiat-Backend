@@ -39,7 +39,10 @@ type Config struct {
 	CryptomusApiKey      string `mapstructure:"CRYPTOMUS_API_KEY"`
 	CryptomusMerchantId  string `mapstructure:"CRYPTOMUS_MERCHANT_ID"`
 	CryptomusCallbackUrl string `mapstructure:"CRYPTOMUS_CALLBACK_URL"`
-}
+	CoinDataProviderName string `mapstructure:"COIN_DATA_PROVIDER_NAME"`
+	CoinRankingBaseUrl   string `mapstructure:"COINRANKING_BASE_URL"`
+	CoinRankingAccessKey string `mapstructure:"COINRANKING_ACCESS_KEY"`
+}	
 
 func LoadConfig(path string) (*Config, error) {
 	// Validate that the path is not empty
@@ -177,6 +180,15 @@ func LoadCustomConfig(path string, val interface{}) error {
 		// Log the error, but don't fail entirely
 		log.Printf("Warning: Unable to read config file: %v", err)
 	}
+
+	_ = v.BindEnv("COIN_DATA_PROVIDER_NAME")
+	_ = v.BindEnv("COINRANKING_BASE_URL")
+	_ = v.BindEnv("COINRANKING_ACCESS_KEY")
+	_ = v.BindEnv("CRYPTOMUS_PROVIDER_NAME")
+	_ = v.BindEnv("CRYPTOMUS_BASE_URL")
+	_ = v.BindEnv("CRYPTOMUS_MERCHANT_ID")
+	_ = v.BindEnv("CRYPTOMUS_API_KEY")
+	_ = v.BindEnv("CRYPTOMUS_CALLBACK_URL")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)
