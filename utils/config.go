@@ -208,6 +208,7 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("GIFTCARD_AUTH_URL")
 	_ = v.BindEnv("GIFTCARD_PROD_KEY")
 	_ = v.BindEnv("GIFTCARD_PROD_ID")
+	_ = v.BindEnv("GIFTCARD_PROD_URL")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)
