@@ -112,3 +112,8 @@ type UpdateTransactionPinParams struct {
 	Pin    string `json:"pin" binding:"required"`
 	OldPin string `json:"old_pin" binding:"required"`
 }
+
+type AdminLoginParams struct {
+    Email    string `json:"email" binding:"required,email"`
+    Password string `json:"password" binding:"required"`
+}

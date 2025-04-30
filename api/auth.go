@@ -3,12 +3,14 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
-	"github.com/shopspring/decimal"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
+	"github.com/shopspring/decimal"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -48,6 +50,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("login", a.login)
 	serverGroupV1.POST("login-passcode", a.loginWithPasscode)
 	serverGroupV1.POST("register", a.register)
+	serverGroupV1.POST("login-admin", a.loginAdmin)
 	serverGroupV1.POST("register-admin", a.registerAdmin)
 	serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
 	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
@@ -63,7 +66,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.GET("user", a.getUserID)
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 
-	serverGroupV2 := server.router.Group("/api/v2/auth")
+	serverGroupV2 := server.router.Group("/git api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
 }
 
@@ -238,6 +241,19 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
+	if user.ReferralCode != "" {
+		_, err := a.server.queries.GetReferralByReferralKey(ctx, user.ReferralCode)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				a.server.logger.Error(fmt.Errorf("invalid referral code: %s", user.ReferralCode))
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid referral code"))
+				return
+			}
+			ctx.JSON(500, basemodels.NewError(err.Error()))
+			return
+		}
+	}
+
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
@@ -283,7 +299,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		_, err = a.referralService.TrackReferral(ctx, user.ReferralCode, newUser.ID, decimal.NewFromFloat(1000))
 		if err != nil {
 			a.server.logger.Error(logrus.ErrorLevel, err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 			return
 		}
 	}
@@ -312,10 +328,10 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	var user models.RegisterAdminParams
 
 	err := ctx.ShouldBindJSON(&user)
-    if err != nil {
-        ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-        return
-    }
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
 
 	/// Validate Presence of Placeholder Values
 	validate := validator.New(validator.WithRequiredStructEnabled())
@@ -341,7 +357,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 			Valid:  true,
 			String: hashedPassword,
 		},
-		Role:        models.ADMIN,
+		Role: models.ADMIN,
 	}
 
 	newUser, err := a.server.queries.CreateUser(context.Background(), arg)
@@ -360,6 +376,64 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
+}
+
+func (a *Auth) loginAdmin(ctx *gin.Context) {
+    admin := new(models.AdminLoginParams)
+
+    // Bind the JSON request to the struct
+    if err := ctx.ShouldBindJSON(admin); err != nil {
+        a.server.logger.Log(logrus.ErrorLevel, err.Error())
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid email or password"))
+        return
+    }
+
+    // Fetch the admin user by email
+    dbAdmin, err := a.userService.FetchUserByEmail(ctx, admin.Email)
+    if err != nil {
+        a.server.logger.Error(logrus.ErrorLevel, err)
+        if err.Error() == user_service.ErrUserNotFound.Error() {
+            ctx.JSON(http.StatusBadRequest, basemodels.NewError("Admin not found"))
+            return
+        }
+        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
+        return
+    }
+
+    // Check if the user is an admin
+    if dbAdmin.Role != models.ADMIN {
+        ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unauthorized access"))
+        return
+    }
+
+    // Verify the password
+    if err = utils.VerifyHashValue(admin.Password, dbAdmin.HashedPassword.String); err != nil {
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Incorrect email or password"))
+        return
+    }
+
+    // Generate a token for the admin
+    token, err := TokenController.CreateToken(utils.TokenObject{
+        UserID:   dbAdmin.ID,
+        Verified: dbAdmin.Verified,
+        Role:     dbAdmin.Role,
+    })
+    if err != nil {
+        a.server.logger.Log(logrus.DebugLevel, err.Error())
+        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
+        return
+    }
+
+    // Store the token in Redis
+    a.server.redis.Set(ctx, fmt.Sprintf("admin:%d", dbAdmin.ID), token, time.Hour*2400)
+
+    // Prepare the response
+    adminWT := models.UserWithToken{
+        User:  models.UserResponse{}.ToUserResponse(dbAdmin),
+        Token: token,
+    }
+
+    ctx.JSON(http.StatusOK, basemodels.NewSuccess("Admin logged in successfully", adminWT))
 }
 
 func (a *Auth) sendOTP(ctx *gin.Context) {

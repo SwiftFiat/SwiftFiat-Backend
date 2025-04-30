@@ -363,6 +363,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 
 func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 	coin := ctx.Query("coin")
+	timePeriod := ctx.DefaultQuery("timePeriod", "24h")
 	c.server.logger.Info(fmt.Sprintf("getting price data for %s", coin))
 
 	if coin == "" {
@@ -383,7 +384,7 @@ func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
-	historydata, err := dataProvider.GetCoinHistoryData(coin)
+	historydata, err := dataProvider.GetCoinHistoryData(coin , timePeriod)
 
 	if err != nil {
 		c.server.logger.Errorf("failed to get coin price data: %v", err)

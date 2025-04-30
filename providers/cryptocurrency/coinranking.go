@@ -152,13 +152,13 @@ type CoinPriceData struct {
 
 // GetCoinPrice fetches the coin price by symbol and an optional timestamp (epoch seconds).
 // Timestamp controls the granularity of the data: minute, hourly, or daily.
-func (p *CoinRankingProvider) GetCoinHistoryData(symbol string) (*CoinHistoryData, error) {
+func (p *CoinRankingProvider) GetCoinHistoryData(symbol, timePeriod string) (*CoinHistoryData, error) {
 	uuid, err := p.GetCoinUUIDBySymbol(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get coin UUID: %v", err)
 	}
 
-	url := fmt.Sprintf("%s/coin/%s/price-history", p.BaseURL, uuid)
+	url := fmt.Sprintf("%s/coin/%s/price-history/?timePeriod=%s", p.BaseURL, uuid, timePeriod)
 
 	headers := map[string]string{
 		"x-access-token": p.APIKey,
