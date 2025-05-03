@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS "services_metadata" (
     "service_status" VARCHAR(20) NOT NULL DEFAULT 'pending', -- e.g., 'active', 'inactive', 'pending', etc.
     "service_transaction_id" VARCHAR(100), -- e.g to track the service purchase at service provider level
     CONSTRAINT "unique_transaction_service" UNIQUE (transaction_id)
-);
+); 
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);

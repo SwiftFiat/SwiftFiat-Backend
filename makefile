@@ -26,7 +26,7 @@ c_m: # create-migration: create migration of name=<migration_name>
 ### Variables for handling migrations
 count ?= 1
 version ?= 1
-db_username ?= swift-admin
+db_username ?= postgres
 db_password ?= 438a8e2e6c0521233a53602831bf4410add45e52
 db_host ?= localhost
 db_port ?= 5432

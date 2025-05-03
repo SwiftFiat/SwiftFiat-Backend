@@ -16,7 +16,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
@@ -33,16 +32,15 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router           *gin.Engine
-	queries          *db.Store
-	config           *utils.Config
-	logger           *logging.Logger
-	taskScheduler    *tasks.TaskScheduler
-	provider         *providers.ProviderService
-	redis            *redis.RedisService
-	pushNotification *service.PushNotificationService
-	authMiddleware   *AuthMiddleware
-	activityLogMiddleware *middleware.ActivityLogMiddleware
+	router                *gin.Engine
+	queries               *db.Store
+	config                *utils.Config
+	logger                *logging.Logger
+	taskScheduler         *tasks.TaskScheduler
+	provider              *providers.ProviderService
+	redis                 *redis.RedisService
+	pushNotification      *service.PushNotificationService
+	authMiddleware        *AuthMiddleware
 }
 
 func NewServer(envPath string) *Server {
@@ -132,13 +130,9 @@ func NewServer(envPath string) *Server {
 	}
 
 	am := NewAuthMiddleware(r)
-	al := middleware.NewActivityLogMiddleware(*q)
 
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
-
-	// Add ActivityLogMiddleware globally
-	g.Use(al.ActivityLogger(*activitylogs.NewActivityLog(*q)))
 
 	return &Server{
 		router:           g,
@@ -150,7 +144,6 @@ func NewServer(envPath string) *Server {
 		redis:            r,
 		pushNotification: pn,
 		authMiddleware:   am,
-		activityLogMiddleware: al,
 	}
 }
 
