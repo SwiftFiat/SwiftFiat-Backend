@@ -75,7 +75,6 @@ func (h *ActivityLog) GetRecentActivity(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get recent activity logs"))
 		return
 	}
-
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", logs))
 }
 
@@ -135,9 +134,17 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
 	}
 
+	volume, err := h.server.queries.GetTotalTransactionVolume(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching transaction volume: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transaction volume"))
+		return
+	}
+	
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Transactions retrieved successfully", gin.H{
 		"transactions": transactions,
 		"count":        len(transactions),
+		"volume":       volume,
 	}))
 }
 

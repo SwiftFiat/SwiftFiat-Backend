@@ -297,7 +297,7 @@ SELECT
     gd.denomination AS value,
     gc.recipient_currency_code AS currency,
     gc.discount_percentage AS purchase_rate,
-    (100 - gc.discount_percentage) AS sale_rate,
+    COALESCE((100 - gc.discount_percentage), 0)::NUMERIC AS sale_rate, -- Ensure sale_rate is never NULL
     CASE 
         WHEN gc.global THEN 'Active'
         ELSE 'Inactive'

@@ -655,3 +655,15 @@ FROM transactions t
 LEFT JOIN swift_wallets sw ON t.id = sw.id
 LEFT JOIN users u ON sw.customer_id = u.id
 ORDER BY t.created_at DESC;
+
+-- Calculate the cumulative transaction volume
+-- name: GetTotalTransactionVolume :one
+SELECT 
+    COALESCE(SUM(COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_transaction_volume
+FROM transactions t
+LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
+
