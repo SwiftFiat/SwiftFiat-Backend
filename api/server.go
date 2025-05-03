@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
-	"github.com/SwiftFiat/SwiftFiat-Backend/middleware"
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
