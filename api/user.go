@@ -23,6 +23,7 @@ type User struct {
 	server        *Server
 	walletService *wallet.WalletService
 	userService   *user_service.UserService
+	notifyr *service.Notification
 }
 
 func (u User) router(server *Server) {
@@ -36,6 +37,7 @@ func (u User) router(server *Server) {
 		u.server.logger,
 		u.walletService,
 	)
+	u.notifyr = service.NewNotificationService(u.server.queries)
 
 	// serverGroupV1 := server.router.Group("/user")
 	serverGroupV1 := server.router.Group("/api/v1/user")
@@ -53,6 +55,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("get-new-users-today", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNewUsersToday)
 	serverGroupV1.POST("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
+	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -522,5 +525,26 @@ func (u *User) ListKYCs(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
 		"kycs":  kycList,
 		"count": len(kycList),
+	}))
+}
+
+func (u *User) GetNotifications(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	notifications, err := u.notifyr.Get(ctx, int32(activeUser.UserID))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user notifications fetched successfully", gin.H{
+		"notifications": notifications,
+		"count":         len(notifications),
 	}))
 }

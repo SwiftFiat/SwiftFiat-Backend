@@ -227,6 +227,14 @@ type LedgerEntry struct {
 	DeletedAccountID uuid.NullUUID `json:"deleted_account_id"`
 }
 
+type Notification struct {
+	ID        int32         `json:"id"`
+	UserID    sql.NullInt32 `json:"user_id"`
+	Message   string        `json:"message"`
+	Read      sql.NullBool  `json:"read"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+}
+
 type Otp struct {
 	ID        int64     `json:"id"`
 	UserID    int32     `json:"user_id"`

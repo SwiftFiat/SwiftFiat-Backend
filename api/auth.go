@@ -34,6 +34,7 @@ type Auth struct {
 	referralService *referral.Service
 	refRepo         *referral.Repo
 	activityTracker *activitylogs.ActivityLog
+	notifr          *service.Notification
 }
 
 func (a Auth) router(server *Server) {
@@ -44,7 +45,8 @@ func (a Auth) router(server *Server) {
 		wallet.NewWalletService(a.server.queries, a.server.logger),
 	)
 	a.refRepo = referral.NewReferralRepository(server.queries)
-	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger)
+	a.notifr = service.NewNotificationService(server.queries)
+	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr)
 	a.activityTracker = activitylogs.NewActivityLog(*a.server.queries)
 
 	// serverGroupV1 := server.router.Group("/auth")
@@ -68,7 +70,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.GET("user", a.getUserID)
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 
-	serverGroupV2 := server.router.Group("/git api/v2/auth")
+	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
 }
 
@@ -173,7 +175,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s logged in %s ago", dbUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s logged in %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -223,7 +225,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s logged in with passcode %s ago", dbUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s logged in with passcode %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -332,7 +334,7 @@ func (a *Auth) register(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s registered in %s ago", newUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s registered in %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
@@ -389,7 +391,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		return
 	}
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s registered as admin in %s ago", newUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s registered as admin in %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
@@ -497,7 +499,7 @@ func (a *Auth) verifyOTP(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s verified OTP %s ago", newUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s verified OTP %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account status verified successfully", (models.UserResponse{}.ToUserResponse(&newUser))))
@@ -611,7 +613,7 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s reset password %s ago", dbUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s reset password %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
@@ -656,7 +658,7 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s changed password %s ago", user.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s changed password %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
@@ -701,7 +703,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s created passcode %s ago", user.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s created passcode %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
@@ -803,7 +805,7 @@ func (a *Auth) createPin(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s created pin %s ago", user.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s created pin %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
@@ -856,7 +858,7 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s updated transaction pin %s ago", user.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s updated transaction pin %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
@@ -950,7 +952,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	}
 
 	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
-		Action:     fmt.Sprintf("User %s deleted account %s ago", dbUser.FirstName.String, time.Since(time.Now())),
+		Action: fmt.Sprintf("User %s deleted account %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
 	_, err = a.server.queries.DeleteUser(context.Background(), db.DeleteUserParams{
