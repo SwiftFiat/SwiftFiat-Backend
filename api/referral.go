@@ -3,15 +3,17 @@ package api
 import (
 	"errors"
 	"fmt"
+	"net/http"
+
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"net/http"
 )
 
 type Referral struct {
@@ -20,6 +22,7 @@ type Referral struct {
 	repo                    *referral.Repo
 	logger                  *logging.Logger
 	AmountEarnedPerReferral decimal.Decimal
+	notifyr *service.Notification
 }
 
 func (r Referral) router(server *Server) {
@@ -27,7 +30,8 @@ func (r Referral) router(server *Server) {
 	r.repo = referral.NewReferralRepository(server.queries)
 	r.AmountEarnedPerReferral = decimal.NewFromFloat(1000.00) // TODO: make this configurable
 	r.logger = r.server.logger
-	r.service = referral.NewReferralService(r.repo, r.logger)
+	r.notifyr = service.NewNotificationService(r.server.queries)
+	r.service = referral.NewReferralService(r.repo, r.logger, r.notifyr)
 
 	serverGroupV1 := server.router.Group("/api/v1/referral")
 	serverGroupV1.GET("/test", r.testReferral)
