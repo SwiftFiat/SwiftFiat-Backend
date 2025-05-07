@@ -28,6 +28,12 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.GET("/active-users-today", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetActiveUsersCount)
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
 	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
+	serverGroupV1.GET("/total-received", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalReceived)
+	serverGroupV1.GET("/total-sent", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalSent)
+	serverGroupV1.GET("/total-trade", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalTrade)
+	serverGroupV1.GET("/crypto-transactions/counts", h.GetCryptoTransactionCounts)
+	serverGroupV1.GET("/crypto-transactions/amount", h.GetTotalCryptoTransactionAmount)
+	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
 func (h *ActivityLog) GetUserActivity(c *gin.Context) {
@@ -140,7 +146,7 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transaction volume"))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Transactions retrieved successfully", gin.H{
 		"transactions": transactions,
 		"count":        len(transactions),
@@ -148,8 +154,7 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 	}))
 }
 
-
-func (h *ActivityLog) ListGiftCards(c *gin.Context)  {
+func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -161,7 +166,7 @@ func (h *ActivityLog) ListGiftCards(c *gin.Context)  {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
-	
+
 	giftCards, err := h.server.queries.ListGiftCards(c)
 	if err != nil {
 		h.server.logger.Error(fmt.Sprintf("error fetching all gift cards: %v", err))
@@ -171,5 +176,137 @@ func (h *ActivityLog) ListGiftCards(c *gin.Context)  {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Gift cards retrieved successfully", gin.H{
 		"gift_cards": giftCards,
 		"count":      len(giftCards),
+	}))
+}
+
+func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalReceived, err := h.server.queries.GetTotalReceived(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total received: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total received"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total received retrieved successfully", gin.H{
+		"total_received": totalReceived,
+	}))
+}
+
+func (h *ActivityLog) GetTotalSent(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalSent, err := h.server.queries.GetTotalSent(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total sent: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total sent"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total sent retrieved successfully", gin.H{
+		"total_sent": totalSent,
+	}))
+}
+
+func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalTrade, err := h.server.queries.GetTotalTrade(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total trade: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total trade"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total trade retrieved successfully", gin.H{
+		"total_trade": totalTrade,
+	}))
+}
+
+func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	counts, err := h.server.queries.GetCryptoTransactionCounts(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching crypto transaction counts: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch crypto transaction counts",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Crypto transaction counts retrieved successfully", gin.H{
+		"successful_transactions": counts.SuccessfulTransactions,
+		"failed_transactions":     counts.FailedTransactions,
+		"pending_transactions":    counts.PendingTransactions,
+	}))
+}
+
+func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalAmount, err := h.server.queries.GetTotalCryptoTransactionAmount(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total crypto transaction amount: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Failed to fetch total crypto transaction amount",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total crypto transaction amount retrieved successfully", gin.H{
+		"total_sent_amount":     totalAmount.TotalSentAmount,
+		"total_received_amount": totalAmount.TotalReceivedAmount,
 	}))
 }

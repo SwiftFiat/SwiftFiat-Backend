@@ -106,7 +106,7 @@ UPDATE users
 SET phone_number = $1,
     email = $2,
     first_name = $3,
-    deleted_at = NOW()
+    deleted_at = NOW() 
 WHERE id = $4
 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id
 `

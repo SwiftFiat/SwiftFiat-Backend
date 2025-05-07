@@ -72,7 +72,7 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		TotalEarned: referralAmount.String(),
 	}
 
-	if kyc.Status == "active" && kyc.Tier == 3 {
+	if kyc.Status == "active" && kyc.Tier == 1 {
 		_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
 		if err != nil {
 			s.logger.Error(err)

@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     -- User's avatar BLOB
     "avatar_blob" BYTEA,
     
-    -- Personal information
+    -- Personal information 
     -- Optional to allow partial registration
     "first_name" VARCHAR(50),
     "last_name" VARCHAR(50),

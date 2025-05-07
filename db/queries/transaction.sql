@@ -630,7 +630,7 @@ SELECT
                     FROM public.swap_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
                 )
-            END
+            END 
         )
     ) as result
 FROM public.transactions t
@@ -667,3 +667,54 @@ LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
 
+-- name: GetTotalReceived :one
+SELECT 
+    COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
+FROM transactions t
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
+
+-- name: GetTotalSent :one
+SELECT 
+    COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
+FROM transactions t
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
+
+-- name: GetTotalTrade :one
+SELECT 
+    COUNT(*) AS total_trade
+FROM transactions t
+WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service');
+
+-- -- name: GetDisputes :many
+-- SELECT 
+--     d.id AS dispute_id,
+--     d.transaction_id,
+--     d.reason,
+--     d.status,
+--     d.created_at,
+--     d.updated_at
+-- FROM disputes d
+-- ORDER BY d.created_at DESC;
+
+-- name: GetCryptoTransactionCounts :one
+SELECT 
+    COUNT(*) FILTER (WHERE t.status = 'success') AS successful_transactions,
+    COUNT(*) FILTER (WHERE t.status = 'failed') AS failed_transactions,
+    COUNT(*) FILTER (WHERE t.status = 'pending') AS pending_transactions
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.type = 'crypto';
+
+-- name: GetTotalCryptoTransactionAmount :one
+SELECT 
+    COALESCE(SUM(ctm.sent_amount), 0) AS total_sent_amount,
+    COALESCE(SUM(ctm.received_amount), 0) AS total_received_amount
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.type = 'crypto';

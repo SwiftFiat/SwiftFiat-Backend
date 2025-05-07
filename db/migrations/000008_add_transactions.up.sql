@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
     "fees" DECIMAL(19,4),
     "service_provider" VARCHAR(100) NOT NULL, -- e.g., Reloadly
     "service_transaction_id" VARCHAR(100), -- e.g to track the giftcard purchase at service provider level
-    CONSTRAINT "unique_transaction_giftcard" UNIQUE (transaction_id)
+    CONSTRAINT "unique_transaction_giftcard" UNIQUE (transaction_id) 
 );
 
 -- Fiat withdrawal metadata

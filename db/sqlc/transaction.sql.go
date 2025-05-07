@@ -356,6 +356,42 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 	return i, err
 }
 
+const getCryptoTransactionCounts = `-- name: GetCryptoTransactionCounts :one
+
+SELECT 
+    COUNT(*) FILTER (WHERE t.status = 'success') AS successful_transactions,
+    COUNT(*) FILTER (WHERE t.status = 'failed') AS failed_transactions,
+    COUNT(*) FILTER (WHERE t.status = 'pending') AS pending_transactions
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.type = 'crypto'
+`
+
+type GetCryptoTransactionCountsRow struct {
+	SuccessfulTransactions int64 `json:"successful_transactions"`
+	FailedTransactions     int64 `json:"failed_transactions"`
+	PendingTransactions    int64 `json:"pending_transactions"`
+}
+
+// -- name: GetDisputes :many
+// SELECT
+//
+//	d.id AS dispute_id,
+//	d.transaction_id,
+//	d.reason,
+//	d.status,
+//	d.created_at,
+//	d.updated_at
+//
+// FROM disputes d
+// ORDER BY d.created_at DESC;
+func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTransactionCountsRow, error) {
+	row := q.db.QueryRowContext(ctx, getCryptoTransactionCounts)
+	var i GetCryptoTransactionCountsRow
+	err := row.Scan(&i.SuccessfulTransactions, &i.FailedTransactions, &i.PendingTransactions)
+	return i, err
+}
+
 const getPendingTransactions = `-- name: GetPendingTransactions :many
 SELECT id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE status = 'pending'
@@ -399,6 +435,75 @@ func (q *Queries) GetPendingTransactions(ctx context.Context, arg GetPendingTran
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTotalCryptoTransactionAmount = `-- name: GetTotalCryptoTransactionAmount :one
+SELECT 
+    COALESCE(SUM(ctm.sent_amount), 0) AS total_sent_amount,
+    COALESCE(SUM(ctm.received_amount), 0) AS total_received_amount
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.type = 'crypto'
+`
+
+type GetTotalCryptoTransactionAmountRow struct {
+	TotalSentAmount     interface{} `json:"total_sent_amount"`
+	TotalReceivedAmount interface{} `json:"total_received_amount"`
+}
+
+func (q *Queries) GetTotalCryptoTransactionAmount(ctx context.Context) (GetTotalCryptoTransactionAmountRow, error) {
+	row := q.db.QueryRowContext(ctx, getTotalCryptoTransactionAmount)
+	var i GetTotalCryptoTransactionAmountRow
+	err := row.Scan(&i.TotalSentAmount, &i.TotalReceivedAmount)
+	return i, err
+}
+
+const getTotalReceived = `-- name: GetTotalReceived :one
+SELECT 
+    COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
+FROM transactions t
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+`
+
+func (q *Queries) GetTotalReceived(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalReceived)
+	var total_received int64
+	err := row.Scan(&total_received)
+	return total_received, err
+}
+
+const getTotalSent = `-- name: GetTotalSent :one
+SELECT 
+    COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
+FROM transactions t
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+`
+
+func (q *Queries) GetTotalSent(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalSent)
+	var total_sent int64
+	err := row.Scan(&total_sent)
+	return total_sent, err
+}
+
+const getTotalTrade = `-- name: GetTotalTrade :one
+SELECT 
+    COUNT(*) AS total_trade
+FROM transactions t
+WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service')
+`
+
+func (q *Queries) GetTotalTrade(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalTrade)
+	var total_trade int64
+	err := row.Scan(&total_trade)
+	return total_trade, err
 }
 
 const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
@@ -636,7 +741,7 @@ SELECT
                     FROM public.swap_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
                 )
-            END
+            END 
         )
     ) as result
 FROM public.transactions t

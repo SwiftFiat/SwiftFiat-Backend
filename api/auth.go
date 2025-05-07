@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -253,19 +252,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
-	if user.ReferralCode != "" {
-		_, err := a.server.queries.GetReferralByReferralKey(ctx, user.ReferralCode)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				a.server.logger.Error(fmt.Errorf("invalid referral code: %s", user.ReferralCode))
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid referral code"))
-				return
-			}
-			ctx.JSON(500, basemodels.NewError(err.Error()))
-			return
-		}
-	}
-
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
@@ -305,15 +291,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
-	}
-
-	if user.ReferralCode != "" {
-		_, err = a.referralService.TrackReferral(ctx, user.ReferralCode, newUser.ID, decimal.NewFromFloat(1000))
-		if err != nil {
-			a.server.logger.Error(logrus.ErrorLevel, err)
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-			return
-		}
 	}
 
 	token, err := TokenController.CreateToken(utils.TokenObject{
@@ -972,4 +949,30 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", struct{}{}))
+}
+
+func (a *Auth) Trackreferral(c *gin.Context) {
+	type req struct {
+		ReferralCode string `json:"referral_code" binding:"required"`
+	}
+
+	var request req
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'referral_code'"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+	ref, err := a.referralService.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Referral tracked successfully", ref))
 }

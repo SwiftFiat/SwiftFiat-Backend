@@ -96,7 +96,7 @@ UPDATE users
 SET phone_number = $1,
     email = $2,
     first_name = $3,
-    deleted_at = NOW()
+    deleted_at = NOW() 
 WHERE id = $4
 RETURNING *;
 
