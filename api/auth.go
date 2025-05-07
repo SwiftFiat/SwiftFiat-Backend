@@ -10,7 +10,6 @@ import (
 
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
-	"github.com/shopspring/decimal"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -949,30 +948,4 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", struct{}{}))
-}
-
-func (a *Auth) Trackreferral(c *gin.Context) {
-	type req struct {
-		ReferralCode string `json:"referral_code" binding:"required"`
-	}
-
-	var request req
-	if err := c.ShouldBindJSON(&request); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'referral_code'"))
-		return
-	}
-
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-		return
-	}
-	ref, err := a.referralService.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
-	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Referral tracked successfully", ref))
 }

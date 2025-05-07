@@ -46,3 +46,55 @@ func (n *Notification) Delete(ctx context.Context, userID int32, id int32) error
 	}
 	return nil
 }
+
+func (n *Notification) MaskAsRead(ctx context.Context, userID int32, notID int32) error {
+	if err := n.store.MarkNotificationAsRead(ctx, db.MarkNotificationAsReadParams{
+		ID:     notID,
+		UserID: sql.NullInt32{Valid: true, Int32: userID},
+	}); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+
+func (n *Notification) MaskAllNotificationsAsRead(ctx context.Context, userID int32) error {
+	err := n.store.MarkAllNotificationsAsRead(ctx, sql.NullInt32{Valid: true, Int32: userID})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *Notification) CountUnreadNotifications(ctx context.Context, userID int32) (int64, error) {
+	count, err := n.store.CountUnreadNotifications(ctx, sql.NullInt32{Valid: true, Int32: userID})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (n *Notification) CountAllNotifications(ctx context.Context, userID int32) (int64, error) {
+	count, err := n.store.CountAllNotifications(ctx, sql.NullInt32{Valid: true, Int32: userID})
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+func (n *Notification) DeleteAllNotifications(ctx context.Context, userID int32) error {
+	err := n.store.DeleteAllNotifications(ctx, sql.NullInt32{Valid: true, Int32: userID})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (n *Notification) DeleteAllReadNotifications(ctx context.Context, userID int32) error {
+	err := n.store.DeleteAllReadNotifications(ctx, sql.NullInt32{Valid: true, Int32: userID})
+	if err != nil {
+		return err
+	}
+	return nil
+}

@@ -24,7 +24,7 @@ type User struct {
 	server        *Server
 	walletService *wallet.WalletService
 	userService   *user_service.UserService
-	notifyr *service.Notification
+	notifyr       *service.Notification
 }
 
 func (u User) router(server *Server) {
@@ -59,6 +59,13 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	serverGroupV1.POST("delete-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
 	serverGroupV1.POST("get-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
+	serverGroupV1.PUT("/notification/mark-as-read/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkNotificationAsRead)
+	serverGroupV1.DELETE("/notification/delete/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteNotification)
+	serverGroupV1.GET("/notification/mark-all-as-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkAllNotificationsAsRead)
+	serverGroupV1.GET("/notification/count-unread", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountUnreadNotifications)
+	serverGroupV1.GET("/notification/count-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountAllNotifications)
+	serverGroupV1.GET("/notification/delete-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllNotifications)
+	serverGroupV1.DELETE("/notification/delete-all-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllReadNotifications)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -499,10 +506,10 @@ func (u *User) ListUsers(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
-		"users":  users,
-		"total_users":  len(users),
-		"offset": offset,
-		"limit":  limit,
+		"users":       users,
+		"total_users": len(users),
+		"offset":      offset,
+		"limit":       limit,
 	}))
 }
 
@@ -552,6 +559,143 @@ func (u *User) GetNotifications(ctx *gin.Context) {
 	}))
 }
 
+func (u *User) MarkNotificationAsRead(ctx *gin.Context) {
+	notID := ctx.Param("id")
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	notificationID, err := strconv.Atoi(notID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid notification ID"))
+		return
+	}
+	err = u.notifyr.MaskAsRead(ctx, int32(activeUser.UserID), int32(notificationID))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "marked as read"})
+
+}
+
+func (u *User) DeleteNotification(ctx *gin.Context) {
+	notID := ctx.Param("id")
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	notificationID, err := strconv.Atoi(notID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid notification ID"))
+		return
+	}
+	err = u.notifyr.Delete(ctx, int32(activeUser.UserID), int32(notificationID))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "marked as read"})
+
+}
+
+func (u *User) MarkAllNotificationsAsRead(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	err = u.notifyr.MaskAllNotificationsAsRead(c, int32(activeUser.UserID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "deleted successfully"})
+}
+
+func (u *User) CountUnreadNotifications(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	count, err := u.notifyr.CountUnreadNotifications(c, int32(activeUser.UserID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
+}
+
+func (u *User) CountAllNotifications(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	count, err := u.notifyr.CountAllNotifications(c, int32(activeUser.UserID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
+}
+
+func (u *User) DeleteAllNotifications(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	err = u.notifyr.DeleteAllNotifications(c, int32(activeUser.UserID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
+}
+
+func (u *User) DeleteAllReadNotifications(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	err = u.notifyr.DeleteAllReadNotifications(c, int32(activeUser.UserID))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
+}
+
 func (u *User) DeleteUser(c *gin.Context) {
 	var req *db.DeleteUserParams
 	err := c.ShouldBindJSON(&req)
@@ -575,7 +719,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 		PhoneNumber: req.PhoneNumber,
 		Email:       req.Email,
 		FirstName:   req.FirstName,
-		ID: req.ID,
+		ID:          req.ID,
 	}
 
 	_, err = u.server.queries.DeleteUser(c, param)
