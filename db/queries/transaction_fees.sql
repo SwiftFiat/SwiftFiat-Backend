@@ -44,3 +44,4 @@ ORDER BY transaction_type, effective_time DESC;
 -- name: DeleteOldTransactionFees :exec
 DELETE FROM transaction_fees 
 WHERE effective_time < $1;
+ 

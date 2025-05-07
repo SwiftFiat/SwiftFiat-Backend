@@ -10,6 +10,7 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
@@ -56,6 +57,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
+	serverGroupV1.POST("delete-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -547,4 +549,39 @@ func (u *User) GetNotifications(ctx *gin.Context) {
 		"notifications": notifications,
 		"count":         len(notifications),
 	}))
+}
+
+func (u *User) DeleteUser(c *gin.Context) {
+	var req *db.DeleteUserParams
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid request"))
+		return
+	}
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	param := db.DeleteUserParams{
+		PhoneNumber: req.PhoneNumber,
+		Email:       req.Email,
+		FirstName:   req.FirstName,
+		ID: req.ID,
+	}
+
+	_, err = u.server.queries.DeleteUser(c, param)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred deleting the user %v", err.Error())))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("user deleted successfully", nil))
 }

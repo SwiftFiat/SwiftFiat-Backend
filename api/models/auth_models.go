@@ -21,7 +21,6 @@ type RegisterUserParams struct {
 	LastName     string `json:"last_name" binding:"required"`
 	Email        string `json:"email" binding:"required"`
 	PhoneNumber  string `json:"phone_number" binding:"required"`
-	ReferralCode string `json:"referral_code"`
 	Password     string `json:"password" binding:"required"`
 }
 
