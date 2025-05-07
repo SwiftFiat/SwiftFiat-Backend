@@ -10,6 +10,32 @@ import (
 	"database/sql"
 )
 
+const countAllNotifications = `-- name: CountAllNotifications :one
+SELECT COUNT(*) AS count
+FROM notifications
+WHERE user_id = $1
+`
+
+func (q *Queries) CountAllNotifications(ctx context.Context, userID sql.NullInt32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAllNotifications, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countUnreadNotifications = `-- name: CountUnreadNotifications :one
+SELECT COUNT(*) AS count
+FROM notifications
+WHERE user_id = $1 AND read = FALSE
+`
+
+func (q *Queries) CountUnreadNotifications(ctx context.Context, userID sql.NullInt32) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUnreadNotifications, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createNotification = `-- name: CreateNotification :one
 INSERT INTO notifications (user_id, message)
 VALUES ($1, $2)
@@ -32,6 +58,26 @@ func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotification
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const deleteAllNotifications = `-- name: DeleteAllNotifications :exec
+DELETE FROM notifications
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteAllNotifications(ctx context.Context, userID sql.NullInt32) error {
+	_, err := q.db.ExecContext(ctx, deleteAllNotifications, userID)
+	return err
+}
+
+const deleteAllReadNotifications = `-- name: DeleteAllReadNotifications :exec
+DELETE FROM notifications
+WHERE user_id = $1 AND read = TRUE
+`
+
+func (q *Queries) DeleteAllReadNotifications(ctx context.Context, userID sql.NullInt32) error {
+	_, err := q.db.ExecContext(ctx, deleteAllReadNotifications, userID)
+	return err
 }
 
 const deleteNotification = `-- name: DeleteNotification :exec
@@ -83,4 +129,31 @@ func (q *Queries) ListNotificationsByUser(ctx context.Context, userID sql.NullIn
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAllNotificationsAsRead = `-- name: MarkAllNotificationsAsRead :exec
+UPDATE notifications
+SET read = TRUE
+WHERE user_id = $1
+`
+
+func (q *Queries) MarkAllNotificationsAsRead(ctx context.Context, userID sql.NullInt32) error {
+	_, err := q.db.ExecContext(ctx, markAllNotificationsAsRead, userID)
+	return err
+}
+
+const markNotificationAsRead = `-- name: MarkNotificationAsRead :exec
+UPDATE notifications
+SET read = TRUE
+WHERE id = $1 AND user_id = $2
+`
+
+type MarkNotificationAsReadParams struct {
+	ID     int32         `json:"id"`
+	UserID sql.NullInt32 `json:"user_id"`
+}
+
+func (q *Queries) MarkNotificationAsRead(ctx context.Context, arg MarkNotificationAsReadParams) error {
+	_, err := q.db.ExecContext(ctx, markNotificationAsRead, arg.ID, arg.UserID)
+	return err
 }

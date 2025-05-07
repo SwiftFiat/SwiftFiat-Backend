@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sirupsen/logrus"
 )
 
 type Referral struct {
@@ -22,7 +23,7 @@ type Referral struct {
 	repo                    *referral.Repo
 	logger                  *logging.Logger
 	AmountEarnedPerReferral decimal.Decimal
-	notifyr *service.Notification
+	notifyr                 *service.Notification
 }
 
 func (r Referral) router(server *Server) {
@@ -38,6 +39,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferrals)
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
 	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
+	serverGroupV1.POST("/track", r.server.authMiddleware.AuthenticatedMiddleware(), r.Trackreferral)
 }
 
 func (a Referral) testReferral(ctx *gin.Context) {
@@ -48,6 +50,32 @@ func (a Referral) testReferral(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, dr)
+}
+
+func (a *Referral) Trackreferral(c *gin.Context) {
+	type req struct {
+		ReferralCode string `json:"referral_code" binding:"required"`
+	}
+
+	var request req
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'referral_code'"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+	ref, err := a.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Referral tracked successfully", ref))
 }
 
 func (r *Referral) GetUserReferrals(ctx *gin.Context) {

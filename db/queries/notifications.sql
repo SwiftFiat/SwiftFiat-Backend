@@ -12,3 +12,31 @@ ORDER BY created_at DESC;
 -- name: DeleteNotification :exec
 DELETE FROM notifications
 WHERE id = $1 AND user_id = $2;
+
+-- name: MarkNotificationAsRead :exec
+UPDATE notifications
+SET read = TRUE
+WHERE id = $1 AND user_id = $2;
+
+-- name: MarkAllNotificationsAsRead :exec
+UPDATE notifications
+SET read = TRUE
+WHERE user_id = $1;
+
+-- name: CountUnreadNotifications :one
+SELECT COUNT(*) AS count
+FROM notifications
+WHERE user_id = $1 AND read = FALSE;
+
+-- name: CountAllNotifications :one
+SELECT COUNT(*) AS count
+FROM notifications
+WHERE user_id = $1;
+
+-- name: DeleteAllNotifications :exec
+DELETE FROM notifications
+WHERE user_id = $1;
+
+-- name: DeleteAllReadNotifications :exec
+DELETE FROM notifications
+WHERE user_id = $1 AND read = TRUE;
