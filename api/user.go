@@ -58,6 +58,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	serverGroupV1.POST("delete-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
+	serverGroupV1.POST("get-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -584,4 +585,34 @@ func (u *User) DeleteUser(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, basemodels.NewSuccess("user deleted successfully", nil))
+}
+
+func (u *User) GetUserByID(c *gin.Context) {
+	var req struct {
+		ID int64 `json:"id" binding:"required"`
+	}
+	err := c.ShouldBindJSON(&req)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid request"))
+		return
+	}
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	user, err := u.server.queries.GetUserByID(c, req.ID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", user))
 }
