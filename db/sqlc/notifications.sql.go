@@ -37,22 +37,33 @@ func (q *Queries) CountUnreadNotifications(ctx context.Context, userID sql.NullI
 }
 
 const createNotification = `-- name: CreateNotification :one
-INSERT INTO notifications (user_id, message)
-VALUES ($1, $2)
-RETURNING id, user_id, message, read, created_at
+INSERT INTO notifications (user_id, title, message)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, title, message, read, created_at
 `
 
 type CreateNotificationParams struct {
 	UserID  sql.NullInt32 `json:"user_id"`
+	Title   string        `json:"title"`
 	Message string        `json:"message"`
 }
 
-func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
-	row := q.db.QueryRowContext(ctx, createNotification, arg.UserID, arg.Message)
-	var i Notification
+type CreateNotificationRow struct {
+	ID        int32         `json:"id"`
+	UserID    sql.NullInt32 `json:"user_id"`
+	Title     string        `json:"title"`
+	Message   string        `json:"message"`
+	Read      sql.NullBool  `json:"read"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+}
+
+func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (CreateNotificationRow, error) {
+	row := q.db.QueryRowContext(ctx, createNotification, arg.UserID, arg.Title, arg.Message)
+	var i CreateNotificationRow
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
+		&i.Title,
 		&i.Message,
 		&i.Read,
 		&i.CreatedAt,
@@ -96,24 +107,34 @@ func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotification
 }
 
 const listNotificationsByUser = `-- name: ListNotificationsByUser :many
-SELECT id, user_id, message, read, created_at
+SELECT id, user_id, title, message, read, created_at
 FROM notifications
 WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListNotificationsByUser(ctx context.Context, userID sql.NullInt32) ([]Notification, error) {
+type ListNotificationsByUserRow struct {
+	ID        int32         `json:"id"`
+	UserID    sql.NullInt32 `json:"user_id"`
+	Title     string        `json:"title"`
+	Message   string        `json:"message"`
+	Read      sql.NullBool  `json:"read"`
+	CreatedAt sql.NullTime  `json:"created_at"`
+}
+
+func (q *Queries) ListNotificationsByUser(ctx context.Context, userID sql.NullInt32) ([]ListNotificationsByUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listNotificationsByUser, userID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Notification{}
+	items := []ListNotificationsByUserRow{}
 	for rows.Next() {
-		var i Notification
+		var i ListNotificationsByUserRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
+			&i.Title,
 			&i.Message,
 			&i.Read,
 			&i.CreatedAt,

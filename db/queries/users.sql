@@ -14,7 +14,7 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpdateUserFreshChatID :one
 UPDATE users SET fresh_chat_id = $1, updated_at = $2
-WHERE id = $3 RETURNING *;
+WHERE id = $3 RETURNING *; 
 
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
@@ -102,3 +102,17 @@ RETURNING *;
 
 -- name: DeleteAllUsers :exec
 DELETE FROM users;
+
+-- name: DeactivateUser :one
+UPDATE "users"
+SET "is_active" = FALSE,
+    "updated_at" = NOW()
+WHERE "id" = $1
+RETURNING *;
+
+-- name: ActivateUser :one
+UPDATE "users"
+SET "is_active" = TRUE,
+    "updated_at" = NOW()
+WHERE "id" = $1
+RETURNING *;

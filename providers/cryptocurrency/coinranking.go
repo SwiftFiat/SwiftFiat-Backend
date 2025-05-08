@@ -158,7 +158,7 @@ func (p *CoinRankingProvider) GetCoinHistoryData(symbol, timePeriod string) (*Co
 		return nil, fmt.Errorf("failed to get coin UUID: %v", err)
 	}
 
-	url := fmt.Sprintf("%s/coin/%s/price-history/?timePeriod=%s", p.BaseURL, uuid, timePeriod)
+	url := fmt.Sprintf("%s/coin/%s/price-history?timePeriod=%s", p.BaseURL, uuid, timePeriod)
 
 	headers := map[string]string{
 		"x-access-token": p.APIKey,

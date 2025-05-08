@@ -54,7 +54,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
 	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
 	serverGroupV1.GET("get-new-users-today", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNewUsersToday)
-	serverGroupV1.POST("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
+	serverGroupV1.GET("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	serverGroupV1.POST("delete-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
@@ -66,6 +66,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/notification/count-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountAllNotifications)
 	serverGroupV1.GET("/notification/delete-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllNotifications)
 	serverGroupV1.DELETE("/notification/delete-all-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllReadNotifications)
+	serverGroupV1.PUT("update-status", u.server.authMiddleware.AuthenticatedMiddleware(), u.UpdateUserStatus)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -758,5 +759,91 @@ func (u *User) GetUserByID(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", user))
+
+	ref, err := u.server.queries.GetReferralByUserID(c, int32(activeUser.UserID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
+			return
+		}
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	earnings, err := u.server.queries.GetReferralEarnings(c, int32(user.ID))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	refs, err := u.server.queries.GetUserReferrals(c, int32(user.ID))
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	wallets, err := u.server.queries.ListWallets(c, activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", gin.H{
+		"user":    &user,
+		"wallets": wallets,
+		"referral": map[string]any{
+			"key":       ref.ReferralKey,
+			"earnings":  earnings,
+			"referrals": refs,
+		},
+	}))
+}
+
+func (u *User) UpdateUserStatus(ctx *gin.Context) {
+	request := struct {
+		UserID   int64 `json:"user_id" binding:"required"`
+		IsActive bool  `json:"is_active" binding:"required"`
+	}{}
+
+	err := ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid user_id and is_active status"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var updatedUser db.User
+	if request.IsActive {
+		updatedUser, err = u.server.queries.ActivateUser(ctx, request.UserID)
+	} else {
+		updatedUser, err = u.server.queries.DeactivateUser(ctx, request.UserID)
+	}
+
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred updating the user status"))
+		return
+	}
+
+	status := "activated"
+	if !request.IsActive {
+		status = "deactivated"
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("user successfully %s", status), &updatedUser))
 }

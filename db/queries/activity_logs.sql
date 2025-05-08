@@ -22,3 +22,7 @@ SELECT COUNT(DISTINCT user_id) as active_users
 FROM activity_logs
 WHERE created_at >= $1 AND created_at < $2
   AND user_id IS NOT NULL;
+
+-- name: DeleteOldActivityLogs :exec
+DELETE FROM activity_logs
+WHERE created_at < NOW() - INTERVAL '3 days';
