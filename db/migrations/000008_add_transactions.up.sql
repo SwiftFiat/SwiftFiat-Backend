@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
     "service_provider" VARCHAR(100), -- e.g., Paystack
     "service_transaction_id" VARCHAR(100), -- e.g to track the withdrawal at service provider level
     CONSTRAINT "unique_transaction_fiat" UNIQUE (transaction_id)
-);
+); 
 
 -- Services metadata for services like TV subscription, airtime-data purchase, etc.
 CREATE TABLE IF NOT EXISTS "services_metadata" (

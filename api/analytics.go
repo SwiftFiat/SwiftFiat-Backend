@@ -33,6 +33,8 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.GET("/total-trade", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalTrade)
 	serverGroupV1.GET("/crypto-transactions/counts", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetCryptoTransactionCounts)
 	serverGroupV1.GET("/crypto-transactions/amount", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalCryptoTransactionAmount)
+	serverGroupV1.GET("/crypto-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllCryptoTransactions)
+	serverGroupV1.DELETE("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.DeleteOldActivityLogs)
 	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
@@ -309,4 +311,52 @@ func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
 		"total_sent_amount":     totalAmount.TotalSentAmount,
 		"total_received_amount": totalAmount.TotalReceivedAmount,
 	}))
+}
+
+func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListAllCryptoTransactions(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching all crypto transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch crypto transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Crypto transactions retrieved successfully", gin.H{
+		"transactions": transactions,
+	}))
+}
+
+func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	err = h.service.DeleteOldLogs(c.Request.Context())
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error deleting old activity logs: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete old activity logs"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Old activity logs deleted successfully", nil))
 }

@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     
     -- Primary contact/login identifier
     -- 256 characters to accommodate long emails
-    "email" VARCHAR(256) UNIQUE NOT NULL,
+    "email" VARCHAR(256) UNIQUE NOT NULL, 
     
     -- Multiple authentication options
     -- All should use secure hashing algorithms (e.g., bcrypt)

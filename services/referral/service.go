@@ -78,10 +78,10 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 			s.logger.Error(err)
 			return nil, err
 		}
-		s.notifyr.Create(ctx, int32(referrerID), fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
+		s.notifyr.Create(ctx, int32(referrerID),"Referral", fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
 		// TODO: Notify the referrer about the earnings
 	} else {
-		s.notifyr.Create(ctx, int32(referrerID), fmt.Sprintf("You have earned a referral bonus of %s for referring a new user", referralAmount.String()))
+		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s for referring a new user", referralAmount.String()))
 		// TODO: Send email notification to the referrer saying they have earned a referral bonus pending KYC approval of the referee
 	}
 

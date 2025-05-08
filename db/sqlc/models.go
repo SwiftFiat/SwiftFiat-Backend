@@ -233,6 +233,7 @@ type Notification struct {
 	Message   string        `json:"message"`
 	Read      sql.NullBool  `json:"read"`
 	CreatedAt sql.NullTime  `json:"created_at"`
+	Title     string        `json:"title"`
 }
 
 type Otp struct {
@@ -379,6 +380,7 @@ type User struct {
 	HasWallets     bool           `json:"has_wallets"`
 	UserTag        sql.NullString `json:"user_tag"`
 	FreshChatID    sql.NullString `json:"fresh_chat_id"`
+	IsActive       bool           `json:"is_active"`
 }
 
 type UserReferral struct {

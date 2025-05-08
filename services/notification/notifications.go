@@ -15,10 +15,11 @@ func NewNotificationService(store *db.Store) *Notification {
 	return &Notification{store}
 }
 
-func (n *Notification) Create(ctx context.Context, userID int32, message string) (*db.Notification, error) {
+func (n *Notification) Create(ctx context.Context, userID int32, title, message string) (*db.CreateNotificationRow, error) {
 	nots, err := n.store.CreateNotification(ctx, db.CreateNotificationParams{
 		UserID:  sql.NullInt32{Int32: userID, Valid: true},
 		Message: message,
+		Title: title,
 	})
 
 	if err != nil {
@@ -27,7 +28,7 @@ func (n *Notification) Create(ctx context.Context, userID int32, message string)
 	return &nots, nil
 }
 
-func (n *Notification) Get(ctx context.Context, userID int32) ([]db.Notification, error) {
+func (n *Notification) Get(ctx context.Context, userID int32) ([]db.ListNotificationsByUserRow, error) {
 	nots, err := n.store.ListNotificationsByUser(ctx, sql.NullInt32{Int32: userID, Valid: true})
 
 	if err != nil {

@@ -65,6 +65,10 @@ func (a *ActivityLog) CountActiveUsers(ctx context.Context, start, end time.Time
 	return count, nil
 }
 
+func (a *ActivityLog) DeleteOldLogs(ctx context.Context) error {
+	return a.store.DeleteOldActivityLogs(ctx)
+}
+
 // Helper functions
 func toNullInt32(i *int32) sql.NullInt32 {
 	if i == nil {

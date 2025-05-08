@@ -1,10 +1,10 @@
 -- name: CreateNotification :one
-INSERT INTO notifications (user_id, message)
-VALUES ($1, $2)
-RETURNING id, user_id, message, read, created_at;
+INSERT INTO notifications (user_id, title, message)
+VALUES ($1, $2, $3)
+RETURNING id, user_id, title, message, read, created_at;
 
 -- name: ListNotificationsByUser :many
-SELECT id, user_id, message, read, created_at
+SELECT id, user_id, title, message, read, created_at
 FROM notifications
 WHERE user_id = $1
 ORDER BY created_at DESC;

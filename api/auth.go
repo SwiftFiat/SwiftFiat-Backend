@@ -309,9 +309,17 @@ func (a *Auth) register(ctx *gin.Context) {
 		Token: token,
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	_, err = a.notifr.Create(ctx, int32(newUser.ID), "Welcome to SwiftFiat", fmt.Sprintf("Hello %s, welcome to SwiftFiat. Your referral code is %s", newUser.FirstName.String, referralKey))
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+	}
+
+	_, err = a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
 		Action: fmt.Sprintf("User %s registered in %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+	}
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
 }

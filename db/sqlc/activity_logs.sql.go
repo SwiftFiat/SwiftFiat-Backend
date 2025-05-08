@@ -75,6 +75,16 @@ func (q *Queries) CreateActivityLog(ctx context.Context, arg CreateActivityLogPa
 	return i, err
 }
 
+const deleteOldActivityLogs = `-- name: DeleteOldActivityLogs :exec
+DELETE FROM activity_logs
+WHERE created_at < NOW() - INTERVAL '3 days'
+`
+
+func (q *Queries) DeleteOldActivityLogs(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, deleteOldActivityLogs)
+	return err
+}
+
 const getActivityLogsByUser = `-- name: GetActivityLogsByUser :many
 SELECT id, user_id, action, entity_type, entity_id, ip_address, user_agent, created_at FROM activity_logs
 WHERE user_id = $1
