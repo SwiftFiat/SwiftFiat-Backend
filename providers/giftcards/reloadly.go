@@ -202,12 +202,18 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 	}
 	defer resp.Body.Close()
 
+	logging.NewLogger().Info(fmt.Sprintf("audience - %v", audience))
+	logging.NewLogger().Info(fmt.Sprintf("client ID: %s, Client Secret - %s", clientID, clientSecret))
+	logging.NewLogger().Info(fmt.Sprintf("Audience type: %s", audienceType))
+	logging.NewLogger().Info(fmt.Sprintf("Token request URL: %s, Request: %+v, Headers: %+v", url, request, requiredHeaders))	
+
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := ioutil.ReadAll(resp.Body)
 		logging.NewLogger().Error("resp", string(respBody))
 		return "", fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
+
 
 	// Decode the response body
 	var apiResponse reloadlymodels.TokenApiResponse
@@ -222,11 +228,16 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		Token:    apiResponse,
 		Audience: audience,
 	}
+
+	logging.NewLogger().Infof("Token expires in: %v seconds", apiResponse.ExpiresIn)
+
+
+	
 	return apiResponse.AccessToken, nil
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	token, err := r.GetToken(reloadlymodels.PROD) //change back to sandbox
+	token, err := r.GetToken(reloadlymodels.SANDBOX)
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +246,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardProdUrl) // chhange back to GiftCardBaseUrl
+	base, err := url.Parse(r.config.GiftCardBaseUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
