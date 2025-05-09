@@ -23,7 +23,7 @@ type ReloadlyProvider struct {
 }
 
 type GiftCardConfig struct {
-	GiftCardName    string `mapstructure:"GIFTCARD_PROVIDER_NAME"`
+	GiftCardName    string `mapstructure:"GIFTCARD_PROVIDER_NAME"` 
 	GiftCardID      string `mapstructure:"GIFTCARD_APP_ID"`
 	GiftCardKey     string `mapstructure:"GIFTCARD_KEY"`
 	GiftCardBaseUrl string `mapstructure:"GIFTCARD_BASE_URL"`
@@ -226,7 +226,7 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	token, err := r.GetToken(reloadlymodels.SANDBOX)
+	token, err := r.GetToken(reloadlymodels.PROD) //change back to sandbox
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardBaseUrl)
+	base, err := url.Parse(r.config.GiftCardProdUrl) // chhange back to GiftCardBaseUrl
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
