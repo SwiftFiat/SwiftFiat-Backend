@@ -725,7 +725,7 @@ SELECT
     t.type AS transaction_type,
     t.description AS transaction_description,
     t.transaction_flow,
-    t.status AS transaction_status,
+    t.status AS transaction_status, 
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
     cm.destination_wallet,
@@ -740,4 +740,25 @@ SELECT
 FROM transactions t
 JOIN crypto_transaction_metadata cm ON t.id = cm.transaction_id
 WHERE t.type = 'crypto'
+ORDER BY t.created_at DESC;
+
+-- name: ListGiftcardTransactions :many
+SELECT 
+    gtm.id AS metadata_id,
+    gtm.source_wallet,
+    gtm.transaction_id,
+    gtm.rate,
+    gtm.received_amount,
+    gtm.sent_amount,
+    gtm.fees,
+    gtm.service_provider,
+    gtm.service_transaction_id,
+    t.type,
+    t.description,
+    t.transaction_flow,
+    t.status,
+    t.created_at,
+    t.updated_at
+FROM giftcard_transaction_metadata gtm
+JOIN transactions t ON gtm.transaction_id = t.id
 ORDER BY t.created_at DESC;

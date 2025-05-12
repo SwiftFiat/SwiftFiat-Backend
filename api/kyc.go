@@ -14,17 +14,21 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
 
 type KYC struct {
 	server *Server
+	notifyr *service.Notification
 }
 
 func (k KYC) router(server *Server) {
 	k.server = server
+	k.notifyr = service.NewNotificationService(k.server.queries)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
@@ -210,6 +214,8 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
 		return
 	}
+
+	k.onKYCCompletion(ctx, activeUser.UserID)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
 }
@@ -614,4 +620,47 @@ func (k *KYC) retrieveProofOfAddress(c *gin.Context) {
 
 	// Send the image as a response
 	c.Data(http.StatusOK, "application/octet-stream", proof.ImageData)
+}
+
+func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
+    // Check if the user has a referrer
+    referral, err := k.server.queries.GetReferralByRefereeID(ctx, int32(userID))
+    if err != nil {
+        if err == sql.ErrNoRows {
+            // No referrer found, nothing to do
+            return
+        }
+        k.server.logger.Error(err)
+        return
+    }
+
+    // Get the referrer's ID and referral bonus amount
+    referrerID := int64(referral.ReferrerID)
+    referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
+    if err != nil {
+        k.server.logger.Error(err)
+        return
+    }
+
+    // Update the referrer's earnings
+    params := db.UpdateReferralEarningsParams{
+        UserID:      int32(referrerID),
+        TotalEarned: referralBonus.String(),
+    }
+    _, err = k.server.queries.UpdateReferralEarnings(ctx, params)
+    if err != nil {
+        k.server.logger.Error(err)
+        return
+    }
+	err = k.server.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
+		RefereeID:     referral.ID,
+		Status: "active",
+	})
+	if err != nil {
+		k.server.logger.Error(err)
+		return
+	}
+
+    // Notify the referrer
+    k.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have received a referral bonus of %s for referring a user who completed their KYC.", referralBonus.String()))
 }

@@ -12,37 +12,40 @@ var (
 )
 
 type Config struct {
-	Env                  string `mapstructure:"ENV"`
-	ServerPort           int    `mapstructure:"SERVER_PORT"`
-	SigningKey           string `mapstructure:"SIGNING_KEY"`
-	ServerBaseURL        string `mapstructure:"SERVER_BASE_URL"`
-	AWSRegion            string `mapstructure:"AWS_REGION"`
-	AWSAccessKeyID       string `mapstructure:"AWS_ACCESS_KEY"`
-	AWSSecretAccessKey   string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
-	DBUsername           string `mapstructure:"DB_USERNAME"`
-	DBPassword           string `mapstructure:"DB_PASSWORD"`
-	DBHost               string `mapstructure:"DB_HOST"`
-	DBPort               string `mapstructure:"DB_PORT"`
-	DBDriver             string `mapstructure:"DB_DRIVER"`
-	DBName               string `mapstructure:"DB_NAME"`
-	SSLMode              string `mapstructure:"SSLMODE"`
-	OTPSourceMail        string `mapstructure:"OTP_SOURCE_MAIL"`
-	Papertrail           string `mapstructure:"PAPERTRAIL"`
-	PapertrailAppName    string `mapstructure:"PAPERTRAIL_APP_NAME"`
-	RedisHost            string `mapstructure:"REDIS_HOST"`
-	RedisPort            string `mapstructure:"REDIS_PORT"`
-	RedisPassword        string `mapstructure:"REDIS_PASSWORD"`
-	Phone                string `mapstructure:"PHONE"`
-	CountryCode          string `mapstructure:"COUNTRYCODE"`
-	Email                string `mapstructure:"EMAIL"`
-	CryptomusBaseUrl     string `mapstructure:"CRYPTOMUS_BASE_URL"`
-	CryptomusApiKey      string `mapstructure:"CRYPTOMUS_API_KEY"`
-	CryptomusMerchantId  string `mapstructure:"CRYPTOMUS_MERCHANT_ID"`
-	CryptomusCallbackUrl string `mapstructure:"CRYPTOMUS_CALLBACK_URL"`
-	CoinDataProviderName string `mapstructure:"COIN_DATA_PROVIDER_NAME"`
-	CoinRankingBaseUrl   string `mapstructure:"COINRANKING_BASE_URL"`
-	CoinRankingAccessKey string `mapstructure:"COINRANKING_ACCESS_KEY"`
-}	
+	Env                       string `mapstructure:"ENV"`
+	ServerPort                int    `mapstructure:"SERVER_PORT"`
+	SigningKey                string `mapstructure:"SIGNING_KEY"`
+	ServerBaseURL             string `mapstructure:"SERVER_BASE_URL"`
+	AWSRegion                 string `mapstructure:"AWS_REGION"`
+	AWSAccessKeyID            string `mapstructure:"AWS_ACCESS_KEY"`
+	AWSSecretAccessKey        string `mapstructure:"AWS_SECRET_ACCESS_KEY"`
+	DBUsername                string `mapstructure:"DB_USERNAME"`
+	DBPassword                string `mapstructure:"DB_PASSWORD"`
+	DBHost                    string `mapstructure:"DB_HOST"`
+	DBPort                    string `mapstructure:"DB_PORT"`
+	DBDriver                  string `mapstructure:"DB_DRIVER"`
+	DBName                    string `mapstructure:"DB_NAME"`
+	SSLMode                   string `mapstructure:"SSLMODE"`
+	OTPSourceMail             string `mapstructure:"OTP_SOURCE_MAIL"`
+	Papertrail                string `mapstructure:"PAPERTRAIL"`
+	PapertrailAppName         string `mapstructure:"PAPERTRAIL_APP_NAME"`
+	RedisHost                 string `mapstructure:"REDIS_HOST"`
+	RedisPort                 string `mapstructure:"REDIS_PORT"`
+	RedisPassword             string `mapstructure:"REDIS_PASSWORD"`
+	Phone                     string `mapstructure:"PHONE"`
+	CountryCode               string `mapstructure:"COUNTRYCODE"`
+	Email                     string `mapstructure:"EMAIL"`
+	CryptomusBaseUrl          string `mapstructure:"CRYPTOMUS_BASE_URL"`
+	CryptomusApiKey           string `mapstructure:"CRYPTOMUS_API_KEY"`
+	CryptomusMerchantId       string `mapstructure:"CRYPTOMUS_MERCHANT_ID"`
+	CryptomusCallbackUrl      string `mapstructure:"CRYPTOMUS_CALLBACK_URL"`
+	CoinDataProviderName      string `mapstructure:"COIN_DATA_PROVIDER_NAME"`
+	CoinRankingBaseUrl        string `mapstructure:"COINRANKING_BASE_URL"`
+	CoinRankingAccessKey      string `mapstructure:"COINRANKING_ACCESS_KEY"`
+	TWILIO_ACCOUNT_SID        string `mapstructure:"TWILIO_ACCOUNT_SID"`
+	TWILIO_AUTH_TOKEN         string `mapstructure:"TWILIO_AUTH_TOKEN"`
+	TWILIO_VERIFY_SERVICE_SID string `mapstructure:"TWILIO_VERIFY_SERVICE_SID"`
+}
 
 func LoadConfig(path string) (*Config, error) {
 	// Validate that the path is not empty
@@ -69,18 +72,18 @@ func LoadConfig(path string) (*Config, error) {
 	}
 
 	// Bind environment variables explicitly
-    _ = v.BindEnv("SERVER_PORT")
-    _ = v.BindEnv("SIGNING_KEY")
-    _ = v.BindEnv("TOKEN_TTL")
-    _ = v.BindEnv("DB_USERNAME")
-    _ = v.BindEnv("DB_PASSWORD")
-    _ = v.BindEnv("DB_HOST")
-    _ = v.BindEnv("DB_NAME")
-    _ = v.BindEnv("DB_PORT")
-    _ = v.BindEnv("SSLMODE")
-    _ = v.BindEnv("DB_DRIVER")
-    _ = v.BindEnv("PAPERTRAIL")
-    _ = v.BindEnv("KYC_PROVIDER_NAME")
+	_ = v.BindEnv("SERVER_PORT")
+	_ = v.BindEnv("SIGNING_KEY")
+	_ = v.BindEnv("TOKEN_TTL")
+	_ = v.BindEnv("DB_USERNAME")
+	_ = v.BindEnv("DB_PASSWORD")
+	_ = v.BindEnv("DB_HOST")
+	_ = v.BindEnv("DB_NAME")
+	_ = v.BindEnv("DB_PORT")
+	_ = v.BindEnv("SSLMODE")
+	_ = v.BindEnv("DB_DRIVER")
+	_ = v.BindEnv("PAPERTRAIL")
+	_ = v.BindEnv("KYC_PROVIDER_NAME")
 	_ = v.BindEnv("DOJAH_KEY")
 	_ = v.BindEnv("DOJAH_APP_ID")
 	_ = v.BindEnv("DOJAH_BASE_URL")
@@ -117,8 +120,9 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("CRYPTOMUS_MERCHANT_ID")
 	_ = v.BindEnv("CRYPTOMUS_API_KEY")
 	_ = v.BindEnv("CRYPTOMUS_CALLBACK_URL")
-	
-
+	_ = v.BindEnv("TWILIO_VERIFY_SERVICE_SID")
+	_ = v.BindEnv("TWILIO_ACCOUNT_SID")
+	_ = v.BindEnv("TWILIO_AUTH_TOKEN")
 
 	// Create config struct
 	var config Config

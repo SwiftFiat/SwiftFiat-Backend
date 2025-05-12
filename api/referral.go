@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -40,6 +41,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
 	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	serverGroupV1.POST("/track", r.server.authMiddleware.AuthenticatedMiddleware(), r.Trackreferral)
+	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
 }
 
 func (a Referral) testReferral(ctx *gin.Context) {
@@ -249,4 +251,16 @@ func (r *Referral) Withdraw(c *gin.Context) {
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wallett))
 
+}
+
+func (r *Referral) Reminder(c *gin.Context) {
+	useriD := c.Param("user_id")
+	parsedUserID, err := strconv.Atoi(useriD)
+	if err != nil {
+		r.logger.Error(fmt.Errorf("invalid user_id: %v", err))
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user_id"))
+		return
+	}
+	r.notifyr.Create(c, int32(parsedUserID), "referral", "You have a pending referral request, complete your KYC!")
+	c.JSON(http.StatusOK, basemodels.NewSuccess("reminder sent successfully", nil))
 }

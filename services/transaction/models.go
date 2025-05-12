@@ -65,7 +65,7 @@ type IntraTransaction struct {
 	Currency       string
 	Description    string
 	Type           TransactionType
-}
+} 
 
 type CryptoTransaction struct {
 	ID                 string

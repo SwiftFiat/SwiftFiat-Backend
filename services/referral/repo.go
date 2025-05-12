@@ -16,14 +16,18 @@ type Referral struct {
 	RefereeID    int64           `json:"referee_id"`
 	EarnedAmount decimal.Decimal `json:"earned_amount"`
 	CreatedAt    time.Time       `json:"created_at"`
+	Status       ReferralStatus          `json:"status"`
 }
 
 type WithdrawalRequestStatus string
+type ReferralStatus string
 
 const (
 	WithdrawalStatusPending   WithdrawalRequestStatus = "pending"
 	WithdrawalStatusApproved  WithdrawalRequestStatus = "approved"
 	WithdrawalStatusCompleted WithdrawalRequestStatus = "completed"
+	ReferralStatusPending     ReferralStatus          = "pending"
+	ReferralStatusActive      ReferralStatus          = "active"
 )
 
 var (
@@ -137,11 +141,12 @@ func NewReferralRepository(queries *db.Store) *Repo {
 	return &Repo{queries}
 }
 
-func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, amount decimal.Decimal) (*Referral, error) {
+func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, amount decimal.Decimal, status string) (*Referral, error) {
 	params := db.CreateReferralParams{
 		ReferrerID:   int32(referrerID),
 		RefereeID:    int32(refereeID),
 		EarnedAmount: amount.String(),
+		Status:       string(ReferralStatusPending),
 	}
 
 	referral, err := r.queries.CreateReferral(ctx, params)
@@ -153,6 +158,7 @@ func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, 
 		ReferrerID:   int64(referral.ReferrerID),
 		RefereeID:    int64(referral.RefereeID),
 		EarnedAmount: amount,
+		Status: 	 ReferralStatus(referral.Status),
 	}, nil
 }
 
@@ -205,45 +211,45 @@ func (r *Repo) GetReferralEarnings(ctx context.Context, userID int64) (*db.Refer
 }
 
 func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (*db.WithdrawalRequest, error) {
-    const withdrawalThreshold = 10000.00 // 10,000 Naira
+	const withdrawalThreshold = 10000.00 // 10,000 Naira
 
-    var wr db.WithdrawalRequest // Change to non-pointer type
+	var wr db.WithdrawalRequest // Change to non-pointer type
 
-    err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
-        // Check if user has enough balance
-        earnings, err := q.GetReferralEarnings(ctx, int32(userID))
-        if err != nil {
-            return err
-        }
+	err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
+		// Check if user has enough balance
+		earnings, err := q.GetReferralEarnings(ctx, int32(userID))
+		if err != nil {
+			return err
+		}
 
-        aBToDecimal, err := decimal.NewFromString(earnings.AvailableBalance)
-        if err != nil {
-            return err
-        }
+		aBToDecimal, err := decimal.NewFromString(earnings.AvailableBalance)
+		if err != nil {
+			return err
+		}
 
-        if aBToDecimal.LessThan(amount) {
-            return ErrInsufficientBalance
-        }
+		if aBToDecimal.LessThan(amount) {
+			return ErrInsufficientBalance
+		}
 
-        wtToDecimal := decimal.NewFromFloat(withdrawalThreshold)
-        if amount.LessThan(wtToDecimal) {
-            return ErrWithdrawalThreshold
-        }
+		wtToDecimal := decimal.NewFromFloat(withdrawalThreshold)
+		if amount.LessThan(wtToDecimal) {
+			return ErrWithdrawalThreshold
+		}
 
-        // Deduct the amount from available balance
-        newAvailableBalance := aBToDecimal.Sub(amount)
-        updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
-            UserID:           int32(userID),
-            AvailableBalance: newAvailableBalance.String(),
-        }
-        if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
-            return err
-        }
+		// Deduct the amount from available balance
+		newAvailableBalance := aBToDecimal.Sub(amount)
+		updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
+			UserID:           int32(userID),
+			AvailableBalance: newAvailableBalance.String(),
+		}
+		if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
+			return err
+		}
 
 		// Get user naira wallet
-		walletParams := db.GetWalletByCurrencyParams {
-			CustomerID:    userID,
-			Currency:  "NGN",
+		walletParams := db.GetWalletByCurrencyParams{
+			CustomerID: userID,
+			Currency:   "NGN",
 		}
 
 		wallet, err := q.GetWalletByCurrency(ctx, walletParams)
@@ -251,84 +257,84 @@ func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount
 			return err
 		}
 
-        // Create withdrawal request
-        params := db.CreateWithdrawalRequestParams{
-            UserID: int32(userID),
-            Amount: amount.String(),
+		// Create withdrawal request
+		params := db.CreateWithdrawalRequestParams{
+			UserID:   int32(userID),
+			Amount:   amount.String(),
 			WalletID: wallet.ID,
-        }
-        wr, err = q.CreateWithdrawalRequest(ctx, params) 
-        if err != nil {
-            return err
-        }
+		}
+		wr, err = q.CreateWithdrawalRequest(ctx, params)
+		if err != nil {
+			return err
+		}
 
-        return nil
-    })
+		return nil
+	})
 
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    return &wr, nil 
+	return &wr, nil
 }
 
 func (r *Repo) UpdateWithdrawalRequestStatus(ctx context.Context, requestID int64, status WithdrawalRequestStatus) (*db.WithdrawalRequest, error) {
-    var wr db.WithdrawalRequest
+	var wr db.WithdrawalRequest
 
-    err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
-        // Fetch the withdrawal request
-        requested, err := q.GetWithdrawalRequest(ctx, requestID)
-        if err != nil {
-            return err
-        }
+	err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
+		// Fetch the withdrawal request
+		requested, err := q.GetWithdrawalRequest(ctx, requestID)
+		if err != nil {
+			return err
+		}
 
-        if requested.Status == string(WithdrawalStatusCompleted) {
-            return errors.New("status is already completed")
-        }
+		if requested.Status == string(WithdrawalStatusCompleted) {
+			return errors.New("status is already completed")
+		}
 
-        // Update the withdrawal request status
-        params := db.UpdateWithdrawalRequestParams{
-            ID:     requestID,
-            Status: string(status),
-        }
-        wr, err = q.UpdateWithdrawalRequest(ctx, params)
-        if err != nil {
-            return err
-        }
+		// Update the withdrawal request status
+		params := db.UpdateWithdrawalRequestParams{
+			ID:     requestID,
+			Status: string(status),
+		}
+		wr, err = q.UpdateWithdrawalRequest(ctx, params)
+		if err != nil {
+			return err
+		}
 
-        // If the status is rejected, return the funds to the user's available balance
-        if status == WithdrawalStatusPending {
-            amount, err := decimal.NewFromString(requested.Amount)
-            if err != nil {
-                return err
-            }
+		// If the status is rejected, return the funds to the user's available balance
+		if status == WithdrawalStatusPending {
+			amount, err := decimal.NewFromString(requested.Amount)
+			if err != nil {
+				return err
+			}
 
-            earnings, err := q.GetReferralEarnings(ctx, requested.UserID)
-            if err != nil {
-                return err
-            }
+			earnings, err := q.GetReferralEarnings(ctx, requested.UserID)
+			if err != nil {
+				return err
+			}
 
-            availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
-            if err != nil {
-                return err
-            }
+			availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
+			if err != nil {
+				return err
+			}
 
-            newAvailableBalance := availableBalance.Add(amount)
-            updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
-                UserID:           requested.UserID,
-                AvailableBalance: newAvailableBalance.String(),
-            }
-            if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
-                return err
-            }
-        }
+			newAvailableBalance := availableBalance.Add(amount)
+			updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
+				UserID:           requested.UserID,
+				AvailableBalance: newAvailableBalance.String(),
+			}
+			if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
+				return err
+			}
+		}
 
-        return nil
-    })
+		return nil
+	})
 
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
-    return &wr, nil
+	return &wr, nil
 }

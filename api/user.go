@@ -698,8 +698,14 @@ func (u *User) DeleteAllReadNotifications(c *gin.Context) {
 }
 
 func (u *User) DeleteUser(c *gin.Context) {
+	iD := c.Param("id")
+	userID, err := strconv.Atoi(iD)
+	if err != nil {
+		u.server.logger.Error("error deleting user", err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid param"))
+	}
 	var req *db.DeleteUserParams
-	err := c.ShouldBindJSON(&req)
+	err = c.ShouldBindJSON(&req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid request"))
 		return
@@ -720,7 +726,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 		PhoneNumber: req.PhoneNumber,
 		Email:       req.Email,
 		FirstName:   req.FirstName,
-		ID:          req.ID,
+		ID:          int64(userID),
 	}
 
 	_, err = u.server.queries.DeleteUser(c, param)

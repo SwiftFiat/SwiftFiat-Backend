@@ -35,6 +35,7 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.GET("/crypto-transactions/amount", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalCryptoTransactionAmount)
 	serverGroupV1.GET("/crypto-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllCryptoTransactions)
 	serverGroupV1.DELETE("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.DeleteOldActivityLogs)
+	serverGroupV1.GET("/giftcard-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllGiftCardTransactions)
 	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
@@ -359,4 +360,29 @@ func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Old activity logs deleted successfully", nil))
+}
+
+func (h *ActivityLog) ListAllGiftCardTransactions (c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListGiftcardTransactions(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching all gift card transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch gift card transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Gift card transactions retrieved successfully", gin.H{
+		"transactions": transactions,
+	}))
 }

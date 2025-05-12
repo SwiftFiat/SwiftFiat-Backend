@@ -1366,7 +1366,7 @@ SELECT
     t.type AS transaction_type,
     t.description AS transaction_description,
     t.transaction_flow,
-    t.status AS transaction_status,
+    t.status AS transaction_status, 
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
     cm.destination_wallet,
@@ -1500,6 +1500,85 @@ func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTr
 			&i.UserLastName,
 			&i.UserEmail,
 			&i.UserPhoneNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGiftcardTransactions = `-- name: ListGiftcardTransactions :many
+SELECT 
+    gtm.id AS metadata_id,
+    gtm.source_wallet,
+    gtm.transaction_id,
+    gtm.rate,
+    gtm.received_amount,
+    gtm.sent_amount,
+    gtm.fees,
+    gtm.service_provider,
+    gtm.service_transaction_id,
+    t.type,
+    t.description,
+    t.transaction_flow,
+    t.status,
+    t.created_at,
+    t.updated_at
+FROM giftcard_transaction_metadata gtm
+JOIN transactions t ON gtm.transaction_id = t.id
+ORDER BY t.created_at DESC
+`
+
+type ListGiftcardTransactionsRow struct {
+	MetadataID           uuid.UUID      `json:"metadata_id"`
+	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Rate                 sql.NullString `json:"rate"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	Fees                 sql.NullString `json:"fees"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+	Type                 string         `json:"type"`
+	Description          sql.NullString `json:"description"`
+	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Status               string         `json:"status"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) ListGiftcardTransactions(ctx context.Context) ([]ListGiftcardTransactionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listGiftcardTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListGiftcardTransactionsRow{}
+	for rows.Next() {
+		var i ListGiftcardTransactionsRow
+		if err := rows.Scan(
+			&i.MetadataID,
+			&i.SourceWallet,
+			&i.TransactionID,
+			&i.Rate,
+			&i.ReceivedAmount,
+			&i.SentAmount,
+			&i.Fees,
+			&i.ServiceProvider,
+			&i.ServiceTransactionID,
+			&i.Type,
+			&i.Description,
+			&i.TransactionFlow,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}

@@ -23,7 +23,7 @@ type ReloadlyProvider struct {
 }
 
 type GiftCardConfig struct {
-	GiftCardName    string `mapstructure:"GIFTCARD_PROVIDER_NAME"` 
+	GiftCardName    string `mapstructure:"GIFTCARD_PROVIDER_NAME"`
 	GiftCardID      string `mapstructure:"GIFTCARD_APP_ID"`
 	GiftCardKey     string `mapstructure:"GIFTCARD_KEY"`
 	GiftCardBaseUrl string `mapstructure:"GIFTCARD_BASE_URL"`
@@ -202,18 +202,12 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 	}
 	defer resp.Body.Close()
 
-	logging.NewLogger().Info(fmt.Sprintf("audience - %v", audience))
-	logging.NewLogger().Info(fmt.Sprintf("client ID: %s, Client Secret - %s", clientID, clientSecret))
-	logging.NewLogger().Info(fmt.Sprintf("Audience type: %s", audienceType))
-	logging.NewLogger().Info(fmt.Sprintf("Token request URL: %s, Request: %+v, Headers: %+v", url, request, requiredHeaders))	
-
 	// Check the status code
 	if resp.StatusCode != http.StatusOK {
 		respBody, _ := ioutil.ReadAll(resp.Body)
 		logging.NewLogger().Error("resp", string(respBody))
 		return "", fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
-
 
 	// Decode the response body
 	var apiResponse reloadlymodels.TokenApiResponse
@@ -228,11 +222,6 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		Token:    apiResponse,
 		Audience: audience,
 	}
-
-	logging.NewLogger().Infof("Token expires in: %v seconds", apiResponse.ExpiresIn)
-
-
-	
 	return apiResponse.AccessToken, nil
 }
 

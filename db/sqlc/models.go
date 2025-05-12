@@ -389,6 +389,7 @@ type UserReferral struct {
 	RefereeID    int32     `json:"referee_id"`
 	EarnedAmount string    `json:"earned_amount"`
 	CreatedAt    time.Time `json:"created_at"`
+	Status       string    `json:"status"`
 }
 
 type UserToken struct {

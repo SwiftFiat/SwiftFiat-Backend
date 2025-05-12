@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
     "service_transaction_id" VARCHAR(100), -- e.g to track the crypto inflow at service provider level
     CONSTRAINT "unique_transaction_crypto" UNIQUE (transaction_id)
 );
-
+ 
 -- Giftcard transaction metadata
 CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

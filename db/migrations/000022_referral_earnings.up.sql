@@ -41,7 +41,7 @@ CREATE TABLE user_referrals (
                                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                                 UNIQUE (referee_id) -- Ensure a user can't be referred multiple times
 );
-CREATE TABLE referral_earnings (
+CREATE TABLE referral_earnings ( 
                                    "id" BIGSERIAL PRIMARY KEY,
                                    "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 --     total_earned = available_balance + withdrawn_balance
@@ -60,4 +60,4 @@ CREATE TABLE withdrawal_requests (
                                      "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
                                      "created_at" timestamptz NOT NULL DEFAULT (now()),
                                      "updated_at" timestamptz NOT NULL DEFAULT (now())
-);
+); 
