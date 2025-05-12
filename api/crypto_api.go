@@ -126,6 +126,8 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
+	
+
 	// Get User from DB
 	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
@@ -176,7 +178,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		Currency:    request.Currency,
 		Network:     request.Network,
 		OrderId:     orderID,
-		UrlCallback: "https://your-callback-url.com",
+		UrlCallback: "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook",
 	}
 	c.server.logger.Info(fmt.Sprintf("Creating static wallet with request: %+v", walletRequest))
 
@@ -195,16 +197,16 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", gin.H{
-		"wallet_uuid": staticWallet.UUID,
-		"address":     staticWallet.Address,
-		"network":     staticWallet.Network,
-		"currency":    staticWallet.Currency,
-		"url":        staticWallet.Url,
+		"wallet_uuid":  staticWallet.UUID,
+		"address":      staticWallet.Address,
+		"network":      staticWallet.Network,
+		"currency":     staticWallet.Currency,
+		"url":          staticWallet.Url,
 		"callback_url": callbackURL,
-		"uuid": 	staticWallet.UUID,
-		"order_id":    orderID,
-		"status":      "success",
-		"message":     "Static wallet created successfully",
+		"uuid":         staticWallet.UUID,
+		"order_id":     orderID,
+		"status":       "success",
+		"message":      "Static wallet created successfully",
 	}))
 }
 
@@ -331,9 +333,15 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
 		c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
 
-		amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
+		amountInSatoshis, err := decimal.NewFromString(payload.PaymentAmount)
 		if err != nil {
-			c.server.logger.Errorf("conversion error: %v", err)
+			c.server.logger.Errorf("conversion error1: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+			return
+		}
+		amounRecieved, err := decimal.NewFromString(payload.MerchantAmount)
+		if err != nil {
+			c.server.logger.Errorf("conversion error2: %v", err)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
@@ -345,6 +353,8 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 			Coin:               payload.Currency,
 			Description:        "Crypto Inflow",
 			Type:               transaction.Deposit,
+			ReceivedAmount:     amounRecieved,
+			TransactionID:      uuid.MustParse(payload.UUID),
 		}
 
 		_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, cryptoTransaction, c.server.provider)
@@ -384,7 +394,7 @@ func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
-	historydata, err := dataProvider.GetCoinHistoryData(coin , timePeriod)
+	historydata, err := dataProvider.GetCoinHistoryData(coin, timePeriod)
 
 	if err != nil {
 		c.server.logger.Errorf("failed to get coin price data: %v", err)

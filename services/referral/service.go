@@ -53,35 +53,47 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 	}
 
 	// Step 4: Create the referral
-	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount)
+	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount, string(ReferralStatusPending))
 	if err != nil {
 		s.logger.Error(err)
 		return nil, err
 	}
 
-	// Check if referree kyc is 3
+	// Check if referree kyc is 1
 	kyc, err := s.repo.queries.GetKYCByUserID(ctx, int32(refereeID))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			s.logger.Info(fmt.Sprintf("Referred user %d has not completed KYC yet", refereeID))
+			s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s, pending KYC approval of the referred user.", referralAmount.String()))
+			return referral, nil
+		}
 		s.logger.Error(err)
 		return nil, err
 	}
 
-	// Step 5: Update the referrer's earnings
-	params := db.UpdateReferralEarningsParams{
-		UserID:      int32(referrerID),
-		TotalEarned: referralAmount.String(),
-	}
+	if kyc.Status == "active" && kyc.Tier >= 1 {
+		params := db.UpdateReferralEarningsParams{
+			UserID:      int32(referrerID),
+			TotalEarned: referralAmount.String(),
+		}
 
-	if kyc.Status == "active" && kyc.Tier == 1 {
 		_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
 		if err != nil {
 			s.logger.Error(err)
 			return nil, err
 		}
-		s.notifyr.Create(ctx, int32(referrerID),"Referral", fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
+		err = s.repo.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
+			Status: string(ReferralStatusActive),
+			RefereeID: int32(refereeID),
+		})
+		if err != nil {
+			s.logger.Error(err)
+		}
+		
+		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
 		// TODO: Notify the referrer about the earnings
 	} else {
-		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s for referring a new user", referralAmount.String()))
+		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s pending KYC verification of the referred user", referralAmount.String()))
 		// TODO: Send email notification to the referrer saying they have earned a referral bonus pending KYC approval of the referee
 	}
 

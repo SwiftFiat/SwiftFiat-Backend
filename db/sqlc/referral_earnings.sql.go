@@ -12,19 +12,25 @@ import (
 )
 
 const createReferral = `-- name: CreateReferral :one
-INSERT INTO user_referrals (referrer_id, referee_id, earned_amount)
-VALUES ($1, $2, $3)
-    RETURNING id, referrer_id, referee_id, earned_amount, created_at
+INSERT INTO user_referrals (referrer_id, referee_id, earned_amount, status)
+VALUES ($1, $2, $3, $4)
+    RETURNING id, referrer_id, referee_id, earned_amount, created_at, status
 `
 
 type CreateReferralParams struct {
 	ReferrerID   int32  `json:"referrer_id"`
 	RefereeID    int32  `json:"referee_id"`
 	EarnedAmount string `json:"earned_amount"`
+	Status       string `json:"status"`
 }
 
 func (q *Queries) CreateReferral(ctx context.Context, arg CreateReferralParams) (UserReferral, error) {
-	row := q.db.QueryRowContext(ctx, createReferral, arg.ReferrerID, arg.RefereeID, arg.EarnedAmount)
+	row := q.db.QueryRowContext(ctx, createReferral,
+		arg.ReferrerID,
+		arg.RefereeID,
+		arg.EarnedAmount,
+		arg.Status,
+	)
 	var i UserReferral
 	err := row.Scan(
 		&i.ID,
@@ -32,6 +38,7 @@ func (q *Queries) CreateReferral(ctx context.Context, arg CreateReferralParams) 
 		&i.RefereeID,
 		&i.EarnedAmount,
 		&i.CreatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -85,7 +92,7 @@ func (q *Queries) CreateWithdrawalRequest(ctx context.Context, arg CreateWithdra
 }
 
 const getReferralByRefereeID = `-- name: GetReferralByRefereeID :one
-SELECT id, referrer_id, referee_id, earned_amount, created_at FROM user_referrals WHERE referee_id = $1
+SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals WHERE referee_id = $1
 `
 
 func (q *Queries) GetReferralByRefereeID(ctx context.Context, refereeID int32) (UserReferral, error) {
@@ -97,6 +104,7 @@ func (q *Queries) GetReferralByRefereeID(ctx context.Context, refereeID int32) (
 		&i.RefereeID,
 		&i.EarnedAmount,
 		&i.CreatedAt,
+		&i.Status,
 	)
 	return i, err
 }
@@ -121,7 +129,7 @@ func (q *Queries) GetReferralEarnings(ctx context.Context, userID int32) (Referr
 }
 
 const getUserReferrals = `-- name: GetUserReferrals :many
-SELECT id, referrer_id, referee_id, earned_amount, created_at FROM user_referrals WHERE referrer_id = $1
+SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals WHERE referrer_id = $1
 ORDER BY created_at DESC
 `
 
@@ -140,6 +148,7 @@ func (q *Queries) GetUserReferrals(ctx context.Context, referrerID int32) ([]Use
 			&i.RefereeID,
 			&i.EarnedAmount,
 			&i.CreatedAt,
+			&i.Status,
 		); err != nil {
 			return nil, err
 		}
@@ -303,6 +312,22 @@ func (q *Queries) UpdateReferralEarnings(ctx context.Context, arg UpdateReferral
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const updateReferralStatus = `-- name: UpdateReferralStatus :exec
+UPDATE user_referrals
+SET status = $1
+WHERE referee_id = $2
+`
+
+type UpdateReferralStatusParams struct {
+	Status    string `json:"status"`
+	RefereeID int32  `json:"referee_id"`
+}
+
+func (q *Queries) UpdateReferralStatus(ctx context.Context, arg UpdateReferralStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateReferralStatus, arg.Status, arg.RefereeID)
+	return err
 }
 
 const updateWithdrawalRequest = `-- name: UpdateWithdrawalRequest :one

@@ -1,6 +1,6 @@
 -- name: CreateReferral :one
-INSERT INTO user_referrals (referrer_id, referee_id, earned_amount)
-VALUES ($1, $2, $3)
+INSERT INTO user_referrals (referrer_id, referee_id, earned_amount, status)
+VALUES ($1, $2, $3, $4)
     RETURNING *;
 
 -- name: GetReferralByRefereeID :one
@@ -9,6 +9,12 @@ SELECT * FROM user_referrals WHERE referee_id = $1;
 -- name: GetUserReferrals :many
 SELECT * FROM user_referrals WHERE referrer_id = $1
 ORDER BY created_at DESC;
+
+-- name: UpdateReferralStatus :exec
+UPDATE user_referrals
+SET status = $1
+WHERE referee_id = $2;
+
 
 -- name: GetReferralEarnings :one
 SELECT * FROM referral_earnings WHERE user_id = $1;

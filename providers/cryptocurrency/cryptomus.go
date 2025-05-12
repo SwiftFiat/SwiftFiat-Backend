@@ -237,12 +237,16 @@ func (p *CryptomusProvider) ProcessWebhook(payload *WebhookPayload) (string, err
 	}
 
 	switch payload.Status {
-	case "paid":
+	case "paid": 
 		if !payload.IsFinal {
 			logging.NewLogger().Error("payment not final", "order_id", payload.OrderID)
 			return "payment not final, awaiting confirmation", nil
 		}
 		// TODO: Update database, notify user, etc.
+		
+		// get users usd wwallet and update it
+
+		// add the transaction to the database
 		logging.NewLogger().Info("payment confirmed",
 			"order_id", payload.OrderID,
 			"amount", payload.Amount,

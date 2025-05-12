@@ -54,8 +54,8 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("login-passcode", a.loginWithPasscode)
 	serverGroupV1.POST("register", a.register)
 	serverGroupV1.POST("register-admin", a.registerAdmin)
-	serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
-	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
+	// serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
+	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
 	serverGroupV1.POST("change-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.changePassword)
 	serverGroupV1.POST("forgot-password", a.forgotPassword)
 	serverGroupV1.POST("reset-password", a.resetPassword)
@@ -67,6 +67,8 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
 	serverGroupV1.GET("user", a.getUserID)
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
+	serverGroupV1.POST("send-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.SendOTPWithTwilio)
+	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -956,4 +958,74 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", struct{}{}))
+}
+
+type OTPRequest struct {
+	PhoneNumber string `json:"phone_number" binding:"required"`
+}
+
+type VerifyRequest struct {
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	Code        string `json:"code" binding:"required"`
+}
+
+func (a *Auth) SendOTPWithTwilio(c *gin.Context) {
+	var req OTPRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
+		return
+	}
+
+	p := service.Twilio{Config: a.server.config}
+
+	err := p.SendVerificationCode(req.PhoneNumber)
+	if err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send OTP"))
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "OTP sent successfully"})
+}
+
+func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+	var req VerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
+		return
+	}
+
+	p := service.Twilio{Config: a.server.config}
+
+	verified, err := p.CheckVerificationCode(req.PhoneNumber, req.Code)
+	if err != nil || !verified {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid OTP"})
+		return
+	}
+
+	updateUserParam := db.UpdateUserVerificationParams{
+		Verified:  true,
+		UpdatedAt: time.Now(),
+		ID:        activeUser.UserID,
+	}
+	/// Update User verified status
+	newUser, err := a.server.queries.UpdateUserVerification(c, updateUserParam)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred updating your Account %v", err.Error())))
+		return
+	}
+
+	a.activityTracker.Create(c, activitylogs.CreateActivityLogParams{
+		Action: fmt.Sprintf("User %s verified OTP %s ago", newUser.FirstName.String, time.Since(time.Now())),
+	})
+	a.notifr.Create(c, int32(newUser.ID), "Account", ("Your account is verified successfully"))
+	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
 }

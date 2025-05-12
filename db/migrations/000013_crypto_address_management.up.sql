@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS "crypto_addresses" (
     "balance" DECIMAL(30,10) DEFAULT 0,
     "status" VARCHAR(20) NOT NULL DEFAULT 'active',
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW() 
 );
 
 -- Create index for faster lookup
