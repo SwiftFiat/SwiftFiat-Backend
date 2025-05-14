@@ -17,11 +17,11 @@ type UserPasscodeLoginParams struct {
 }
 
 type RegisterUserParams struct {
-	FirstName    string `json:"first_name" binding:"required"`
-	LastName     string `json:"last_name" binding:"required"`
-	Email        string `json:"email" binding:"required"`
-	PhoneNumber  string `json:"phone_number" binding:"required"`
-	Password     string `json:"password" binding:"required"`
+	FirstName   string `json:"first_name" binding:"required"`
+	LastName    string `json:"last_name" binding:"required"`
+	Email       string `json:"email" binding:"required"`
+	PhoneNumber string `json:"phone_number" binding:"required"`
+	Password    string `json:"password" binding:"required"`
 }
 
 type RegisterAdminParams struct {
@@ -35,6 +35,7 @@ type RegisterAdminParams struct {
 
 type UserResponse struct {
 	ID        ID     `json:"id"`
+	UserID    int64  `json:"user_id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`
@@ -46,6 +47,7 @@ type UserResponse struct {
 	HasPin      bool      `json:"has_pin"`
 	HasPasscode bool      `json:"has_passcode"`
 	FreshChatID string    `json:"fresh_chat_id"`
+	IsActive    bool      `json:"is_active"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }
@@ -113,6 +115,6 @@ type UpdateTransactionPinParams struct {
 }
 
 type AdminLoginParams struct {
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required"`
+	Email    string `json:"email" binding:"required,email"`
+	Password string `json:"password" binding:"required"`
 }

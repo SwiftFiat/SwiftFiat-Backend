@@ -7,10 +7,7 @@ package db
 
 import (
 	"context"
-	"database/sql"
 	"time"
-
-	"github.com/sqlc-dev/pqtype"
 )
 
 const countActiveUsers = `-- name: CountActiveUsers :one
@@ -34,42 +31,26 @@ func (q *Queries) CountActiveUsers(ctx context.Context, arg CountActiveUsersPara
 
 const createActivityLog = `-- name: CreateActivityLog :one
 INSERT INTO activity_logs (
-    user_id, action, entity_type, entity_id, ip_address, user_agent, created_at
+    user_id, action, created_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3
 )
-RETURNING id, user_id, action, entity_type, entity_id, ip_address, user_agent, created_at
+RETURNING id, user_id, action, created_at
 `
 
 type CreateActivityLogParams struct {
-	UserID     sql.NullInt32  `json:"user_id"`
-	Action     string         `json:"action"`
-	EntityType sql.NullString `json:"entity_type"`
-	EntityID   sql.NullInt32  `json:"entity_id"`
-	IpAddress  pqtype.Inet    `json:"ip_address"`
-	UserAgent  sql.NullString `json:"user_agent"`
-	CreatedAt  time.Time      `json:"created_at"`
+	UserID    int32     `json:"user_id"`
+	Action    string    `json:"action"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 func (q *Queries) CreateActivityLog(ctx context.Context, arg CreateActivityLogParams) (ActivityLog, error) {
-	row := q.db.QueryRowContext(ctx, createActivityLog,
-		arg.UserID,
-		arg.Action,
-		arg.EntityType,
-		arg.EntityID,
-		arg.IpAddress,
-		arg.UserAgent,
-		arg.CreatedAt,
-	)
+	row := q.db.QueryRowContext(ctx, createActivityLog, arg.UserID, arg.Action, arg.CreatedAt)
 	var i ActivityLog
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Action,
-		&i.EntityType,
-		&i.EntityID,
-		&i.IpAddress,
-		&i.UserAgent,
 		&i.CreatedAt,
 	)
 	return i, err
@@ -86,16 +67,16 @@ func (q *Queries) DeleteOldActivityLogs(ctx context.Context) error {
 }
 
 const getActivityLogsByUser = `-- name: GetActivityLogsByUser :many
-SELECT id, user_id, action, entity_type, entity_id, ip_address, user_agent, created_at FROM activity_logs
+SELECT id, user_id, action, created_at FROM activity_logs
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
 `
 
 type GetActivityLogsByUserParams struct {
-	UserID sql.NullInt32 `json:"user_id"`
-	Limit  int32         `json:"limit"`
-	Offset int32         `json:"offset"`
+	UserID int32 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
 }
 
 func (q *Queries) GetActivityLogsByUser(ctx context.Context, arg GetActivityLogsByUserParams) ([]ActivityLog, error) {
@@ -111,10 +92,6 @@ func (q *Queries) GetActivityLogsByUser(ctx context.Context, arg GetActivityLogs
 			&i.ID,
 			&i.UserID,
 			&i.Action,
-			&i.EntityType,
-			&i.EntityID,
-			&i.IpAddress,
-			&i.UserAgent,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -131,7 +108,7 @@ func (q *Queries) GetActivityLogsByUser(ctx context.Context, arg GetActivityLogs
 }
 
 const getRecentActivityLogs = `-- name: GetRecentActivityLogs :many
-SELECT id, user_id, action, entity_type, entity_id, ip_address, user_agent, created_at FROM activity_logs
+SELECT id, user_id, action, created_at FROM activity_logs
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
 `
@@ -154,10 +131,6 @@ func (q *Queries) GetRecentActivityLogs(ctx context.Context, arg GetRecentActivi
 			&i.ID,
 			&i.UserID,
 			&i.Action,
-			&i.EntityType,
-			&i.EntityID,
-			&i.IpAddress,
-			&i.UserAgent,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

@@ -16,7 +16,7 @@ type Referral struct {
 	RefereeID    int64           `json:"referee_id"`
 	EarnedAmount decimal.Decimal `json:"earned_amount"`
 	CreatedAt    time.Time       `json:"created_at"`
-	Status       ReferralStatus          `json:"status"`
+	Status       ReferralStatus  `json:"status"`
 }
 
 type WithdrawalRequestStatus string
@@ -158,7 +158,7 @@ func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, 
 		ReferrerID:   int64(referral.ReferrerID),
 		RefereeID:    int64(referral.RefereeID),
 		EarnedAmount: amount,
-		Status: 	 ReferralStatus(referral.Status),
+		Status:       ReferralStatus(referral.Status),
 	}, nil
 }
 

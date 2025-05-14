@@ -5,7 +5,18 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="crypto and analytics updates">
+      <change afterPath="$PROJECT_DIR$/api/models/referral.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/SwiftFiat-Backend.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/SwiftFiat-Backend.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/models/auth_model_mapping.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/models/auth_model_mapping.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/models/auth_models.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/models/auth_models.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/user.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/user.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/migrations/000023_create_activity_logs.up.sql" beforeDir="false" afterPath="$PROJECT_DIR$/db/migrations/000023_create_activity_logs.up.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/queries/activity_logs.sql" beforeDir="false" afterPath="$PROJECT_DIR$/db/queries/activity_logs.sql" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/sqlc/activity_logs.sql.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/activity_logs.sql.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/sqlc/models.go" beforeDir="false" afterPath="$PROJECT_DIR$/db/sqlc/models.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/activity_logs/activitylogs.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/activity_logs/activitylogs.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/referral/repo.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/referral/repo.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -69,7 +80,7 @@
     "git-widget-placeholder": "main",
     "go.import.settings.migrated": "true",
     "go.sdk.automatically.set": "true",
-    "last_opened_file_path": "C:/Users/Bontus",
+    "last_opened_file_path": "//wsl.localhost/Ubuntu/home/bontus/SwiftFiat-Backend",
     "node.js.detected.package.eslint": "true",
     "node.js.selected.package.eslint": "(autodetect)",
     "nodejs_package_manager_path": "npm",
@@ -98,12 +109,22 @@
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-gosdk-d297c17c1fbd-57c114c3cede-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-243.26053.20" />
-        <option value="bundled-js-predefined-d6986cc7102b-1632447f56bf-JavaScript-GO-243.26053.20" />
+        <option value="bundled-gosdk-3b128438d3f6-34ac7aa8f6ab-org.jetbrains.plugins.go.sharedIndexes.bundled-GO-251.23774.430" />
+        <option value="bundled-js-predefined-d6986cc7102b-f27c65a3e318-JavaScript-GO-251.23774.430" />
       </set>
     </attachedChunks>
   </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="crypto and analytics updates" />
+      <created>1747224681969</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1747224681969</updated>
+    </task>
+    <servers />
+  </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>

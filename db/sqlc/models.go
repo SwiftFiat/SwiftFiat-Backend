@@ -13,14 +13,10 @@ import (
 )
 
 type ActivityLog struct {
-	ID         int32          `json:"id"`
-	UserID     sql.NullInt32  `json:"user_id"`
-	Action     string         `json:"action"`
-	EntityType sql.NullString `json:"entity_type"`
-	EntityID   sql.NullInt32  `json:"entity_id"`
-	IpAddress  pqtype.Inet    `json:"ip_address"`
-	UserAgent  sql.NullString `json:"user_agent"`
-	CreatedAt  time.Time      `json:"created_at"`
+	ID        int32     `json:"id"`
+	UserID    int32     `json:"user_id"`
+	Action    string    `json:"action"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type Beneficiary struct {
