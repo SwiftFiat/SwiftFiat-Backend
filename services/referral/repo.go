@@ -179,6 +179,7 @@ func (r *Repo) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, 
 			ReferrerID:   int64(ref.ReferrerID),
 			RefereeID:    int64(ref.RefereeID),
 			EarnedAmount: amount,
+			Status:       ReferralStatusPending,
 			CreatedAt:    ref.CreatedAt,
 		}
 	}

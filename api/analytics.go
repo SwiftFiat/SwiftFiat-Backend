@@ -36,6 +36,7 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.GET("/crypto-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllCryptoTransactions)
 	serverGroupV1.DELETE("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.DeleteOldActivityLogs)
 	serverGroupV1.GET("/giftcard-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllGiftCardTransactions)
+	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
 	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
@@ -362,7 +363,7 @@ func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Old activity logs deleted successfully", nil))
 }
 
-func (h *ActivityLog) ListAllGiftCardTransactions (c *gin.Context) {
+func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -385,4 +386,20 @@ func (h *ActivityLog) ListAllGiftCardTransactions (c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Gift card transactions retrieved successfully", gin.H{
 		"transactions": transactions,
 	}))
+}
+
+func (h *ActivityLog) GetUserWallets(c *gin.Context) {
+	ID := c.Param("id")
+	userID, err := strconv.Atoi(ID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	wallets, err := h.server.queries.GetWalletByCustomerID(c, int64(userID))
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching wallets: %v", err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get wallets"})
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Wallets retrieved successfully", wallets))
 }

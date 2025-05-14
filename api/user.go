@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -58,7 +59,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	serverGroupV1.POST("delete-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
-	serverGroupV1.POST("get-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
+	serverGroupV1.POST("get-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
 	serverGroupV1.PUT("/notification/mark-as-read/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkNotificationAsRead)
 	serverGroupV1.DELETE("/notification/delete/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteNotification)
 	serverGroupV1.GET("/notification/mark-all-as-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkAllNotificationsAsRead)
@@ -507,7 +508,7 @@ func (u *User) ListUsers(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
-		"users":       models.UserResponse{}.ToUserResponseList(users),
+		"users":       users,
 		"total_users": len(users),
 		"offset":      offset,
 		"limit":       limit,
@@ -743,12 +744,11 @@ func (u *User) DeleteUser(c *gin.Context) {
 }
 
 func (u *User) GetUserByID(c *gin.Context) {
-	var req struct {
-		ID int64 `json:"id" binding:"required"`
-	}
-	err := c.ShouldBindJSON(&req)
+	id := c.Param("id")
+	userID, err := strconv.Atoi(id)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid request"))
+		u.server.logger.Error("error getting user", err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid id"))
 		return
 	}
 	activeUser, err := utils.GetActiveUser(c)
@@ -763,7 +763,7 @@ func (u *User) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	user, err := u.server.queries.GetUserByID(c, req.ID)
+	user, err := u.server.queries.GetUserByID(c, int64(userID))
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
@@ -772,7 +772,7 @@ func (u *User) GetUserByID(c *gin.Context) {
 
 	ref, err := u.server.queries.GetReferralByUserID(c, int32(activeUser.UserID))
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
 			return
 		}
