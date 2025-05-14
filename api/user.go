@@ -57,7 +57,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
-	serverGroupV1.POST("delete-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
+	serverGroupV1.POST("delete-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
 	serverGroupV1.POST("get-user", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
 	serverGroupV1.PUT("/notification/mark-as-read/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkNotificationAsRead)
 	serverGroupV1.DELETE("/notification/delete/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteNotification)
@@ -66,7 +66,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/notification/count-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountAllNotifications)
 	serverGroupV1.GET("/notification/delete-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllNotifications)
 	serverGroupV1.DELETE("/notification/delete-all-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllReadNotifications)
-	serverGroupV1.PUT("update-status", u.server.authMiddleware.AuthenticatedMiddleware(), u.UpdateUserStatus)
+	serverGroupV1.PUT("update-status/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.UpdateUserStatus)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
@@ -507,7 +507,7 @@ func (u *User) ListUsers(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
-		"users":       users,
+		"users":       models.UserResponse{}.ToUserResponseList(users),
 		"total_users": len(users),
 		"offset":      offset,
 		"limit":       limit,
@@ -704,7 +704,11 @@ func (u *User) DeleteUser(c *gin.Context) {
 		u.server.logger.Error("error deleting user", err)
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid param"))
 	}
-	var req *db.DeleteUserParams
+	var req struct {
+		PhoneNumber string `json:"phone_number" binding:"required"`
+		Email       string `json:"email" binding:"required"`
+		FirstName   string `json:"first_name" binding:"required"`
+	}
 	err = c.ShouldBindJSON(&req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid request"))
@@ -725,7 +729,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 	param := db.DeleteUserParams{
 		PhoneNumber: req.PhoneNumber,
 		Email:       req.Email,
-		FirstName:   req.FirstName,
+		FirstName:   sql.NullString{String: req.FirstName, Valid: true},
 		ID:          int64(userID),
 	}
 
@@ -810,14 +814,19 @@ func (u *User) GetUserByID(c *gin.Context) {
 }
 
 func (u *User) UpdateUserStatus(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userID, err := strconv.Atoi(id)
+	if err != nil {
+		u.server.logger.Error("error updating user status", err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid user ID"))
+	}
 	request := struct {
-		UserID   int64 `json:"user_id" binding:"required"`
-		IsActive bool  `json:"is_active" binding:"required"`
+		IsActive string `json:"is_active" binding:"required"`
 	}{}
 
-	err := ctx.ShouldBindJSON(&request)
+	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid user_id and is_active status"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid is_active status"))
 		return
 	}
 
@@ -834,10 +843,10 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	}
 
 	var updatedUser db.User
-	if request.IsActive {
-		updatedUser, err = u.server.queries.ActivateUser(ctx, request.UserID)
+	if request.IsActive == "true" {
+		updatedUser, err = u.server.queries.ActivateUser(ctx, int64(userID))
 	} else {
-		updatedUser, err = u.server.queries.DeactivateUser(ctx, request.UserID)
+		updatedUser, err = u.server.queries.DeactivateUser(ctx, int64(userID))
 	}
 
 	if err != nil {
@@ -847,9 +856,9 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	}
 
 	status := "activated"
-	if !request.IsActive {
+	if request.IsActive == "false" {
 		status = "deactivated"
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("user successfully %s", status), &updatedUser))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("user successfully %s", status), models.UserResponse{}.ToUserResponse(&updatedUser)))
 }
