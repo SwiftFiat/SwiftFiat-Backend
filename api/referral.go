@@ -3,6 +3,7 @@ package api
 import (
 	"errors"
 	"fmt"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"net/http"
 	"strconv"
 
@@ -44,7 +45,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
 }
 
-func (a Referral) testReferral(ctx *gin.Context) {
+func (r Referral) testReferral(ctx *gin.Context) {
 	dr := basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "Referral API is active",
@@ -54,7 +55,7 @@ func (a Referral) testReferral(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dr)
 }
 
-func (a *Referral) Trackreferral(c *gin.Context) {
+func (r *Referral) Trackreferral(c *gin.Context) {
 	type req struct {
 		ReferralCode string `json:"referral_code" binding:"required"`
 	}
@@ -70,9 +71,9 @@ func (a *Referral) Trackreferral(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
 		return
 	}
-	ref, err := a.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
+	ref, err := r.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		r.server.logger.Error(logrus.ErrorLevel, err)
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
@@ -92,10 +93,29 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 		//	add logging
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user referrals"))
 	}
+
+	type ReferralWithUser struct {
+		Referral referral.Referral `json:"referral" binding:"required"`
+		User     db.User           `json:"referee" binding:"required"`
+	}
+
+	var refsWithUser []ReferralWithUser
+	for _, ref := range referrals {
+		user, err := r.server.queries.GetUserByID(ctx, ref.RefereeID)
+		if err != nil {
+			r.logger.Error(err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get referee data"))
+			return
+		}
+		refsWithUser = append(refsWithUser, ReferralWithUser{
+			Referral: ref,
+			User:     user,
+		})
+	}
 	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "referrals retrieved successfully",
-		Data:    referrals,
+		Data:    refsWithUser,
 	})
 }
 
@@ -254,10 +274,15 @@ func (r *Referral) Withdraw(c *gin.Context) {
 }
 
 func (r *Referral) Reminder(c *gin.Context) {
-	useriD := c.Param("user_id")
-	parsedUserID, err := strconv.Atoi(useriD)
+	userID := c.Param("id")
+	if userID == "" {
+		r.logger.Error("user_id parameter is empty")
+		c.JSON(http.StatusBadRequest, basemodels.NewError("user_id is required"))
+		return
+	}
+	parsedUserID, err := strconv.Atoi(userID)
 	if err != nil {
-		r.logger.Error(fmt.Errorf("invalid user_id: %v", err))
+		r.logger.Error(fmt.Errorf("invalid user_id: %v, provided: %s", err, userID))
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user_id"))
 		return
 	}
