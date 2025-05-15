@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -22,7 +23,7 @@ import (
 )
 
 type KYC struct {
-	server *Server
+	server  *Server
 	notifyr *service.Notification
 }
 
@@ -623,44 +624,44 @@ func (k *KYC) retrieveProofOfAddress(c *gin.Context) {
 }
 
 func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
-    // Check if the user has a referrer
-    referral, err := k.server.queries.GetReferralByRefereeID(ctx, int32(userID))
-    if err != nil {
-        if err == sql.ErrNoRows {
-            // No referrer found, nothing to do
-            return
-        }
-        k.server.logger.Error(err)
-        return
-    }
+	// Check if the user has a referrer
+	referral, err := k.server.queries.GetReferralByRefereeID(ctx, int32(userID))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// No referrer found, nothing to do
+			return
+		}
+		k.server.logger.Error(err)
+		return
+	}
 
-    // Get the referrer's ID and referral bonus amount
-    referrerID := int64(referral.ReferrerID)
-    referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
-    if err != nil {
-        k.server.logger.Error(err)
-        return
-    }
+	// Get the referrer's ID and referral bonus amount
+	referrerID := int64(referral.ReferrerID)
+	referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
+	if err != nil {
+		k.server.logger.Error(err)
+		return
+	}
 
-    // Update the referrer's earnings
-    params := db.UpdateReferralEarningsParams{
-        UserID:      int32(referrerID),
-        TotalEarned: referralBonus.String(),
-    }
-    _, err = k.server.queries.UpdateReferralEarnings(ctx, params)
-    if err != nil {
-        k.server.logger.Error(err)
-        return
-    }
+	// Update the referrer's earnings
+	params := db.UpdateReferralEarningsParams{
+		UserID:      int32(referrerID),
+		TotalEarned: referralBonus.String(),
+	}
+	_, err = k.server.queries.UpdateReferralEarnings(ctx, params)
+	if err != nil {
+		k.server.logger.Error(err)
+		return
+	}
 	err = k.server.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
-		RefereeID:     referral.ID,
-		Status: "active",
+		RefereeID: referral.ID,
+		Status:    "active",
 	})
 	if err != nil {
 		k.server.logger.Error(err)
 		return
 	}
 
-    // Notify the referrer
-    k.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have received a referral bonus of %s for referring a user who completed their KYC.", referralBonus.String()))
+	// Notify the referrer
+	k.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have received a referral bonus of %s for referring a user who completed their KYC.", referralBonus.String()))
 }

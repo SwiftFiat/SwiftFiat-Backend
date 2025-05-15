@@ -3,7 +3,6 @@ package api
 import (
 	"errors"
 	"fmt"
-	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"net/http"
 	"strconv"
 
@@ -96,7 +95,7 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 
 	type ReferralWithUser struct {
 		Referral referral.Referral `json:"referral" binding:"required"`
-		User     db.User           `json:"referee" binding:"required"`
+		User     string            `json:"first_Name" binding:"required"`
 	}
 
 	var refsWithUser []ReferralWithUser
@@ -109,13 +108,14 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 		}
 		refsWithUser = append(refsWithUser, ReferralWithUser{
 			Referral: ref,
-			User:     user,
+			User:     user.FirstName.String,
 		})
 	}
 	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "referrals retrieved successfully",
 		Data:    refsWithUser,
+		Version: utils.REVISION,
 	})
 }
 
