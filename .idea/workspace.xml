@@ -6,8 +6,8 @@
   <component name="ChangeListManager">
     <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="crypto and analytics updates">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/kyc.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/kyc.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/referral.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/referral.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/analytics.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/analytics.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/db/queries/activity_logs.sql" beforeDir="false" afterPath="$PROJECT_DIR$/db/queries/activity_logs.sql" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/services/notification/phone_verification.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/notification/phone_verification.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />

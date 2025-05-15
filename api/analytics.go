@@ -82,6 +82,7 @@ func (h *ActivityLog) GetRecentActivity(c *gin.Context) {
 
 	logs, err := h.service.GetRecent(c.Request.Context(), int32(limit), int32(offset))
 	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching recent activity logs: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get recent activity logs"))
 		return
 	}
