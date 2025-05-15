@@ -32,7 +32,7 @@ func (t *Twilio) SendVerificationCode(phone string) error {
 
 	if t.Config.TWILIO_VERIFY_SERVICE_SID == "" {
 		log.Error("Twilio Verify Service SID is not set")
-		return errors.New("Twilio Verify Service SID is not configured")
+		return errors.New("twilio Verify Service SID is not configured")
 	}
 
 	channels := []string{"sms", "whatsapp", "call"}
