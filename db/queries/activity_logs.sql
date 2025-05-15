@@ -26,3 +26,6 @@ WHERE created_at >= $1 AND created_at < $2
 -- name: DeleteOldActivityLogs :exec
 DELETE FROM activity_logs
 WHERE created_at < NOW() - INTERVAL '3 days';
+
+-- name: DeleteAllActivityLogs :exec
+DELETE FROM activity_logs
