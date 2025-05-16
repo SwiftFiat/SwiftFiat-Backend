@@ -98,7 +98,7 @@ func (c *CurrencyService) GetExchangeRate(ctx context.Context, fromCurrency stri
 	}
 	decimalValue, err := decimal.NewFromString(exchange.Rate)
 	return decimalValue, err
-} 
+}  
 
 func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin string, toCurrency string, prov *providers.ProviderService) (decimal.Decimal, error) {
 	// / Get Rate

@@ -196,26 +196,44 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		Audience:     audienceType,
 	}
 
+	logging.NewLogger().Info("Reloadly Token Request", map[string]interface{}{
+		"url":     url,
+		"payload": request,
+		"headers": requiredHeaders,
+	})
+
 	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
 	if err != nil {
+		logging.NewLogger().Error("Reloadly Token Request Error", err)
 		return "", err
 	}
 	defer resp.Body.Close()
 
-	// Check the status code
+	respBody, _ := ioutil.ReadAll(resp.Body)
+	logging.NewLogger().Info("Reloadly Token Response", map[string]interface{}{
+		"status_code": resp.StatusCode,
+		"body":        string(respBody),
+	})
+
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := ioutil.ReadAll(resp.Body)
-		logging.NewLogger().Error("resp", string(respBody))
+		logging.NewLogger().Error("Reloadly Token Error", map[string]interface{}{
+			"status_code": resp.StatusCode,
+			"body":        string(respBody),
+		})
 		return "", fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
-	// Decode the response body
 	var apiResponse reloadlymodels.TokenApiResponse
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&apiResponse)
+	err = json.Unmarshal(respBody, &apiResponse)
 	if err != nil {
+		logging.NewLogger().Error("Reloadly Token Unmarshal Error", err)
 		return "", fmt.Errorf("error parsing products: %w", err)
 	}
+
+	logging.NewLogger().Info("Reloadly Token Value", map[string]interface{}{
+		"access_token": maskToken(apiResponse.AccessToken),
+		"expires_in":   apiResponse.ExpiresIn,
+	})
 
 	/// Set AccessToken
 	r.token = reloadlymodels.TokenApiStore{
@@ -223,6 +241,13 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		Audience: audience,
 	}
 	return apiResponse.AccessToken, nil
+}
+
+func maskToken(token string) string {
+	if len(token) <= 10 {
+		return "***"
+	}
+	return token[:5] + "..." + token[len(token)-5:]
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
@@ -233,7 +258,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 
 	var requiredHeaders = make(map[string]string)
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
-	requiredHeaders["Authorization"] = "Bearer " + token
+	requiredHeaders["Authorization"] = "Bearer " + maskToken(token)
 
 	base, err := url.Parse(r.config.GiftCardBaseUrl)
 	if err != nil {
@@ -241,27 +266,37 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	}
 	base.Path += "/orders"
 
+	logging.NewLogger().Info("Reloadly BuyGiftCard Request", map[string]interface{}{
+		"url":     base.String(),
+		"headers": requiredHeaders,
+		"payload": request,
+	})
+
 	resp, err := r.MakeRequest("POST", base.String(), *request, requiredHeaders)
 	if err != nil {
+		logging.NewLogger().Error("Reloadly BuyGiftCard Request Error", err)
 		return nil, err
 	}
 	defer resp.Body.Close()
 
-	// Check the status code
+	respBody, _ := io.ReadAll(resp.Body)
+	logging.NewLogger().Info("Reloadly BuyGiftCard Response", map[string]interface{}{
+		"status_code": resp.StatusCode,
+		"body":        string(respBody),
+	})
+
 	if resp.StatusCode != http.StatusOK {
-		respBody, _ := io.ReadAll(resp.Body)
-		logging.NewLogger().Error("resp", string(respBody))
+		logging.NewLogger().Error("Reloadly BuyGiftCard Error", map[string]interface{}{
+			"status_code": resp.StatusCode,
+			"body":        string(respBody),
+		})
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
-	logging.NewLogger().Info(fmt.Sprintf("response status - %v", resp.Status))
-	logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
-
-	// Decode the response body
 	var response reloadlymodels.GiftCardPurchaseResponse
-	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&response)
+	err = json.Unmarshal(respBody, &response)
 	if err != nil {
+		logging.NewLogger().Error("Reloadly BuyGiftCard Unmarshal Error", err)
 		return nil, fmt.Errorf("error parsing products: %w", err)
 	}
 
