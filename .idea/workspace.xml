@@ -4,11 +4,8 @@
     <option name="autoReloadType" value="ALL" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="crypto and analytics updates">
+    <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="activity logs bug report">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/api/analytics.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/analytics.go" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/db/queries/activity_logs.sql" beforeDir="false" afterPath="$PROJECT_DIR$/db/queries/activity_logs.sql" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/services/notification/phone_verification.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/notification/phone_verification.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -122,7 +119,8 @@
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="crypto and analytics updates" />
-    <option name="LAST_COMMIT_MESSAGE" value="crypto and analytics updates" />
+    <MESSAGE value="activity logs bug report" />
+    <option name="LAST_COMMIT_MESSAGE" value="activity logs bug report" />
   </component>
   <component name="VgoProject">
     <settings-migrated>true</settings-migrated>

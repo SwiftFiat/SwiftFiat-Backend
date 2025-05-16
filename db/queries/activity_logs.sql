@@ -28,4 +28,4 @@ DELETE FROM activity_logs
 WHERE created_at < NOW() - INTERVAL '3 days';
 
 -- name: DeleteAllActivityLogs :exec
-DELETE FROM activity_logs
+DELETE FROM activity_logs;

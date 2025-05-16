@@ -1,12 +1,14 @@
 package api
 
 import (
+	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -37,6 +39,7 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.DELETE("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.DeleteOldActivityLogs)
 	serverGroupV1.GET("/giftcard-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllGiftCardTransactions)
 	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
+	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
 	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
@@ -403,4 +406,47 @@ func (h *ActivityLog) GetUserWallets(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Wallets retrieved successfully", wallets))
+}
+
+func (h *ActivityLog) AdminEditUser(c *gin.Context) {
+	id := c.Param("id")
+	userID, err := strconv.Atoi(id)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
+		return
+	}
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role != "admin" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var req struct {
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		Email     string `json:"email"`
+		Phone     string `json:"phone_number"`
+		Role      string `json:"role"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request"))
+		return
+	}
+
+	param := db.AdminUpdateUserParams{
+		ID:          int64(userID),
+		FirstName:   sql.NullString{String: req.FirstName, Valid: req.FirstName != ""},
+		LastName:    sql.NullString{String: req.LastName, Valid: req.LastName != ""},
+		Email:       req.Email,
+		PhoneNumber: req.Phone,
+		Role:        req.Role,
+	}
+
+	user, err := h.server.queries.AdminUpdateUser(c, param)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update user"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("User updated successfully", user))
 }
