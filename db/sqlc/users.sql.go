@@ -46,10 +46,66 @@ func (q *Queries) ActivateUser(ctx context.Context, id int64) (User, error) {
 	return i, err
 }
 
+const adminUpdateUser = `-- name: AdminUpdateUser :one
+UPDATE users
+SET
+    first_name = COALESCE($2, first_name),
+    last_name = COALESCE($3, last_name),
+    email = COALESCE($4, email),
+    phone_number = COALESCE($5, phone_number),
+    role = COALESCE($6, role),
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active
+`
+
+type AdminUpdateUserParams struct {
+	ID          int64          `json:"id"`
+	FirstName   sql.NullString `json:"first_name"`
+	LastName    sql.NullString `json:"last_name"`
+	Email       string         `json:"email"`
+	PhoneNumber string         `json:"phone_number"`
+	Role        string         `json:"role"`
+}
+
+func (q *Queries) AdminUpdateUser(ctx context.Context, arg AdminUpdateUserParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, adminUpdateUser,
+		arg.ID,
+		arg.FirstName,
+		arg.LastName,
+		arg.Email,
+		arg.PhoneNumber,
+		arg.Role,
+	)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+		&i.IsActive,
+	)
+	return i, err
+}
+
 const checkUserTag = `-- name: CheckUserTag :one
 SELECT EXISTS (
     SELECT 1
-    FROM users WHERE user_tag = $1
+    FROM users WHERE user_tag = $1 
 ) AS exists
 `
 

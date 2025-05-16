@@ -25,7 +25,7 @@ SELECT first_name, last_name FROM users WHERE user_tag = $1;
 -- name: CheckUserTag :one
 SELECT EXISTS (
     SELECT 1
-    FROM users WHERE user_tag = $1
+    FROM users WHERE user_tag = $1 
 ) AS exists;
 
 -- name: GetUserByEmail :one
@@ -115,4 +115,16 @@ UPDATE "users"
 SET "is_active" = TRUE,
     "updated_at" = NOW()
 WHERE "id" = $1
+RETURNING *;
+
+-- name: AdminUpdateUser :one
+UPDATE users
+SET
+    first_name = COALESCE($2, first_name),
+    last_name = COALESCE($3, last_name),
+    email = COALESCE($4, email),
+    phone_number = COALESCE($5, phone_number),
+    role = COALESCE($6, role),
+    updated_at = NOW()
+WHERE id = $1
 RETURNING *;
