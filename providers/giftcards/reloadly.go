@@ -184,6 +184,16 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		audienceType = r.config.GiftCardBaseUrl
 	}
 
+	logging.NewLogger().Info("Reloadly env vars", map[string]interface{}{
+		"prod client ID":        r.config.GiftCardProdID,
+		"prod client secret":    r.config.GiftCardProdKey,
+		"prod url":              r.config.GiftCardProdUrl,
+		"sandbox client ID":     r.config.GiftCardID,
+		"sandbox client secret": r.config.GiftCardKey,
+		"sandbox url":           r.config.GiftCardBaseUrl,
+		"headers":               requiredHeaders,
+	})
+
 	var requiredHeaders = make(map[string]string)
 	requiredHeaders["Accept"] = "application/json"
 	requiredHeaders["Content-Type"] = "application/json"
@@ -258,7 +268,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 
 	var requiredHeaders = make(map[string]string)
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
-	requiredHeaders["Authorization"] = "Bearer " + maskToken(token)
+	requiredHeaders["Authorization"] = "Bearer " + token
 
 	base, err := url.Parse(r.config.GiftCardBaseUrl)
 	if err != nil {

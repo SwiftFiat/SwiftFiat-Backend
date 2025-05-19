@@ -57,7 +57,7 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.POST("/create-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStaticWallet)
 	serverGroupV1.POST("/qr-code", c.server.authMiddleware.AuthenticatedMiddleware(), c.GenerateQRCode)
 	serverGroupV1.GET("services", c.server.authMiddleware.AuthenticatedMiddleware(), c.fetchServices)
-	serverGroupV1.POST("/webhook", c.server.authMiddleware.AuthenticatedMiddleware(), c.HandleCryptomusWebhook)
+	serverGroupV1.POST("/webhook", c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinData)
 	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
@@ -125,8 +125,6 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
-	
 
 	// Get User from DB
 	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
@@ -312,7 +310,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 
 	// Verify signature
 	if err := cryptoProvider.VerifyWebhook(&payload, rawBody); err != nil {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
