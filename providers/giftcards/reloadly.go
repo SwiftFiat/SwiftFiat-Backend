@@ -1,6 +1,7 @@
 package giftcards
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -353,4 +354,82 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
 	}
 
 	return &response, nil
+}
+
+type TokenResponse struct {
+	AccessToken string `json:"access_token"`
+	TokenType   string `json:"token_type"`
+	ExpiresIn   int    `json:"expires_in"`
+}
+
+func (r *ReloadlyProvider) GetReloadlyToken() (string, error) {
+	reqUrl := "https://auth.reloadly.com/oauth/token"
+
+	body := map[string]string{
+		"client_id":     r.config.GiftCardID,
+		"client_secret": r.config.GiftCardKey,
+		"grant_type":    "client_credentials",
+		"audience":      r.config.GiftCardBaseUrl,
+	}
+
+	jsonData, _ := json.Marshal(body)
+	req, err := http.NewRequest("POST", reqUrl, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Add("Content-Type", "application/json")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("failed to get token: %s", string(respBody))
+	}
+
+	var tokenResp TokenResponse
+	err = json.Unmarshal(respBody, &tokenResp)
+	if err != nil {
+		return "", err
+	}
+
+	return tokenResp.AccessToken, nil
+}
+
+func (r *ReloadlyProvider) BuyReloadlyGiftCard(token string, request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
+	reqUrl := "https://giftcards-sandbox.reloadly.com/orders"
+	jsonData, err := json.Marshal(request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", reqUrl, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Accept", "application/com.reloadly.giftcards-v1+json")
+	req.Header.Add("Authorization", "Bearer "+token)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode >= 400 {
+		return nil, fmt.Errorf("gift card purchase failed [%d]: %s", resp.StatusCode, string(body))
+	}
+
+	var result reloadlymodels.GiftCardPurchaseResponse
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, fmt.Errorf("failed to parse gift card response: %w", err)
+	}
+
+	return &result, nil
 }

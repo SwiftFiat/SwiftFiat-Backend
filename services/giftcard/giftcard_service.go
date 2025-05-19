@@ -421,10 +421,10 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		UnitPrice:        float64(unitPrice),
 		CustomIdentifier: fmt.Sprintf("%v:%v", userInfo.Email, uuid.NewString()),
 		SenderName:       userInfo.FirstName.String,
-		RecipientEmail:   g.config.Email,
+		RecipientEmail:   "test@email.com",
 		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
-			CountryCode: g.config.CountryCode,
-			PhoneNumber: g.config.Phone,
+			CountryCode: "US",
+			PhoneNumber: "8579184613",
 		},
 	}
 
@@ -473,4 +473,159 @@ func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transacti
 	}
 
 	return giftCardInfo, nil
+}
+
+func (g *GiftcardService) GetReloadlyToken(prov *providers.ProviderService) (string, error) {
+	gprov, exists := prov.GetProvider(providers.Reloadly)
+	if !exists {
+		return "", fmt.Errorf("failed to get provider: 'RELOADLY'")
+	}
+	reloadlyProvider, ok := gprov.(*giftcards.ReloadlyProvider)
+	if !ok {
+		return "", fmt.Errorf("failed to connect to giftcard provider")
+	}
+
+	token, err := reloadlyProvider.GetReloadlyToken()
+	if err != nil {
+		return "", fmt.Errorf("failed to get reloadly token: %s", err)
+	}
+	return token, nil
+}
+
+func (g *GiftcardService) BuyRGPGiftCard(prov *providers.ProviderService, token string, r reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
+	gprov, exists := prov.GetProvider(providers.Reloadly)
+	if !exists {
+		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
+	}
+	reloadlyProvider, ok := gprov.(*giftcards.ReloadlyProvider)
+	if !ok {
+		return nil, fmt.Errorf("failed to connect to giftcard provider")
+	}
+
+	card, err := reloadlyProvider.BuyReloadlyGiftCard(token, &r)
+	if err != nil {
+		return nil, fmt.Errorf("failed to buy giftcard: %s", err)
+	}
+	return card, nil
+}
+
+func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
+	token, err := g.GetReloadlyToken(prov)
+	if err != nil {
+		return nil, err
+	}
+
+	// Pull user information
+	userInfo, err := g.store.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull user information: %s", err)
+	}
+
+	// Pull product information
+	productInfo, err := g.store.FetchGiftCard(ctx, productID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to pull product information: %s", err)
+	}
+
+	// Calculate the potential amount including service fees
+	var potentialAmount decimal.Decimal
+	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
+
+	g.logger.Info("base price", "basePrice", basePrice)
+
+	// Calculate percentage-based fee if applicable
+	var percentageFee decimal.Decimal
+	if productInfo.SenderFeePercentage.Float64 != 0 {
+		percentageValue := decimal.NewFromFloat(productInfo.SenderFeePercentage.Float64).Div(decimal.NewFromInt(100))
+		percentageFee = basePrice.Mul(percentageValue)
+	}
+
+	g.logger.Info("percentage fee", "percentageFee", percentageFee)
+
+	// Calculate flat fee
+	flatFee := decimal.NewFromFloat(productInfo.SenderFee.Float64)
+
+	g.logger.Info("flat fee", "flatFee", flatFee)
+
+	// Sum up all components
+	potentialAmount = basePrice.Add(percentageFee).Add(flatFee)
+
+	g.logger.Info("potential amount", "potentialAmount", potentialAmount)
+
+	if potentialAmount.LessThan(decimal.NewFromInt(0)) {
+		return nil, fmt.Errorf("potential amount is less than 0")
+	}
+
+	g.logger.Info("starting giftcard outflow transaction")
+
+	gprov, exists := prov.GetProvider(providers.Reloadly)
+	if !exists {
+		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
+	}
+	reloadlyProvider, ok := gprov.(*giftcards.ReloadlyProvider)
+	if !ok {
+		return nil, fmt.Errorf("failed to connect to giftcard provider")
+	}
+
+	// Start transaction
+	dbTx, err := g.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// Create GiftCardTransaction
+	tInfo, err := trans.CreateGiftCardOutflowTransactionWithTx(ctx, dbTx, &userInfo, transaction.GiftCardTransaction{
+		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
+		SourceWalletID:   walletID,
+		SentAmount:       potentialAmount,
+		GiftCardCurrency: productInfo.SenderCurrencyCode.String,
+		Description:      "giftcard-purchase",
+		Type:             transaction.GiftCard,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	// Perform transaction
+	request := reloadlymodels.GiftCardPurchaseRequest{
+		ProductID:        productInfo.ProductID,
+		CountryCode:      "US",
+		Quantity:         float64(quantity),
+		UnitPrice:        float64(unitPrice),
+		CustomIdentifier: fmt.Sprintf("%v:%v", userInfo.Email, uuid.NewString()),
+		SenderName:       userInfo.FirstName.String,
+		RecipientEmail:   "test@email.com",
+		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
+			CountryCode: "US",
+			PhoneNumber: "8579184613",
+		},
+	}
+
+	giftCardPurchaseResponse, err := reloadlyProvider.BuyReloadlyGiftCard(token, &request)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform transaction: %s", err)
+	}
+
+	updatedTransaction, err := g.store.WithTx(dbTx).UpdateGiftCardServiceTransactionID(ctx, db.UpdateGiftCardServiceTransactionIDParams{
+		ServiceTransactionID: sql.NullString{
+			String: fmt.Sprintf("%d", giftCardPurchaseResponse.TransactionID),
+			Valid:  true,
+		},
+		TransactionID: tInfo.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update giftcard service transaction ID: %w", err)
+	}
+
+	tInfo.Metadata.ServiceTransactionID = updatedTransaction.ServiceTransactionID.String
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
+
+	return tInfo, nil
 }

@@ -6,7 +6,9 @@
   <component name="ChangeListManager">
     <list default="true" id="2bcbb176-b397-4f9b-84d9-af76b655495d" name="Changes" comment="activity logs bug report">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/api/giftcard.go" beforeDir="false" afterPath="$PROJECT_DIR$/api/giftcard.go" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/providers/giftcards/reloadly.go" beforeDir="false" afterPath="$PROJECT_DIR$/providers/giftcards/reloadly.go" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/services/giftcard/giftcard_service.go" beforeDir="false" afterPath="$PROJECT_DIR$/services/giftcard/giftcard_service.go" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -117,6 +119,17 @@
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
+  </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
   </component>
   <component name="VcsManagerConfiguration">
     <MESSAGE value="crypto and analytics updates" />

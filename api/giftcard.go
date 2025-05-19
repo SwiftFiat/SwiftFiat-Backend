@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
 	"net/http"
 	"strconv"
 	"time"
@@ -58,6 +59,8 @@ func (g GiftCard) router(server *Server) {
 	serverGroupV1.GET("card/:transactionID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getCardInfo)
 	serverGroupV1.GET("brands/:brandID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getGiftCardBrandNames)
 	serverGroupV1.GET("cards/:brandID/:countryID", g.server.authMiddleware.AuthenticatedMiddleware(), g.getGiftCardByCountryIDAndBrandID)
+	serverGroupV1.GET("/buy", g.BuyRGiftCard)
+	serverGroupV1.POST("/refactor-buy", g.server.authMiddleware.AuthenticatedMiddleware(), g.RefactorBuyRGiftCard)
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/giftcard")
 	serverGroupV1Admin.POST("sync", g.server.authMiddleware.AuthenticatedMiddleware(), g.syncGiftCards)
@@ -301,4 +304,85 @@ func (g *GiftCard) getGiftCardByCountryIDAndBrandID(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard by country ID fetched successfully", models.ToGiftCardSelectGiftCardsByCountryIDAndBrandIDResponse(response)))
+}
+
+func (g *GiftCard) BuyRGiftCard(c *gin.Context) {
+	token, err := g.service.GetReloadlyToken(g.server.provider)
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+	}
+
+	phoneDetails := reloadlymodels.RecipientPhoneDetails{
+		CountryCode: "US",
+		PhoneNumber: "8579184613",
+	}
+
+	card, err := g.service.BuyRGPGiftCard(g.server.provider, token, reloadlymodels.GiftCardPurchaseRequest{
+		ProductID:             5,
+		CountryCode:           "US",
+		Quantity:              1,
+		UnitPrice:             5,
+		CustomIdentifier:      "gift-card-amazon-order_20",
+		SenderName:            "John Doe",
+		RecipientEmail:        "anyone@email.com",
+		RecipientPhoneDetails: phoneDetails,
+	})
+
+	if err != nil {
+		c.JSON(400, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(200, gin.H{"card": card})
+}
+
+func (g *GiftCard) RefactorBuyRGiftCard(c *gin.Context) {
+	request := struct {
+		ProductID int64  `json:"product_id" binding:"required"`
+		WalletID  string `json:"wallet_id" binding:"required"`
+		Quantity  int    `json:"quantity" binding:"required"`
+		UnitPrice int    `json:"unit_price" binding:"required"`
+	}{}
+
+	err := c.ShouldBindJSON(&request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("please check request body: %v", err)))
+		return
+	}
+
+	// Fetch user details
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	walletID, err := uuid.Parse(request.WalletID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
+		return
+	}
+
+	response, err := g.service.Buy(c, g.server.provider, g.transactionService, activeUser.UserID, request.ProductID, walletID, request.Quantity, request.UnitPrice)
+	if err != nil {
+		g.server.logger.Error("failed to buy gift card", "error", err)
+		if walletErr, ok := err.(*wallet.WalletError); ok {
+			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
+				c.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrNotYours.Error() {
+				c.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
+				return
+			}
+			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
+				c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
+				return
+			}
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	g.server.logger.Info("gift card purchased", "response", response)
+	c.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
 }
