@@ -191,7 +191,6 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		"sandbox client ID":     r.config.GiftCardID,
 		"sandbox client secret": r.config.GiftCardKey,
 		"sandbox url":           r.config.GiftCardBaseUrl,
-		"headers":               requiredHeaders,
 	})
 
 	var requiredHeaders = make(map[string]string)
