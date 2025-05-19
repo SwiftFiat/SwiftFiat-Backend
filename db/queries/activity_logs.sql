@@ -1,10 +1,7 @@
--- name: CreateActivityLog :one
-INSERT INTO activity_logs (
-    user_id, action, created_at
-) VALUES (
-    $1, $2, $3
-)
-RETURNING *;
+-- name: CreateActivityLog :exec
+INSERT INTO activity_logs (user_id, action)
+VALUES ($1, $2);
+
 
 -- name: GetActivityLogsByUser :many
 SELECT * FROM activity_logs

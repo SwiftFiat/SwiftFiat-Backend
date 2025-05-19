@@ -20,18 +20,15 @@ func NewActivityLog(store db.Store) *ActivityLog {
 	}
 }
 
-type CreateActivityLogParams struct {
-	UserID    int32
-	Action    string
-	CreatedAt time.Time
-}
-
-func (a *ActivityLog) Create(ctx context.Context, params CreateActivityLogParams) (db.ActivityLog, error) {
-	return a.store.Queries.CreateActivityLog(ctx, db.CreateActivityLogParams{
-		UserID:    params.UserID,
-		Action:    params.Action,
-		CreatedAt: params.CreatedAt,
+func (a *ActivityLog) Create(ctx context.Context, params db.CreateActivityLogParams) error {
+	err := a.store.Queries.CreateActivityLog(ctx, db.CreateActivityLogParams{
+		UserID: params.UserID,
+		Action: params.Action,
 	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (a *ActivityLog) GetByUser(ctx context.Context, userID int32, limit, offset int32) ([]db.ActivityLog, error) {

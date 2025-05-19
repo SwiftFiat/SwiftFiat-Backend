@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -174,9 +175,13 @@ func (a *Auth) login(ctx *gin.Context) {
 		Token: token,
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	err = a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(userWT.User.UserID),
 		Action: fmt.Sprintf("User %s logged in %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
+	if err != nil {
+		a.server.logger.Error(fmt.Sprintf("error logging activity - login: %v", err))
+	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
@@ -224,7 +229,8 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		Token: token,
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(dbUser.ID),
 		Action: fmt.Sprintf("User %s logged in with passcode %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -316,7 +322,8 @@ func (a *Auth) register(ctx *gin.Context) {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 	}
 
-	_, err = a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	err = a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(newUser.ID),
 		Action: fmt.Sprintf("User %s registered in %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 	if err != nil {
@@ -376,7 +383,8 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(newUser.ID),
 		Action: fmt.Sprintf("User %s registered as admin in %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -391,7 +399,7 @@ func (a *Auth) sendOTP(ctx *gin.Context) {
 	}
 
 	user, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found - not authorized to access resources"))
 		return
 	} else if err != nil {
@@ -484,7 +492,8 @@ func (a *Auth) verifyOTP(ctx *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(newUser.ID),
 		Action: fmt.Sprintf("User %s verified OTP %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -562,7 +571,7 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	}
 
 	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(dbUser.ID))
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
 		return
 	}
@@ -598,7 +607,8 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	/// Delete user token from redis
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(dbUser.ID),
 		Action: fmt.Sprintf("User %s reset password %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -643,7 +653,8 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(user.ID),
 		Action: fmt.Sprintf("User %s changed password %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -688,7 +699,8 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(user.ID),
 		Action: fmt.Sprintf("User %s created passcode %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -790,7 +802,8 @@ func (a *Auth) createPin(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(user.ID),
 		Action: fmt.Sprintf("User %s created pin %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -843,7 +856,8 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(user.ID),
 		Action: fmt.Sprintf("User %s updated transaction pin %s ago", user.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -937,7 +951,8 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(ctx, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
+		UserID: int32(dbUser.ID),
 		Action: fmt.Sprintf("User %s deleted account %s ago", dbUser.FirstName.String, time.Since(time.Now())),
 	})
 
@@ -1023,9 +1038,10 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(c, activitylogs.CreateActivityLogParams{
+	a.activityTracker.Create(c, db.CreateActivityLogParams{
+		UserID: int32(newUser.ID),
 		Action: fmt.Sprintf("User %s verified OTP %s ago", newUser.FirstName.String, time.Since(time.Now())),
 	})
-	a.notifr.Create(c, int32(newUser.ID), "Account", ("Your account is verified successfully"))
+	a.notifr.Create(c, int32(newUser.ID), "Account", "Your account is verified successfully")
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
 }

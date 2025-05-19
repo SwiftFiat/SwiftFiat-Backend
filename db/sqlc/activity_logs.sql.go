@@ -29,31 +29,19 @@ func (q *Queries) CountActiveUsers(ctx context.Context, arg CountActiveUsersPara
 	return active_users, err
 }
 
-const createActivityLog = `-- name: CreateActivityLog :one
-INSERT INTO activity_logs (
-    user_id, action, created_at
-) VALUES (
-    $1, $2, $3
-)
-RETURNING id, user_id, action, created_at
+const createActivityLog = `-- name: CreateActivityLog :exec
+INSERT INTO activity_logs (user_id, action)
+VALUES ($1, $2)
 `
 
 type CreateActivityLogParams struct {
-	UserID    int32     `json:"user_id"`
-	Action    string    `json:"action"`
-	CreatedAt time.Time `json:"created_at"`
+	UserID int32  `json:"user_id"`
+	Action string `json:"action"`
 }
 
-func (q *Queries) CreateActivityLog(ctx context.Context, arg CreateActivityLogParams) (ActivityLog, error) {
-	row := q.db.QueryRowContext(ctx, createActivityLog, arg.UserID, arg.Action, arg.CreatedAt)
-	var i ActivityLog
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Action,
-		&i.CreatedAt,
-	)
-	return i, err
+func (q *Queries) CreateActivityLog(ctx context.Context, arg CreateActivityLogParams) error {
+	_, err := q.db.ExecContext(ctx, createActivityLog, arg.UserID, arg.Action)
+	return err
 }
 
 const deleteAllActivityLogs = `-- name: DeleteAllActivityLogs :exec
