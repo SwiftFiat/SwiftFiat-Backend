@@ -64,7 +64,7 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
 	serverGroupV1.Static("/assets", "./assets")
 	serverGroupV1.GET("/images", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetImages)
-	serverGroupV1.GET("/test-webhook", c.TestCryptomusWebhookEndpoint)
+	serverGroupV1.POST("/test-webhook", c.TestCryptomusWebhookEndpoint)
 }
 
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
