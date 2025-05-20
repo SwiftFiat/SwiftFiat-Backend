@@ -216,6 +216,9 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("GIFTCARD_PROD_KEY")
 	_ = v.BindEnv("GIFTCARD_PROD_ID")
 	_ = v.BindEnv("GIFTCARD_PROD_URL")
+	_ = v.BindEnv("RATES_PROVIDER_NAME")
+	_ = v.BindEnv("COINGECKO_BASE_URL")
+	_ = v.BindEnv("COINGECKO_ACCESS_KEY")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)
