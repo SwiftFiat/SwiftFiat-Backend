@@ -310,7 +310,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	}
 
 	// Process webhook
-	res, err := cryptoProvider.ParseWebhook(rawBody, true)
+	res, err := cryptoProvider.ParseWebhook(rawBody, false)
 	if err != nil {
 		c.server.logger.Error("process webhook error", err)
 		ctx.JSON(400, basemodels.NewError("error parsing webhook"))
