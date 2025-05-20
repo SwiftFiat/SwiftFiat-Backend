@@ -23,7 +23,7 @@ type StaticWalletRequest struct {
 	Currency         string `json:"currency"`
 	Network          string `json:"network"`
 	OrderId          string `json:"order_id"`
-	UrlCallback      string `json:"url_callback,omitempty"`
+	UrlCallback      string `json:"url_callback"`
 	FromReferralCode string `json:"from_referral_code,omitempty"`
 }
 
