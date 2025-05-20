@@ -171,13 +171,13 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	callbackURL := models.GetCryptoCallbackURL(c.server.config, orderID)
+	callbackURL := "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook"
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,
 		Network:     request.Network,
 		OrderId:     orderID,
-		UrlCallback: "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook",
+		UrlCallback: callbackURL,
 	}
 	c.server.logger.Info(fmt.Sprintf("Creating static wallet with request: %+v", walletRequest))
 
@@ -309,20 +309,15 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		return
 	}
 
-	// Verify signature
-	if err := cryptoProvider.VerifyWebhook(&payload, rawBody); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	}
-
 	// Process webhook
-	message, err := cryptoProvider.ProcessWebhook(&payload)
+	res, err := cryptoProvider.ParseWebhook(rawBody, true)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.server.logger.Error("process webhook error", err)
+		ctx.JSON(400, basemodels.NewError("error parsing webhook"))
 		return
 	}
 
-	if message == "paid" {
+	if res.Status == "paid" {
 		// Call the wallet service and credit the user basse
 		c.server.logger.Info(fmt.Sprintf("sent amount %v", payload.PaymentAmount))
 		c.server.logger.Info(fmt.Sprintf("received amount %v", payload.MerchantAmount))
@@ -364,7 +359,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 
 	// Respond with success
 	ctx.JSON(http.StatusOK, gin.H{
-		"message":  message,
+		"data":     res,
 		"order_id": payload.OrderID,
 		"status":   payload.Status,
 	})
@@ -449,7 +444,7 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	}
 
 	// Trigger test webhook
-	err := cryptoProvider.TestCryptomusWebhook(&req)
+	res, err := cryptoProvider.TestCryptomusWebhook(&req)
 	if err != nil {
 		c.server.logger.Error("Failed to trigger test webhook",
 			"error", err,
@@ -465,8 +460,8 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 		"status":  "success",
 		"message": "Test webhook triggered",
 		"data": gin.H{
-			"uuid":     req.UUID,
-			"order_id": req.OrderID,
+			"result": res.Result,
+			"state":  res.State,
 		},
 	})
 }
