@@ -286,17 +286,31 @@ func (p *CryptomusProvider) ProcessWebhook(payload *WebhookPayload) (string, err
 }
 
 // Add to CryptomusProvider
-func (p *CryptomusProvider) TestCryptomusWebhook(uuid, orderId, currency, network, status string) error {
-    payload := map[string]any{
-        "uuid":         uuid,
-        "order_id":     orderId,
-        "currency":     currency,
-        "network":      network,
-        "status":       status,
-        "url_callback": "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook",
+func (p *CryptomusProvider) TestCryptomusWebhook(request *TestWebhookRequest) error {
+	if request.UUID == "" {
+        request.UUID = uuid.New().String()
+    }
+    if request.OrderID == "" {
+        request.OrderID = "test-order-" + time.Now().Format("20060102")
     }
 
-    payloadBytes, _ := json.Marshal(payload)
+    if request.CallbackURL == "" {
+        request.CallbackURL = p.config.BaseURL + "/api/v1/crypto/webhook"
+    }
+
+    payload := map[string]any{
+        "uuid":         request.UUID,
+        "order_id":     request.OrderID,
+        "currency":     request.Currency,
+        "network":      request.Network,
+        "status":       request.Status,
+        "url_callback": request.CallbackURL, //https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook"
+    }
+
+    payloadBytes, err := json.Marshal(payload)
+	if err != nil {
+        return fmt.Errorf("failed to marshal payload: %w", err)
+    }
     sign := p.signRequest(p.config.APIKey, payloadBytes)
 
     req, err := http.NewRequest(

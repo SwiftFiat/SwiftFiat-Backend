@@ -6,7 +6,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -423,17 +422,13 @@ func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
 }
 
-// Add to webhooks.go
-type TestWebhookRequest struct {
-    Currency    string `json:"currency" binding:"required"`
-    Network     string `json:"network" binding:"required"`
-    Status      string `json:"status" binding:"required,oneof=paid pending failed"`
-}
-
 func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
-	var req TestWebhookRequest
-	if err := ctx.BindJSON(&req); err != nil {
-		ctx.JSON(400, gin.H{"error": "request data is incorrect or empty"})
+	var req cryptocurrency.TestWebhookRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request data",
+			"details": err.Error(),
+		})
 		return
 	}
 	// Get provider instance
@@ -454,16 +449,12 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	}
 
 	// Trigger test webhook
-	err := cryptoProvider.TestCryptomusWebhook(
-		uuid.New().String(),                         // uuid
-		"test-order-"+time.Now().Format("20060102"), // order_id
-		req.Currency,
-		req.Network,
-		req.Status,
-	)
-
+	err := cryptoProvider.TestCryptomusWebhook(&req)
 	if err != nil {
-		c.server.logger.Error("failed to trigger test webhook", err)
+		c.server.logger.Error("Failed to trigger test webhook",
+			"error", err,
+			"request", req,
+		)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
@@ -472,6 +463,10 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"status":  "success",
-		"message": "Cryptomus test webhook triggered",
+		"message": "Test webhook triggered",
+		"data": gin.H{
+			"uuid":     req.UUID,
+			"order_id": req.OrderID,
+		},
 	})
 }

@@ -46,3 +46,13 @@ type WebhookPayload struct {
 	TxID string `json:"txid"`
 	Sign string `json:"sign"`
 }
+
+type TestWebhookRequest struct {
+    UUID        string `json:"uuid,omitempty"`
+    OrderID     string `json:"order_id,omitempty"`
+    Currency    string `json:"currency" binding:"required"`
+    Network     string `json:"network" binding:"required"`
+    Status      string `json:"status" binding:"required,oneof=paid pending failed"`
+    Amount      string `json:"amount,omitempty"`
+    CallbackURL string `json:"callback_url,omitempty"`
+}
