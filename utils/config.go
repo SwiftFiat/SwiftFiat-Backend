@@ -51,7 +51,7 @@ func LoadConfig(path string) (*Config, error) {
 	// Validate that the path is not empty
 	if path == "" {
 		path = "."
-	}
+	} 
 
 	// Create a new Viper instance to avoid global state
 	v := viper.New()
@@ -123,6 +123,9 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("TWILIO_VERIFY_SERVICE_SID")
 	_ = v.BindEnv("TWILIO_ACCOUNT_SID")
 	_ = v.BindEnv("TWILIO_AUTH_TOKEN")
+	_ = v.BindEnv("RATES_PROVIDER_NAME")
+	_ = v.BindEnv("COINGECKO_BASE_URL")
+	_ = v.BindEnv("COINGECKO_ACCESS_KEY")
 
 	// Create config struct
 	var config Config
