@@ -212,21 +212,41 @@ func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*Genera
 
     return GenerateWalletResponse.Result, nil
 }
-
+ 
 // VerifyWebhook verifies the webhook signature
 func (p *CryptomusProvider) VerifyWebhook(payload *WebhookPayload, body []byte) error {
-	recievedSignature := payload.Sign
-	if recievedSignature == "" {
-		logging.NewLogger().Error("received empty signature")
-		return errors.New("received empty signature")
+	if payload.Sign == "" {
+		return errors.New("empty signature received")
 	}
 
-	computedSignature := p.signRequest(p.config.APIKey, body)
-	if computedSignature != recievedSignature {
-		logging.NewLogger().Error("signature mismatch", "received", recievedSignature, "computed", computedSignature, "computed", computedSignature)
-		return errors.New("signature mismatch")
-	}
-	return nil
+	// Parse JSON into a map to remove the 'sign' field
+    var payloadData map[string]interface{}
+    if err := json.Unmarshal(body, &payloadData); err != nil {
+        return fmt.Errorf("failed to parse payload: %w", err)
+    }
+
+	receivedSign := payload.Sign
+    delete(payloadData, "sign")
+
+	// Re-marshal the remaining data
+    cleanPayload, err := json.Marshal(payloadData)
+    if err != nil {
+        return fmt.Errorf("failed to re-marshal payload: %w", err)
+    }
+
+	// Compute the correct signature
+    computedSign := p.signRequest(p.config.APIKey, cleanPayload) 
+
+    if receivedSign != computedSign {
+        logging.NewLogger().Error("signature mismatch",
+            "received", receivedSign,
+            "computed", computedSign,
+            "payload", string(cleanPayload),
+        )
+        return errors.New("signature mismatch")
+    }
+
+    return nil
 }
 
 // ProcessWebhook handles the webhook payload
@@ -265,15 +285,47 @@ func (p *CryptomusProvider) ProcessWebhook(payload *WebhookPayload) (string, err
 	}
 }
 
-// Ping Checks if cryptomus api is down
-//func (p *CryptomusProvider) Ping() error {
-//	// Use any random endpoint
-//	qrCode, err := p.processRequest("POST", "/wallet/qr", walletAddressUuid)
-//	if err != nil {
-//		logging.NewLogger().Error("error creating qr code: %v", err.Error())
-//		return nil, err
-//	}
-//}
+// Add to CryptomusProvider
+func (p *CryptomusProvider) TestCryptomusWebhook(uuid, orderId, currency, network, status string) error {
+    payload := map[string]any{
+        "uuid":         uuid,
+        "order_id":     orderId,
+        "currency":     currency,
+        "network":      network,
+        "status":       status,
+        "url_callback": "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook",
+    }
+
+    payloadBytes, _ := json.Marshal(payload)
+    sign := p.signRequest(p.config.APIKey, payloadBytes)
+
+    req, err := http.NewRequest(
+        "POST",
+        "https://api.cryptomus.com/v1/test-webhook/payment",
+        bytes.NewBuffer(payloadBytes),
+    )
+    if err != nil {
+        return err
+    }
+
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("merchant", p.config.MerchantID)
+    req.Header.Set("sign", sign)
+
+    resp, err := p.Client.Do(req)
+    if err != nil {
+        return fmt.Errorf("request failed: %w", err)
+    }
+    defer resp.Body.Close()
+
+    if resp.StatusCode != http.StatusOK {
+        body, _ := io.ReadAll(resp.Body)
+        return fmt.Errorf("invalid status %d: %s", resp.StatusCode, string(body))
+    }
+
+    return nil
+}
+
 
 func (p *CryptomusProvider) signRequest(apiKey string, reqBody []byte) string {
 	data := base64.StdEncoding.EncodeToString(reqBody)
