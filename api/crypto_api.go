@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -63,6 +64,7 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
 	serverGroupV1.Static("/assets", "./assets")
 	serverGroupV1.GET("/images", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetImages)
+	serverGroupV1.GET("/test-webhook", c.TestCryptomusWebhookEndpoint)
 }
 
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
@@ -419,4 +421,45 @@ func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 		}
 	}
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
+}
+
+func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
+	// Get provider instance
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Cryptomus provider not configured",
+		})
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "invalid provider type",
+		})
+		return
+	}
+
+	// Trigger test webhook
+	err := cryptoProvider.TestCryptomusWebhook(
+		uuid.New().String(),                         // uuid
+		"test-order-"+time.Now().Format("20060102"), // order_id
+		"USDT", // currency
+		"TRX",  // network
+		"paid", // status
+	)
+
+	if err != nil {
+		c.server.logger.Error("failed to trigger test webhook", err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"status":  "success",
+		"message": "Cryptomus test webhook triggered",
+	})
 }
