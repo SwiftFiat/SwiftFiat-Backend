@@ -124,6 +124,7 @@ func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin st
 
 		return exchange_rate, nil
 	}
+	c.logger.Error(fmt.Sprintf("failed to connect to provider: %s", providers.CoinGecko))
 
 	return decimal.Zero, fmt.Errorf("no such rates provider exists")
 }
