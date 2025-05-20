@@ -423,7 +423,19 @@ func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
 }
 
+// Add to webhooks.go
+type TestWebhookRequest struct {
+    Currency    string `json:"currency" binding:"required"`
+    Network     string `json:"network" binding:"required"`
+    Status      string `json:"status" binding:"required,oneof=paid pending failed"`
+}
+
 func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
+	var req TestWebhookRequest
+	if err := ctx.BindJSON(&req); err != nil {
+		ctx.JSON(400, gin.H{"error": "request data is incorrect or empty"})
+		return
+	}
 	// Get provider instance
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
@@ -445,9 +457,9 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	err := cryptoProvider.TestCryptomusWebhook(
 		uuid.New().String(),                         // uuid
 		"test-order-"+time.Now().Format("20060102"), // order_id
-		"USDT", // currency
-		"TRX",  // network
-		"paid", // status
+		req.Currency,
+		req.Network,
+		req.Status,
 	)
 
 	if err != nil {
