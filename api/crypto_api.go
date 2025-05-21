@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -344,7 +345,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 			SourceHash:         payload.Sign,
 			DestinationAddress: payload.From,
 			AmountInSatoshis:   amountInSatoshis,
-			Coin:               payload.Currency,
+			Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
 			Description:        "Crypto Inflow",
 			Type:               transaction.Deposit,
 			ReceivedAmount:     amounRecieved,

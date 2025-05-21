@@ -168,7 +168,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
+		return nil, fmt.Errorf("begin transaction: %w", err) 
 	}
 	defer dbTx.Rollback()
 
@@ -183,7 +183,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	}
 
 	/// Update amount in transaction object to prevent future problems
-	params := db.CreateCryptoTransactionTrailParams{ 
+	params := db.CreateCryptoTransactionTrailParams{
 		AddressID:       tx.DestinationAddress,
 		TransactionHash: tx.SourceHash,
 		Amount: sql.NullString{
@@ -206,7 +206,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 		}
 		return fromCurrency + " to " + toCurrency
 	}(tx.Coin, "USD") // Default to USD Transactions - Because it's easier to just credit the user's USD wallet
- 
+
 	// Handle Coin conversion to USD
 	rate, err := s.currencyClient.GetCryptoExchangeRate(ctx, tx.Coin, "USD", prov)
 	if err != nil {
