@@ -54,12 +54,12 @@ m_down: # migrate-down
 	migrate -path db/migrations -database "postgres://${db_username}:${db_password}@${db_host}:${db_port}/${db_name}?sslmode=${ssl_mode}" down $(count)
 
 # Start services - PostgreSQL | Bitgo | Redis containers in detached mode
-s_up: # 
-	docker-compose -f docker-compose.services.yml up -d
+s_up: #
+	docker compose -f docker-compose.services.yml up -d
 
 # Stop and remove services - PostgreSQL | Bitgo | Redis container
-s_down: # 
-	docker-compose -f docker-compose.services.yml down
+s_down: #
+	docker compose -f docker-compose.services.yml down
 
 container_name ?= swiftfiat_postgres
 
@@ -81,7 +81,7 @@ db_backup_specific:
 	docker exec -it ${container_name} pg_dump --username=${db_username} ${db_name} --table=$(subst $(space),$(,),$(tables)) > db_backup_specific.sql
 
 # Restore specific tables from a backup
-# Usage: make db_restore_specific tables="table1 table2 table3" 
+# Usage: make db_restore_specific tables="table1 table2 table3"
 db_restore_specific:
 	docker exec -i ${container_name} psql --username=${db_username} ${db_name} < db_backup_specific.sql
 

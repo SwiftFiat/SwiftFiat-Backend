@@ -98,7 +98,7 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 
 	// Decode the response body
 	coinID := supportedCoins[*coin]
-	var newModel map[string]interface{}
+	var newModel map[string]any
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&newModel)
 	if err != nil {
@@ -108,16 +108,24 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 	logging.NewLogger().Info("newModel From CoinGecko", newModel)
 
 	// Type assertion to convert interface{} to *string
-	coinRate, ok := newModel[coinID].(map[string]interface{})["usd"].(float64)
+	coinRate, ok := newModel[coinID]
+	if !ok || coinRate == nil {
+		return "", fmt.Errorf("coin rate not found in response")
+	}
+	coinMap, ok := coinRate.(map[string]any)
 	if !ok {
-		return "", fmt.Errorf("issues retrieving USD value from RatesProvider: %v", err)
+		return "", fmt.Errorf("coin rate is not a map")
+	}
+	usdValue, ok := coinMap["usd"].(float64)
+	if !ok {
+		return "", fmt.Errorf("USD value for %s not found or not a float", coinID)
 	}
 
-	s := fmt.Sprintf("%f", coinRate)
+	s := fmt.Sprintf("%f", usdValue)
 	return s, nil
 }
 
-func (c *CoinGeckoProvider) GetCoinData(coin string) (map[string]interface{}, error) {
+func (c *CoinGeckoProvider) GetCoinData(coin string) (map[string]any, error) {
 	coinID, ok := supportedCoins[coin]
 	if !ok {
 		return nil, fmt.Errorf("unsupported coin: %s", coin)
