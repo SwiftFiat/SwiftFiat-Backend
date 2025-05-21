@@ -72,7 +72,7 @@ func (c *CoinGeckoProvider) GetUSDRate(coin *string) (string, error) {
 	base, err := url.Parse(c.BaseURL)
 	if err != nil {
 		return "", fmt.Errorf("unexpected status code: %v", err.Error())
-	}
+	} 
 
 	// Path params
 	base.Path += "/price"
