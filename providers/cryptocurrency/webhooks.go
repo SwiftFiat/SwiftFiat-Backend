@@ -68,8 +68,49 @@ type TestWebhookResponse struct {
 	State  int8     `json:"state"`
 }
 
+type ResendWebhookResponse struct {
+	Result []string `json:"result"`
+	State  int8     `json:"state"`
+}
+
 
 type resendWebhookRawResponse struct {
 	Result []string `json:"result"`
 	State  int8     `json:"state"`
+}
+
+type PaymentInfoRequest struct {
+	PaymentUUID string `json:"uuid,omitempty"`
+	OrderId     string `json:"order_id,omitempty"`
+}
+
+type PaymentInfoResponse struct {
+	State  int           `json:"state"`
+	Result PaymentInfoResult `json:"result"`
+}
+
+type PaymentInfoResult struct {
+	UUID           string  `json:"uuid"`
+	OrderID        string  `json:"order_id"`
+	Amount         string  `json:"amount"`
+	PaymentAmount  string  `json:"payment_amount"`
+	PayerAmount    string  `json:"payer_amount"`
+	DiscountPercent int     `json:"discount_percent"`
+	Discount       string  `json:"discount"`
+	PayerCurrency  string  `json:"payer_currency"`
+	Currency       string  `json:"currency"`
+	Comments       *string `json:"comments"`
+	MerchantAmount string  `json:"merchant_amount"`
+	Network        string  `json:"network"`
+	Address        string  `json:"address"`
+	From           *string `json:"from"`
+	TxID           *string `json:"txid"`
+	PaymentStatus  string  `json:"payment_status"`
+	URL            string  `json:"url"`
+	ExpiredAt      int64   `json:"expired_at"`
+	Status         string  `json:"status"`
+	IsFinal        bool    `json:"is_final"`
+	AdditionalData *string `json:"additional_data"`
+	CreatedAt      string  `json:"created_at"`
+	UpdatedAt      string  `json:"updated_at"`
 }

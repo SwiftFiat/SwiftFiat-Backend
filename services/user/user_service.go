@@ -342,7 +342,7 @@ func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID int64,
 	if err != nil {
 		return nil, err
 	}
-	return &address, nil
+	return &address, nil 
 }
 
 func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUUID string, UUID string, walletAddress string, userID int64, walletCurrency string, walletNetwork string, paymentURL string, callbackURL string) error {

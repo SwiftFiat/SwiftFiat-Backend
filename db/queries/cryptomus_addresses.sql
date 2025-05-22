@@ -4,7 +4,7 @@ INSERT INTO cryptomus_addresses (
     wallet_uuid,
     uuid,
     address,
-    network,
+    network, 
     currency,
     payment_url,
     callback_url,
