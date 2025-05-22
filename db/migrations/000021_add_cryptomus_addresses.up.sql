@@ -2,7 +2,7 @@
 --! deletion of user accounts should not affect the management
 --! of an address so that this can be reassigned
 -- Start transaction
-BEGIN;
+BEGIN; 
 
 -- Crypto Addresses table
 CREATE TABLE IF NOT EXISTS "cryptomus_addresses" (

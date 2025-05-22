@@ -65,6 +65,9 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.Static("/assets", "./assets")
 	serverGroupV1.GET("/images", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetImages)
 	serverGroupV1.POST("/test-webhook", c.TestCryptomusWebhookEndpoint)
+	serverGroupV1.POST("/resend-webhook", c.ResendWebhook)
+	serverGroupV1.POST("/test-crypto-api", c.testCryptoAPI)
+	serverGroupV1.POST("/payment-info", c.GetPaymentInfo)
 }
 
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
@@ -166,11 +169,11 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-	userAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)
-	if err == nil {
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
-		return
-	}
+	// userAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)
+	// if err == nil {
+	// 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
+	// 	return
+	// }
 
 	callbackURL := "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook"
 
@@ -196,18 +199,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", gin.H{
-		"wallet_uuid":  staticWallet.UUID,
-		"address":      staticWallet.Address,
-		"network":      staticWallet.Network,
-		"currency":     staticWallet.Currency,
-		"url":          staticWallet.Url,
-		"callback_url": callbackURL,
-		"uuid":         staticWallet.UUID,
-		"order_id":     orderID,
-		"status":       "success",
-		"message":      "Static wallet created successfully",
-	}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", staticWallet))
 }
 
 func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
@@ -465,4 +457,87 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 			"state":  res.State,
 		},
 	})
+}
+
+func (c *CryptoAPI) ResendWebhook(ctx *gin.Context) {
+	var req cryptocurrency.ResendWebhookRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request data",
+			"details": err.Error(),
+		})
+		return
+	}
+	// Get provider instance
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Cryptomus provider not configured",
+		})
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "invalid provider type",
+		})
+		return
+	}
+
+	res, err := cryptoProvider.ResendWebhook(&req)
+	if err != nil {
+		c.server.logger.Error("Failed to resend webhook",
+			"error", err,
+			"request", req,
+		)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
+}
+
+func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
+	var req cryptocurrency.PaymentInfoRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"error":   "Invalid request data",
+			"details": err.Error(),
+		})
+		return
+	}
+
+	// Get provider instance
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "Cryptomus provider not configured",
+		})
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": "invalid provider type",
+		})
+		return
+	}
+
+	res, err := cryptoProvider.GetPaymentInfo(&req)
+	if err != nil {
+		c.server.logger.Error("Failed to resend webhook",
+			"error", err,
+			"request", req,
+		)
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
 }

@@ -217,7 +217,7 @@ func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*Genera
 // VerifyWebhook verifies the webhook signature
 func (p *CryptomusProvider) VerifySign(apiKey string, reqBody []byte) error {
 	logging.NewLogger().Info("starting VerifyWebhook....")
-	
+
 	var jsonBody map[string]any
 	err := json.Unmarshal(reqBody, &jsonBody)
 	if err != nil {
@@ -284,4 +284,34 @@ func (p *CryptomusProvider) ParseWebhook(reqBody []byte, verifySign bool) (*Webh
 	}
 
 	return response, err
+}
+
+func (p *CryptomusProvider) ResendWebhook(req *ResendWebhookRequest) (*ResendWebhookResponse, error) {
+	res, err := p.processRequest("POST", "/payment/resend", req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	response := &ResendWebhookResponse{}
+	if err = json.NewDecoder(res.Body).Decode(response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+func (p *CryptomusProvider) GetPaymentInfo(req *PaymentInfoRequest) (*PaymentInfoResponse, error) {
+	res, err := p.processRequest("POST", "/payment/info", req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	response := &PaymentInfoResponse{}
+	if err = json.NewDecoder(res.Body).Decode(response); err != nil {
+		return nil, err
+	}
+
+	return response, nil
 }

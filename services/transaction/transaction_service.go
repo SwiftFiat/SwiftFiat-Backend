@@ -168,7 +168,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err) 
+		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
@@ -221,25 +221,30 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	amount := coinAmount.Mul(rate)
 
 	// Get Address Info from DB
-	walletAddress, err := s.store.WithTx(dbTx).FetchByAddressID(ctx, tx.DestinationAddress)
+	// walletAddress, err := s.store.WithTx(dbTx).FetchByAddressID(ctx, tx.DestinationAddress)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
+	// }
+	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByAddress(ctx, tx.DestinationAddress)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
+		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.DestinationAddress, err)
 	}
+
 
 	// Update Address Balance with Params
-	updateAddressParams := db.UpdateAddressBalanceByAddressIDParams{
-		AddressID: walletAddress.AddressID,
-		Balance: sql.NullString{
-			String: amount.String(),
-			Valid:  amount.String() != "",
-		},
-	}
+	// updateAddressParams := db.UpdateAddressBalanceByAddressIDParams{
+	// 	AddressID: walletAddress.AddressID,
+	// 	Balance: sql.NullString{
+	// 		String: amount.String(),
+	// 		Valid:  amount.String() != "",
+	// 	},
+	// }
 
 	// Update Crypto Address Balance in DB
-	_, err = s.store.WithTx(dbTx).UpdateAddressBalanceByAddressID(ctx, updateAddressParams)
-	if err != nil {
-		return nil, fmt.Errorf("failed to update the swift address with new changes %v", err)
-	}
+	// _, err = s.store.WithTx(dbTx).UpdateAddressBalanceByAddressID(ctx, updateAddressParams)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to update the swift address with new changes %v", err)
+	// }
 
 	// Pull users USD wallet
 	walletParams := db.GetWalletByCurrencyForUpdateParams{
@@ -1149,3 +1154,4 @@ func (s *TransactionService) ListAllTransactions(ctx context.Context) ([]db.List
 
 	return transactions, nil
 }
+
