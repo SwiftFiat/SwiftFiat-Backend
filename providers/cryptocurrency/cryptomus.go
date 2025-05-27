@@ -240,7 +240,7 @@ func (p *CryptomusProvider) VerifySign(apiKey string, reqBody []byte) error {
 
 // Add to CryptomusProvider
 func (p *CryptomusProvider) TestCryptomusWebhook(request *TestWebhookRequest) (*TestWebhookResponse, error) {
-	res, err := p.processRequest("POST", "/test-webhook/payment", request)
+	res, err := p.processRequest("POST", "/test-webhook/wallet", request)
 	if err != nil {
 		return nil, err
 	}
@@ -269,8 +269,10 @@ func (p *CryptomusProvider) ParseWebhook(reqBody []byte, verifySign bool) (*Webh
 		return nil, err
 	}
 
+	logging.NewLogger().Info("Webhook type", response.Type)
+	logging.NewLogger().Info("Webhook type", response)
 	switch response.Type {
-	case "payment":
+	case "wallet":
 		apiKey = p.config.APIKey
 	default:
 		return nil, errors.New("unknown webhook type")

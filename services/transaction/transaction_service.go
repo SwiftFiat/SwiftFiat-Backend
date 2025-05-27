@@ -162,7 +162,7 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 }
 
 // / May return an arbitrary error or an error defined in [transaction_strings]
-func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, tx CryptoTransaction, prov *providers.ProviderService) (*TransactionResponse[CryptoMetadataResponse], error) {
+func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, orderID string, tx CryptoTransaction, prov *providers.ProviderService) (*TransactionResponse[CryptoMetadataResponse], error) {
 	s.logger.Info("starting crypto inflow transaction")
 
 	// Start transaction
@@ -214,10 +214,22 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	}
 
 	/// Convert satoshis to coin
-	coinAmount, err := s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
-	}
+	// coinAmount, err := s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
+	// }
+
+	var coinAmount decimal.Decimal
+if tx.Coin == "BTC" || tx.Coin == "btc" {
+    // For BTC, webhook might send satoshis, so convert
+    coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
+    if err != nil {
+        return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
+    }
+} else {
+    // For all other coins, use the main unit directly
+    coinAmount = tx.AmountInSatoshis // tx.Amount should be the string from webhook
+}
 	amount := coinAmount.Mul(rate)
 
 	// Get Address Info from DB
@@ -225,9 +237,9 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	// if err != nil {
 	// 	return nil, fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
 	// }
-	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByAddress(ctx, tx.DestinationAddress)
+	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID) //Todo: this iis not fetching the cuurate uuid
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.DestinationAddress, err)
+		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
 	}
 
 
@@ -498,7 +510,6 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	if err != nil {
 		return nil, wallet.NewWalletError(err, tx.SourceWalletID.String())
 	}
-
 	// User must own source wallet - Verify Ownership
 	if user.ID != fromAccount.CustomerID {
 		s.logger.Error("illegal access: ", fmt.Sprintf("user tried accessing a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.ID, fromAccount.ID))

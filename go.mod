@@ -86,6 +86,7 @@ require (
 	github.com/golang-migrate/migrate/v4 v4.17.1
 	github.com/itsjoniur/go-cryptomus v0.1.0
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kayode0x/plunk v0.1.7
 	github.com/klauspost/cpuid/v2 v2.2.7 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lib/pq v1.10.9

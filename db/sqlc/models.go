@@ -91,6 +91,7 @@ type CryptomusAddress struct {
 	Address     string         `json:"address"`
 	Network     string         `json:"network"`
 	Currency    string         `json:"currency"`
+	OrderID     string         `json:"order_id"`
 	PaymentUrl  sql.NullString `json:"payment_url"`
 	CallbackUrl sql.NullString `json:"callback_url"`
 	Status      string         `json:"status"`
@@ -370,6 +371,7 @@ type User struct {
 	PhoneNumber    string         `json:"phone_number"`
 	Role           string         `json:"role"`
 	Verified       bool           `json:"verified"`
+	IsKycVerified  bool           `json:"is_kyc_verified"`
 	CreatedAt      time.Time      `json:"created_at"`
 	UpdatedAt      time.Time      `json:"updated_at"`
 	DeletedAt      sql.NullTime   `json:"deleted_at"`

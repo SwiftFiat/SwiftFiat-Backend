@@ -48,6 +48,7 @@ func (a Auth) router(server *Server) {
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr)
 	a.activityTracker = activitylogs.NewActivityLog(*a.server.queries)
 
+
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
 	serverGroupV1.GET("test", a.testAuth)
@@ -329,6 +330,11 @@ func (a *Auth) register(ctx *gin.Context) {
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 	}
+
+	// err = a.email.TrackAction(newUser.Email, "register-user", nil)
+	// if err != nil {
+	// 	a.server.logger.Warn("error sending welcome email", err)
+	// }
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
 }
@@ -703,6 +709,8 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 		UserID: int32(user.ID),
 		Action: fmt.Sprintf("User %s created passcode ", user.FirstName.String),
 	})
+
+	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
 }

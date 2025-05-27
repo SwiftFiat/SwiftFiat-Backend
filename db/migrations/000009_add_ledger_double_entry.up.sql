@@ -8,6 +8,6 @@ CREATE TABLE IF NOT EXISTS "ledger_entries" (
     "balance" DECIMAL(19,4) NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "source_type" VARCHAR(20) NOT NULL, -- 'on-platform' or 'off-platform'
-    "destination_type" VARCHAR(20) NOT NULL, -- 'on-platform' or 'off-platform'
-    CONSTRAINT "positive_amount" CHECK (amount > 0)
+    "destination_type" VARCHAR(20) NOT NULL -- 'on-platform' or 'off-platform'
+    -- CONSTRAINT "positive_amount" CHECK (amount > 0)
 );

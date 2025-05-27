@@ -12,3 +12,4 @@ CREATE TABLE IF NOT EXISTS "exchange_rates" (
 CREATE INDEX IF NOT EXISTS "idx_currency_pair" ON exchange_rates(base_currency, quote_currency);
 CREATE INDEX IF NOT EXISTS "idx_effective_time" ON exchange_rates(effective_time);
 CREATE INDEX IF NOT EXISTS "idx_lookup" ON exchange_rates(base_currency, quote_currency, effective_time);
+ 
