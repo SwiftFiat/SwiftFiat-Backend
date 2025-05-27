@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -113,38 +115,24 @@ func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 }
 
 func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
-	request := struct {
-		Currency string `json:"currency" binding:"required"`
-		Network  string `json:"network" binding:"required"`
-	}{}
-
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
-		return
-	}
-
-	// Get Active User
+		// Get Active User
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	// Get User from DB
-	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
+
+	request := struct {
+		Currency string `json:"currency" binding:"required"`
+		Network  string `json:"network" binding:"required"`
+	}{}
+
+	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
-		c.server.logger.Error("failed to get user", err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
 		return
 	}
-
-	/// check varification status
-	// if !dbUser.Verified {
-	// 	c.server.logger.Error("user not verified")
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-	// 	return
-	// }
 
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
@@ -160,12 +148,9 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	orderID, err := models.EncryptID(models.ID(dbUser.ID))
-	if err != nil {
-		c.server.logger.Error("failed to encrypt user id", err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
-		return
-	}
+	rand.Seed(time.Now().UnixNano())
+	number := rand.Intn(90000) + 10000
+	orderID := fmt.Sprintf("SWIFT-%d", number)
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
@@ -174,8 +159,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	// 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
 	// 	return
 	// }
-
-	callbackURL := "https://swiftfiat-backend.onrender.com/api/v1/crypto/webhook"
+	callbackURL := "https://1ef2-105-116-3-217.ngrok-free.app/api/v1/crypto/webhook"
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,
@@ -193,7 +177,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	}
 
 	/// Assign address to user
-	err = c.userService.AssignCryptomusAddressToUser(ctx, staticWallet.UUID, staticWallet.UUID, staticWallet.Address, activeUser.UserID, staticWallet.Currency, staticWallet.Network, staticWallet.Url, callbackURL)
+	err = c.userService.AssignCryptomusAddressToUser(ctx, staticWallet.WalletUUID, staticWallet.UUID, orderID, staticWallet.Address, activeUser.UserID, staticWallet.Currency, staticWallet.Network, staticWallet.Url, callbackURL)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to assign wallet to User Error: %s", err)))
 		return
@@ -309,6 +293,27 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		ctx.JSON(400, basemodels.NewError("error parsing webhook"))
 		return
 	}
+	if res.Status == "confirm-check" {
+		c.server.logger.Info("confirm-check status received")
+	}
+
+	if res.Status == "check" {
+		c.server.logger.Info("Waiting for the transaction to appear on the blockchain")
+	}
+
+	if res.Status == "processing" {
+		c.server.logger.Info("payment is processing")
+	}
+	if res.Status == "fail" {
+		c.server.logger.Info("payment error")
+	}
+	if res.Status == "system_fail" {
+		c.server.logger.Info("A system error has occurred")
+	}
+
+	if res.Status == "wrong_amount" {
+		c.server.logger.Info("The client paid less than required")
+	}
 
 	if res.Status == "paid" {
 		// Call the wallet service and credit the user basse
@@ -320,7 +325,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
 		c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
 
-		amountInSatoshis, err := decimal.NewFromString(payload.PaymentAmount)
+		amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
 		if err != nil {
 			c.server.logger.Errorf("conversion error1: %v", err)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -333,6 +338,13 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 			return
 		}
 
+		txid, err := uuid.Parse(payload.UUID)
+		if err != nil {
+			c.server.logger.Errorf("UUID conversion error3: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
+			return
+		}
+
 		cryptoTransaction := transaction.CryptoTransaction{
 			SourceHash:         payload.Sign,
 			DestinationAddress: payload.From,
@@ -341,10 +353,10 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 			Description:        "Crypto Inflow",
 			Type:               transaction.Deposit,
 			ReceivedAmount:     amounRecieved,
-			TransactionID:      uuid.MustParse(payload.UUID),
+			TransactionID:      txid,
 		}
 
-		_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, cryptoTransaction, c.server.provider)
+		_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
 		if err != nil {
 			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
 		}
@@ -529,7 +541,7 @@ func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 
 	res, err := cryptoProvider.GetPaymentInfo(&req)
 	if err != nil {
-		c.server.logger.Error("Failed to resend webhook",
+		c.server.logger.Error("Failed to get payment info",
 			"error", err,
 			"request", req,
 		)

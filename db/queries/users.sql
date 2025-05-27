@@ -14,7 +14,7 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpdateUserFreshChatID :one
 UPDATE users SET fresh_chat_id = $1, updated_at = $2
-WHERE id = $3 RETURNING *; 
+WHERE id = $3 RETURNING *;
 
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
@@ -25,7 +25,7 @@ SELECT first_name, last_name FROM users WHERE user_tag = $1;
 -- name: CheckUserTag :one
 SELECT EXISTS (
     SELECT 1
-    FROM users WHERE user_tag = $1 
+    FROM users WHERE user_tag = $1
 ) AS exists;
 
 -- name: GetUserByEmail :one
@@ -43,7 +43,7 @@ LIMIT $1 OFFSET $2;
 
 -- name: ListAdmins :many
 SELECT * FROM users WHERE role=$1 ORDER BY id
-LIMIT $2 OFFSET $3; 
+LIMIT $2 OFFSET $3;
 
 -- name: CountNewUsersToday :one
 SELECT COUNT(*)
@@ -87,16 +87,20 @@ WHERE id = $4 RETURNING *;
 UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
+-- name: UpdateUserKYCVerificationStatus :one
+UPDATE users SET is_kyc_verified = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
 -- name: UpdateUserWalletStatus :one
 UPDATE users SET has_wallets = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
 -- name: DeleteUser :one
-UPDATE users 
+UPDATE users
 SET phone_number = $1,
     email = $2,
     first_name = $3,
-    deleted_at = NOW() 
+    deleted_at = NOW()
 WHERE id = $4
 RETURNING *;
 

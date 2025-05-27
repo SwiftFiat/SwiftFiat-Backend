@@ -1,17 +1,18 @@
 -- name: UpsertCryptomusAddress :one
 INSERT INTO cryptomus_addresses (
     customer_id,
+    order_id,
     wallet_uuid,
     uuid,
     address,
-    network, 
+    network,
     currency,
     payment_url,
     callback_url,
     status,
     updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     ON CONFLICT (address) DO UPDATE SET
     customer_id = EXCLUDED.customer_id,
                                  wallet_uuid = EXCLUDED.wallet_uuid,
@@ -32,6 +33,10 @@ WHERE address = $1 LIMIT 1;
 -- name: GetCryptomusAddressByUUID :one
 SELECT * FROM cryptomus_addresses
 WHERE uuid = $1 LIMIT 1;
+
+-- name: GetCryptomusAddressByOrderID :one
+SELECT * FROM cryptomus_addresses
+WHERE order_id = $1 LIMIT 1;
 
 -- name: ListCryptomusAddressesByCustomer :many
 SELECT * FROM cryptomus_addresses

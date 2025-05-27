@@ -5,6 +5,7 @@ import (
 
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
@@ -22,18 +23,28 @@ func (c Currency) router(server *Server) {
 	serverGroupV1.GET("get", c.server.authMiddleware.AuthenticatedMiddleware(), c.getPairRate)
 	serverGroupV1.GET("all", c.server.authMiddleware.AuthenticatedMiddleware(), c.getAllRates)
 
-	serverGroupV1Admin := server.router.Group("/api/admin/v1/currency")
+	serverGroupV1Admin := server.router.Group("/api/v1/currency")
 	serverGroupV1Admin.POST("set", c.server.authMiddleware.AuthenticatedMiddleware(), c.setPairRate)
 }
 
 func (c *Currency) setPairRate(ctx *gin.Context) {
+	user, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	if user.Role != "admin" {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	
 	request := struct {
 		BaseCurrency  string `json:"base" binding:"required"`
 		QuoteCurrency string `json:"quote" binding:"required"`
 		Rate          string `json:"rate" binding:"required"`
 	}{}
 
-	err := ctx.ShouldBindJSON(&request)
+	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check currency pair and rate"))
 		return

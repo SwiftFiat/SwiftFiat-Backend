@@ -21,7 +21,7 @@ func (q *Queries) DeleteCryptomusAddress(ctx context.Context, address string) er
 }
 
 const getCryptomusAddressByAddress = `-- name: GetCryptomusAddressByAddress :one
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE address = $1 LIMIT 1
 `
 
@@ -36,6 +36,7 @@ func (q *Queries) GetCryptomusAddressByAddress(ctx context.Context, address stri
 		&i.Address,
 		&i.Network,
 		&i.Currency,
+		&i.OrderID,
 		&i.PaymentUrl,
 		&i.CallbackUrl,
 		&i.Status,
@@ -46,7 +47,7 @@ func (q *Queries) GetCryptomusAddressByAddress(ctx context.Context, address stri
 }
 
 const getCryptomusAddressByNetworkAndCurrencyAndCustomerID = `-- name: GetCryptomusAddressByNetworkAndCurrencyAndCustomerID :one
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE LOWER(network) = LOWER($1) AND LOWER(currency) = LOWER($2) AND customer_id = $3
     LIMIT 1
 `
@@ -68,6 +69,33 @@ func (q *Queries) GetCryptomusAddressByNetworkAndCurrencyAndCustomerID(ctx conte
 		&i.Address,
 		&i.Network,
 		&i.Currency,
+		&i.OrderID,
+		&i.PaymentUrl,
+		&i.CallbackUrl,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCryptomusAddressByOrderID = `-- name: GetCryptomusAddressByOrderID :one
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+WHERE order_id = $1 LIMIT 1
+`
+
+func (q *Queries) GetCryptomusAddressByOrderID(ctx context.Context, orderID string) (CryptomusAddress, error) {
+	row := q.db.QueryRowContext(ctx, getCryptomusAddressByOrderID, orderID)
+	var i CryptomusAddress
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.WalletUuid,
+		&i.Uuid,
+		&i.Address,
+		&i.Network,
+		&i.Currency,
+		&i.OrderID,
 		&i.PaymentUrl,
 		&i.CallbackUrl,
 		&i.Status,
@@ -78,7 +106,7 @@ func (q *Queries) GetCryptomusAddressByNetworkAndCurrencyAndCustomerID(ctx conte
 }
 
 const getCryptomusAddressByUUID = `-- name: GetCryptomusAddressByUUID :one
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE uuid = $1 LIMIT 1
 `
 
@@ -93,6 +121,7 @@ func (q *Queries) GetCryptomusAddressByUUID(ctx context.Context, uuid string) (C
 		&i.Address,
 		&i.Network,
 		&i.Currency,
+		&i.OrderID,
 		&i.PaymentUrl,
 		&i.CallbackUrl,
 		&i.Status,
@@ -103,7 +132,7 @@ func (q *Queries) GetCryptomusAddressByUUID(ctx context.Context, uuid string) (C
 }
 
 const listCryptomusAddressesByCurrency = `-- name: ListCryptomusAddressesByCurrency :many
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE currency = $1
 ORDER BY created_at DESC
 `
@@ -125,6 +154,7 @@ func (q *Queries) ListCryptomusAddressesByCurrency(ctx context.Context, currency
 			&i.Address,
 			&i.Network,
 			&i.Currency,
+			&i.OrderID,
 			&i.PaymentUrl,
 			&i.CallbackUrl,
 			&i.Status,
@@ -145,7 +175,7 @@ func (q *Queries) ListCryptomusAddressesByCurrency(ctx context.Context, currency
 }
 
 const listCryptomusAddressesByCustomer = `-- name: ListCryptomusAddressesByCustomer :many
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE customer_id = $1
 ORDER BY created_at DESC
 `
@@ -167,6 +197,7 @@ func (q *Queries) ListCryptomusAddressesByCustomer(ctx context.Context, customer
 			&i.Address,
 			&i.Network,
 			&i.Currency,
+			&i.OrderID,
 			&i.PaymentUrl,
 			&i.CallbackUrl,
 			&i.Status,
@@ -187,7 +218,7 @@ func (q *Queries) ListCryptomusAddressesByCustomer(ctx context.Context, customer
 }
 
 const listCryptomusAddressesByNetwork = `-- name: ListCryptomusAddressesByNetwork :many
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE network = $1
 ORDER BY created_at DESC
 `
@@ -209,6 +240,7 @@ func (q *Queries) ListCryptomusAddressesByNetwork(ctx context.Context, network s
 			&i.Address,
 			&i.Network,
 			&i.Currency,
+			&i.OrderID,
 			&i.PaymentUrl,
 			&i.CallbackUrl,
 			&i.Status,
@@ -229,7 +261,7 @@ func (q *Queries) ListCryptomusAddressesByNetwork(ctx context.Context, network s
 }
 
 const listCryptomusAddressesByNetworkAndCurrency = `-- name: ListCryptomusAddressesByNetworkAndCurrency :many
-SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
 WHERE network = $1 AND currency = $2
 ORDER BY created_at DESC
 `
@@ -256,6 +288,7 @@ func (q *Queries) ListCryptomusAddressesByNetworkAndCurrency(ctx context.Context
 			&i.Address,
 			&i.Network,
 			&i.Currency,
+			&i.OrderID,
 			&i.PaymentUrl,
 			&i.CallbackUrl,
 			&i.Status,
@@ -281,7 +314,7 @@ SET
     status = $2,
     updated_at = CURRENT_TIMESTAMP
 WHERE address = $1
-    RETURNING id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at
+    RETURNING id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at
 `
 
 type UpdateCryptomusAddressStatusParams struct {
@@ -300,6 +333,7 @@ func (q *Queries) UpdateCryptomusAddressStatus(ctx context.Context, arg UpdateCr
 		&i.Address,
 		&i.Network,
 		&i.Currency,
+		&i.OrderID,
 		&i.PaymentUrl,
 		&i.CallbackUrl,
 		&i.Status,
@@ -312,6 +346,7 @@ func (q *Queries) UpdateCryptomusAddressStatus(ctx context.Context, arg UpdateCr
 const upsertCryptomusAddress = `-- name: UpsertCryptomusAddress :one
 INSERT INTO cryptomus_addresses (
     customer_id,
+    order_id,
     wallet_uuid,
     uuid,
     address,
@@ -322,7 +357,7 @@ INSERT INTO cryptomus_addresses (
     status,
     updated_at
 )
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
     ON CONFLICT (address) DO UPDATE SET
     customer_id = EXCLUDED.customer_id,
                                  wallet_uuid = EXCLUDED.wallet_uuid,
@@ -334,11 +369,12 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
                                  callback_url = EXCLUDED.callback_url,
                                  status = EXCLUDED.status,
                                  updated_at = CURRENT_TIMESTAMP
-                                 RETURNING id, customer_id, wallet_uuid, uuid, address, network, currency, payment_url, callback_url, status, created_at, updated_at
+                                 RETURNING id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at
 `
 
 type UpsertCryptomusAddressParams struct {
 	CustomerID  sql.NullInt64  `json:"customer_id"`
+	OrderID     string         `json:"order_id"`
 	WalletUuid  string         `json:"wallet_uuid"`
 	Uuid        string         `json:"uuid"`
 	Address     string         `json:"address"`
@@ -353,6 +389,7 @@ type UpsertCryptomusAddressParams struct {
 func (q *Queries) UpsertCryptomusAddress(ctx context.Context, arg UpsertCryptomusAddressParams) (CryptomusAddress, error) {
 	row := q.db.QueryRowContext(ctx, upsertCryptomusAddress,
 		arg.CustomerID,
+		arg.OrderID,
 		arg.WalletUuid,
 		arg.Uuid,
 		arg.Address,
@@ -372,6 +409,7 @@ func (q *Queries) UpsertCryptomusAddress(ctx context.Context, arg UpsertCryptomu
 		&i.Address,
 		&i.Network,
 		&i.Currency,
+		&i.OrderID,
 		&i.PaymentUrl,
 		&i.CallbackUrl,
 		&i.Status,

@@ -45,13 +45,15 @@ type Config struct {
 	TWILIO_ACCOUNT_SID        string `mapstructure:"TWILIO_ACCOUNT_SID"`
 	TWILIO_AUTH_TOKEN         string `mapstructure:"TWILIO_AUTH_TOKEN"`
 	TWILIO_VERIFY_SERVICE_SID string `mapstructure:"TWILIO_VERIFY_SERVICE_SID"`
+	PlunkApiKey               string `mapstructure:"PLUNK_API_KEY"`
+	PlunkBaseUrl              string `mapstructure:"PLUNK_BASE_URL"`
 }
 
 func LoadConfig(path string) (*Config, error) {
 	// Validate that the path is not empty
 	if path == "" {
 		path = "."
-	} 
+	}
 
 	// Create a new Viper instance to avoid global state
 	v := viper.New()
@@ -219,6 +221,8 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("RATES_PROVIDER_NAME")
 	_ = v.BindEnv("COINGECKO_BASE_URL")
 	_ = v.BindEnv("COINGECKO_ACCESS_KEY")
+	_ = v.BindEnv("PLUNK_API_KEY")
+	_ = v.BindEnv("PLUNK_BASE_URL")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)
