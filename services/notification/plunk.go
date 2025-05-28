@@ -11,7 +11,7 @@ import (
 )
 
 type Plunk struct {
-	httpClient *http.Client
+	HttpClient *http.Client
 	Config     *utils.Config
 }
 
@@ -51,7 +51,7 @@ func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 	req.Header.Set("Authorization", "Bearer "+s.Config.PlunkApiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := s.httpClient.Do(req)
+	resp, err := s.HttpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}

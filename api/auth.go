@@ -59,15 +59,15 @@ func (a Auth) router(server *Server) {
 	// serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
 	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
 	serverGroupV1.POST("change-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.changePassword)
-	serverGroupV1.POST("forgot-password", a.forgotPassword)
-	serverGroupV1.POST("reset-password", a.resetPassword)
-	serverGroupV1.POST("forgot-passcode", a.forgotPasscode)
-	serverGroupV1.POST("reset-passcode", a.resetPasscode)
+	serverGroupV1.POST("forgot-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPassword)
+	serverGroupV1.POST("reset-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPassword)
+	serverGroupV1.POST("forgot-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPasscode)
+	serverGroupV1.POST("reset-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPasscode)
 	serverGroupV1.POST("create-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPin)
 	serverGroupV1.PUT("update-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.updateTransactionPin)
 	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
-	serverGroupV1.GET("user", a.getUserID)
+	serverGroupV1.GET("user", a.server.authMiddleware.AuthenticatedMiddleware(), a.getUserID)
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 	serverGroupV1.POST("send-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.SendOTPWithTwilio)
 	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
@@ -331,10 +331,12 @@ func (a *Auth) register(ctx *gin.Context) {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 	}
 
-	// err = a.email.TrackAction(newUser.Email, "register-user", nil)
-	// if err != nil {
-	// 	a.server.logger.Warn("error sending welcome email", err)
-	// }
+	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+
+	err = email.TrackAction(newUser.Email, "register-user", nil)
+	if err != nil {
+		a.server.logger.Warn("error sending welcome email", err)
+	}
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
 }
@@ -395,115 +397,6 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	})
 
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
-}
-
-func (a *Auth) sendOTP(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-		return
-	}
-
-	user, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
-	if errors.Is(err, sql.ErrNoRows) {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found - not authorized to access resources"))
-		return
-	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	otp := utils.GenerateOTP()
-	newParam := db.UpsertOTPParams{
-		UserID:    int32(user.ID),
-		Otp:       otp,
-		Expired:   false,
-		ExpiresAt: time.Now().Add(time.Minute * 30),
-	}
-
-	log.Default().Output(0, fmt.Sprintf("newParam Expiry: %v", newParam.ExpiresAt.Local()))
-
-	/// Add OTP to DB
-	resp, err := a.server.queries.UpsertOTP(context.Background(), newParam)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
-		PhoneNumber: user.PhoneNumber,
-		Email:       user.Email,
-		Name:        user.FirstName.String,
-		Config:      a.server.config,
-	}
-
-	a.server.logger.Log(logrus.DebugLevel, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
-
-	err = em.SendOTP(resp.Otp)
-	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), nil))
-}
-
-func (a *Auth) verifyOTP(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-		return
-	}
-
-	var otp models.UserOTPParams
-
-	err = ctx.ShouldBindJSON(&otp)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid OTP, key 'otp' missing"))
-		return
-	}
-
-	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(activeUser.UserID))
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred verifying your OTP %v", err.Error())))
-		return
-	}
-
-	/// User OTP Exists
-	/// If User OTP is Expired --> Returns false
-	ok := utils.CompareOTP(otp.OTP, utils.OTPObject{
-		OTP:    dbOTP.Otp,
-		Expiry: dbOTP.ExpiresAt,
-	})
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-
-	updateUserParam := db.UpdateUserVerificationParams{
-		Verified:  true,
-		UpdatedAt: time.Now(),
-		ID:        activeUser.UserID,
-	}
-
-	/// Update User verified status
-	newUser, err := a.server.queries.UpdateUserVerification(context.Background(), updateUserParam)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred updating your Account %v", err.Error())))
-		return
-	}
-
-	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
-		UserID: int32(newUser.ID),
-		Action: fmt.Sprintf("User %s verified OTP ", newUser.FirstName.String),
-	})
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account status verified successfully", (models.UserResponse{}.ToUserResponse(&newUser))))
 }
 
 func (a *Auth) forgotPassword(ctx *gin.Context) {

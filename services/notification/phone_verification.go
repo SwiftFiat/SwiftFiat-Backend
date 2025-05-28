@@ -13,20 +13,16 @@ type Twilio struct {
 	Config *utils.Config
 }
 
-// var client = twilio.NewRestClientWithParams(twilio.ClientParams{
-// 	Username: config.TWILIO_ACCOUNT_SID,
-// 	Password: config.TWILIO_AUTH_TOKEN,
-// })
-
 func (t *Twilio) SendVerificationCode(phone string) error {
 	var client = twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: t.Config.TWILIO_ACCOUNT_SID,
-		Password: t.Config.TWILIO_AUTH_TOKEN,
+		Username: t.Config.TwilioKeySid,
+		Password: t.Config.TwilioKeySecret,
+		AccountSid: t.Config.TWILIO_ACCOUNT_SID,
 	})
 
 	log := logging.NewLogger()
-	log.Info("twilio username: ", t.Config.TWILIO_ACCOUNT_SID)
-	log.Info("twilio password: ", t.Config.TWILIO_AUTH_TOKEN)
+	log.Info("twilio username: ", t.Config.TwilioKeySid)
+	log.Info("twilio password: ", t.Config.TwilioKeySecret)
 	log.Info("twilio verify service sid: ", t.Config.TWILIO_VERIFY_SERVICE_SID)
 	log.Info("req phone: ", phone)
 
@@ -35,13 +31,12 @@ func (t *Twilio) SendVerificationCode(phone string) error {
 		return errors.New("twilio Verify Service SID is not configured")
 	}
 
-	channels := []string{"sms", "whatsapp", "call"}
+	// channels := []string{"sms", "whatsapp", "call"}
 	params := &verify.CreateVerificationParams{}
 	params.SetTo(phone)
-	for _, channel := range channels {
-		params.SetChannel(channel)
-	}
-	params.SetCustomFriendlyName("SwiftFiat")
+	// for _, channel := range channels {
+	params.SetChannel("whatsapp")
+	// }
 	// params.SetChannel("sms")
 
 	_, err := client.VerifyV2.CreateVerification(t.Config.TWILIO_VERIFY_SERVICE_SID, params)
@@ -55,8 +50,9 @@ func (t *Twilio) SendVerificationCode(phone string) error {
 
 func (t *Twilio) CheckVerificationCode(phone string, code string) (bool, error) {
 	var client = twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: t.Config.TWILIO_ACCOUNT_SID,
-		Password: t.Config.TWILIO_AUTH_TOKEN,
+		Username: t.Config.TwilioKeySid,
+		Password: t.Config.TwilioKeySecret,
+		AccountSid: t.Config.TWILIO_ACCOUNT_SID,
 	})
 	params := &verify.CreateVerificationCheckParams{}
 	params.SetTo(phone)

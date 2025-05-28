@@ -45,6 +45,8 @@ type Config struct {
 	TWILIO_ACCOUNT_SID        string `mapstructure:"TWILIO_ACCOUNT_SID"`
 	TWILIO_AUTH_TOKEN         string `mapstructure:"TWILIO_AUTH_TOKEN"`
 	TWILIO_VERIFY_SERVICE_SID string `mapstructure:"TWILIO_VERIFY_SERVICE_SID"`
+	TwilioKeySid              string `mapstructure:"TWILIO_KEY_SID"`
+	TwilioKeySecret           string `mapstructure:"TWILIO_KEY_SECRET"`
 	PlunkApiKey               string `mapstructure:"PLUNK_API_KEY"`
 	PlunkBaseUrl              string `mapstructure:"PLUNK_BASE_URL"`
 }
