@@ -87,40 +87,18 @@ func (p *CryptomusProvider) ListServices() ([]CryptomusService, error) {
 	// Filter the services based on the specified criteria
 	var filteredServices []CryptomusService
 	for _, service := range services.Result {
-		if (service.Currency == "USDT" && service.Network == "TON") ||
-			(service.Currency == "ETH" && service.Network == "BSC") ||
-			(service.Currency == "ETH" && service.Network == "TON") ||
+		if service.Currency == "USDT" ||
+			service.Currency == "ETH" ||
 			service.Currency == "BNB" ||
 			service.Currency == "BTC" ||
+			service.Currency == "VERSE" ||
+			service.Currency == "DAI" ||
 			service.Currency == "LTC" ||
+			service.Currency == "DOGE" ||
 			service.Currency == "TRX" {
 			filteredServices = append(filteredServices, service)
 		}
 	}
-
-	// Add any random 3 services if available
-	if len(filteredServices) < len(services.Result) {
-		randomCount := 0
-		for _, service := range services.Result {
-			// Ensure the service is not already in the filtered list
-			isAlreadyIncluded := false
-			for _, filtered := range filteredServices {
-				if filtered.Currency == service.Currency && filtered.Network == service.Network {
-					isAlreadyIncluded = true
-					break
-				}
-			}
-			if !isAlreadyIncluded {
-				filteredServices = append(filteredServices, service)
-				randomCount++
-			}
-			if randomCount >= 3 {
-				break
-			}
-		}
-	}
-
-	// Ensure the final list contains at least the specified currencies and random 3
 	return filteredServices, nil
 }
 
@@ -236,7 +214,6 @@ func (p *CryptomusProvider) VerifySign(apiKey string, reqBody []byte) error {
 	}
 	return nil
 }
-
 
 // Add to CryptomusProvider
 func (p *CryptomusProvider) TestCryptomusWebhook(request *TestWebhookRequest) (*TestWebhookResponse, error) {
