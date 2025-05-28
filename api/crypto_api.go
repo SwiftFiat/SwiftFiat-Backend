@@ -59,11 +59,11 @@ func (c CryptoAPI) router(server *Server) {
 	/// Should be managed from the administrative view
 	serverGroupV1.POST("/create-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStaticWallet)
 	serverGroupV1.POST("/qr-code", c.server.authMiddleware.AuthenticatedMiddleware(), c.GenerateQRCode)
-	serverGroupV1.GET("services", c.server.authMiddleware.AuthenticatedMiddleware(), c.fetchServices)
+	serverGroupV1.GET("services", c.fetchServices)
 	serverGroupV1.POST("/webhook", c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
-	serverGroupV1.GET("/coin-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinData)
-	serverGroupV1.GET("/coin-price-data", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetCoinPriceHistory)
+	serverGroupV1.GET("/coin-data", c.GetCoinData)
+	serverGroupV1.GET("/coin-price-data", c.GetCoinPriceHistory)
 	serverGroupV1.Static("/assets", "./assets")
 	serverGroupV1.GET("/images", c.server.authMiddleware.AuthenticatedMiddleware(), c.GetImages)
 	serverGroupV1.POST("/test-webhook", c.TestCryptomusWebhookEndpoint)
@@ -159,7 +159,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	// 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
 	// 	return
 	// }
-	callbackURL := "https://1ef2-105-116-3-217.ngrok-free.app/api/v1/crypto/webhook"
+	callbackURL := "https://swiftfiat-backend-giwu.onrender.com/api/v1/crypto/webhook"
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,
