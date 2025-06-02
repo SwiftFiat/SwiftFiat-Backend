@@ -48,7 +48,6 @@ func (a Auth) router(server *Server) {
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr)
 	a.activityTracker = activitylogs.NewActivityLog(*a.server.queries)
 
-
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
 	serverGroupV1.GET("test", a.testAuth)
@@ -71,6 +70,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 	serverGroupV1.POST("send-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.SendOTPWithTwilio)
 	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
+	serverGroupV1.POST("verify-email", a.verifyEmail)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -267,6 +267,24 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
+	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+
+	// Generate verification code
+	verificationCode := utils.GenerateOTP()
+
+	// Save code to Redis
+	redisKey := fmt.Sprintf("email_verification:%s", user.Email)
+	a.server.redis.Set(ctx, redisKey, verificationCode, time.Hour*24)
+
+	subject := "SwiftFiat - Verify your email"
+	body := fmt.Sprintf("Your verification code is: %s", verificationCode)
+	err = email.SendEmail(user.Email, subject, body)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
 	arg := db.CreateUserParams{
 		FirstName:   sql.NullString{String: user.FirstName, Valid: true},
 		LastName:    sql.NullString{String: user.LastName, Valid: true},
@@ -331,14 +349,48 @@ func (a *Auth) register(ctx *gin.Context) {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 	}
 
-	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
+}
 
-	err = email.TrackAction(newUser.Email, "register-user", nil)
-	if err != nil {
-		a.server.logger.Warn("error sending welcome email", err)
+type VerifyEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required"`
+}
+
+func (a *Auth) verifyEmail(ctx *gin.Context) {
+	var req VerifyEmailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
+		return
 	}
 
-	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
+	redisKey := fmt.Sprintf("email_verification:%s", req.Email)
+	storedCode, err := a.server.redis.Get(ctx, redisKey)
+	if err != nil || storedCode != req.Code {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid or expired verification code"))
+		return
+	}
+
+	// Mark user as verified
+	user, err := a.server.queries.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("User not found"))
+		return
+	}
+	_, err = a.server.queries.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
+		Verified:  true,
+		UpdatedAt: time.Now(),
+		ID:        user.ID,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Could not verify user"))
+		return
+	}
+
+	// Optionally delete the code
+	a.server.redis.Delete(ctx, redisKey)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", nil))
 }
 
 func (a *Auth) registerAdmin(ctx *gin.Context) {

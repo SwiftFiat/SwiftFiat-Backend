@@ -48,7 +48,7 @@ func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+s.Config.PlunkApiKey)
+	req.Header.Set("Authorization", "Bearer "+s.Config.PlunkSecretKey)
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := s.HttpClient.Do(req)

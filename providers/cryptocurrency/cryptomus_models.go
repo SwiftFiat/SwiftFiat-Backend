@@ -48,7 +48,7 @@ type GenerateQRCodeResponse struct {
 type GenerateQRCodeRawResponse struct {
 	Result *GenerateQRCodeResponse `json:"result"`
 	State  int8                    `json:"state"`
-} 
+}
 
 type CoinRankingResponse struct {
 	UUID              string   `json:"uuid"`
@@ -70,5 +70,16 @@ type CoinRankingResponse struct {
 }
 
 type CryptomusCoinPrice struct {
-	
+
+}
+
+type ExchangeRateEntry struct {
+	From   string `json:"from"`
+	To     string `json:"to"`
+	Course string `json:"course"`
+}
+
+type ExchangeRateUSDResponse struct {
+	Result []ExchangeRateEntry `json:"result"`
+	State  int                 `json:"state"`
 }

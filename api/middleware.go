@@ -54,8 +54,8 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		fmt.Println("Token:", token)
-		fmt.Println("User Token:", userToken)
+		// fmt.Println("Token:", token)
+		// fmt.Println("User Token:", userToken)
 		if userToken != tokenSplit[1] {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Mismatch"))
 			ctx.Abort()

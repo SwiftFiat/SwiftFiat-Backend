@@ -294,3 +294,26 @@ func (p *CryptomusProvider) GetPaymentInfo(req *PaymentInfoRequest) (*PaymentInf
 
 	return response, nil
 }
+
+func (p *CryptomusProvider) GetUSDRate(fromCurrency string) (string, error) {
+	endpoint := fmt.Sprintf("/exchange-rate/%s/list", fromCurrency)
+
+	resp, err := p.processRequest("GET", endpoint, nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	var result ExchangeRateUSDResponse
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode exchange rate response: %w", err)
+	}
+
+	for _, rate := range result.Result {
+		if rate.To == "USD" {
+			return rate.Course, nil
+		}
+	}
+
+	return "", fmt.Errorf("USD rate not found for %s", fromCurrency)
+}
