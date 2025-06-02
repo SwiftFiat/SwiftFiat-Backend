@@ -49,6 +49,7 @@ type Config struct {
 	TwilioKeySecret           string `mapstructure:"TWILIO_KEY_SECRET"`
 	PlunkApiKey               string `mapstructure:"PLUNK_API_KEY"`
 	PlunkBaseUrl              string `mapstructure:"PLUNK_BASE_URL"`
+	PlunkSecretKey           string `mapstructure:"PLUNK_SECRET_KEY"`
 }
 
 func LoadConfig(path string) (*Config, error) {
@@ -130,6 +131,9 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("RATES_PROVIDER_NAME")
 	_ = v.BindEnv("COINGECKO_BASE_URL")
 	_ = v.BindEnv("COINGECKO_ACCESS_KEY")
+	_ = v.BindEnv("PLUNK_API_KEY")
+	_ = v.BindEnv("PLUNK_BASE_URL")
+	_ = v.BindEnv("PLUNK_SECRET_KEY")
 
 	// Create config struct
 	var config Config

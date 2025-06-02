@@ -208,7 +208,8 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	}(tx.Coin, "USD") // Default to USD Transactions - Because it's easier to just credit the user's USD wallet
 
 	// Handle Coin conversion to USD
-	rate, err := s.currencyClient.GetCryptoExchangeRate(ctx, tx.Coin, "USD", prov)
+	// rate, err := s.currencyClient.GetCryptoExchangeRate(ctx, tx.Coin, "USD", prov)
+	rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, tx.Coin, prov)
 	if err != nil {
 		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
 	}

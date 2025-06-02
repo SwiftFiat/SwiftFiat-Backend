@@ -129,6 +129,37 @@ func (c *CurrencyService) GetCryptoExchangeRate(ctx context.Context, fromCoin st
 	return decimal.Zero, fmt.Errorf("no such rates provider exists")
 }
 
+func (c *CurrencyService) GetCryptoExchangeRateFromCryptomus(ctx context.Context, fromCoin string, prov *providers.ProviderService) (decimal.Decimal, error) {
+    // Get Cryptomus provider
+    provider, exists := prov.GetProvider(providers.Cryptomus)
+    if !exists {
+        c.logger.Error(fmt.Sprintf("failed to connect to provider: %s", providers.Cryptomus))
+        return decimal.Zero, fmt.Errorf("no such rates provider exists")
+    }
+
+    cryptomusProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+    if !ok {
+        c.logger.Error("failed to instantiate Cryptomus provider")
+        return decimal.Zero, fmt.Errorf("failed to instantiate Cryptomus provider")
+    }
+
+    usdRate, err := cryptomusProvider.GetUSDRate(fromCoin)
+    if err != nil {
+        c.logger.Error(fmt.Sprintf("failed to get USD rate from Cryptomus: %v", err))
+        return decimal.Zero, fmt.Errorf("failed to get USD rate from Cryptomus: %w", err)
+    }
+
+    c.logger.Info(fmt.Sprintf("USD Rate for coin (Cryptomus): %v | rate: %+v", fromCoin, usdRate))
+
+    exchangeRate, err := decimal.NewFromString(usdRate)
+    if err != nil {
+        c.logger.Error(fmt.Sprintf("failed to parse USD rate: %v", err))
+        return decimal.Zero, fmt.Errorf("failed to parse USD rate: %w", err)
+    }
+
+    return exchangeRate, nil
+}
+
 func (c *CurrencyService) GetAllExchangeRates(ctx context.Context) (interface{}, error) {
 	c.logger.Info("fetching all rates")
 	exchangeRates, err := c.store.ListLatestExchangeRates(ctx)
@@ -138,7 +169,7 @@ func (c *CurrencyService) GetAllExchangeRates(ctx context.Context) (interface{},
 		return nil, err
 	}
 	return exchangeRates, err
-} 
+}
 
 func (c *CurrencyService) SetExchangeRate(ctx context.Context, dbTX *sql.Tx, fromCurrency string, toCurrency string, rate string) (*db.ExchangeRate, error) {
 	c.logger.Info(fmt.Sprintf("setting exchange rate %v -> %v: %v", fromCurrency, toCurrency, rate))
