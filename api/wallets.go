@@ -23,6 +23,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -36,17 +37,21 @@ type Wallet struct {
 	walletService      *wallet.WalletService
 	currencyService    *currency.CurrencyService
 	transactionService *transaction.TransactionService
+	notifr             *service.Notification
 }
 
 func (w Wallet) router(server *Server) {
 	w.server = server
 	w.walletService = wallet.NewWalletServiceWithCache(w.server.queries, w.server.logger, w.server.redis)
 	w.currencyService = currency.NewCurrencyService(w.server.queries, w.server.logger)
+	w.notifr = service.NewNotificationService(w.server.queries)
 	w.transactionService = transaction.NewTransactionService(
 		w.server.queries,
 		w.currencyService,
 		w.walletService,
 		w.server.logger,
+		w.server.config,
+		w.notifr,
 	)
 
 	// serverGroupV1 := server.router.Group("/auth")

@@ -17,6 +17,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -31,10 +32,12 @@ type CryptoAPI struct {
 	userService        *user_service.UserService
 	walletService      *wallet.WalletService
 	transactionService *transaction.TransactionService
+	notifyr            *service.Notification
 }
 
 func (c CryptoAPI) router(server *Server) {
 	c.server = server
+	c.notifyr = service.NewNotificationService(c.server.queries)
 	c.walletService = wallet.NewWalletService(
 		c.server.queries,
 		c.server.logger,
@@ -52,6 +55,11 @@ func (c CryptoAPI) router(server *Server) {
 		),
 		c.walletService,
 		c.server.logger,
+		c.server.config,
+		c.notifyr,
+	)
+	c.notifyr = service.NewNotificationService(
+		c.server.queries,
 	)
 
 	// serverGroupV1 := server.router.Group("/auth")
@@ -115,13 +123,12 @@ func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 }
 
 func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
-		// Get Active User
+	// Get Active User
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
 
 	request := struct {
 		Currency string `json:"currency" binding:"required"`

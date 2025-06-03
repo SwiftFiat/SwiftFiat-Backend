@@ -4,15 +4,19 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net/http"
+	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/sirupsen/logrus"
 )
 
 type TransactionService struct {
@@ -20,14 +24,18 @@ type TransactionService struct {
 	currencyClient *currency.CurrencyService
 	walletClient   *wallet.WalletService
 	logger         *logging.Logger
+	config         *utils.Config
+	notifyr        *service.Notification
 }
 
-func NewTransactionService(store *db.Store, currencyClient *currency.CurrencyService, walletClient *wallet.WalletService, logger *logging.Logger) *TransactionService {
+func NewTransactionService(store *db.Store, currencyClient *currency.CurrencyService, walletClient *wallet.WalletService, logger *logging.Logger, config *utils.Config, notifyr *service.Notification) *TransactionService {
 	return &TransactionService{
 		store:          store,
 		currencyClient: currencyClient,
 		walletClient:   walletClient,
 		logger:         logger,
+		config:         config,
+		notifyr:        notifyr,
 	}
 }
 
@@ -214,50 +222,23 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
 	}
 
-	/// Convert satoshis to coin
-	// coinAmount, err := s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
-	// }
-
 	var coinAmount decimal.Decimal
-if tx.Coin == "BTC" || tx.Coin == "btc" {
-    // For BTC, webhook might send satoshis, so convert
-    coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
-    if err != nil {
-        return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
-    }
-} else {
-    // For all other coins, use the main unit directly
-    coinAmount = tx.AmountInSatoshis // tx.Amount should be the string from webhook
-}
+	if tx.Coin == "BTC" || tx.Coin == "btc" {
+		// For BTC, webhook might send satoshis, so convert
+		coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
+		}
+	} else {
+		// For all other coins, use the main unit directly
+		coinAmount = tx.AmountInSatoshis // tx.Amount should be the string from webhook
+	}
 	amount := coinAmount.Mul(rate)
 
-	// Get Address Info from DB
-	// walletAddress, err := s.store.WithTx(dbTx).FetchByAddressID(ctx, tx.DestinationAddress)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to fetch swift address with this addess ID: %v", err)
-	// }
 	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID) //Todo: this iis not fetching the cuurate uuid
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
 	}
-
-
-	// Update Address Balance with Params
-	// updateAddressParams := db.UpdateAddressBalanceByAddressIDParams{
-	// 	AddressID: walletAddress.AddressID,
-	// 	Balance: sql.NullString{
-	// 		String: amount.String(),
-	// 		Valid:  amount.String() != "",
-	// 	},
-	// }
-
-	// Update Crypto Address Balance in DB
-	// _, err = s.store.WithTx(dbTx).UpdateAddressBalanceByAddressID(ctx, updateAddressParams)
-	// if err != nil {
-	// 	return nil, fmt.Errorf("failed to update the swift address with new changes %v", err)
-	// }
 
 	// Pull users USD wallet
 	walletParams := db.GetWalletByCurrencyForUpdateParams{
@@ -310,6 +291,34 @@ if tx.Coin == "BTC" || tx.Coin == "btc" {
 	if err := dbTx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
+
+	email := service.Plunk{Config: s.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+	tplData := map[string]any{
+		"Amount":        amount,
+		"Currency":      tx.Coin,
+		"TransactiooID": tx.TransactionID,
+		"Date":          time.Now().Format("2006-01-02 15:04:05"),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/cryptp_transaction.html", tplData)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, err.Error())
+	}
+
+	user, err := s.store.GetUserByID(ctx, walletAddress.CustomerID.Int64)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to fetch user by ID: %v, %v", walletAddress.CustomerID.Int64, err))
+		return nil, fmt.Errorf("failed to fetch user by ID: %v", walletAddress.CustomerID.Int64)
+	}
+
+	subject := "SwiftFiat - Successful Crypto Inflow Transaction"
+	err = email.SendEmail(user.Email, subject, body)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto confirmation email: %v", err))
+	}
+	s.logger.Info("crypto inflow transaction email sent successfully", user.Email)
+
+	s.notifyr.Create(ctx, int32(user.ID), "Succcessful Crypto Transaction", fmt.Sprintf("You have received %d USD on USD wallet", amount))
 
 	s.logger.Info("crypto inflow transaction completed successfully", tx)
 
@@ -1166,4 +1175,3 @@ func (s *TransactionService) ListAllTransactions(ctx context.Context) ([]db.List
 
 	return transactions, nil
 }
-

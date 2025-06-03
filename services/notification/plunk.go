@@ -56,7 +56,7 @@ func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-
+ 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
