@@ -348,7 +348,6 @@ func (a *Auth) register(ctx *gin.Context) {
 	err = email.SendEmail(user.Email, subject, body)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 	}
 
 	err = a.activityTracker.Create(ctx, db.CreateActivityLogParams{
