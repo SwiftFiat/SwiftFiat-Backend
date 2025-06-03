@@ -274,14 +274,17 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	// Save code to Redis
 	redisKey := fmt.Sprintf("email_verification:%s", user.Email)
-	a.server.redis.Set(ctx, redisKey, verificationCode, time.Hour*24)
+	a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
 
-	subject := "SwiftFiat - Verify your email"
-	body := fmt.Sprintf("Your verification code is: %s", verificationCode)
-	err = email.SendEmail(user.Email, subject, body)
+	// Parse and execute the OTP template
+	tplData := map[string]any{
+		"Name": user.FirstName,
+		"OTP":  verificationCode,
+	}
+	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		a.server.logger.Error(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
 		return
 	}
 
@@ -339,6 +342,13 @@ func (a *Auth) register(ctx *gin.Context) {
 	_, err = a.notifr.Create(ctx, int32(newUser.ID), "Welcome to SwiftFiat", fmt.Sprintf("Hello %s, welcome to SwiftFiat. Your referral code is %s", newUser.FirstName.String, referralKey))
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
+	}
+
+	subject := "SwiftFiat - Verify your email"
+	err = email.SendEmail(user.Email, subject, body)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 	}
 
 	err = a.activityTracker.Create(ctx, db.CreateActivityLogParams{

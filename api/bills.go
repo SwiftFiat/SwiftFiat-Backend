@@ -13,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -24,10 +25,12 @@ import (
 type Bills struct {
 	server             *Server
 	transactionService *transaction.TransactionService
+	notifr             *service.Notification
 }
 
 func (b Bills) router(server *Server) {
 	b.server = server
+	b.notifr = service.NewNotificationService(b.server.queries)
 	walletService := wallet.NewWalletServiceWithCache(b.server.queries, b.server.logger, b.server.redis)
 	currencyService := currency.NewCurrencyService(b.server.queries, b.server.logger)
 	b.transactionService = transaction.NewTransactionService(
@@ -35,6 +38,8 @@ func (b Bills) router(server *Server) {
 		currencyService,
 		walletService,
 		b.server.logger,
+		b.server.config,
+		b.notifr,
 	)
 
 	serverGroupV1 := server.router.Group("/api/v1/bills")

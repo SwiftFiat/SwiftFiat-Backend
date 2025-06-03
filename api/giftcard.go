@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
 	"net/http"
 	"strconv"
 	"time"
+
+	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -15,6 +16,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/giftcard"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -26,10 +28,12 @@ type GiftCard struct {
 	server             *Server
 	service            *giftcard.GiftcardService
 	transactionService *transaction.TransactionService
+	notifr             *service.Notification
 }
 
 func (g GiftCard) router(server *Server) {
 	g.server = server
+	g.notifr = service.NewNotificationService(g.server.queries)
 	g.service = giftcard.NewGiftcardServiceWithCache(
 		server.queries,
 		server.logger,
@@ -48,6 +52,8 @@ func (g GiftCard) router(server *Server) {
 			server.redis,
 		),
 		server.logger,
+		server.config,
+		g.notifr,
 	)
 
 	// serverGroupV1 := server.router.Group("/auth")
