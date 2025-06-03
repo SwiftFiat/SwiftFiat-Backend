@@ -296,7 +296,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	tplData := map[string]any{
 		"Amount":        amount,
 		"Currency":      tx.Coin,
-		"TransactiooID": tx.TransactionID,
+		"TransactionID": tx.TransactionID,
 		"Date":          time.Now().Format("2006-01-02 15:04:05"),
 	}
 
