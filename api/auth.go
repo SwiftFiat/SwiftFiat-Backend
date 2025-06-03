@@ -346,6 +346,7 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	subject := "SwiftFiat - Verify your email"
 	a.server.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", user.Email, subject, len(body)))
+	a.server.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", a.server.config.PlunkApiKey, a.server.config.PlunkSecretKey,a.server.config.PlunkBaseUrl))
 	err = email.SendEmail(user.Email, subject, body)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
