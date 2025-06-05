@@ -6,7 +6,7 @@ INSERT INTO transactions (
     status
 ) VALUES (
     $1, $2, $3, $4
-) RETURNING *; 
+) RETURNING *;
 
 -- name: CreateSwapTransferMetadata :one
 INSERT INTO swap_transfer_metadata (
@@ -101,7 +101,7 @@ INSERT INTO services_metadata (
 ) RETURNING *;
 
 -- name: GetTransactionByID :one
-SELECT 
+SELECT
     t.*,
     COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, fw.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
@@ -124,9 +124,9 @@ WHERE id = $1 LIMIT 1
 FOR UPDATE;
 
 -- name: GetTransactionsByWallet :many
-SELECT 
+SELECT
     t.*,
-    CASE 
+    CASE
         WHEN st.source_wallet = sqlc.arg(wallet_id) THEN 'source'
         ELSE 'destination'
     END as wallet_role,
@@ -141,7 +141,7 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-WHERE st.source_wallet = sqlc.arg(wallet_id) 
+WHERE st.source_wallet = sqlc.arg(wallet_id)
    OR st.destination_wallet = sqlc.arg(wallet_id)
    OR ct.destination_wallet = sqlc.arg(wallet_id)
    OR gt.source_wallet = sqlc.arg(wallet_id)
@@ -151,7 +151,7 @@ ORDER BY t.created_at DESC
 LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
 
 -- name: GetTransactionsByDateRange :many
-SELECT 
+SELECT
     t.*,
     COALESCE(st.currency, ct.coin) as currency,
     COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
@@ -169,7 +169,7 @@ ORDER BY t.created_at DESC
 LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
 
 -- name: UpdateTransactionStatus :one
-UPDATE transactions 
+UPDATE transactions
 SET status = $2
 WHERE id = $1
 RETURNING *;
@@ -181,7 +181,7 @@ ORDER BY created_at DESC
 LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
 
 -- name: GetTransactionMetadata :one
-SELECT 
+SELECT
     CASE t.type
         WHEN 'swap' THEN jsonb_build_object(
             'type', 'swap_transfer',
@@ -219,9 +219,9 @@ WHERE t.id = $1 LIMIT 1;
 -- name: GetTransactionsByUserID :many
 WITH user_wallets AS (
     -- If user_id is provided, get all their wallets
-    SELECT id as wallet_id 
+    SELECT id as wallet_id
     FROM swift_wallets
-    WHERE CASE 
+    WHERE CASE
         WHEN sqlc.narg(user_id)::bigint IS NOT NULL THEN customer_id = sqlc.narg(user_id)::bigint
         ELSE id = ANY(sqlc.arg(wallet_ids)::uuid[])
     END
@@ -230,7 +230,7 @@ wallet_transactions AS (
     -- Get transactions from swap_transfer_metadata where wallet is source or destination
     SELECT t.*, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
     FROM transactions t
-    JOIN swap_transfer_metadata st ON t.id = st.transaction_id 
+    JOIN swap_transfer_metadata st ON t.id = st.transaction_id
     JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
 
     UNION ALL
@@ -265,7 +265,7 @@ wallet_transactions AS (
     JOIN services_metadata sm ON t.id = sm.transaction_id
     JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
 )
-SELECT 
+SELECT
     t.id,
     t.type,
     t.description,
@@ -278,7 +278,7 @@ SELECT
         'data', t.metadata
     ) as metadata
 FROM wallet_transactions t
-WHERE CASE 
+WHERE CASE
     WHEN sqlc.narg(created_at)::timestamptz IS NOT NULL THEN t.created_at < sqlc.narg(created_at)::timestamptz
     ELSE true
 END
@@ -315,9 +315,9 @@ total_count AS (
     SELECT COUNT(*) as total FROM matching_transactions
 ),
 transaction_data AS (
-    SELECT 
+    SELECT
         t.*,
-        CASE 
+        CASE
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -400,7 +400,7 @@ transaction_data AS (
     LIMIT (SELECT page_limit FROM pagination)
     OFFSET (SELECT page_offset FROM pagination)
 )
-SELECT 
+SELECT
     jsonb_build_object(
         'transactions', jsonb_agg(to_jsonb(transaction_data.*)),
         'page_limit', (SELECT page_limit FROM pagination),
@@ -432,9 +432,9 @@ matching_transactions AS (
     OR stm.destination_wallet = sqlc.arg(usd_wallet_id) OR stm.destination_wallet = sqlc.arg(ngn_wallet_id)
 ),
 transaction_data AS (
-    SELECT 
+    SELECT
         t.*,
-        CASE 
+        CASE
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -513,7 +513,7 @@ transaction_data AS (
         END as metadata
     FROM matching_transactions mt
     JOIN public.transactions t ON t.id = mt.transaction_id
-    WHERE CASE 
+    WHERE CASE
         WHEN sqlc.narg(created_at)::timestamptz IS NOT NULL THEN t.created_at < sqlc.narg(created_at)::timestamptz
         ELSE true
     END
@@ -528,11 +528,11 @@ result_set AS (
     SELECT * FROM transaction_data
     LIMIT (SELECT page_limit FROM pagination)
 )
-SELECT 
+SELECT
     jsonb_build_object(
         'transactions', jsonb_agg(to_jsonb(result_set.*)),
         'has_more', (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination),
-        'next_cursor', CASE 
+        'next_cursor', CASE
             WHEN (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination) THEN
                 jsonb_build_object(
                     'created_at', (SELECT created_at FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1),
@@ -544,7 +544,7 @@ SELECT
 FROM result_set;
 
 -- name: GetTransactionWithMetadata :one
-SELECT 
+SELECT
     jsonb_build_object(
         'transaction', jsonb_build_object(
             'id', t.id,
@@ -554,7 +554,7 @@ SELECT
             'status', t.status,
             'created_at', t.created_at,
             'updated_at', t.updated_at,
-            'metadata', CASE 
+            'metadata', CASE
                 WHEN t.type = 'deposit' THEN (
                     SELECT jsonb_build_object(
                         'destination_wallet', cm.destination_wallet,
@@ -630,7 +630,7 @@ SELECT
                     FROM public.swap_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
                 )
-            END 
+            END
         )
     ) as result
 FROM public.transactions t
@@ -638,7 +638,8 @@ WHERE t.id = sqlc.arg(transaction_id)
 LIMIT 1;
 
 -- name: ListAllTransactionsWithUsers :many
-SELECT 
+-- name: ListAllTransactionsWithUsers :many
+SELECT
     t.id AS transaction_id,
     t.type AS transaction_type,
     t.description AS transaction_description,
@@ -652,23 +653,23 @@ SELECT
     u.email AS user_email,
     u.phone_number AS user_phone_number
 FROM transactions t
-LEFT JOIN swift_wallets sw ON t.id = sw.id
+LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
+LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN swift_wallets sw ON
+    sw.id = stm.source_wallet OR
+    sw.id = stm.destination_wallet OR
+    sw.id = ctm.destination_wallet OR
+    sw.id = gtm.source_wallet OR
+    sw.id = fwm.source_wallet OR
+    sw.id = sm.source_wallet
 LEFT JOIN users u ON sw.customer_id = u.id
 ORDER BY t.created_at DESC;
 
--- Calculate the cumulative transaction volume
--- name: GetTotalTransactionVolume :one
-SELECT 
-    COALESCE(SUM(COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_transaction_volume
-FROM transactions t
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
-
 -- name: GetTotalReceived :one
-SELECT 
+SELECT
     COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
 FROM transactions t
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
@@ -677,7 +678,7 @@ LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
 
 -- name: GetTotalSent :one
-SELECT 
+SELECT
     COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
 FROM transactions t
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
@@ -686,13 +687,13 @@ LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
 
 -- name: GetTotalTrade :one
-SELECT 
+SELECT
     COUNT(*) AS total_trade
 FROM transactions t
 WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service');
 
 -- -- name: GetDisputes :many
--- SELECT 
+-- SELECT
 --     d.id AS dispute_id,
 --     d.transaction_id,
 --     d.reason,
@@ -703,7 +704,7 @@ WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'servic
 -- ORDER BY d.created_at DESC;
 
 -- name: GetCryptoTransactionCounts :one
-SELECT 
+SELECT
     COUNT(*) FILTER (WHERE t.status = 'success') AS successful_transactions,
     COUNT(*) FILTER (WHERE t.status = 'failed') AS failed_transactions,
     COUNT(*) FILTER (WHERE t.status = 'pending') AS pending_transactions
@@ -712,7 +713,7 @@ JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 WHERE t.type = 'crypto';
 
 -- name: GetTotalCryptoTransactionAmount :one
-SELECT 
+SELECT
     COALESCE(SUM(ctm.sent_amount), 0) AS total_sent_amount,
     COALESCE(SUM(ctm.received_amount), 0) AS total_received_amount
 FROM transactions t
@@ -720,12 +721,12 @@ JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 WHERE t.type = 'crypto';
 
 -- name: ListAllCryptoTransactions :many
-SELECT 
+SELECT
     t.id AS transaction_id,
     t.type AS transaction_type,
     t.description AS transaction_description,
     t.transaction_flow,
-    t.status AS transaction_status, 
+    t.status AS transaction_status,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
     cm.destination_wallet,
@@ -743,7 +744,7 @@ WHERE t.type = 'crypto'
 ORDER BY t.created_at DESC;
 
 -- name: ListGiftcardTransactions :many
-SELECT 
+SELECT
     gtm.id AS metadata_id,
     gtm.source_wallet,
     gtm.transaction_id,

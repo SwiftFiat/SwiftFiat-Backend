@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Swiift - Verify Your Email</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f4;">
+<table
+        align="center"
+        border="0"
+        cellpadding="0"
+        cellspacing="0"
+        width="100%"
+        style="max-width: 600px; background-color: #ffffff; font-family: Arial, sans-serif;"
+>
+    <!-- Header -->
+    <tr>
+        <td style="background-color: #542182; padding: 40px 20px; text-align: center;">
+            <h1 style="color: #ffffff; margin: 0;">Your Gift Card is Here!</h1>
+        </td>
+    </tr>
+
+    <!-- Body Content -->
+    <tr>
+        <td style="padding: 30px 20px; color: #333333;">
+            <h2 style="color: #542182; margin-top: 0;">Hello,</h2>
+            <p style="font-size: 16px; line-height: 1.5;">
+                Thank you for purchasing a gift card from <strong>SwiftFiat</strong>. Below are the details of your purchase:
+            </p>
+
+            <table
+                    cellpadding="10"
+                    cellspacing="0"
+                    border="0"
+                    style="width: 100%; background-color: #f9f9f9; border: 1px solid #ddd; margin-top: 20px; font-size: 16px;"
+            >
+                <tr>
+                    <td style="color: #542182;"><strong>Gift Card:</strong></td>
+                    <td>{{.ProductName}} ${{.Amount}}</td>
+                </tr>
+                <tr>
+                    <td style="color: #542182;"><strong>Order ID:</strong></td>
+                    <td>#{{.OrderID}}</td>
+                </tr>
+                <tr>
+                    <td style="color: #542182;"><strong>Delivery Email:</strong></td>
+                    <td>{{.Email}}/td>
+                </tr>
+                <tr>
+                    <td style="color: #542182;"><strong>E-code:</strong></td>
+                    <td style="font-weight: bold; color: #000;">{{.Ecode}}</td>
+                </tr>
+            </table>
+
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 30px;">
+                To redeem your gift card, follow the instructions provided by the vendor (e.g. Amazon). If you need help, our support team is always available.
+            </p>
+
+            <p style="font-size: 16px; line-height: 1.5;">
+                Thank you for choosing <strong>SwifFiat</strong> — making digital purchases swift and secure.
+            </p>
+
+            <p style="font-size: 16px; line-height: 1.5; margin-top: 30px;">
+                Best regards,<br />
+                The SwifFiat Team
+            </p>
+        </td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+        <td style="background-color: #542182; padding: 20px; text-align: center;">
+            <p style="color: #ffffff; font-size: 14px; margin: 0;">
+                &copy; 2025 SwiftFiat. All rights reserved.
+            </p>
+        </td>
+    </tr>
+</table>
+</body>
+</html>

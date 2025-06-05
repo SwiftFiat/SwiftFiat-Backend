@@ -178,11 +178,11 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		return
 	}
 
-	// /// check varification status
-	// if !activeUser.Verified {
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
-	// 	return
-	// }
+	/// check varification status
+	if !activeUser.Verified {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
 
 	walletID, err := uuid.Parse(request.WalletID)
 	if err != nil {
@@ -210,6 +210,8 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	g.notifr.Create(ctx, int32(activeUser.UserID), "GiftCard Purchase", "Your gifftcard transaction was successful, check your email for details")
 
 	g.server.logger.Info("gift card purchased", "response", response)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
