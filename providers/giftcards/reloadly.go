@@ -261,7 +261,7 @@ func maskToken(token string) string {
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	token, err := r.GetToken(reloadlymodels.SANDBOX)
+	token, err := r.GetToken(reloadlymodels.PROD)
 	if err != nil {
 		return nil, err
 	}
@@ -270,13 +270,13 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardBaseUrl)
+	base, err := url.Parse(r.config.GiftCardProdUrl)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
 	base.Path += "/orders"
 
-	logging.NewLogger().Info("Reloadly BuyGiftCard Request", map[string]interface{}{
+	logging.NewLogger().Info("Reloadly BuyGiftCard Request", map[string]any{
 		"url":     base.String(),
 		"headers": requiredHeaders,
 		"payload": request,
@@ -290,13 +290,13 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.NewLogger().Info("Reloadly BuyGiftCard Response", map[string]interface{}{
+	logging.NewLogger().Info("Reloadly BuyGiftCard Response", map[string]any{
 		"status_code": resp.StatusCode,
 		"body":        string(respBody),
 	})
 
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("Reloadly BuyGiftCard Error", map[string]interface{}{
+		logging.NewLogger().Error("Reloadly BuyGiftCard Error", map[string]any{
 			"status_code": resp.StatusCode,
 			"body":        string(respBody),
 		})

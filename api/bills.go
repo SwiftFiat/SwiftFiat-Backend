@@ -301,6 +301,8 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		return
 	}
 
+	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", fmt.Sprintf("You have received an airtime of %d to %s", request.Amount, request.Phone))
+
 	b.server.logger.Info("transaction (airtime purchase) completed successfully", tInfo)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase airtime successful", tInfo))
@@ -461,6 +463,8 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	b.notifr.Create(ctx, int32(userInfo.ID), "Data Purchase", fmt.Sprintf("You have received data of %s to %s", selectedVariation.VariationAmount, request.Phone))
 
 	b.server.logger.Info("transaction (data purchase) completed successfully", tInfo)
 
@@ -687,6 +691,8 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	b.notifr.Create(ctx, int32(userInfo.ID), "Successful TV subscription", fmt.Sprintf("TV subscription of %s is successful", amount))
 
 	b.server.logger.Info("transaction (tv subscription purchase) completed successfully", tInfo)
 
@@ -944,6 +950,8 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	b.notifr.Create(ctx, int32(userInfo.ID), "Successful Electricity Subscription", fmt.Sprintf("Electricity subscription of %f is successful", request.Amount))
 
 	b.server.logger.Info("transaction (electricity purchase) completed successfully", tInfo)
 

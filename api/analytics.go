@@ -160,7 +160,7 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 		"count":        len(transactions),
 		"volume":       volume,
 	}))
-}
+} 
 
 func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)

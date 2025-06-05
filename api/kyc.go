@@ -229,6 +229,8 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 
 	k.onKYCCompletion(ctx, activeUser.UserID)
 
+	k.notifyr.Create(ctx, int32(activeUser.UserID), "BVN Success", "Congratulatioon, your account has been verified and upgraded to Teir 1")
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
 }
 
@@ -346,6 +348,8 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
 		return
 	}
+	k.notifyr.Create(ctx, int32(activeUser.UserID), "NIN Success", "Congratulatioon, your NIN verification is successful")
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN Validation Success", models.ToUserKYCInformation(&kyc)))
 }
 
@@ -439,6 +443,8 @@ func (k *KYC) updateAddress(ctx *gin.Context) {
 		return
 	}
 
+	k.notifyr.Create(ctx, int32(activeUser.UserID), "Address Updatae", "Congratulatioon, your address is updated")
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Update address success", models.ToUserKYCInformation(&kyc)))
 }
 
@@ -494,6 +500,8 @@ func (k *KYC) submitUtility(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address %s", err)))
 		return
 	}
+
+	k.notifyr.Create(ctx, int32(activeUser.UserID), "Utility Bill  Verification", "Congratulations, your verification is successful")
 
 	// Respond with success
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
@@ -596,6 +604,8 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address %s", err)))
 		return
 	}
+
+	k.notifyr.Create(ctx, int32(activeUser.UserID), "Proof of Address Verification", "Congratulations, your verification was successful")
 
 	// Respond with success
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{

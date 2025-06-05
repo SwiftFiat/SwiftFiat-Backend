@@ -454,6 +454,8 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
+	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %d was successful", amount))
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
 }
 
@@ -568,6 +570,8 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Swap Transaction", fmt.Sprintf("Swap transaction of %f was successful", request.Amount))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
 }
@@ -811,6 +815,8 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		TransactionInfo:  *transactionInfo,
 		SavedBeneficiary: savedBeneficiary,
 	}
+
+	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", response))
 }

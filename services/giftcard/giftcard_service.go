@@ -5,6 +5,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/sirupsen/logrus"
+	"net/http"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -421,10 +424,10 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		UnitPrice:        float64(unitPrice),
 		CustomIdentifier: fmt.Sprintf("%v:%v", userInfo.Email, uuid.NewString()),
 		SenderName:       userInfo.FirstName.String,
-		RecipientEmail:   "test@email.com",
+		RecipientEmail:   userInfo.Email,
 		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
 			CountryCode: "US",
-			PhoneNumber: "8579184613",
+			PhoneNumber: userInfo.PhoneNumber,
 		},
 	}
 
@@ -449,6 +452,30 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	email := service.Plunk{Config: g.config, HttpClient: &http.Client{}}
+
+	// Parse and execute the OTP template
+	tplData := map[string]any{
+		"ProductName": giftCardPurchaseResponse.Product.ProductName,
+		"Amount":      giftCardPurchaseResponse.Amount,
+		"OrderID":     tInfo.ID,
+		"Email":       giftCardPurchaseResponse.RecipientEmail,
+		"Ecode":       "TODO",
+	}
+	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+	if err != nil {
+		g.logger.Error(logrus.ErrorLevel, err.Error())
+		return nil, err
+	}
+
+	subject := "SwiftFiat - Gift card Transaction"
+	g.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", userInfo.Email, subject, len(body)))
+	g.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", g.config.PlunkApiKey, g.config.PlunkSecretKey, g.config.PlunkBaseUrl))
+	err = email.SendEmail(userInfo.Email, subject, body)
+	if err != nil {
+		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
 	}
 
 	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
