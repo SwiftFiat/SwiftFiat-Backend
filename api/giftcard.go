@@ -106,6 +106,7 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", models.ToGiftCardResponse(giftcards)))
 }
 
+
 func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 
 	// Fetch user details
@@ -114,7 +115,7 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
+	// Returns 30 giftcard brands and categories, Change via sql
 	giftcards, err := g.server.queries.FetchGiftCardsByBrand(ctx)
 	if err != nil {
 		g.server.logger.Error(err)
@@ -189,8 +190,8 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
 		return
 	}
-
 	response, err := g.service.BuyGiftCard(g.server.provider, g.transactionService, activeUser.UserID, request.ProductID, walletID, request.Quantity, request.UnitPrice)
+
 	if err != nil {
 		g.server.logger.Error("failed to buy gift card", "error", err)
 		if walletErr, ok := err.(*wallet.WalletError); ok {

@@ -94,11 +94,8 @@ func (p *CryptomusProvider) ListServices() ([]CryptomusService, error) {
 			service.Currency == "TON" ||
 			service.Currency == "SOL" ||
 			service.Currency == "LTC" ||
-			service.Currency == "SUI" ||
 			service.Currency == "DOGE" ||
-			service.Currency == "XRP" ||
 			service.Currency == "USDC" ||
-			service.Currency == "APT" ||
 			service.Currency == "TRX" {
 			filteredServices = append(filteredServices, service)
 		}
