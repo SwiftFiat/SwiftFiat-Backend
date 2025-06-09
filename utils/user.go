@@ -28,3 +28,16 @@ func SanitizeString(input string) string {
 	reg := regexp.MustCompile("[^a-zA-Z0-9]+")
 	return strings.ToLower(reg.ReplaceAllString(input, ""))
 }
+
+func GenerateOrderID(firstNnme, lastname string) string {
+	getFirstTwo := func(s string) string {
+		s = strings.TrimSpace(strings.ToUpper(s))
+		if len(s) < 2 {
+			return s
+		}
+		return s[:2]
+	}
+	firstPart := getFirstTwo(firstNnme)
+	secondPart := getFirstTwo(lastname)
+	return fmt.Sprintf("SWIFT-%s%s", firstPart, secondPart)
+}

@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"math/rand"
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -155,17 +153,21 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	rand.Seed(time.Now().UnixNano())
-	number := rand.Intn(90000) + 10000
-	orderID := fmt.Sprintf("SWIFT-%d", number)
+	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		c.server.logger.Error("failed to get user by ID", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to get user by ID Error: %s", err)))
+		return
+	}
+
+	// Generate Order ID
+	orderID := utils.GenerateOrderID(
+		dbUser.FirstName.String,
+		dbUser.LastName.String,
+	)
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-	// userAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)
-	// if err == nil {
-	// 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Already Has an Address", models.MapDBCryptomusAddressToCryptomusAddressResponse(userAddress)))
-	// 	return
-	// }
 	callbackURL := "https://swiftfiat-backend-giwu.onrender.com/api/v1/crypto/webhook"
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
