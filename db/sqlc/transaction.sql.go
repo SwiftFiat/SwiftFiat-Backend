@@ -358,7 +358,7 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 
 const getCryptoTransactionCounts = `-- name: GetCryptoTransactionCounts :one
 
-SELECT 
+SELECT
     COUNT(*) FILTER (WHERE t.status = 'success') AS successful_transactions,
     COUNT(*) FILTER (WHERE t.status = 'failed') AS failed_transactions,
     COUNT(*) FILTER (WHERE t.status = 'pending') AS pending_transactions
@@ -438,7 +438,7 @@ func (q *Queries) GetPendingTransactions(ctx context.Context, arg GetPendingTran
 }
 
 const getTotalCryptoTransactionAmount = `-- name: GetTotalCryptoTransactionAmount :one
-SELECT 
+SELECT
     COALESCE(SUM(ctm.sent_amount), 0) AS total_sent_amount,
     COALESCE(SUM(ctm.received_amount), 0) AS total_received_amount
 FROM transactions t
@@ -459,7 +459,7 @@ func (q *Queries) GetTotalCryptoTransactionAmount(ctx context.Context) (GetTotal
 }
 
 const getTotalReceived = `-- name: GetTotalReceived :one
-SELECT 
+SELECT
     COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
 FROM transactions t
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
@@ -476,7 +476,7 @@ func (q *Queries) GetTotalReceived(ctx context.Context) (int64, error) {
 }
 
 const getTotalSent = `-- name: GetTotalSent :one
-SELECT 
+SELECT
     COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
 FROM transactions t
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
@@ -493,7 +493,7 @@ func (q *Queries) GetTotalSent(ctx context.Context) (int64, error) {
 }
 
 const getTotalTrade = `-- name: GetTotalTrade :one
-SELECT 
+SELECT
     COUNT(*) AS total_trade
 FROM transactions t
 WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service')
@@ -506,27 +506,8 @@ func (q *Queries) GetTotalTrade(ctx context.Context) (int64, error) {
 	return total_trade, err
 }
 
-const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
-SELECT 
-    COALESCE(SUM(COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_transaction_volume
-FROM transactions t
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-`
-
-// Calculate the cumulative transaction volume
-func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getTotalTransactionVolume)
-	var total_transaction_volume int64
-	err := row.Scan(&total_transaction_volume)
-	return total_transaction_volume, err
-}
-
 const getTransactionByID = `-- name: GetTransactionByID :one
-SELECT 
+SELECT
     t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, fw.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
@@ -611,7 +592,7 @@ func (q *Queries) GetTransactionByIDForUpdate(ctx context.Context, id uuid.UUID)
 }
 
 const getTransactionMetadata = `-- name: GetTransactionMetadata :one
-SELECT 
+SELECT
     CASE t.type
         WHEN 'swap' THEN jsonb_build_object(
             'type', 'swap_transfer',
@@ -655,7 +636,7 @@ func (q *Queries) GetTransactionMetadata(ctx context.Context, id uuid.UUID) (int
 }
 
 const getTransactionWithMetadata = `-- name: GetTransactionWithMetadata :one
-SELECT 
+SELECT
     jsonb_build_object(
         'transaction', jsonb_build_object(
             'id', t.id,
@@ -665,7 +646,7 @@ SELECT
             'status', t.status,
             'created_at', t.created_at,
             'updated_at', t.updated_at,
-            'metadata', CASE 
+            'metadata', CASE
                 WHEN t.type = 'deposit' THEN (
                     SELECT jsonb_build_object(
                         'destination_wallet', cm.destination_wallet,
@@ -741,7 +722,7 @@ SELECT
                     FROM public.swap_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
                 )
-            END 
+            END
         )
     ) as result
 FROM public.transactions t
@@ -757,7 +738,7 @@ func (q *Queries) GetTransactionWithMetadata(ctx context.Context, transactionID 
 }
 
 const getTransactionsByDateRange = `-- name: GetTransactionsByDateRange :many
-SELECT 
+SELECT
     t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.currency, ct.coin) as currency,
     COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
@@ -845,9 +826,9 @@ func (q *Queries) GetTransactionsByDateRange(ctx context.Context, arg GetTransac
 const getTransactionsByUserID = `-- name: GetTransactionsByUserID :many
 WITH user_wallets AS (
     -- If user_id is provided, get all their wallets
-    SELECT id as wallet_id 
+    SELECT id as wallet_id
     FROM swift_wallets
-    WHERE CASE 
+    WHERE CASE
         WHEN $4::bigint IS NOT NULL THEN customer_id = $4::bigint
         ELSE id = ANY($5::uuid[])
     END
@@ -856,7 +837,7 @@ wallet_transactions AS (
     -- Get transactions from swap_transfer_metadata where wallet is source or destination
     SELECT t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
     FROM transactions t
-    JOIN swap_transfer_metadata st ON t.id = st.transaction_id 
+    JOIN swap_transfer_metadata st ON t.id = st.transaction_id
     JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
 
     UNION ALL
@@ -891,7 +872,7 @@ wallet_transactions AS (
     JOIN services_metadata sm ON t.id = sm.transaction_id
     JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
 )
-SELECT 
+SELECT
     t.id,
     t.type,
     t.description,
@@ -904,7 +885,7 @@ SELECT
         'data', t.metadata
     ) as metadata
 FROM wallet_transactions t
-WHERE CASE 
+WHERE CASE
     WHEN $1::timestamptz IS NOT NULL THEN t.created_at < $1::timestamptz
     ELSE true
 END
@@ -974,9 +955,9 @@ func (q *Queries) GetTransactionsByUserID(ctx context.Context, arg GetTransactio
 }
 
 const getTransactionsByWallet = `-- name: GetTransactionsByWallet :many
-SELECT 
+SELECT
     t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-    CASE 
+    CASE
         WHEN st.source_wallet = $1 THEN 'source'
         ELSE 'destination'
     END as wallet_role,
@@ -991,7 +972,7 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-WHERE st.source_wallet = $1 
+WHERE st.source_wallet = $1
    OR st.destination_wallet = $1
    OR ct.destination_wallet = $1
    OR gt.source_wallet = $1
@@ -1090,9 +1071,9 @@ total_count AS (
     SELECT COUNT(*) as total FROM matching_transactions
 ),
 transaction_data AS (
-    SELECT 
+    SELECT
         t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        CASE 
+        CASE
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -1175,7 +1156,7 @@ transaction_data AS (
     LIMIT (SELECT page_limit FROM pagination)
     OFFSET (SELECT page_offset FROM pagination)
 )
-SELECT 
+SELECT
     jsonb_build_object(
         'transactions', jsonb_agg(to_jsonb(transaction_data.*)),
         'page_limit', (SELECT page_limit FROM pagination),
@@ -1227,9 +1208,9 @@ matching_transactions AS (
     OR stm.destination_wallet = $2 OR stm.destination_wallet = $3
 ),
 transaction_data AS (
-    SELECT 
+    SELECT
         t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        CASE 
+        CASE
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -1308,7 +1289,7 @@ transaction_data AS (
         END as metadata
     FROM matching_transactions mt
     JOIN public.transactions t ON t.id = mt.transaction_id
-    WHERE CASE 
+    WHERE CASE
         WHEN $4::timestamptz IS NOT NULL THEN t.created_at < $4::timestamptz
         ELSE true
     END
@@ -1323,11 +1304,11 @@ result_set AS (
     SELECT id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id, metadata FROM transaction_data
     LIMIT (SELECT page_limit FROM pagination)
 )
-SELECT 
+SELECT
     jsonb_build_object(
         'transactions', jsonb_agg(to_jsonb(result_set.*)),
         'has_more', (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination),
-        'next_cursor', CASE 
+        'next_cursor', CASE
             WHEN (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination) THEN
                 jsonb_build_object(
                     'created_at', (SELECT created_at FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1),
@@ -1361,12 +1342,12 @@ func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTra
 }
 
 const listAllCryptoTransactions = `-- name: ListAllCryptoTransactions :many
-SELECT 
+SELECT
     t.id AS transaction_id,
     t.type AS transaction_type,
     t.description AS transaction_description,
     t.transaction_flow,
-    t.status AS transaction_status, 
+    t.status AS transaction_status,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
     cm.destination_wallet,
@@ -1444,7 +1425,7 @@ func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]ListAllCrypt
 }
 
 const listAllTransactionsWithUsers = `-- name: ListAllTransactionsWithUsers :many
-SELECT 
+SELECT
     t.id AS transaction_id,
     t.type AS transaction_type,
     t.description AS transaction_description,
@@ -1458,7 +1439,18 @@ SELECT
     u.email AS user_email,
     u.phone_number AS user_phone_number
 FROM transactions t
-LEFT JOIN swift_wallets sw ON t.id = sw.id
+LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
+LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN swift_wallets sw ON
+    sw.id = stm.source_wallet OR
+    sw.id = stm.destination_wallet OR
+    sw.id = ctm.destination_wallet OR
+    sw.id = gtm.source_wallet OR
+    sw.id = fwm.source_wallet OR
+    sw.id = sm.source_wallet
 LEFT JOIN users u ON sw.customer_id = u.id
 ORDER BY t.created_at DESC
 `
@@ -1515,7 +1507,7 @@ func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTr
 }
 
 const listGiftcardTransactions = `-- name: ListGiftcardTransactions :many
-SELECT 
+SELECT
     gtm.id AS metadata_id,
     gtm.source_wallet,
     gtm.transaction_id,
@@ -1655,7 +1647,7 @@ func (q *Queries) UpdateGiftCardServiceTransactionID(ctx context.Context, arg Up
 }
 
 const updateTransactionStatus = `-- name: UpdateTransactionStatus :one
-UPDATE transactions 
+UPDATE transactions
 SET status = $2
 WHERE id = $1
 RETURNING id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
