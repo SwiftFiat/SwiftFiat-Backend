@@ -506,6 +506,27 @@ func (q *Queries) GetTotalTrade(ctx context.Context) (int64, error) {
 	return total_trade, err
 }
 
+const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
+SELECT
+    COALESCE(SUM(
+        COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount, st.sent_amount)
+    ), 0)::BIGINT AS total_volume
+FROM transactions t
+LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
+LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
+WHERE t.status = 'successful'
+`
+
+func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalTransactionVolume)
+	var total_volume int64
+	err := row.Scan(&total_volume)
+	return total_volume, err
+}
+
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT
     t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
