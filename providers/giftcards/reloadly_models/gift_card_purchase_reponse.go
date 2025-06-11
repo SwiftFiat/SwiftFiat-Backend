@@ -25,3 +25,8 @@ type Product struct {
 	CurrencyCode string  `json:"currencyCode"`
 	Brand        Brand   `json:"brand"`
 }
+
+type ReedemGiftCardResponse struct {
+	CardNumber    int64   `json:"cardNumber"`
+	CardPin       int64   `json:"cardPin"`
+}

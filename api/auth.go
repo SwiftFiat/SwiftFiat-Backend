@@ -70,7 +70,8 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
 	serverGroupV1.POST("send-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.SendOTPWithTwilio)
 	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
-	serverGroupV1.POST("verify-email", a.verifyEmail)
+	serverGroupV1.POST("verify-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyEmail)
+	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -346,7 +347,7 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	subject := "SwiftFiat - Verify your email"
 	a.server.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", user.Email, subject, len(body)))
-	a.server.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", a.server.config.PlunkApiKey, a.server.config.PlunkSecretKey,a.server.config.PlunkBaseUrl))
+	a.server.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", a.server.config.PlunkApiKey, a.server.config.PlunkSecretKey, a.server.config.PlunkBaseUrl))
 	err = email.SendEmail(user.Email, subject, body)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
@@ -1008,4 +1009,53 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	})
 	a.notifr.Create(c, int32(newUser.ID), "Account", "Your account is verified successfully")
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
+}
+
+func (a *Auth) resendEmailVerification(ctx *gin.Context) {
+    var req struct {
+        Email string `json:"email" binding:"required,email"`
+    }
+    if err := ctx.ShouldBindJSON(&req); err != nil {
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
+        return
+    }
+
+    // Check if user exists
+    user, err := a.server.queries.GetUserByEmail(ctx, req.Email)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("User not found"))
+        return
+    }
+    if user.Verified {
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Email already verified"))
+        return
+    }
+
+    // Generate new verification code
+    verificationCode := utils.GenerateOTP()
+    redisKey := fmt.Sprintf("email_verification:%s", req.Email)
+    a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
+
+    // Prepare email body
+    tplData := map[string]any{
+        "Name": user.FirstName.String,
+        "OTP":  verificationCode,
+    }
+    body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+    if err != nil {
+        a.server.logger.Error(logrus.ErrorLevel, err.Error())
+        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
+        return
+    }
+
+    subject := "SwiftFiat - Verify your email"
+    email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+    err = email.SendEmail(req.Email, subject, body)
+    if err != nil {
+        a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send verification email"))
+        return
+    }
+
+    ctx.JSON(http.StatusOK, basemodels.NewSuccess("Verification email resent successfully", nil))
 }

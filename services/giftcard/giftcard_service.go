@@ -5,9 +5,10 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
+
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/sirupsen/logrus"
-	"net/http"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -454,15 +455,31 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
+	// Get card info
+	cardinfo, err := g.GetCardInfo(prov, tInfo.Metadata.ServiceTransactionID)
+	if err != nil {
+		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get card info: %v", err))
+		return nil, fmt.Errorf("failed to get card info: %s", err)
+	}
+	// Get redeem instructions
+	instruction, err := reloadlyProvider.GetReedemInsrtructionByProductID(tInfo.Metadata.ServiceTransactionID)
+	if err != nil {
+		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get redeem instructions: %v", err))
+		return nil, fmt.Errorf("failed to get redeem instructions: %s", err)
+	}
+
 	email := service.Plunk{Config: g.config, HttpClient: &http.Client{}}
 
 	// Parse and execute the OTP template
 	tplData := map[string]any{
-		"ProductName": giftCardPurchaseResponse.Product.ProductName,
-		"Amount":      giftCardPurchaseResponse.Amount,
-		"OrderID":     tInfo.ID,
-		"Email":       giftCardPurchaseResponse.RecipientEmail,
-		"Ecode":       "TODO",
+		"ProductName":         giftCardPurchaseResponse.Product.ProductName,
+		"Amount":              giftCardPurchaseResponse.Amount,
+		"OrderID":             tInfo.ID,
+		"Email":               giftCardPurchaseResponse.RecipientEmail,
+		"PinCode":             cardinfo.CardPin,
+		"CardNumber":          cardinfo.CardNumber,
+		"Concise":             instruction.Concise,
+		"DetailedInstruction": instruction.Verbose,
 	}
 	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
 	if err != nil {
@@ -475,7 +492,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	g.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", g.config.PlunkApiKey, g.config.PlunkSecretKey, g.config.PlunkBaseUrl))
 	err = email.SendEmail(userInfo.Email, subject, body)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send giftcard purchase email: %v", err))
 	}
 
 	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
@@ -483,7 +500,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	return tInfo, nil
 }
 
-func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID string) (interface{}, error) {
+func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID string) (*reloadlymodels.ReedemGiftCardResponse, error) {
 
 	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
