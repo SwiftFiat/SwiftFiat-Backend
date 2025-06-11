@@ -5,7 +5,7 @@ INSERT INTO swift_wallets (
     currency,
     balance
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4 
 ) RETURNING *;
 
 -- name: GetWallet :one
@@ -42,7 +42,7 @@ WHERE customer_id = $1
 ORDER BY created_at;
 
 -- name: UpdateWalletBalance :one
-UPDATE swift_wallets 
+UPDATE swift_wallets
 SET balance = balance + sqlc.arg(amount)
 WHERE id = sqlc.arg(id)
 RETURNING *;

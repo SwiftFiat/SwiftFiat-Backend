@@ -261,7 +261,7 @@ func maskToken(token string) string {
 }
 
 func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseRequest) (*reloadlymodels.GiftCardPurchaseResponse, error) {
-	token, err := r.GetToken(reloadlymodels.PROD)
+	token, err := r.GetToken(reloadlymodels.SANDBOX) // Change to prod
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardProdUrl)
+	base, err := url.Parse(r.config.GiftCardBaseUrl) // Change to prod
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
@@ -313,8 +313,46 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	return &response, nil
 }
 
-func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
-	token, err := r.GetToken(reloadlymodels.SANDBOX)
+func (r *ReloadlyProvider) GetReedemInsrtructionByProductID(productID string) (*reloadlymodels.RedeemInstruction, error) {
+	token, err := r.GetToken(reloadlymodels.SANDBOX) // Change to prod
+	if err != nil {
+		return nil, err
+	}
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
+	requiredHeaders["Authorization"] = "Bearer " + token
+	base, err := url.Parse(r.config.GiftCardBaseUrl) // Change to prod
+	if err != nil {
+		return nil, fmt.Errorf("error parsing base URL: %v", err)
+	}
+	base.Path += fmt.Sprintf("/products/%s/redeem-instructions", productID)
+	resp, err := r.MakeRequest("GET", base.String(), nil, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		logging.NewLogger().Error("resp", string(respBody))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	var response reloadlymodels.RedeemInstruction
+	// Decode the response body
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		logging.NewLogger().Error("Reloadly GetRedeemInstruction Unmarshal Error", err)
+		return nil, fmt.Errorf("error parsing redeem instructions: %w", err)
+	}
+
+	return &response, nil
+}
+
+func (r *ReloadlyProvider) GetCardInfo(request string) (*reloadlymodels.ReedemGiftCardResponse, error) {
+	token, err := r.GetToken(reloadlymodels.SANDBOX) // Change to prod
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +361,7 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
 	requiredHeaders["Accept"] = "application/com.reloadly.giftcards-v1+json"
 	requiredHeaders["Authorization"] = "Bearer " + token
 
-	base, err := url.Parse(r.config.GiftCardBaseUrl)
+	base, err := url.Parse(r.config.GiftCardBaseUrl) // Change to prod
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
@@ -346,7 +384,7 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (interface{}, error) {
 	logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
 
 	// Decode the response body
-	var response interface{}
+	var response reloadlymodels.ReedemGiftCardResponse
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&response)
 	if err != nil {
