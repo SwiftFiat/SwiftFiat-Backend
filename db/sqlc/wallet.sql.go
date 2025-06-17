@@ -19,7 +19,7 @@ INSERT INTO swift_wallets (
     currency,
     balance
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4 
 ) RETURNING id, customer_id, type, currency, balance, status, created_at, updated_at
 `
 
@@ -258,7 +258,7 @@ func (q *Queries) ListWallets(ctx context.Context, customerID int64) ([]SwiftWal
 }
 
 const updateWalletBalance = `-- name: UpdateWalletBalance :one
-UPDATE swift_wallets 
+UPDATE swift_wallets
 SET balance = balance + $1
 WHERE id = $2
 RETURNING id, customer_id, type, currency, balance, status, created_at, updated_at

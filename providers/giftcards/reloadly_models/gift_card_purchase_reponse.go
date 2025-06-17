@@ -27,6 +27,6 @@ type Product struct {
 }
 
 type ReedemGiftCardResponse struct {
-	CardNumber    int64   `json:"cardNumber"`
-	CardPin       int64   `json:"cardPin"`
+	CardNumber    string   `json:"cardNumber"`
+	CardPin       string   `json:"cardPin"`
 }

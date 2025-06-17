@@ -185,8 +185,8 @@ GROUP BY
     b.brand_id,
     b.brand_name
 ORDER BY
-    b.brand_name ASC
-LIMIT 30;
+    b.brand_name ASC;
+
 
 
 -- name: SelectCountriesByBrandID :many

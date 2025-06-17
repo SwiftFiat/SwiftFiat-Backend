@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/sirupsen/logrus"
@@ -455,14 +456,19 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	// Get card info
-	cardinfo, err := g.GetCardInfo(prov, tInfo.Metadata.ServiceTransactionID)
+	serviceTransactionID, err := strconv.ParseInt(tInfo.Metadata.ServiceTransactionID, 10, 64)
+	if err != nil {
+		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to parse ServiceTransactionID: %v", err))
+		return nil, fmt.Errorf("failed to parse ServiceTransactionID: %s", err)
+	}
+	cardinfo, err := g.GetCardInfo(prov, serviceTransactionID)
 	if err != nil {
 		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get card info: %v", err))
 		return nil, fmt.Errorf("failed to get card info: %s", err)
 	}
+
 	// Get redeem instructions
-	instruction, err := reloadlyProvider.GetReedemInsrtructionByProductID(tInfo.Metadata.ServiceTransactionID)
+	instruction, err := reloadlyProvider.GetReedemInsrtructionByProductID(productID)
 	if err != nil {
 		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get redeem instructions: %v", err))
 		return nil, fmt.Errorf("failed to get redeem instructions: %s", err)
@@ -481,7 +487,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		"Concise":             instruction.Concise,
 		"DetailedInstruction": instruction.Verbose,
 	}
-	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+	body, err := utils.RenderEmailTemplate("templates/giftcard_template.html", tplData)
 	if err != nil {
 		g.logger.Error(logrus.ErrorLevel, err.Error())
 		return nil, err
@@ -500,7 +506,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	return tInfo, nil
 }
 
-func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID string) (*reloadlymodels.ReedemGiftCardResponse, error) {
+func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transactionID int64) (*reloadlymodels.ReedemGiftCardResponse, error) {
 
 	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
@@ -515,6 +521,8 @@ func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transacti
 	if err != nil {
 		return nil, fmt.Errorf("failed to perform transaction: %s", err)
 	}
+
+	g.logger.Info(fmt.Sprintf("giftcard info: %+v", giftCardInfo))
 
 	return giftCardInfo, nil
 }

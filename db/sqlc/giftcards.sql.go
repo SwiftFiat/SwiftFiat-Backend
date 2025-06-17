@@ -259,7 +259,6 @@ GROUP BY
     b.brand_name
 ORDER BY
     b.brand_name ASC
-LIMIT 30
 `
 
 type FetchGiftCardsByBrandRow struct {

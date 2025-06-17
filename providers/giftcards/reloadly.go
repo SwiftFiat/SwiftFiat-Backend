@@ -313,7 +313,7 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	return &response, nil
 }
 
-func (r *ReloadlyProvider) GetReedemInsrtructionByProductID(productID string) (*reloadlymodels.RedeemInstruction, error) {
+func (r *ReloadlyProvider) GetReedemInsrtructionByProductID(productID int64) (*reloadlymodels.RedeemInstruction, error) {
 	token, err := r.GetToken(reloadlymodels.SANDBOX) // Change to prod
 	if err != nil {
 		return nil, err
@@ -325,7 +325,7 @@ func (r *ReloadlyProvider) GetReedemInsrtructionByProductID(productID string) (*
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
-	base.Path += fmt.Sprintf("/products/%s/redeem-instructions", productID)
+	base.Path += fmt.Sprintf("/products/%d/redeem-instructions", productID)
 	resp, err := r.MakeRequest("GET", base.String(), nil, requiredHeaders)
 	if err != nil {
 		return nil, err
@@ -351,7 +351,7 @@ func (r *ReloadlyProvider) GetReedemInsrtructionByProductID(productID string) (*
 	return &response, nil
 }
 
-func (r *ReloadlyProvider) GetCardInfo(request string) (*reloadlymodels.ReedemGiftCardResponse, error) {
+func (r *ReloadlyProvider) GetCardInfo(request int64) (*reloadlymodels.ReedemGiftCardResponse, error) {
 	token, err := r.GetToken(reloadlymodels.SANDBOX) // Change to prod
 	if err != nil {
 		return nil, err
@@ -365,7 +365,7 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (*reloadlymodels.ReedemGi
 	if err != nil {
 		return nil, fmt.Errorf("error parsing base URL: %v", err)
 	}
-	base.Path += fmt.Sprintf("/orders/transactions/%s/cards", request)
+	base.Path += fmt.Sprintf("/orders/transactions/%d/cards", request)
 
 	resp, err := r.MakeRequest("GET", base.String(), nil, requiredHeaders)
 	if err != nil {
@@ -384,14 +384,18 @@ func (r *ReloadlyProvider) GetCardInfo(request string) (*reloadlymodels.ReedemGi
 	logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
 
 	// Decode the response body
-	var response reloadlymodels.ReedemGiftCardResponse
+	var responseList []reloadlymodels.ReedemGiftCardResponse
 	decoder := json.NewDecoder(resp.Body)
-	err = decoder.Decode(&response)
+	err = decoder.Decode(&responseList)
 	if err != nil {
 		return nil, fmt.Errorf("error parsing products: %w", err)
 	}
 
-	return &response, nil
+	if len(responseList) == 0 {
+		return nil, fmt.Errorf("no card info returned")
+	}
+
+	return &responseList[0], nil
 }
 
 type TokenResponse struct {
@@ -470,4 +474,25 @@ func (r *ReloadlyProvider) BuyReloadlyGiftCard(token string, request *reloadlymo
 	}
 
 	return &result, nil
+}
+
+func (r *ReloadlyProvider) GetFilteredGiftCards(names []string) ([]reloadlymodels.GiftCardCollectionElement, error) {
+	allCards, err := r.GetAllGiftCards()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all gift cards: %w", err)
+	}
+
+	// Convert names slice to a map for fast lookup
+	nameSet := make(map[string]struct{}, len(names))
+	for _, n := range names {
+		nameSet[n] = struct{}{}
+	}
+
+	var filtered []reloadlymodels.GiftCardCollectionElement
+	for _, card := range allCards {
+		if _, ok := nameSet[card.ProductName]; ok {
+			filtered = append(filtered, card)
+		}
+	}
+	return filtered, nil
 }
