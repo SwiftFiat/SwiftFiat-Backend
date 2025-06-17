@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	reloadlymodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards/reloadly_models"
@@ -106,7 +107,6 @@ func (g *GiftCard) getAllGiftCards(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcards fetched successfully", models.ToGiftCardResponse(giftcards)))
 }
 
-
 func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 
 	// Fetch user details
@@ -115,7 +115,6 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	// Returns 30 giftcard brands and categories, Change via sql
 	giftcards, err := g.server.queries.FetchGiftCardsByBrand(ctx)
 	if err != nil {
 		g.server.logger.Error(err)
@@ -123,7 +122,21 @@ func (g *GiftCard) getAllGiftCardBrands(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToGiftCardBrandResponse(giftcards)))
+	// Build a map for fast lookup from reloadlymodels.Names
+	brandFilter := make(map[string]bool)
+	for _, name := range reloadlymodels.Names {
+		brandFilter[strings.ToLower(name)] = true // remove case sensitivity
+	}
+
+	// Filter giftcards by brand name
+	var filtered []db.FetchGiftCardsByBrandRow
+	for _, card := range giftcards {
+		if brandFilter[strings.ToLower(card.BrandName.String)] {
+			filtered = append(filtered, card)
+		}
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("giftcard brands fetched successfully", models.ToGiftCardBrandResponse(filtered)))
 }
 
 func (g *GiftCard) getAllGiftCardCategories(ctx *gin.Context) {
@@ -208,7 +221,9 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 				return
 			}
 		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("failed to purchase gift card: %v", err),
+		})
 		return
 	}
 
@@ -238,7 +253,12 @@ func (g *GiftCard) getCardInfo(ctx *gin.Context) {
 		return
 	}
 
-	response, err := g.service.GetCardInfo(g.server.provider, transactionID)
+	transactionIDInt, err := strconv.ParseInt(transactionID, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse transactionID"))
+		return
+	}
+	response, err := g.service.GetCardInfo(g.server.provider, transactionIDInt)
 	if err != nil {
 		g.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("error fetching giftcard: %v", err)))

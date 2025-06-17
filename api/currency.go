@@ -37,7 +37,7 @@ func (c *Currency) setPairRate(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
-	
+
 	request := struct {
 		BaseCurrency  string `json:"base" binding:"required"`
 		QuoteCurrency string `json:"quote" binding:"required"`
