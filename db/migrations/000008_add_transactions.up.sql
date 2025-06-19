@@ -7,8 +7,8 @@ CREATE TABLE IF NOT EXISTS "transactions" (
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending', -- e.g success | pending | failed | unknown
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
-); 
-
+);
+ 
 -- Swift Wallet Transactions metadata for transfer or swap
 CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
     "destination_wallet" UUID REFERENCES swift_wallets(id),
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     "coin" VARCHAR(10) NOT NULL, -- specifies coin received (e.g. btc, tbtc)
-    "source_hash" VARCHAR(64) UNIQUE, -- specifies webhook hash 
+    "source_hash" VARCHAR(64) UNIQUE, -- specifies webhook hash
     "rate" DECIMAL(40,20), -- determines amount to be received by destination wallet
     "fees" DECIMAL(19,4), -- determines platform charges to recipient
     "received_amount" DECIMAL(40,20), -- amount entered into destination wallet
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
     "service_transaction_id" VARCHAR(100), -- e.g to track the crypto inflow at service provider level
     CONSTRAINT "unique_transaction_crypto" UNIQUE (transaction_id)
 );
- 
+
 -- Giftcard transaction metadata
 CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
     "fees" DECIMAL(19,4),
     "service_provider" VARCHAR(100) NOT NULL, -- e.g., Reloadly
     "service_transaction_id" VARCHAR(100), -- e.g to track the giftcard purchase at service provider level
-    CONSTRAINT "unique_transaction_giftcard" UNIQUE (transaction_id) 
+    CONSTRAINT "unique_transaction_giftcard" UNIQUE (transaction_id)
 );
 
 -- Fiat withdrawal metadata
@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
     "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     "source_wallet" UUID REFERENCES swift_wallets(id), -- wallet from which withdrawal is initiated
     "rate" DECIMAL(19,4), -- rate from source to destination FIAT account
-    "received_amount" DECIMAL(19,4), -- amount received into FIAT account 
+    "received_amount" DECIMAL(19,4), -- amount received into FIAT account
     "sent_amount" DECIMAL(19,4), -- amount pulled from the wallet in the wallet's currency
     "fees" DECIMAL(19,4), -- determines platform charges to sender's wallet
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
@@ -71,7 +71,7 @@ CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
     "service_provider" VARCHAR(100), -- e.g., Paystack
     "service_transaction_id" VARCHAR(100), -- e.g to track the withdrawal at service provider level
     CONSTRAINT "unique_transaction_fiat" UNIQUE (transaction_id)
-); 
+);
 
 -- Services metadata for services like TV subscription, airtime-data purchase, etc.
 CREATE TABLE IF NOT EXISTS "services_metadata" (
@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS "services_metadata" (
     "service_status" VARCHAR(20) NOT NULL DEFAULT 'pending', -- e.g., 'active', 'inactive', 'pending', etc.
     "service_transaction_id" VARCHAR(100), -- e.g to track the service purchase at service provider level
     CONSTRAINT "unique_transaction_service" UNIQUE (transaction_id)
-); 
+);
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);

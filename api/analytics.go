@@ -160,7 +160,7 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 		"count":        len(transactions),
 		"volume":       volume,
 	}))
-} 
+}
 
 func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
@@ -329,7 +329,7 @@ func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 
 	if activeUser.Role != "admin" {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
+		return 
 	}
 
 	transactions, err := h.server.queries.ListAllCryptoTransactions(c)
