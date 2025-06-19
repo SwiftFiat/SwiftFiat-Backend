@@ -269,7 +269,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	ctx.Request.Body = io.NopCloser(bytes.NewBuffer(rawBody))
 
 	// Parse JSON payload
-	var payload cryptocurrency.WebhookPayload
+	var payload cryptocurrency.WebhookPayload 
 	if err := ctx.ShouldBindJSON(&payload); err != nil {
 		logging.NewLogger().Error("invalid webhook JSON payload", err)
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
