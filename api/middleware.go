@@ -48,7 +48,7 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Not Found"))
 				ctx.Abort()
 				return
-			}
+			} 
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
 			ctx.Abort()
 			return
