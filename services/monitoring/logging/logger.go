@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/syslog"
+	"os"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -37,6 +38,7 @@ func NewLogger() *Logger {
 	log := logrus.New()
 	log.SetLevel(logrus.DebugLevel)
 	log.SetFormatter(&logrus.JSONFormatter{PrettyPrint: true})
+	log.SetOutput(os.Stdout) // this enables logs to stdout (journalctl via vps)
 
 	hook, err := logrusSyslog.NewSyslogHook("udp", c.Papertrail, syslog.LOG_INFO, c.PapertrailAppName)
 	if err != nil {
