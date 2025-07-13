@@ -318,7 +318,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	}
 	s.logger.Info("crypto inflow transaction email sent successfully", user.Email)
 
-	s.notifyr.Create(ctx, int32(user.ID), "Succcessful Crypto Transaction", fmt.Sprintf("You have received %d USD on USD wallet", amount))
+	s.notifyr.Create(ctx, int32(user.ID), "Succcessful Crypto Transaction", fmt.Sprintf("You have received %s USD on USD wallet", amount.String()))
 
 	s.logger.Info("crypto inflow transaction completed successfully", tx)
 
