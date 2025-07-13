@@ -168,7 +168,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-	callbackURL := "https://swiftfiat-backend.swiftfiat.com/api/v1/crypto/webhook"
+	callbackURL := "https://8d097378f71e.ngrok-free.app/api/v1/crypto/webhook"
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,

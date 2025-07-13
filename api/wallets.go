@@ -454,7 +454,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %d was successful", amount))
+	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %.2f was successful", request.Amount))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
 }
