@@ -15,6 +15,26 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
+// @title SwiftFiat API
+// @version 1.0
+// @description SwiftFiat Backend API for cryptocurrency and fiat transactions
+// @termsOfService http://swagger.io/terms/
+
+// @contact.name API Support
+// @contact.url http://www.swiftfiat.com/support
+// @contact.email support@swiftfiat.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8080
+// @BasePath /api/v1
+
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+
 func main() {
 	// Create a context that we can cancel
 	ctx, cancel := context.WithCancel(context.Background())

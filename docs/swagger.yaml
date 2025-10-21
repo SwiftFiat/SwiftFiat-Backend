@@ -1,0 +1,2002 @@
+basePath: /api/v1
+definitions:
+  api.DeleteAccountRequest:
+    properties:
+      password:
+        type: string
+    required:
+    - password
+    type: object
+  api.KYCListResponse:
+    properties:
+      count:
+        type: integer
+      kycs:
+        items:
+          $ref: '#/definitions/models.UserKYCInformation'
+        type: array
+    type: object
+  api.NotificationListResponse:
+    properties:
+      count:
+        type: integer
+      notifications:
+        items:
+          $ref: '#/definitions/models.NotificationResponse'
+        type: array
+    type: object
+  api.OTPRequest:
+    properties:
+      phone_number:
+        type: string
+    required:
+    - phone_number
+    type: object
+  api.ResendEmailRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  api.UserDetailResponse:
+    properties:
+      referral:
+        additionalProperties: {}
+        type: object
+      user:
+        $ref: '#/definitions/models.UserResponse'
+      wallets:
+        items:
+          $ref: '#/definitions/models.WalletResponse'
+        type: array
+    type: object
+  api.VerifyEmailRequest:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+    required:
+    - code
+    - email
+    type: object
+  api.VerifyRequest:
+    properties:
+      code:
+        type: string
+      phone_number:
+        type: string
+    required:
+    - code
+    - phone_number
+    type: object
+  db.Referral:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      referral_key:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.ChangePasswordParams:
+    properties:
+      password:
+        type: string
+    required:
+    - password
+    type: object
+  models.CreatePasscodeParams:
+    properties:
+      passcode:
+        type: string
+    required:
+    - passcode
+    type: object
+  models.CreatePinParams:
+    properties:
+      pin:
+        type: string
+    required:
+    - pin
+    type: object
+  models.ErrorResponse:
+    properties:
+      errors:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  models.ForgotPasscodeParams:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.ForgotPasswordParams:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.NotificationResponse:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      message:
+        type: string
+      read:
+        type: boolean
+      title:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.RegisterAdminParams:
+    properties:
+      admin_key:
+        enum:
+        - 919d89nd3uinnwe2K
+        - 283d9h29nc3uncsa
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        type: string
+      phone_number:
+        type: string
+    required:
+    - admin_key
+    - email
+    - first_name
+    - last_name
+    - password
+    - phone_number
+    type: object
+  models.RegisterUserParams:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      password:
+        type: string
+      phone_number:
+        type: string
+    required:
+    - email
+    - first_name
+    - last_name
+    - password
+    - phone_number
+    type: object
+  models.ResetPasswordParams:
+    properties:
+      confirm_password:
+        type: string
+      email:
+        type: string
+      otp:
+        type: string
+      password:
+        type: string
+    required:
+    - confirm_password
+    - email
+    - otp
+    - password
+    type: object
+  models.SuccessResponse:
+    properties:
+      data: {}
+      message:
+        type: string
+      status:
+        type: string
+      version:
+        type: string
+    type: object
+  models.UpdateTransactionPinParams:
+    properties:
+      old_pin:
+        type: string
+      pin:
+        type: string
+    required:
+    - old_pin
+    - pin
+    type: object
+  models.UserKYCInformation:
+    properties:
+      bvn:
+        type: string
+      created_at:
+        type: string
+      daily_transfer_limit_ngn:
+        type: string
+      email:
+        type: string
+      full_name:
+        type: string
+      gender:
+        type: string
+      house_number:
+        type: string
+      id:
+        type: integer
+      id_image_url:
+        type: string
+      id_number:
+        type: string
+      id_type:
+        type: string
+      lga:
+        type: string
+      nearest_landmark:
+        type: string
+      nin:
+        type: string
+      phone_number:
+        type: string
+      proof_of_address_type:
+        type: string
+      selfie_url:
+        type: string
+      state:
+        type: string
+      status:
+        type: string
+      street_name:
+        type: string
+      tier:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      verification_date:
+        type: string
+      wallet_balance_limit_ngn:
+        type: string
+    type: object
+  models.UserLoginParams:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.UserPasscodeLoginParams:
+    properties:
+      email:
+        type: string
+      passcode:
+        type: string
+    required:
+    - email
+    - passcode
+    type: object
+  models.UserResponse:
+    properties:
+      avatar_url:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      fresh_chat_id:
+        type: string
+      has_passcode:
+        type: boolean
+      has_pin:
+        type: boolean
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      last_name:
+        type: string
+      phone_number:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      user_tag:
+        description: AvatarBlob  []byte    `json:"avatar_blob"`
+        type: string
+      verified:
+        type: boolean
+    type: object
+  models.UserTokenResponse:
+    properties:
+      created_at:
+        type: string
+      device_uuid:
+        type: string
+      provider:
+        type: string
+      push_token:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.UserWithToken:
+    properties:
+      token:
+        type: string
+      user:
+        $ref: '#/definitions/models.UserResponse'
+    type: object
+  models.WalletResponse:
+    properties:
+      balance:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      customer_id:
+        type: integer
+      id:
+        type: string
+      status:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@swiftfiat.com
+    name: API Support
+    url: http://www.swiftfiat.com/support
+  description: SwiftFiat Backend API for cryptocurrency and fiat transactions
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: http://swagger.io/terms/
+  title: SwiftFiat API
+  version: "1.0"
+paths:
+  /api/v1/auth/account:
+    delete:
+      consumes:
+      - application/json
+      description: Delete the authenticated user's account
+      parameters:
+      - description: delete account request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.DeleteAccountRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete account
+      tags:
+      - auth
+  /api/v1/auth/change-password:
+    post:
+      consumes:
+      - application/json
+      description: Change the authenticated user's password
+      parameters:
+      - description: change password request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.ChangePasswordParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Change password
+      tags:
+      - auth
+  /api/v1/auth/create-passcode:
+    post:
+      consumes:
+      - application/json
+      description: Create a new passcode for the authenticated user
+      parameters:
+      - description: create passcode request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePasscodeParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create passcode
+      tags:
+      - auth
+  /api/v1/auth/create-pin:
+    post:
+      consumes:
+      - application/json
+      description: Create a new transaction pin for the authenticated user
+      parameters:
+      - description: create pin request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.CreatePinParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create transaction pin
+      tags:
+      - auth
+  /api/v1/auth/forgot-passcode:
+    post:
+      consumes:
+      - application/json
+      description: Initiate passcode reset process by sending an OTP to the user's
+        email
+      parameters:
+      - description: forgot passcode request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.ForgotPasscodeParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Forgot passcode
+      tags:
+      - auth
+  /api/v1/auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Initiate password reset process by sending an OTP to the user's
+        email
+      parameters:
+      - description: forgot password request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.ForgotPasswordParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Forgot password
+      tags:
+      - auth
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and password
+      parameters:
+      - description: Login credentials
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserLoginParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserWithToken'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: User login
+      tags:
+      - auth
+  /api/v1/auth/login-passcode:
+    post:
+      consumes:
+      - application/json
+      description: Authenticate user with email and passcode
+      parameters:
+      - description: Login credentials
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.UserPasscodeLoginParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserWithToken'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: User login with passcode
+      tags:
+      - auth
+  /api/v1/auth/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get the authenticated user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      description: Register a new user account
+      parameters:
+      - description: User registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterUserParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: User registration
+      tags:
+      - auth
+  /api/v1/auth/register-admin:
+    post:
+      consumes:
+      - application/json
+      description: Register a new admin account
+      parameters:
+      - description: Admin registration data
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/models.RegisterAdminParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Admin registration
+      tags:
+      - auth
+  /api/v1/auth/resend-email:
+    post:
+      consumes:
+      - application/json
+      description: Sends a new email verification code to the user's email address
+      parameters:
+      - description: email to resend code to
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.ResendEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Resend email verification code
+      tags:
+      - auth
+  /api/v1/auth/reset-passcode:
+    post:
+      consumes:
+      - application/json
+      description: Reset user's password using the provided OTP and new password
+      parameters:
+      - description: reset password request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResetPasswordParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Reset password
+      tags:
+      - auth
+  /api/v1/auth/reset-password:
+    post:
+      consumes:
+      - application/json
+      description: Reset user's password using the provided OTP and new password
+      parameters:
+      - description: reset password request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResetPasswordParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Reset password
+      tags:
+      - auth
+  /api/v1/auth/send-otp:
+    post:
+      consumes:
+      - application/json
+      description: Sends a One-Time Password (OTP) to the specified phone number using
+        Twilio
+      parameters:
+      - description: OTP request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.OTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Send OTP via Twilio
+      tags:
+      - auth
+  /api/v1/auth/test:
+    get:
+      consumes:
+      - application/json
+      description: Test endpoint to verify authentication API is working
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Test authentication endpoint
+      tags:
+      - auth
+  /api/v1/auth/update-pin:
+    post:
+      consumes:
+      - application/json
+      description: Update the authenticated user's transaction pin
+      parameters:
+      - description: update pin request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/models.UpdateTransactionPinParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update transaction pin
+      tags:
+      - auth
+  /api/v1/auth/verify-email:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a user's email address using a verification code sent
+        to their email
+      parameters:
+      - description: verification request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.VerifyEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Verify user email
+      tags:
+      - auth
+  /api/v1/auth/verify-otp:
+    post:
+      consumes:
+      - application/json
+      description: Verifies a One-Time Password (OTP) sent to the specified phone
+        number using Twilio
+      parameters:
+      - description: verification request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.VerifyRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Verify OTP via Twilio
+      tags:
+      - auth
+  /api/v1/user/{user_id}/avatar:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the avatar image for a specified user
+      parameters:
+      - description: Encrypted User ID
+        in: path
+        name: user_id
+        required: true
+        type: string
+      produces:
+      - image/png
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: file
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User Avatar
+      tags:
+      - user
+  /api/v1/user/avatar:
+    put:
+      consumes:
+      - multipart/form-data
+      description: Update the authenticated user's avatar image
+      parameters:
+      - description: Avatar Image File
+        in: formData
+        name: avatar
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update User Avatar
+      tags:
+      - user
+  /api/v1/user/checktag:
+    post:
+      consumes:
+      - application/json
+      description: Check if a user tag is available for use
+      parameters:
+      - description: User Tag Request
+        in: body
+        name: tagRequest
+        required: true
+        schema:
+          properties:
+            tag:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Check User Tag Availability
+      tags:
+      - user
+  /api/v1/user/delete-user/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a user by ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Delete User Request
+        in: body
+        name: deleteUserRequest
+        required: true
+        schema:
+          properties:
+            email:
+              type: string
+            first_name:
+              type: string
+            phone_number:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete User
+      tags:
+      - user
+  /api/v1/user/fresh-chat:
+    post:
+      consumes:
+      - application/json
+      description: Set or update the authenticated user's FreshChat ID
+      parameters:
+      - description: FreshChat ID Request
+        in: body
+        name: freshChatRequest
+        required: true
+        schema:
+          properties:
+            fresh_chat_id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set FreshChat ID
+      tags:
+      - user
+  /api/v1/user/get-new-users-today:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a list of users who registered today (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.UserResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get New Users Today
+      tags:
+      - user
+  /api/v1/user/get-push:
+    post:
+      consumes:
+      - application/json
+      description: Send a test push notification to the provided FCM or Expo token
+      parameters:
+      - description: Push Notification Request
+        in: body
+        name: pushRequest
+        required: true
+        schema:
+          properties:
+            expo_token:
+              type: string
+            fcm_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Test Push Notification
+      tags:
+      - user
+  /api/v1/user/get-user-by-id/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve user details by ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User by ID
+      tags:
+      - user
+  /api/v1/user/get-user-id:
+    post:
+      consumes:
+      - application/json
+      description: Retrieve the user ID based on the provided encrypted ID
+      parameters:
+      - description: User ID Request
+        in: body
+        name: userRequest
+        required: true
+        schema:
+          properties:
+            id:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    userID:
+                      format: int64
+                      type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User ID
+      tags:
+      - user
+  /api/v1/user/list-kyc:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a list of all KYC submissions (admin only)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.KYCListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List KYCs
+      tags:
+      - user
+  /api/v1/user/list-users:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a paginated list of users (admin only)
+      parameters:
+      - default: 50
+        description: Number of users to retrieve
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    limit:
+                      type: integer
+                    offset:
+                      type: integer
+                    total_users:
+                      type: integer
+                    users:
+                      items:
+                        $ref: '#/definitions/models.UserResponse'
+                      type: array
+                  type: object
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Users
+      tags:
+      - user
+  /api/v1/user/notification/delete/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a specific notification for the authenticated user
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete Notification
+      tags:
+      - user
+  /api/v1/user/notification/mark-as-read/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Mark a specific notification as read for the authenticated user
+      parameters:
+      - description: Notification ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark Notification as Read
+      tags:
+      - user
+  /api/v1/user/notifications:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.NotificationListResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Notifications
+      tags:
+      - user
+  /api/v1/user/notifications/count-all:
+    get:
+      consumes:
+      - application/json
+      description: Count the total number of notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    count:
+                      type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Count All Notifications
+      tags:
+      - user
+  /api/v1/user/notifications/count-unread:
+    get:
+      consumes:
+      - application/json
+      description: Count the number of unread notifications for the authenticated
+        user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    count:
+                      type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Count Unread Notifications
+      tags:
+      - user
+  /api/v1/user/notifications/delete-all:
+    delete:
+      consumes:
+      - application/json
+      description: Delete all notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete All Notifications
+      tags:
+      - user
+  /api/v1/user/notifications/delete-all-read:
+    delete:
+      consumes:
+      - application/json
+      description: Delete all read notifications for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete All Read Notifications
+      tags:
+      - user
+  /api/v1/user/notifications/mark-all-as-read:
+    put:
+      consumes:
+      - application/json
+      description: Mark all notifications as read for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark All Notifications as Read
+      tags:
+      - user
+  /api/v1/user/phone-number:
+    put:
+      consumes:
+      - application/json
+      description: Update the authenticated user's phone number using OTP verification
+      parameters:
+      - description: Phone Number Update Request
+        in: body
+        name: phoneNumberRequest
+        required: true
+        schema:
+          properties:
+            otp:
+              type: string
+            phone_number:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Phone Number
+      tags:
+      - user
+  /api/v1/user/profile:
+    get:
+      consumes:
+      - application/json
+      description: Get the authenticated user's profile information
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user profile
+      tags:
+      - user
+  /api/v1/user/push-token:
+    post:
+      consumes:
+      - application/json
+      description: Add or update the authenticated user's push notification token
+        (FCM or Expo)
+      parameters:
+      - description: Push Token Request
+        in: body
+        name: pushTokenRequest
+        required: true
+        schema:
+          properties:
+            device_uuid:
+              type: string
+            expo_token:
+              type: string
+            fcm_token:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserTokenResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add Push Notification Token
+      tags:
+      - user
+  /api/v1/user/referral:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the referral information for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/db.Referral'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Referral
+      tags:
+      - user
+  /api/v1/user/update-name:
+    put:
+      consumes:
+      - application/json
+      description: Update the authenticated user's first and last name
+      parameters:
+      - description: Name Update Request
+        in: body
+        name: nameRequest
+        required: true
+        schema:
+          properties:
+            first_name:
+              type: string
+            last_name:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update User Name
+      tags:
+      - user
+  /api/v1/user/update-user-status/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Activate or deactivate a user by ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update User Status Request
+        in: body
+        name: updateUserStatusRequest
+        required: true
+        schema:
+          properties:
+            is_active:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update User Status
+      tags:
+      - user
+  /api/v1/user/usertag:
+    post:
+      consumes:
+      - application/json
+      description: Set or update the authenticated user's tag
+      parameters:
+      - description: User Tag Request
+        in: body
+        name: tagRequest
+        required: true
+        schema:
+          properties:
+            tag:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set User Tag
+      tags:
+      - user
+securityDefinitions:
+  BearerAuth:
+    description: Type "Bearer" followed by a space and JWT token.
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

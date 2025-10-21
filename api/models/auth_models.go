@@ -58,6 +58,7 @@ type UserWithToken struct {
 }
 
 const (
+	SUPER_ADMIN   = "super_admin"
 	ADMIN        = "admin"
 	USER         = "user"
 	CUSTOMER_REP = "customer_rep"

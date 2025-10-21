@@ -1,0 +1,23 @@
+meta {
+  name: Login
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BaseURl}}/auth/login
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "cellarnigeria@gmail.com",
+    "password": "admin2025"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,0 +1,30 @@
+{
+  "name": "swiftfiat-backend",
+  "version": "1.0.0",
+  "description": "API - Api related calls and grouping - responses etc. Services - Feature based functions - Business Logic Providers - Third party functionality DB - Database LOGIC Models - Public Structs for Standard Use Utils - Public utility functions Templates - Visual templates for messaging (emails, push, sms)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+  "docs:preview": "redocly preview -p 8081 -d ./docs",
+    "docs:bundle": "redocly bundle ./docs/swagger.yaml --output docs/bundle.yaml",
+    "docs:build": "redocly build-docs ./docs/swagger.yaml --output-dir docs/site"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SwiftFiat/SwiftFiat-Backend.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/SwiftFiat/SwiftFiat-Backend/issues"
+  },
+  "homepage": "https://github.com/SwiftFiat/SwiftFiat-Backend#readme",
+  "devDependencies": {
+    "@redocly/cli": "^2.7.0"
+  }
+}

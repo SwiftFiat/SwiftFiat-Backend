@@ -93,6 +93,14 @@ func (a *Auth) getUserID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"userID": int64(request.Id)})
 }
 
+// testAuth godoc
+// @Summary Test authentication endpoint
+// @Description Test endpoint to verify authentication API is working
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/auth/test [get]
 func (a Auth) testAuth(ctx *gin.Context) {
 	dr := basemodels.SuccessResponse{
 		Status:  "success",
@@ -103,6 +111,18 @@ func (a Auth) testAuth(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dr)
 }
 
+// profile godoc
+// @Summary Get user profile
+// @Description Get the authenticated user's profile information
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/profile [get]
 func (a *Auth) profile(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -124,6 +144,17 @@ func (a *Auth) profile(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", models.UserResponse{}.ToUserResponse(&dbUser)))
 }
 
+// login godoc
+// @Summary User login
+// @Description Authenticate user with email and password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.UserLoginParams true "Login credentials"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserWithToken}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/login [post]
 func (a *Auth) login(ctx *gin.Context) {
 	user := new(models.UserLoginParams)
 
@@ -188,6 +219,17 @@ func (a *Auth) login(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
 
+// loginWithPasscode godoc
+// @Summary User login with passcode
+// @Description Authenticate user with email and passcode
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.UserPasscodeLoginParams true "Login credentials"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserWithToken}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/login-passcode [post]
 func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	user := new(models.UserPasscodeLoginParams)
 
@@ -239,6 +281,17 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
 
+// register godoc
+// @Summary User registration
+// @Description Register a new user account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.RegisterUserParams true "User registration data"
+// @Success 201 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/register [post]
 func (a *Auth) register(ctx *gin.Context) {
 	var user models.RegisterUserParams
 
@@ -369,6 +422,18 @@ type VerifyEmailRequest struct {
 	Code  string `json:"code" binding:"required"`
 }
 
+// verifyEmail godoc
+// @Summary Verify user email
+// @Description Verifies a user's email address using a verification code sent to their email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body VerifyEmailRequest true "verification request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/verify-email [post]
 func (a *Auth) verifyEmail(ctx *gin.Context) {
 	var req VerifyEmailRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -405,6 +470,79 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", nil))
 }
 
+// ResendEmailRequest is used for resending verification emails.
+type ResendEmailRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// resendEmailVerification godoc
+// @Summary Resend email verification code
+// @Description Sends a new email verification code to the user's email address
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body ResendEmailRequest true "email to resend code to"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/resend-email [post]
+func (a *Auth) resendEmailVerification(ctx *gin.Context) {
+	req := ResendEmailRequest{}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
+		return
+	}
+
+	user, err := a.server.queries.GetUserByEmail(ctx, req.Email)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("User not found"))
+		return
+	}
+	if user.Verified {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Email already verified"))
+		return
+	}
+
+	verificationCode := utils.GenerateOTP()
+	redisKey := fmt.Sprintf("email_verification:%s", req.Email)
+	a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
+
+	// Prepare email body
+	tplData := map[string]any{
+		"Name": user.FirstName.String,
+		"OTP":  verificationCode,
+	}
+	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
+		return
+	}
+
+	subject := "SwiftFiat - Verify your email"
+	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+	err = email.SendEmail(req.Email, subject, body)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send verification email"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Verification email resent successfully", nil))
+}
+
+// registerAdmin godoc
+// @Summary Admin registration
+// @Description Register a new admin account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param user body models.RegisterAdminParams true "Admin registration data"
+// @Success 201 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/register-admin [post]
 func (a *Auth) registerAdmin(ctx *gin.Context) {
 	var user models.RegisterAdminParams
 
@@ -463,6 +601,17 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
 }
 
+// forgotPassword godoc
+// @Summary Forgot password
+// @Description Initiate password reset process by sending an OTP to the user's email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body models.ForgotPasswordParams true "forgot password request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/forgot-password [post]
 func (a *Auth) forgotPassword(ctx *gin.Context) {
 	email := new(models.ForgotPasswordParams)
 
@@ -518,6 +667,17 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
 }
 
+// resetPassword godoc
+// @Summary Reset password
+// @Description Reset user's password using the provided OTP and new password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body models.ResetPasswordParams true "reset password request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/reset-passcode [post]
 func (a *Auth) resetPasscode(ctx *gin.Context) {
 	passcode := new(models.ResetPasscodeParams)
 
@@ -578,6 +738,19 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
 }
 
+// changePassword godoc
+// @Summary Change password
+// @Description Change the authenticated user's password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body models.ChangePasswordParams true "change password request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/change-password [post]
 func (a *Auth) changePassword(ctx *gin.Context) {
 	newPassword := new(models.ChangePasswordParams)
 
@@ -624,6 +797,19 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
 }
 
+// createPasscode godoc
+// @Summary Create passcode
+// @Description Create a new passcode for the authenticated user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body models.CreatePasscodeParams true "create passcode request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/create-passcode [post]
 func (a *Auth) createPasscode(ctx *gin.Context) {
 	newPasscode := new(models.CreatePasscodeParams)
 
@@ -672,6 +858,17 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
 }
 
+// forgotPasscode godoc
+// @Summary Forgot passcode
+// @Description Initiate passcode reset process by sending an OTP to the user's email
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body models.ForgotPasscodeParams true "forgot passcode request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/forgot-passcode [post]
 func (a *Auth) forgotPasscode(ctx *gin.Context) {
 	email := new(models.ForgotPasscodeParams)
 
@@ -729,6 +926,19 @@ func (a *Auth) forgotPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
 }
 
+// createPin godoc
+// @Summary Create transaction pin
+// @Description Create a new transaction pin for the authenticated user
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body models.CreatePinParams true "create pin request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/create-pin [post]
 func (a *Auth) createPin(ctx *gin.Context) {
 	newPin := new(models.CreatePinParams)
 
@@ -775,6 +985,19 @@ func (a *Auth) createPin(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
 }
 
+// updateTransactionPin godoc
+// @Summary Update transaction pin
+// @Description Update the authenticated user's transaction pin
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body models.UpdateTransactionPinParams true "update pin request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/update-pin [post]
 func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 	pin := new(models.UpdateTransactionPinParams)
 
@@ -829,6 +1052,17 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
 }
 
+// resetPassword godoc
+// @Summary Reset password
+// @Description Reset user's password using the provided OTP and new password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body models.ResetPasswordParams true "reset password request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/reset-password [post]
 func (a *Auth) resetPassword(ctx *gin.Context) {
 	resetPassword := new(models.ResetPasswordParams)
 
@@ -888,10 +1122,26 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userResponse))
 }
 
+// DeleteAccountRequest is the request payload for deleting an account.
+type DeleteAccountRequest struct {
+	Password string `json:"password" binding:"required"`
+}
+
+// deleteAccount godoc
+// @Summary Delete account
+// @Description Delete the authenticated user's account
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body DeleteAccountRequest true "delete account request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/account [delete]
 func (a *Auth) deleteAccount(ctx *gin.Context) {
-	request := struct {
-		Password string `json:"password" binding:"required"`
-	}{}
+	request := DeleteAccountRequest{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
@@ -937,7 +1187,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", struct{}{}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", nil))
 }
 
 type OTPRequest struct {
@@ -949,6 +1199,17 @@ type VerifyRequest struct {
 	Code        string `json:"code" binding:"required"`
 }
 
+// sendOTPWithTwilio godoc
+// @Summary Send OTP via Twilio
+// @Description Sends a One-Time Password (OTP) to the specified phone number using Twilio
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body OTPRequest true "OTP request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/send-otp [post]
 func (a *Auth) SendOTPWithTwilio(c *gin.Context) {
 	var req OTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -969,6 +1230,18 @@ func (a *Auth) SendOTPWithTwilio(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "OTP sent successfully"})
 }
 
+// verifyOTPWithTwilio godoc
+// @Summary Verify OTP via Twilio
+// @Description Verifies a One-Time Password (OTP) sent to the specified phone number using Twilio
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body VerifyRequest true "verification request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/verify-otp [post]
 func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1009,53 +1282,4 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	})
 	a.notifr.Create(c, int32(newUser.ID), "Account", "Your account is verified successfully")
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
-}
-
-func (a *Auth) resendEmailVerification(ctx *gin.Context) {
-    var req struct {
-        Email string `json:"email" binding:"required,email"`
-    }
-    if err := ctx.ShouldBindJSON(&req); err != nil {
-        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
-        return
-    }
-
-    // Check if user exists
-    user, err := a.server.queries.GetUserByEmail(ctx, req.Email)
-    if err != nil {
-        ctx.JSON(http.StatusBadRequest, basemodels.NewError("User not found"))
-        return
-    }
-    if user.Verified {
-        ctx.JSON(http.StatusBadRequest, basemodels.NewError("Email already verified"))
-        return
-    }
-
-    // Generate new verification code
-    verificationCode := utils.GenerateOTP()
-    redisKey := fmt.Sprintf("email_verification:%s", req.Email)
-    a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
-
-    // Prepare email body
-    tplData := map[string]any{
-        "Name": user.FirstName.String,
-        "OTP":  verificationCode,
-    }
-    body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
-    if err != nil {
-        a.server.logger.Error(logrus.ErrorLevel, err.Error())
-        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
-        return
-    }
-
-    subject := "SwiftFiat - Verify your email"
-    email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
-    err = email.SendEmail(req.Email, subject, body)
-    if err != nil {
-        a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
-        ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send verification email"))
-        return
-    }
-
-    ctx.JSON(http.StatusOK, basemodels.NewSuccess("Verification email resent successfully", nil))
 }

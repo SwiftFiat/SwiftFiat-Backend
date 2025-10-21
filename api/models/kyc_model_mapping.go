@@ -85,3 +85,4 @@ func ToProofOfAddressCollection(data *json.RawMessage) []ProofOfAddressOutputEle
 	}
 	return collection
 }
+
