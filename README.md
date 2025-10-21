@@ -34,5 +34,8 @@ To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and 
 4. **Start App:**
    - run `make start` to start the app using `CompileDaemon` or `make start_d` to start the app in debug mode using `CompileDaemon` and `Delve Debugger`
 
+5. **DOCS:**
+   [View](https://swiftfiat-backend.swiftfiat.com/api/v1/docs/site/index.html)
+
 
 By following these steps, you can easily get the services up and running and start your app.

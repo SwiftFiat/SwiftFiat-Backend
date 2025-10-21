@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	_ "github.com/SwiftFiat/SwiftFiat-Backend/docs" // This will be generated
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
@@ -24,6 +25,8 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	swaggerFiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // / If there's a better place to access this
@@ -31,15 +34,15 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router                *gin.Engine
-	queries               *db.Store
-	config                *utils.Config
-	logger                *logging.Logger
-	taskScheduler         *tasks.TaskScheduler
-	provider              *providers.ProviderService
-	redis                 *redis.RedisService
-	pushNotification      *service.PushNotificationService
-	authMiddleware        *AuthMiddleware
+	router           *gin.Engine
+	queries          *db.Store
+	config           *utils.Config
+	logger           *logging.Logger
+	taskScheduler    *tasks.TaskScheduler
+	provider         *providers.ProviderService
+	redis            *redis.RedisService
+	pushNotification *service.PushNotificationService
+	authMiddleware   *AuthMiddleware
 }
 
 func NewServer(envPath string) *Server {
@@ -130,6 +133,7 @@ func NewServer(envPath string) *Server {
 
 	am := NewAuthMiddleware(r)
 
+	g.Static("/docs", "./docs/site") // serves docs at /docs
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
 
@@ -157,6 +161,9 @@ func (s *Server) Start() error {
 	s.router.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, dr)
 	})
+
+	// Swagger documentation routes
+	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	/// Register Object Routers Below
 	Auth{}.router(s)

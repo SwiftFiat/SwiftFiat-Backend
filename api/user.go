@@ -72,6 +72,18 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
 }
 
+// testPush godoc
+// @Summary Test Push Notification
+// @Description Send a test push notification to the provided FCM or Expo token
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param pushRequest body object{fcm_token=string,expo_token=string} true "Push Notification Request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/get-push [post]
 func (u *User) testPush(ctx *gin.Context) {
 	request := struct {
 		FCMToken  string `json:"fcm_token"`
@@ -113,6 +125,16 @@ func (u *User) testPush(ctx *gin.Context) {
 
 }
 
+// GetUserID godoc
+// @Summary Get User ID
+// @Description Retrieve the user ID based on the provided encrypted ID
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param userRequest body object{id=string} true "User ID Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=object{userID=int64}}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/get-user-id [post]
 func (u *User) GetUserID(ctx *gin.Context) {
 	request := struct {
 		Id models.ID `json:"id" binding:"required"`
@@ -128,6 +150,18 @@ func (u *User) GetUserID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, gin.H{"userID": int64(request.Id)})
 }
 
+// profile godoc
+// @Summary Get user profile
+// @Description Get the authenticated user's profile information
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/profile [get]
 func (u *User) profile(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -151,9 +185,20 @@ func (u *User) profile(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", models.UserResponse{}.ToUserResponse(&dbUser)))
 }
 
-// Eventually use the cacheService to ensure requests are getting resolved in-memory
+// checkTag godoc
+// @Summary Check User Tag Availability
+// @Description Check if a user tag is available for use
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param tagRequest body object{tag=string} true "User Tag Request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/checktag [post]
 func (u *User) checkTag(ctx *gin.Context) {
-
+	// Eventually use the cacheService to ensure requests are getting resolved in-memory
 	request := struct {
 		Tag string `json:"tag" binding:"required"`
 	}{}
@@ -179,6 +224,18 @@ func (u *User) checkTag(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("tag available to add", nil))
 }
 
+// userTag godoc
+// @Summary Set User Tag
+// @Description Set or update the authenticated user's tag
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param tagRequest body object{tag=string} true "User Tag Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/usertag [post]
 func (u *User) userTag(ctx *gin.Context) {
 
 	request := struct {
@@ -209,6 +266,18 @@ func (u *User) userTag(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user tag set successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
+// freshChatID godoc
+// @Summary Set FreshChat ID
+// @Description Set or update the authenticated user's FreshChat ID
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param freshChatRequest body object{fresh_chat_id=string} true "FreshChat ID Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/fresh-chat [post]
 func (u *User) freshChatID(ctx *gin.Context) {
 
 	request := struct {
@@ -239,6 +308,18 @@ func (u *User) freshChatID(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user fresh tag ID set successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
+// pushToken godoc
+// @Summary Add Push Notification Token
+// @Description Add or update the authenticated user's push notification token (FCM or Expo)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param pushTokenRequest body object{fcm_token=string,expo_token=string,device_uuid=string} true "Push Token Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserTokenResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/push-token [post]
 func (u *User) pushToken(ctx *gin.Context) {
 
 	request := struct {
@@ -288,6 +369,18 @@ func (u *User) pushToken(ctx *gin.Context) {
 	}
 }
 
+// updatePhoneNumber godoc
+// @Summary Update Phone Number
+// @Description Update the authenticated user's phone number using OTP verification
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param phoneNumberRequest body object{phone_number=string,otp=string} true "Phone Number Update Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/phone-number [put]
 func (u *User) updatePhoneNumber(ctx *gin.Context) {
 	request := struct {
 		PhoneNumber string `json:"phone_number"`
@@ -349,6 +442,18 @@ func (u *User) updatePhoneNumber(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user phone number upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
+// updateName godoc
+// @Summary Update User Name
+// @Description Update the authenticated user's first and last name
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param nameRequest body object{first_name=string,last_name=string} true "Name Update Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/update-name [put]
 func (u *User) updateName(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -378,6 +483,17 @@ func (u *User) updateName(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user name upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
+// referral godoc
+// @Summary Get User Referral
+// @Description Retrieve the referral information for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} db.Referral
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/referral [get]
 func (u *User) referral(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -400,6 +516,18 @@ func (u *User) referral(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user referral fetched successfully", referral))
 }
 
+// updateAvatar godoc
+// @Summary Update User Avatar
+// @Description Update the authenticated user's avatar image
+// @Tags user
+// @Accept multipart/form-data
+// @Produce json
+// @Security BearerAuth
+// @Param avatar formData file true "Avatar Image File"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/avatar [put]
 func (u *User) updateAvatar(ctx *gin.Context) {
 	file, _, err := ctx.Request.FormFile("avatar")
 	if err != nil {
@@ -441,6 +569,17 @@ func (u *User) updateAvatar(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user avatar upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
+// getAvatar godoc
+// @Summary Get User Avatar
+// @Description Retrieve the avatar image for a specified user
+// @Tags user
+// @Accept json
+// @Produce image/png
+// @Param user_id path string true "Encrypted User ID"
+// @Success 200 {file} binary
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/{user_id}/avatar [get]
 func (u *User) getAvatar(ctx *gin.Context) {
 	param := ctx.Param("user_id")
 
@@ -464,6 +603,17 @@ func (u *User) getAvatar(ctx *gin.Context) {
 	ctx.DataFromReader(http.StatusOK, int64(len(userInfo.AvatarBlob)), "image/png", bytes.NewReader(userInfo.AvatarBlob), nil)
 }
 
+// GetNewUsersToday godoc
+// @Summary Get New Users Today
+// @Description Retrieve a list of users who registered today (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=[]models.UserResponse}
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/get-new-users-today [get]
 func (u *User) GetNewUsersToday(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -485,6 +635,19 @@ func (u *User) GetNewUsersToday(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("new users fetched successfully", newUsers))
 }
 
+// ListUsers godoc
+// @Summary List Users
+// @Description Retrieve a paginated list of users (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Number of users to retrieve" default(50)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Success 200 {object} basemodels.SuccessResponse{data=object{users=[]models.UserResponse,total_users=int,offset=int,limit=int}}
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/list-users [get]
 func (u *User) ListUsers(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -515,6 +678,22 @@ func (u *User) ListUsers(ctx *gin.Context) {
 	}))
 }
 
+type KYCListResponse struct {
+	KYCs  []*models.UserKYCInformation `json:"kycs"`
+	Count int                          `json:"count"`
+}
+
+// ListKYCs godoc
+// @Summary List KYCs
+// @Description Retrieve a list of all KYC submissions (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} KYCListResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/list-kyc [get]
 func (u *User) ListKYCs(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -534,12 +713,33 @@ func (u *User) ListKYCs(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", gin.H{
-		"kycs":  kycList,
-		"count": len(kycList),
+	var response KYCListResponse
+	for _, kyc := range kycList {
+		kf := models.ToUserKYCInformation(&kyc)
+		response.KYCs = append(response.KYCs, kf)
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", KYCListResponse{
+		KYCs:  response.KYCs,
+		Count: len(kycList),
 	}))
 }
 
+type NotificationListResponse struct {
+	Notifications []*models.NotificationResponse `json:"notifications"`
+	Count         int                            `json:"count"`
+}
+
+// GetNotifications godoc
+// @Summary Get User Notifications
+// @Description Retrieve the notifications for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} NotificationListResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications [get]
 func (u *User) GetNotifications(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -555,12 +755,31 @@ func (u *User) GetNotifications(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user notifications fetched successfully", gin.H{
-		"notifications": notifications,
-		"count":         len(notifications),
+	var response NotificationListResponse
+	for _, not := range notifications {
+		nf := models.ToNotificationResponse(&not)
+		response.Notifications = append(response.Notifications, nf)
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user notifications fetched successfully", NotificationListResponse{
+		Notifications: response.Notifications,
+		Count:         len(response.Notifications),
 	}))
 }
 
+// MarkNotificationAsRead godoc
+// @Summary Mark Notification as Read
+// @Description Mark a specific notification as read for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Notification ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notification/mark-as-read/{id} [put]
 func (u *User) MarkNotificationAsRead(ctx *gin.Context) {
 	notID := ctx.Param("id")
 
@@ -587,6 +806,19 @@ func (u *User) MarkNotificationAsRead(ctx *gin.Context) {
 
 }
 
+// DeleteNotification godoc
+// @Summary Delete Notification
+// @Description Delete a specific notification for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Notification ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notification/delete/{id} [delete]
 func (u *User) DeleteNotification(ctx *gin.Context) {
 	notID := ctx.Param("id")
 
@@ -613,6 +845,18 @@ func (u *User) DeleteNotification(ctx *gin.Context) {
 
 }
 
+// MarkAllNotificationsAsRead godoc
+// @Summary Mark All Notifications as Read
+// @Description Mark all notifications as read for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications/mark-all-as-read [put]
 func (u *User) MarkAllNotificationsAsRead(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -630,6 +874,18 @@ func (u *User) MarkAllNotificationsAsRead(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "deleted successfully"})
 }
 
+// CountUnreadNotifications godoc
+// @Summary Count Unread Notifications
+// @Description Count the number of unread notifications for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=object{count=int}}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications/count-unread [get]
 func (u *User) CountUnreadNotifications(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -647,6 +903,18 @@ func (u *User) CountUnreadNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
 }
 
+// CountUnreadNotifications godoc
+// @Summary Count All Notifications
+// @Description Count the total number of notifications for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=object{count=int}}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications/count-all [get]
 func (u *User) CountAllNotifications(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -664,6 +932,18 @@ func (u *User) CountAllNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
 }
 
+// DeleteAllNotifications godoc
+// @Summary Delete All Notifications
+// @Description Delete all notifications for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications/delete-all [delete]
 func (u *User) DeleteAllNotifications(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -681,6 +961,18 @@ func (u *User) DeleteAllNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
 }
 
+// DeleteAllReadNotifications godoc
+// @Summary Delete All Read Notifications
+// @Description Delete all read notifications for the authenticated user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/notifications/delete-all-read [delete]
 func (u *User) DeleteAllReadNotifications(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -698,6 +990,21 @@ func (u *User) DeleteAllReadNotifications(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
 }
 
+// DeleteUser godoc
+// @Summary Delete User
+// @Description Delete a user by ID (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "User ID"
+// @Param deleteUserRequest body object{phone_number=string,email=string,first_name=string} true "Delete User Request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/delete-user/{id} [delete]
 func (u *User) DeleteUser(c *gin.Context) {
 	iD := c.Param("id")
 	userID, err := strconv.Atoi(iD)
@@ -743,6 +1050,26 @@ func (u *User) DeleteUser(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("user deleted successfully", nil))
 }
 
+type UserDetailResponse struct {
+	User     *models.UserResponse     `json:"user"`
+	Wallets  *[]models.WalletResponse `json:"wallets"`
+	Referral map[string]any           `json:"referral"`
+}
+
+// GetUserByID godoc
+// @Summary Get User by ID
+// @Description Retrieve user details by ID (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "User ID"
+// @Success 200 {object} UserDetailResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/get-user-by-id/{id} [get]
 func (u *User) GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 	userID, err := strconv.Atoi(id)
@@ -802,10 +1129,15 @@ func (u *User) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", gin.H{
-		"user":    &user,
-		"wallets": wallets,
-		"referral": map[string]any{
+	var walletResponses []models.WalletResponse
+	for _, wallet := range wallets {
+		walletResponses = append(walletResponses, *models.ToWalletResponse(&wallet))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("user retrieved successfully", UserDetailResponse{
+		User:    models.UserResponse{}.ToUserResponse(&user),
+		Wallets: &walletResponses,
+		Referral: map[string]any{
 			"key":       ref.ReferralKey,
 			"earnings":  earnings,
 			"referrals": refs,
@@ -813,6 +1145,21 @@ func (u *User) GetUserByID(c *gin.Context) {
 	}))
 }
 
+// UpdateUserStatus godoc
+// @Summary Update User Status
+// @Description Activate or deactivate a user by ID (admin only)
+// @Tags user
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "User ID"
+// @Param updateUserStatusRequest body object{is_active=string} true "Update User Status Request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/update-user-status/{id} [put]
 func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	id := ctx.Param("id")
 	userID, err := strconv.Atoi(id)

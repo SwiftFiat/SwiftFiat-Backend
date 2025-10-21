@@ -1,0 +1,6 @@
+title: SwiftFiat API
+entry: ./docs/swagger.yaml
+lint:
+  openapi: true
+style:
+  hideDownloadButton: false

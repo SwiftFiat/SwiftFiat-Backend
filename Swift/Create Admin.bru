@@ -1,0 +1,27 @@
+meta {
+  name: Create Admin
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/auth/register-admin
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "first_name": "bontus",
+    "last_name": "mayor",
+    "email": "cellarnigeria@gmail.com",
+    "phone_number": "+2348118773031",
+    "admin_key": "283d9h29nc3uncsa",
+    "password": "admin2025"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

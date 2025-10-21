@@ -66,7 +66,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 		return fmt.Errorf("failed to connect to GiftCard Provider Error: %s", err)
 	}
 
-	g.logger.Info("Retrieved gift cards successfully", "count", len(giftCards))
+	// g.logger.Info("Retrieved gift cards successfully", "count", len(giftCards))
 	ctx := context.Background()
 
 	// Track progress for logging
@@ -76,14 +76,14 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 
 	// Process each gift card in its own transaction
 	for i, card := range giftCards {
-		cardLogFields := map[string]interface{}{
+		cardLogFields := map[string]any{
 			"productID":   card.ProductID,
 			"productName": card.ProductName,
 			"brandName":   card.Brand.BrandName,
 			"progress":    fmt.Sprintf("%d/%d", i+1, totalCards),
 		}
 
-		g.logger.Info("Processing gift card", cardLogFields)
+		// g.logger.Info("Processing gift card", cardLogFields)
 
 		// Begin transaction for this gift card
 		tx, err := g.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
@@ -103,7 +103,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 			}()
 
 			// Upsert Brand
-			g.logger.Debug("Upserting brand", "brandID", card.Brand.BrandID, "brandName", card.Brand.BrandName)
+			// g.logger.Debug("Upserting brand", "brandID", card.Brand.BrandID, "brandName", card.Brand.BrandName)
 			brandID, err := g.store.WithTx(tx).UpsertBrand(ctx, db.UpsertBrandParams{
 				BrandID: card.Brand.BrandID,
 				BrandName: sql.NullString{
@@ -117,7 +117,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 			}
 
 			// Upsert Category
-			g.logger.Debug("Upserting category", "categoryID", card.Category.ID, "categoryName", card.Category.Name)
+			// g.logger.Debug("Upserting category", "categoryID", card.Category.ID, "categoryName", card.Category.Name)
 			categoryID, err := g.store.WithTx(tx).UpsertCategory(ctx, db.UpsertCategoryParams{
 				CategoryID: card.Category.ID,
 				Name:       card.Category.Name,
@@ -128,7 +128,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 			}
 
 			// Upsert Country
-			g.logger.Debug("Upserting country", "countryName", card.Country.Name)
+			// g.logger.Debug("Upserting country", "countryName", card.Country.Name)
 			countryID, err := g.store.WithTx(tx).UpsertCountry(ctx, db.UpsertCountryParams{
 				IsoName: sql.NullString{String: card.Country.ISOName, Valid: card.Country.ISOName != ""},
 				Name:    sql.NullString{String: card.Country.Name, Valid: card.Country.Name != ""},
@@ -147,7 +147,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 			}
 
 			// Upsert Gift Card
-			g.logger.Debug("Upserting gift card", "productID", card.ProductID)
+			// g.logger.Debug("Upserting gift card", "productID", card.ProductID)
 			giftCardID, err := g.store.WithTx(tx).UpsertGiftCard(ctx, db.UpsertGiftCardParams{
 				ProductID: card.ProductID,
 				ProductName: sql.NullString{
@@ -226,7 +226,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 
 			// Upsert Logo Urls
 			if len(card.LogoUrls) > 0 {
-				g.logger.Debug("Upserting logo URLs", "count", len(card.LogoUrls))
+				// g.logger.Debug("Upserting logo URLs", "count", len(card.LogoUrls))
 				for _, url := range card.LogoUrls {
 					err = g.store.WithTx(tx).UpsertGiftCardLogoUrl(ctx, db.UpsertGiftCardLogoUrlParams{
 						GiftCardID: sql.NullInt64{
@@ -247,7 +247,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 
 			// Upsert Fixed Recipient Denominations
 			if len(card.FixedRecipientDenominations) > 0 {
-				g.logger.Debug("Upserting recipient denominations", "count", len(card.FixedRecipientDenominations))
+				// g.logger.Debug("Upserting recipient denominations", "count", len(card.FixedRecipientDenominations))
 				for _, denomination := range card.FixedRecipientDenominations {
 					err = g.store.WithTx(tx).UpsertFixedDenominations(ctx, db.UpsertFixedDenominationsParams{
 						GiftCardID: sql.NullInt64{
@@ -272,7 +272,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 
 			// Upsert Fixed Sender Denominations
 			if len(card.FixedSenderDenominations) > 0 {
-				g.logger.Debug("Upserting sender denominations", "count", len(card.FixedSenderDenominations))
+				// g.logger.Debug("Upserting sender denominations", "count", len(card.FixedSenderDenominations))
 				for _, denomination := range card.FixedSenderDenominations {
 					err = g.store.WithTx(tx).UpsertFixedDenominations(ctx, db.UpsertFixedDenominationsParams{
 						GiftCardID: sql.NullInt64{
@@ -296,7 +296,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 			}
 
 			// Upsert Redeem Instructions
-			g.logger.Debug("Upserting redeem instructions")
+			// g.logger.Debug("Upserting redeem instructions")
 			err = g.store.WithTx(tx).UpsertRedeemInstructions(ctx, db.UpsertRedeemInstructionsParams{
 				GiftCardID: sql.NullInt64{
 					Int64: int64(giftCardID),
@@ -323,17 +323,17 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 		if err != nil {
 			tx.Rollback()
 			failCount++
-			g.logger.Error("Transaction failed for gift card", "error", err, "card", cardLogFields)
+			// g.logger.Error("Transaction failed for gift card", "error", err, "card", cardLogFields)
 			return fmt.Errorf("transaction failed: %s", err)
 		} else {
 			err = tx.Commit()
 			if err != nil {
 				failCount++
-				g.logger.Error("Failed to commit transaction", "error", err, "card", cardLogFields)
+				// g.logger.Error("Failed to commit transaction", "error", err, "card", cardLogFields)
 				return fmt.Errorf("failed to commit transaction: %s", err)
 			}
 			successCount++
-			g.logger.Info("Successfully processed gift card", cardLogFields)
+			// g.logger.Info("Successfully processed gift card", cardLogFields)
 		}
 	}
 
