@@ -614,7 +614,7 @@ const docTemplate = `{
         },
         "/api/v1/auth/register-admin": {
             "post": {
-                "description": "Register a new admin account",
+                "description": "Register a new admin account. Requires a valid admin key.",
                 "consumes": [
                     "application/json"
                 ],
@@ -734,7 +734,7 @@ const docTemplate = `{
                 "tags": [
                     "auth"
                 ],
-                "summary": "Reset password",
+                "summary": "Reset passcode",
                 "parameters": [
                     {
                         "description": "reset password request",
@@ -951,6 +951,64 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/auth/verify-admin-otp": {
+            "post": {
+                "description": "Verify OTP for admin login",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "auth"
+                ],
+                "summary": "Verify admin login OTP",
+                "parameters": [
+                    {
+                        "description": "verify admin OTP request",
+                        "name": "data",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.VerifyAdminOTPRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/models.UserWithToken"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -2705,6 +2763,21 @@ const docTemplate = `{
                 }
             }
         },
+        "api.VerifyAdminOTPRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "otp"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "otp": {
+                    "type": "string"
+                }
+            }
+        },
         "api.VerifyEmailRequest": {
             "type": "object",
             "required": [
@@ -2865,11 +2938,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "admin_key": {
-                    "type": "string",
-                    "enum": [
-                        "919d89nd3uinnwe2K",
-                        "283d9h29nc3uncsa"
-                    ]
+                    "type": "string"
                 },
                 "email": {
                     "type": "string"

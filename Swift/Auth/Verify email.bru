@@ -1,0 +1,27 @@
+meta {
+  name: Verify email
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BaseURl}}/auth/verify-email
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoyMiwidXNlcl9yb2xlIjoidXNlciIsInVzZXJfdmVyaWZpZWQiOmZhbHNlLCJleHAiOjE3Njk2ODAwNTJ9.pJ5ttSkgoTrTsQ_lkXQR7iZNtRg38zyCuyx2XXZIsic
+}
+
+body:json {
+  {
+    "email": "goldsavingsdev@gmail.com",
+    "code": "2620"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

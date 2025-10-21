@@ -1,0 +1,23 @@
+meta {
+  name: Verify admin login otp
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{BaseURl}}/auth/verify-admin-otp
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "cellarnigeria@gmail.com",
+    "otp": "6737"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
