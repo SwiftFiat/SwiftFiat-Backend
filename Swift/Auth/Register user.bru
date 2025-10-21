@@ -1,0 +1,32 @@
+meta {
+  name: Register user
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{BaseURl}}/auth/register
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "first_name": "mascot",
+    "last_name": "desperado",
+    "email": "goldsavingsdev@gmail.com",
+    "phone_number": "+2348957463773",
+    "password": "mascot1234"
+  }
+}
+
+tests {
+  const body = res.body;
+  bru.setEnvVar("token", body.data.token);
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -72,6 +72,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
 	serverGroupV1.POST("verify-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyEmail)
 	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
+	serverGroupV1.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -181,6 +182,51 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
+	if !dbUser.Verified {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
+
+	if dbUser.Role != models.USER {
+		email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+
+		// Generate verification code
+		verificationCode := utils.GenerateOTP()
+
+		// Save code to Redis
+		redisKey := fmt.Sprintf("admin_login_otp:%s", user.Email)
+		a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
+
+		// Parse and execute the OTP template
+		tplData := map[string]any{
+			"Name": dbUser.FirstName.String,
+			"OTP":  verificationCode,
+		}
+		body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+		if err != nil {
+			a.server.logger.Error(logrus.ErrorLevel, err.Error())
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
+			return
+		}
+
+		// Send admin OTP for 2FA
+		subject := "SwiftFiat - Admin Login OTP"
+		a.server.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", user.Email, subject, len(body)))
+		a.server.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", a.server.config.PlunkApiKey, a.server.config.PlunkSecretKey, a.server.config.PlunkBaseUrl))
+		err = email.SendEmail(user.Email, subject, body)
+		if err != nil {
+			a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+			return
+		}
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin OTP sent to email, please verify to continue", nil))
+		return
+	}
+
 	token, err := TokenController.CreateToken(utils.TokenObject{
 		UserID:   dbUser.ID,
 		Verified: dbUser.Verified,
@@ -217,6 +263,62 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+}
+
+type VerifyAdminOTPRequest struct {
+	Email string `json:"email" binding:"required,email"`
+	OTP   string `json:"otp" binding:"required"`
+}
+
+// verifyAdminLoginOTP godoc
+// @Summary Verify admin login OTP
+// @Description Verify OTP for admin login
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body VerifyAdminOTPRequest true "verify admin OTP request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserWithToken}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/verify-admin-otp [post]
+func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
+	var req VerifyAdminOTPRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
+		return
+	}
+
+	redisKey := fmt.Sprintf("admin_login_otp:%s", req.Email)
+	storedCode, err := a.server.redis.Get(ctx, redisKey)
+	if err != nil || storedCode != req.OTP {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid or expired OTP"))
+		return
+	}
+
+	dbUser, err := a.userService.FetchUserByEmail(ctx, req.Email)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	token, err := TokenController.CreateToken(utils.TokenObject{
+		UserID:   dbUser.ID,
+		Verified: dbUser.Verified,
+		Role:     dbUser.Role,
+	})
+
+	if err != nil {
+		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
+	userWT := models.UserWithToken{
+		User:  models.UserResponse{}.ToUserResponse(dbUser),
+		Token: token,
+	}
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin logged in successfully", userWT))
 }
 
 // loginWithPasscode godoc
@@ -534,7 +636,7 @@ func (a *Auth) resendEmailVerification(ctx *gin.Context) {
 
 // registerAdmin godoc
 // @Summary Admin registration
-// @Description Register a new admin account
+// @Description Register a new admin account. Requires a valid admin key.
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -560,6 +662,12 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		return
 	}
 
+	role, ok := models.RoleKeys[user.AdminKey]
+	if !ok {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"error": "invalid admin key"})
+		return
+	}
+
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
@@ -576,7 +684,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 			Valid:  true,
 			String: hashedPassword,
 		},
-		Role: models.ADMIN,
+		Role: role,
 	}
 
 	newUser, err := a.server.queries.CreateUser(context.Background(), arg)
@@ -593,6 +701,12 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	a.server.queries.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
+		Verified:  true,
+		UpdatedAt: time.Now(),
+		ID:        newUser.ID,
+	})
+
 	a.activityTracker.Create(ctx, db.CreateActivityLogParams{
 		UserID: int32(newUser.ID),
 		Action: fmt.Sprintf("User %s registered as admin ", newUser.FirstName.String),
@@ -668,7 +782,7 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 }
 
 // resetPassword godoc
-// @Summary Reset password
+// @Summary Reset passcode
 // @Description Reset user's password using the provided OTP and new password
 // @Tags auth
 // @Accept json

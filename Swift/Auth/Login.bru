@@ -12,9 +12,15 @@ post {
 
 body:json {
   {
-    "email": "cellarnigeria@gmail.com",
-    "password": "admin2025"
+    "email": "goldsavingsdev@gmail.com",
+    "password": "mascot1234"
   }
+}
+
+tests {
+  const body = res.body;
+  bru.setEnvVar("token", body.data.token);
+  
 }
 
 settings {

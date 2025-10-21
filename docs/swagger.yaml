@@ -51,6 +51,16 @@ definitions:
           $ref: '#/definitions/models.WalletResponse'
         type: array
     type: object
+  api.VerifyAdminOTPRequest:
+    properties:
+      email:
+        type: string
+      otp:
+        type: string
+    required:
+    - email
+    - otp
+    type: object
   api.VerifyEmailRequest:
     properties:
       code:
@@ -150,9 +160,6 @@ definitions:
   models.RegisterAdminParams:
     properties:
       admin_key:
-        enum:
-        - 919d89nd3uinnwe2K
-        - 283d9h29nc3uncsa
         type: string
       email:
         type: string
@@ -753,7 +760,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Register a new admin account
+      description: Register a new admin account. Requires a valid admin key.
       parameters:
       - description: Admin registration data
         in: body
@@ -850,7 +857,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Reset password
+      summary: Reset passcode
       tags:
       - auth
   /api/v1/auth/reset-password:
@@ -968,6 +975,41 @@ paths:
       security:
       - BearerAuth: []
       summary: Update transaction pin
+      tags:
+      - auth
+  /api/v1/auth/verify-admin-otp:
+    post:
+      consumes:
+      - application/json
+      description: Verify OTP for admin login
+      parameters:
+      - description: verify admin OTP request
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/api.VerifyAdminOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserWithToken'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Verify admin login OTP
       tags:
       - auth
   /api/v1/auth/verify-email:

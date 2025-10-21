@@ -30,7 +30,13 @@ type RegisterAdminParams struct {
 	Email       string `json:"email" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
 	Password    string `json:"password" binding:"required"`
-	AdminKey    string `json:"admin_key" binding:"required" validate:"oneof=919d89nd3uinnwe2K 283d9h29nc3uncsa"`
+	AdminKey    string `json:"admin_key" binding:"required"`
+}
+
+var RoleKeys = map[string]string{
+	"919d89nd3uinnwe2K": ADMIN,
+	"283d9h29nc3uncsa":  SUPER_ADMIN,
+	"81b7a9nc7ubnqpw0R": CUSTOMER_REP,
 }
 
 type UserResponse struct {
@@ -58,7 +64,7 @@ type UserWithToken struct {
 }
 
 const (
-	SUPER_ADMIN   = "super_admin"
+	SUPER_ADMIN  = "super_admin"
 	ADMIN        = "admin"
 	USER         = "user"
 	CUSTOMER_REP = "customer_rep"
