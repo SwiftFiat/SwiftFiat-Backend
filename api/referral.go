@@ -44,6 +44,14 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
 }
 
+// testReferral godoc
+// @Summary      Test Referral API
+// @Description  Tests if the Referral API is active
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Router       /api/v1/referral/test [get]
 func (r Referral) testReferral(ctx *gin.Context) {
 	dr := basemodels.SuccessResponse{
 		Status:  "success",
@@ -54,12 +62,23 @@ func (r Referral) testReferral(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dr)
 }
 
-func (r *Referral) Trackreferral(c *gin.Context) {
-	type req struct {
-		ReferralCode string `json:"referral_code" binding:"required"`
-	}
+type TrackReferralRequest struct {
+	ReferralCode string `json:"referral_code" binding:"required"`
+}
 
-	var request req
+// Trackreferral godoc
+// @Summary      Track Referral
+// @Description  Tracks a referral using the provided referral code
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Param        referral_code  body      string  true  "Referral Code"
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/track [post]
+func (r *Referral) Trackreferral(c *gin.Context) {
+	var request TrackReferralRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'referral_code'"))
 		return
@@ -80,6 +99,20 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Referral tracked successfully", ref))
 }
 
+type ReferralWithUser struct {
+	Referral referral.Referral `json:"referral" binding:"required"`
+	User     string            `json:"first_Name" binding:"required"`
+}
+
+// GetUserReferrals godoc
+// @Summary      Get User Referrals
+// @Description  Retrieves the list of referrals for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=[]ReferralWithUser}
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/list [get]
 func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -91,11 +124,6 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 	if err != nil {
 		//	add logging
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user referrals"))
-	}
-
-	type ReferralWithUser struct {
-		Referral referral.Referral `json:"referral" binding:"required"`
-		User     string            `json:"first_Name" binding:"required"`
 	}
 
 	var refsWithUser []ReferralWithUser
@@ -119,6 +147,15 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 	})
 }
 
+// GetEarnings godoc
+// @Summary      Get Referral Earnings
+// @Description  Retrieves the referral earnings for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/earnings [get]
 func (r *Referral) GetEarnings(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -137,9 +174,19 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 		Status:  "success",
 		Message: "earnings retrieved successfully",
 		Data:    earnings,
+		Version: utils.REVISION,
 	})
 }
 
+// GetEarnings godoc
+// @Summary      Get Referral Earnings
+// @Description  Retrieves the referral earnings for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json 
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/request-withdrawal [get]
 func (r *Referral) RequestWithdrawal(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -176,6 +223,15 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 	})
 }
 
+// GetEarnings godoc
+// @Summary      Get Referral Earnings
+// @Description  Retrieves the referral earnings for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/update-withdrawal [post]
 func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -273,6 +329,15 @@ func (r *Referral) Withdraw(c *gin.Context) {
 
 }
 
+// GetEarnings godoc
+// @Summary      Get Referral Earnings
+// @Description  Retrieves the referral earnings for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/reminder/:id [get]
 func (r *Referral) Reminder(c *gin.Context) {
 	userID := c.Param("id")
 	if userID == "" {

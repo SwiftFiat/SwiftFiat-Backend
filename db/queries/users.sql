@@ -132,3 +132,7 @@ SET
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+-- name: SetUserTwoFA :one
+UPDATE users SET twofa_secret = $1, twofa_enabled = $2, updated_at = $3
+WHERE id = $4 RETURNING *;

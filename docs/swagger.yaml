@@ -1,5 +1,18 @@
 basePath: /api/v1
 definitions:
+  api.AdminEditUserRequest:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      last_name:
+        type: string
+      phone_number:
+        type: string
+      role:
+        type: string
+    type: object
   api.DeleteAccountRequest:
     properties:
       password:
@@ -32,12 +45,38 @@ definitions:
     required:
     - phone_number
     type: object
+  api.ReferralWithUser:
+    properties:
+      first_Name:
+        type: string
+      referral:
+        $ref: '#/definitions/referral.Referral'
+    required:
+    - first_Name
+    - referral
+    type: object
   api.ResendEmailRequest:
     properties:
       email:
         type: string
     required:
     - email
+    type: object
+  api.TwoFARequest:
+    properties:
+      enable:
+        type: boolean
+    required:
+    - enable
+    type: object
+  api.TwoFAResponse:
+    properties:
+      otp_auth_url:
+        description: OTPAuthURL is the URL used to generate the QR code for 2FA setup
+        type: string
+      secret:
+        description: Secret is the secret key used for generating TOTP codes
+        type: string
     type: object
   api.UserDetailResponse:
     properties:
@@ -80,6 +119,31 @@ definitions:
     required:
     - code
     - phone_number
+    type: object
+  api.VerifyTwoFARequest:
+    properties:
+      code:
+        type: string
+      temp_token:
+        type: string
+    required:
+    - code
+    - temp_token
+    type: object
+  db.AuditLog:
+    properties:
+      action:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      ip:
+        type: string
+      user_agent:
+        type: string
+      user_id:
+        type: integer
     type: object
   db.Referral:
     properties:
@@ -331,6 +395,10 @@ definitions:
         type: string
       phone_number:
         type: string
+      twofa_enabled:
+        type: boolean
+      twofa_secret:
+        type: string
       updated_at:
         type: string
       user_id:
@@ -382,6 +450,29 @@ definitions:
       updated_at:
         type: string
     type: object
+  referral.Referral:
+    properties:
+      created_at:
+        type: string
+      earned_amount:
+        type: number
+      id:
+        type: integer
+      referee_id:
+        type: integer
+      referrer_id:
+        type: integer
+      status:
+        $ref: '#/definitions/referral.ReferralStatus'
+    type: object
+  referral.ReferralStatus:
+    enum:
+    - pending
+    - active
+    type: string
+    x-enum-varnames:
+    - ReferralStatusPending
+    - ReferralStatusActive
 host: localhost:8080
 info:
   contact:
@@ -396,6 +487,631 @@ info:
   title: SwiftFiat API
   version: "1.0"
 paths:
+  /api/v1/analytics/active-users-today:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the count of active users for a specific date. Accessible
+        only by admin, super admin, or customer rep.
+      parameters:
+      - default: today's date
+        description: Date in YYYY-MM-DD format
+        in: query
+        name: date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Active Users Count
+      tags:
+      - Analytics
+  /api/v1/analytics/activity-log/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve activity logs for a specific user by their ID. Accessible
+        only by admin, super admin, or customer rep.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - default: 50
+        description: Limit number of logs
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/db.AuditLog'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Activity Logs for a User
+      tags:
+      - Analytics
+  /api/v1/analytics/activity-logs:
+    delete:
+      consumes:
+      - application/json
+      description: Delete activity logs older than a certain threshold. Accessible
+        only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete Old Activity Logs
+      tags:
+      - Analytics
+    get:
+      consumes:
+      - application/json
+      description: Retrieve recent activity logs. Accessible only by admin, super
+        admin, or customer rep.
+      parameters:
+      - default: 50
+        description: Limit number of logs
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/db.AuditLog'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Recent Activity Logs
+      tags:
+      - Analytics
+  /api/v1/analytics/crypto-transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all crypto transactions. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Crypto Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/crypto-transactions/amount:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve total sent and received crypto transaction amounts. Accessible
+        only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Crypto Transaction Amount
+      tags:
+      - Analytics
+  /api/v1/analytics/crypto-transactions/counts:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve counts of crypto transactions by status. Accessible only
+        by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Crypto Transaction Counts
+      tags:
+      - Analytics
+  /api/v1/analytics/edit-user/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Admin can edit user details such as first name, last name, email,
+        phone number, and role.
+      parameters:
+      - description: Admin Edit User Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminEditUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Admin Edit User
+      tags:
+      - Analytics
+  /api/v1/analytics/gift-cards:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all gift cards. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Gift Cards
+      tags:
+      - Analytics
+  /api/v1/analytics/giftcard-transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all gift card transactions. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Gift Card Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/total-received:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve total received amount. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Received
+      tags:
+      - Analytics
+  /api/v1/analytics/total-sent:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve total sent amount. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Sent
+      tags:
+      - Analytics
+  /api/v1/analytics/total-trade:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve total sent amount. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Sent
+      tags:
+      - Analytics
+  /api/v1/analytics/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all transactions with user details. Accessible only by
+        admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/user-wallets/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve wallets for a specific user by their ID. Accessible only
+        by admin.
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WalletResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Wallets
+      tags:
+      - Analytics
   /api/v1/auth/account:
     delete:
       consumes:
@@ -649,7 +1365,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: User login
+      summary: User login [2fa UNTESTED]
       tags:
       - auth
   /api/v1/auth/login-passcode:
@@ -977,6 +1693,47 @@ paths:
       summary: Update transaction pin
       tags:
       - auth
+  /api/v1/auth/verify-2fa:
+    post:
+      consumes:
+      - application/json
+      description: Verify the provided 2FA code for the authenticated user
+      parameters:
+      - description: Verify 2FA Request
+        in: body
+        name: verifyTwoFARequest
+        required: true
+        schema:
+          $ref: '#/definitions/api.VerifyTwoFARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.UserWithToken'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify Two-Factor Authentication (2FA) code [NEW]
+      tags:
+      - auth
   /api/v1/auth/verify-admin-otp:
     post:
       consumes:
@@ -1009,7 +1766,7 @@ paths:
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Verify admin login OTP
+      summary: Verify admin login OTP [NEW]
       tags:
       - auth
   /api/v1/auth/verify-email:
@@ -1082,6 +1839,157 @@ paths:
       summary: Verify OTP via Twilio
       tags:
       - auth
+  /api/v1/referral/earnings:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the referral earnings for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Earnings
+      tags:
+      - Referral
+  /api/v1/referral/list:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the list of referrals for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.ReferralWithUser'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User Referrals
+      tags:
+      - Referral
+  /api/v1/referral/test:
+    get:
+      consumes:
+      - application/json
+      description: Tests if the Referral API is active
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Test Referral API
+      tags:
+      - Referral
+  /api/v1/referral/track:
+    post:
+      consumes:
+      - application/json
+      description: Tracks a referral using the provided referral code
+      parameters:
+      - description: Referral Code
+        in: body
+        name: referral_code
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Track Referral
+      tags:
+      - Referral
+  /api/v1/referral/update-withdrawal:
+    post:
+      consumes:
+      - application/json
+      description: Retrieves the referral earnings for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Earnings
+      tags:
+      - Referral
+  /api/v1/reminder/:id:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the referral earnings for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Earnings
+      tags:
+      - Referral
+  /api/v1/request-withdrawal:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the referral earnings for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Earnings
+      tags:
+      - Referral
   /api/v1/user/{user_id}/avatar:
     get:
       consumes:
@@ -1900,6 +2808,52 @@ paths:
       summary: Get User Referral
       tags:
       - user
+  /api/v1/user/set-2fa:
+    post:
+      consumes:
+      - application/json
+      description: Enable or disable two-factor authentication for the authenticated
+        user
+      parameters:
+      - description: Two-Factor Authentication Request
+        in: body
+        name: twoFARequest
+        required: true
+        schema:
+          $ref: '#/definitions/api.TwoFARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TwoFAResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set Two-Factor Authentication (2FA) [UNTESTED]
+      tags:
+      - auth
   /api/v1/user/update-name:
     put:
       consumes:

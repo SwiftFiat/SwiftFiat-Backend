@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
@@ -25,8 +26,8 @@ func (h ActivityLog) router(server *Server) {
 	h.service = *activitylogs.NewActivityLog(*h.server.queries)
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
-	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivity)
-	serverGroupV1.GET("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivity)
+	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivityLogs)
+	serverGroupV1.GET("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivityLogs)
 	serverGroupV1.GET("/active-users-today", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetActiveUsersCount)
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
 	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
@@ -43,10 +44,32 @@ func (h ActivityLog) router(server *Server) {
 	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
 }
 
-func (h *ActivityLog) GetUserActivity(c *gin.Context) {
-	user, _ := utils.GetActiveUser(c)
-	if user.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+// GetUserActivityLogs godoc
+// @Summary      Get Activity Logs for a User
+// @Description  Retrieve activity logs for a specific user by their ID. Accessible only by admin, super admin, or customer rep.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        id     path      int  true  "User ID"
+// @Param        limit   query     int    false  "Limit number of logs"  default(50)
+// @Param        offset  query     int    false  "Offset for pagination"  default(0)
+// @Success      200  {object}  basemodels.SuccessResponse{data=[]db.AuditLog}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/activity-log/{id} [get]
+func (h *ActivityLog) GetUserActivityLogs(c *gin.Context) {
+	user, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if user.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -69,15 +92,30 @@ func (h *ActivityLog) GetUserActivity(c *gin.Context) {
 
 }
 
-func (h *ActivityLog) GetRecentActivity(c *gin.Context) {
+// GetRecentActivityLogs godoc
+// @Summary      Get Recent Activity Logs
+// @Description  Retrieve recent activity logs. Accessible only by admin, super admin, or customer rep.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        limit   query     int    false  "Limit number of logs"  default(50)
+// @Param        offset  query     int    false  "Offset for pagination"  default(0)
+// @Success      200  {object}  basemodels.SuccessResponse{data=[]db.AuditLog}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/activity-logs [get]
+func (h *ActivityLog) GetRecentActivityLogs(c *gin.Context) {
 	user, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if user.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if user.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
@@ -92,6 +130,20 @@ func (h *ActivityLog) GetRecentActivity(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", logs))
 }
 
+// GetActiveUsersCount godoc
+// @Summary      Get Active Users Count
+// @Description  Retrieve the count of active users for a specific date. Accessible only by admin, super admin, or customer rep.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        date   query     string    false  "Date in YYYY-MM-DD format"  default(today's date)
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/active-users-today [get]
 func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -100,8 +152,8 @@ func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 	// Parse date from query params (default to today)
@@ -129,6 +181,19 @@ func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
 
 }
 
+// ListAllTransactions godoc
+// @Summary      List All Transactions
+// @Description  Retrieve all transactions with user details. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/transactions [get]
 func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -137,8 +202,8 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -162,6 +227,19 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 	}))
 }
 
+// ListGiftCards godoc
+// @Summary      List Gift Cards
+// @Description  Retrieve all gift cards. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/gift-cards [get]
 func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -170,8 +248,8 @@ func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -187,6 +265,19 @@ func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 	}))
 }
 
+// ListGiftCards godoc
+// @Summary      Get Total Received
+// @Description  Retrieve total received amount. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/total-received [get]
 func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -195,8 +286,8 @@ func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -212,6 +303,19 @@ func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
 	}))
 }
 
+// GetTotalSent godoc
+// @Summary      Get Total Sent
+// @Description  Retrieve total sent amount. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/total-sent [get]
 func (h *ActivityLog) GetTotalSent(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -220,8 +324,8 @@ func (h *ActivityLog) GetTotalSent(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -237,6 +341,19 @@ func (h *ActivityLog) GetTotalSent(c *gin.Context) {
 	}))
 }
 
+// GetTotalSent godoc
+// @Summary      Get Total Sent
+// @Description  Retrieve total sent amount. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/total-trade [get]
 func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -245,8 +362,8 @@ func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -262,6 +379,19 @@ func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
 	}))
 }
 
+// GetCryptoTransactionCounts godoc
+// @Summary      Get Crypto Transaction Counts
+// @Description  Retrieve counts of crypto transactions by status. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/crypto-transactions/counts [get]
 func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -270,8 +400,8 @@ func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -291,6 +421,19 @@ func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
 	}))
 }
 
+// GetTotalCryptoTransactionAmount godoc
+// @Summary      Get Total Crypto Transaction Amount
+// @Description  Retrieve total sent and received crypto transaction amounts. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/crypto-transactions/amount [get]
 func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -319,6 +462,19 @@ func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
 	}))
 }
 
+// ListAllCryptoTransactions godoc
+// @Summary      List All Crypto Transactions
+// @Description  Retrieve all crypto transactions. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/crypto-transactions [get]
 func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -327,9 +483,9 @@ func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return 
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
 	}
 
 	transactions, err := h.server.queries.ListAllCryptoTransactions(c)
@@ -344,6 +500,19 @@ func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 	}))
 }
 
+// DeleteOldActivityLogs godoc
+// @Summary      Delete Old Activity Logs
+// @Description  Delete activity logs older than a certain threshold. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/activity-logs [delete]
 func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -352,8 +521,8 @@ func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -367,6 +536,19 @@ func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Old activity logs deleted successfully", nil))
 }
 
+// ListAllGiftCardTransactions godoc
+// @Summary      List All Gift Card Transactions
+// @Description  Retrieve all gift card transactions. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/giftcard-transactions [get]
 func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -375,8 +557,8 @@ func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
 
@@ -392,7 +574,33 @@ func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
 	}))
 }
 
+// GetUserWallets godoc
+// @Summary      Get User Wallets
+// @Description  Retrieve wallets for a specific user by their ID. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        id     path      int  true  "User ID"
+// @Success      200  {object}  []models.WalletResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/user-wallets/{id} [get]
 func (h *ActivityLog) GetUserWallets(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
+
 	ID := c.Param("id")
 	userID, err := strconv.Atoi(ID)
 	if err != nil {
@@ -405,9 +613,37 @@ func (h *ActivityLog) GetUserWallets(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get wallets"})
 		return
 	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Wallets retrieved successfully", wallets))
+
+	var filteredWallets []models.WalletResponse
+	for _, wallet := range wallets {
+		filteredWallets = append(filteredWallets, *models.ToWalletResponse(&wallet))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Wallets retrieved successfully", filteredWallets))
 }
 
+type AdminEditUserRequest struct {
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Email     string `json:"email"`
+	Phone     string `json:"phone_number"`
+	Role      string `json:"role"`
+}
+
+// AdminEditUser godoc
+// @Summary      Admin Edit User
+// @Description  Admin can edit user details such as first name, last name, email, phone number, and role.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param body      body      AdminEditUserRequest  true  "Admin Edit User Request"
+// @Success      200  {object}  models.UserResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/edit-user/{id} [put]
 func (h *ActivityLog) AdminEditUser(c *gin.Context) {
 	id := c.Param("id")
 	userID, err := strconv.Atoi(id)
@@ -420,14 +656,8 @@ func (h *ActivityLog) AdminEditUser(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
+	var req AdminEditUserRequest
 
-	var req struct {
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		Email     string `json:"email"`
-		Phone     string `json:"phone_number"`
-		Role      string `json:"role"`
-	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request"))
 		return
@@ -448,5 +678,7 @@ func (h *ActivityLog) AdminEditUser(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("User updated successfully", user))
+	mappedUser := models.UserResponse{}.ToUserResponse(&user)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("User updated successfully", mappedUser))
 }
