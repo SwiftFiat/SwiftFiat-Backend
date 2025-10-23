@@ -143,7 +143,7 @@ func (r *ReloadlyProvider) GetAllGiftCards() (reloadlymodels.GiftCardCollection,
 		}
 
 		// Log success response
-		logger.Info("Reloadly API Response", logData)
+		// logger.Info("Reloadly API Response", logData)
 
 		// Decode the response body
 		var products reloadlymodels.PageResponse[reloadlymodels.GiftCardCollectionElement]
@@ -185,14 +185,14 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		audienceType = r.config.GiftCardBaseUrl
 	}
 
-	logging.NewLogger().Info("Reloadly env vars", map[string]interface{}{
-		"prod client ID":        r.config.GiftCardProdID,
-		"prod client secret":    r.config.GiftCardProdKey,
-		"prod url":              r.config.GiftCardProdUrl,
-		"sandbox client ID":     r.config.GiftCardID,
-		"sandbox client secret": r.config.GiftCardKey,
-		"sandbox url":           r.config.GiftCardBaseUrl,
-	})
+	// logging.NewLogger().Info("Reloadly env vars", map[string]interface{}{
+	// 	"prod client ID":        r.config.GiftCardProdID,
+	// 	"prod client secret":    r.config.GiftCardProdKey,
+	// 	"prod url":              r.config.GiftCardProdUrl,
+	// 	"sandbox client ID":     r.config.GiftCardID,
+	// 	"sandbox client secret": r.config.GiftCardKey,
+	// 	"sandbox url":           r.config.GiftCardBaseUrl,
+	// })
 
 	var requiredHeaders = make(map[string]string)
 	requiredHeaders["Accept"] = "application/json"
@@ -206,11 +206,11 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		Audience:     audienceType,
 	}
 
-	logging.NewLogger().Info("Reloadly Token Request", map[string]interface{}{
-		"url":     url,
-		"payload": request,
-		"headers": requiredHeaders,
-	})
+	// logging.NewLogger().Info("Reloadly Token Request", map[string]interface{}{
+	// 	"url":     url,
+	// 	"payload": request,
+	// 	"headers": requiredHeaders,
+	// })
 
 	resp, err := r.MakeRequest("POST", url, request, requiredHeaders)
 	if err != nil {
@@ -220,10 +220,10 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 	defer resp.Body.Close()
 
 	respBody, _ := ioutil.ReadAll(resp.Body)
-	logging.NewLogger().Info("Reloadly Token Response", map[string]interface{}{
-		"status_code": resp.StatusCode,
-		"body":        string(respBody),
-	})
+	// logging.NewLogger().Info("Reloadly Token Response", map[string]interface{}{
+	// 	"status_code": resp.StatusCode,
+	// 	"body":        string(respBody),
+	// })
 
 	if resp.StatusCode != http.StatusOK {
 		logging.NewLogger().Error("Reloadly Token Error", map[string]interface{}{
@@ -240,10 +240,10 @@ func (r *ReloadlyProvider) GetToken(audience reloadlymodels.Audience) (string, e
 		return "", fmt.Errorf("error parsing products: %w", err)
 	}
 
-	logging.NewLogger().Info("Reloadly Token Value", map[string]interface{}{
-		"access_token": maskToken(apiResponse.AccessToken),
-		"expires_in":   apiResponse.ExpiresIn,
-	})
+	// logging.NewLogger().Info("Reloadly Token Value", map[string]interface{}{
+	// 	"access_token": maskToken(apiResponse.AccessToken),
+	// 	"expires_in":   apiResponse.ExpiresIn,
+	// })
 
 	/// Set AccessToken
 	r.token = reloadlymodels.TokenApiStore{
@@ -276,11 +276,11 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	}
 	base.Path += "/orders"
 
-	logging.NewLogger().Info("Reloadly BuyGiftCard Request", map[string]any{
-		"url":     base.String(),
-		"headers": requiredHeaders,
-		"payload": request,
-	})
+	// logging.NewLogger().Info("Reloadly BuyGiftCard Request", map[string]any{
+	// 	"url":     base.String(),
+	// 	"headers": requiredHeaders,
+	// 	"payload": request,
+	// })
 
 	resp, err := r.MakeRequest("POST", base.String(), *request, requiredHeaders)
 	if err != nil {
@@ -290,10 +290,10 @@ func (r *ReloadlyProvider) BuyGiftCard(request *reloadlymodels.GiftCardPurchaseR
 	defer resp.Body.Close()
 
 	respBody, _ := io.ReadAll(resp.Body)
-	logging.NewLogger().Info("Reloadly BuyGiftCard Response", map[string]any{
-		"status_code": resp.StatusCode,
-		"body":        string(respBody),
-	})
+	// logging.NewLogger().Info("Reloadly BuyGiftCard Response", map[string]any{
+	// 	"status_code": resp.StatusCode,
+	// 	"body":        string(respBody),
+	// })
 
 	if resp.StatusCode != http.StatusOK {
 		logging.NewLogger().Error("Reloadly BuyGiftCard Error", map[string]any{
@@ -380,8 +380,8 @@ func (r *ReloadlyProvider) GetCardInfo(request int64) (*reloadlymodels.ReedemGif
 		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
 	}
 
-	logging.NewLogger().Info(fmt.Sprintf("response status - %v", resp.Status))
-	logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
+	// logging.NewLogger().Info(fmt.Sprintf("response status - %v", resp.Status))
+	// logging.NewLogger().Info(fmt.Sprintf("response statusCode - %v", resp.StatusCode))
 
 	// Decode the response body
 	var responseList []reloadlymodels.ReedemGiftCardResponse

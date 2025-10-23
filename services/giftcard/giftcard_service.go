@@ -494,14 +494,14 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	}
 
 	subject := "SwiftFiat - Gift card Transaction"
-	g.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", userInfo.Email, subject, len(body)))
-	g.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", g.config.PlunkApiKey, g.config.PlunkSecretKey, g.config.PlunkBaseUrl))
+	// g.logger.Info(fmt.Sprintf("Plunk send: to=%q, subject=%q, body-len=%d", userInfo.Email, subject, len(body)))
+	// g.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", g.config.PlunkApiKey, g.config.PlunkSecretKey, g.config.PlunkBaseUrl))
 	err = email.SendEmail(userInfo.Email, subject, body)
 	if err != nil {
 		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send giftcard purchase email: %v", err))
 	}
 
-	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
+	// g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
 
 	return tInfo, nil
 }
@@ -522,7 +522,7 @@ func (g *GiftcardService) GetCardInfo(prov *providers.ProviderService, transacti
 		return nil, fmt.Errorf("failed to perform transaction: %s", err)
 	}
 
-	g.logger.Info(fmt.Sprintf("giftcard info: %+v", giftCardInfo))
+	// g.logger.Info(fmt.Sprintf("giftcard info: %+v", giftCardInfo))
 
 	return giftCardInfo, nil
 }
@@ -583,7 +583,7 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 	var potentialAmount decimal.Decimal
 	basePrice := decimal.NewFromInt(int64(quantity * unitPrice))
 
-	g.logger.Info("base price", "basePrice", basePrice)
+	// g.logger.Info("base price", "basePrice", basePrice)
 
 	// Calculate percentage-based fee if applicable
 	var percentageFee decimal.Decimal
@@ -592,23 +592,23 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 		percentageFee = basePrice.Mul(percentageValue)
 	}
 
-	g.logger.Info("percentage fee", "percentageFee", percentageFee)
+	// g.logger.Info("percentage fee", "percentageFee", percentageFee)
 
 	// Calculate flat fee
 	flatFee := decimal.NewFromFloat(productInfo.SenderFee.Float64)
 
-	g.logger.Info("flat fee", "flatFee", flatFee)
+	// g.logger.Info("flat fee", "flatFee", flatFee)
 
 	// Sum up all components
 	potentialAmount = basePrice.Add(percentageFee).Add(flatFee)
 
-	g.logger.Info("potential amount", "potentialAmount", potentialAmount)
+	// g.logger.Info("potential amount", "potentialAmount", potentialAmount)
 
 	if potentialAmount.LessThan(decimal.NewFromInt(0)) {
 		return nil, fmt.Errorf("potential amount is less than 0")
 	}
 
-	g.logger.Info("starting giftcard outflow transaction")
+	// g.logger.Info("starting giftcard outflow transaction")
 
 	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
@@ -677,7 +677,7 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
+	// g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)
 
 	return tInfo, nil
 }

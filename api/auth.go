@@ -77,7 +77,9 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
 	serverGroupV1.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
 	serverGroupV1.POST("set-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.SetTwoFA)
-	serverGroupV1.POST("verify-2fa", a.verifyTwoFA)
+	serverGroupV1.POST("verify-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyTwoFA)
+	serverGroupV1.POST("logout", a.server.authMiddleware.AuthenticatedMiddleware(), a.logout)
+	serverGroupV1.POST("logout-all", a.server.authMiddleware.AuthenticatedMiddleware(), a.logoutAll)
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
@@ -301,12 +303,12 @@ func (a *Auth) login(ctx *gin.Context) {
 	// Update device and token in Redis
 	pipe := a.server.redis.Pipeline()
 	pipe.Set(ctx, fmt.Sprintf("user_device:%d", dbUser.ID), currentDeviceStr, 30*24*time.Hour) // Store device info for 30 days
-	pipe.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, 72*time.Hour) // Store token for 72 hours
+	pipe.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, 72*time.Hour)                      // Store token for 72 hours
 	if _, err := pipe.Exec(ctx); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
 	}
 
-	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
+	// a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
 
 	if !dbUser.HasWallets {
 		err := a.userService.CreateSwiftWalletForUser(ctx, dbUser.ID)
@@ -529,7 +531,7 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 
 	// Clean up temp token and set main token
 	pipe := a.server.redis.Pipeline()
-	pipe.Del(ctx, fmt.Sprintf("temp_2fa:%s", req.TempToken)) // Delete temp token
+	pipe.Del(ctx, fmt.Sprintf("temp_2fa:%s", req.TempToken))            // Delete temp token
 	pipe.Set(ctx, fmt.Sprintf("user:%d", user.ID), token, 72*time.Hour) // Store token for 72 hours
 	if _, err := pipe.Exec(ctx); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
@@ -551,6 +553,91 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+}
+
+// logout godoc
+// @Summary User logout
+// @Description Logs the user out by deleting their active session
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/logout [post]
+func (a *Auth) logout(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	// Delete the token from Redis
+	tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
+	if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
+		a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
+		UserID:    int32(activeUser.UserID),
+		Action:    "User logged out",
+		Ip:        ctx.ClientIP(),
+		UserAgent: ctx.Request.UserAgent(),
+	})
+	if err != nil {
+		a.server.logger.Error(fmt.Sprintf("error logging activity - logout: %v", err))
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged out successfully", nil))
+}
+
+// logoutAll godoc
+// @Summary Logout from all devices
+// @Description Logs the user out from all devices by deleting all active sessions
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/logout-all [post]
+func (a *Auth) logoutAll(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	// Keys to delete
+	tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
+	deviceKey := fmt.Sprintf("user_device:%d", activeUser.UserID)
+
+	// Use pipeline for atomic deletion
+	pipe := a.server.redis.Pipeline()
+	pipe.Del(ctx, tokenKey)
+	pipe.Del(ctx, deviceKey)
+
+	if _, err := pipe.Exec(ctx); err != nil {
+		a.server.logger.Error(fmt.Sprintf("redis pipeline error during logout all: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
+		UserID:    int32(activeUser.UserID),
+		Action:    "User logged out from all devices",
+		Ip:        ctx.ClientIP(),
+		UserAgent: ctx.Request.UserAgent(),
+	})
+	if err != nil {
+		a.server.logger.Error(fmt.Sprintf("error logging activity - logout all: %v", err))
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("logged out from all devices successfully", nil))
 }
 
 type VerifyAdminOTPRequest struct {
