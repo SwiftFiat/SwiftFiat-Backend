@@ -47,15 +47,17 @@ type UserResponse struct {
 	Email     string `json:"email"`
 	AvatarURL string `json:"avatar_url"`
 	// AvatarBlob  []byte    `json:"avatar_blob"`
-	UserTag     string    `json:"user_tag"`
-	PhoneNumber string    `json:"phone_number"`
-	Verified    bool      `json:"verified"`
-	HasPin      bool      `json:"has_pin"`
-	HasPasscode bool      `json:"has_passcode"`
-	FreshChatID string    `json:"fresh_chat_id"`
-	IsActive    bool      `json:"is_active"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	UserTag      string    `json:"user_tag"`
+	PhoneNumber  string    `json:"phone_number"`
+	Verified     bool      `json:"verified"`
+	HasPin       bool      `json:"has_pin"`
+	HasPasscode  bool      `json:"has_passcode"`
+	FreshChatID  string    `json:"fresh_chat_id"`
+	IsActive     bool      `json:"is_active"`
+	TwofaSecret  string    `json:"twofa_secret"`
+	TwofaEnabled bool      `json:"twofa_enabled"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 type UserWithToken struct {

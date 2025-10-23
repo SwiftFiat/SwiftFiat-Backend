@@ -80,3 +80,13 @@ func (r *RedisService) GetHashScan(ctx context.Context, key string, dest interfa
 func (r *RedisService) Close() error {
 	return r.client.Close()
 }
+
+// Pipeline creates and returns a new Redis pipeline
+func (r *RedisService) Pipeline() redis.Pipeliner {
+    return r.client.Pipeline()
+}
+
+// TxPipeline creates and returns a new transactional Redis pipeline
+func (r *RedisService) TxPipeline() redis.Pipeliner {
+    return r.client.TxPipeline()
+}
