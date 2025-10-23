@@ -229,7 +229,7 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 
 	g.notifr.Create(ctx, int32(activeUser.UserID), "GiftCard Purchase", "Your gifftcard transaction was successful, check your email for details")
 
-	g.server.logger.Info("gift card purchased", "response", response)
+	// g.server.logger.Info("gift card purchased", "response", response)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
 }
 
@@ -412,6 +412,6 @@ func (g *GiftCard) RefactorBuyRGiftCard(c *gin.Context) {
 		return
 	}
 
-	g.server.logger.Info("gift card purchased", "response", response)
+	// g.server.logger.Info("gift card purchased", "response", response)
 	c.JSON(http.StatusOK, basemodels.NewSuccess("gift card purchased", response))
 }
