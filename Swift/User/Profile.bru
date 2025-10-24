@@ -5,11 +5,16 @@ meta {
 }
 
 get {
-  url: 
+  url: {{BaseURl}}/auth/profile
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

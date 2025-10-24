@@ -329,8 +329,8 @@ func (a *Auth) login(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(userWT.User.UserID),
 		Action:    fmt.Sprintf("User %s logged in ", dbUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - login: %v", err))
@@ -419,8 +419,8 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 			UserID:    int32(user.ID),
 			Action:    "2FA enabled",
-			Ip:        ctx.ClientIP(),
-			UserAgent: ctx.Request.UserAgent(),
+			Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 		})
 		if err != nil {
 			a.server.logger.Error(fmt.Sprintf("error logging 2FA setup: %v", err))
@@ -450,8 +450,8 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(updatedUser.ID),
 		Action:    "2FA disabled",
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - SetTwoFA: %v", err))
@@ -549,8 +549,8 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(userWT.User.UserID),
 		Action:    fmt.Sprintf("User %s logged in via 2FA ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - login: %v", err))
@@ -588,8 +588,8 @@ func (a *Auth) logout(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(activeUser.UserID),
 		Action:    "User logged out",
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - logout: %v", err))
@@ -634,8 +634,8 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(activeUser.UserID),
 		Action:    "User logged out from all devices",
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - logout all: %v", err))
@@ -701,8 +701,8 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(userWT.User.UserID),
 		Action:    fmt.Sprintf("Admin %s logged in ", dbUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - admin login: %v", err))
@@ -769,8 +769,8 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(dbUser.ID),
 		Action:    fmt.Sprintf("User %s logged in with passcode ", dbUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -904,8 +904,8 @@ func (a *Auth) register(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(newUser.ID),
 		Action:    fmt.Sprintf("User registered with email %s", newUser.Email),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
@@ -964,8 +964,8 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s verified their email ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - verify email: %v", err))
@@ -1114,8 +1114,8 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(newUser.ID),
 		Action:    fmt.Sprintf("User %s registered as admin ", newUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusCreated, models.UserResponse{}.ToUserResponse(&newUser))
@@ -1253,8 +1253,8 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(dbUser.ID),
 		Action:    fmt.Sprintf("User %s reset password ", dbUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
@@ -1314,8 +1314,8 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s changed password ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
@@ -1375,8 +1375,8 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s created passcode ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
@@ -1506,8 +1506,8 @@ func (a *Auth) createPin(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s created pin ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
@@ -1575,8 +1575,8 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s updated transaction pin ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
@@ -1648,8 +1648,8 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(user.ID),
 		Action:    fmt.Sprintf("User %s reset password ", user.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("error logging activity - reset password: %v", err))
@@ -1709,8 +1709,8 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(dbUser.ID),
 		Action:    fmt.Sprintf("User %s deleted account ", dbUser.FirstName.String),
-		Ip:        ctx.ClientIP(),
-		UserAgent: ctx.Request.UserAgent(),
+		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 	})
 
 	_, err = a.server.queries.DeleteUser(context.Background(), db.DeleteUserParams{
@@ -1821,8 +1821,8 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	a.activityTracker.Create(c, db.CreateAuditLogParams{
 		UserID:    int32(newUser.ID),
 		Action:    fmt.Sprintf("User %s verified OTP ", newUser.FirstName.String),
-		Ip:        c.ClientIP(),
-		UserAgent: c.Request.UserAgent(),
+		Ip:        sql.NullString{String: c.ClientIP(), Valid: true},
+		UserAgent: sql.NullString{String: c.Request.UserAgent(), Valid: true},
 	})
 	a.notifr.Create(c, int32(newUser.ID), "Account", "Your account is verified successfully")
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})

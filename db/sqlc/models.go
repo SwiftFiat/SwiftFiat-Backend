@@ -13,12 +13,12 @@ import (
 )
 
 type AuditLog struct {
-	ID        int32     `json:"id"`
-	UserID    int32     `json:"user_id"`
-	Action    string    `json:"action"`
-	CreatedAt time.Time `json:"created_at"`
-	Ip        string    `json:"ip"`
-	UserAgent string    `json:"user_agent"`
+	ID        int32          `json:"id"`
+	UserID    int32          `json:"user_id"`
+	Action    string         `json:"action"`
+	CreatedAt time.Time      `json:"created_at"`
+	Ip        sql.NullString `json:"ip"`
+	UserAgent sql.NullString `json:"user_agent"`
 }
 
 type Beneficiary struct {
