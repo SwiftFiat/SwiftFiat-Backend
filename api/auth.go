@@ -155,6 +155,8 @@ func (a *Auth) profile(ctx *gin.Context) {
 // login godoc
 // @Summary User login [2fa UNTESTED]
 // @Description Authenticate user with email and password
+// @Description If 2FA is enabled, a temporary token will be returned for 2FA verification, if its a new device or no active session
+// @Description If user is admin, an OTP will be sent to email for verification
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -351,6 +353,7 @@ type TwoFAResponse struct {
 // SetTwoFA godoc
 // @Summary Set Two-Factor Authentication (2FA) [UNTESTED]
 // @Description Enable or disable two-factor authentication for the authenticated user
+// @Description When enabling 2FA, an OTPAuthURL and Secret will be returned for setting up the authenticator app
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -465,6 +468,7 @@ type VerifyTwoFARequest struct {
 // verifyTwoFA godoc
 // @Summary Verify Two-Factor Authentication (2FA) code [NEW]
 // @Description Verify the provided 2FA code for the authenticated user
+// @Description On successful verification, a main session token will be issued
 // @Tags auth
 // @Accept json
 // @Produce json
