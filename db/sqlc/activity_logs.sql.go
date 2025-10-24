@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"time"
 )
 
@@ -35,10 +36,10 @@ VALUES ($1, $2, $3, $4)
 `
 
 type CreateAuditLogParams struct {
-	UserID    int32  `json:"user_id"`
-	Action    string `json:"action"`
-	Ip        string `json:"ip"`
-	UserAgent string `json:"user_agent"`
+	UserID    int32          `json:"user_id"`
+	Action    string         `json:"action"`
+	Ip        sql.NullString `json:"ip"`
+	UserAgent sql.NullString `json:"user_agent"`
 }
 
 func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error {
