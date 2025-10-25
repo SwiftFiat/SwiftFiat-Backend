@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"image"
 	"log"
 	"net/http"
 	"strconv"
@@ -398,8 +397,7 @@ type TwoFAResponse struct {
 	// OTPAuthURL is the URL used to generate the QR code for 2FA setup
 	OTPAuthURL string `json:"otp_auth_url"`
 	// Secret is the secret key used for generating TOTP codes
-	Secret string      `json:"secret"`
-	Image  image.Image `json:"image"`
+	Secret string `json:"secret"`
 }
 
 // SetTwoFA godoc
@@ -483,15 +481,14 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 			a.server.logger.Error(fmt.Sprintf("error logging 2FA setup: %v", err))
 		}
 
-		keyImage, err := key.Image(100, 100)
-		if err != nil {
-			a.server.logger.Error("error creating 2fa qrcode")
-		}
+		// keyImage, err := key.Image(100, 100)
+		// if err != nil {
+		// 	a.server.logger.Error("error creating 2fa qrcode")
+		// }
 
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA enabled successfully", TwoFAResponse{
 			OTPAuthURL: key.URL(),
 			Secret:     key.Secret(),
-			Image:      keyImage,
 		}))
 
 		return
