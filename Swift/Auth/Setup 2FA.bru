@@ -1,0 +1,26 @@
+meta {
+  name: Setup 2FA
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{BaseURl}}/auth/set-2fa
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enable": true
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

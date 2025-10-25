@@ -1,0 +1,23 @@
+meta {
+  name: Verify 2FA
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BaseURl}}/auth/verify-2fa
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "code": "519533",
+    "temp_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo1LCJ1c2VyX3JvbGUiOiIiLCJ1c2VyX3ZlcmlmaWVkIjpmYWxzZSwiZXhwIjoxNzY5OTQ2NDcyfQ.1gTyr9YZ2kA9nQgQkeAIWInel_fM5WBO0koLQIf0r74"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

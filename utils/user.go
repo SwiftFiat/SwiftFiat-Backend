@@ -1,7 +1,9 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"regexp"
 	"strings"
 
@@ -40,4 +42,27 @@ func GenerateOrderID(firstNnme, lastname string) string {
 	firstPart := getFirstTwo(firstNnme)
 	secondPart := getFirstTwo(lastname)
 	return fmt.Sprintf("SWIFT-%s%s", firstPart, secondPart)
+}
+
+func GetLocationFromIP(ip string) string {
+	resp, err := http.Get("https://ipapi.co/" + ip + "/json/")
+	if err != nil {
+		return "Unknown"
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		City    string `json:"city"`
+		Region  string `json:"region"`
+		Country string `json:"country_name"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "Unknown"
+	}
+
+	if result.City == "" && result.Country == "" {
+		return "Unknown"
+	}
+
+	return fmt.Sprintf("%s, %s, %s", result.City, result.Region, result.Country)
 }

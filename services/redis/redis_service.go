@@ -90,3 +90,15 @@ func (r *RedisService) Pipeline() redis.Pipeliner {
 func (r *RedisService) TxPipeline() redis.Pipeliner {
     return r.client.TxPipeline()
 }
+
+func (r *RedisService) Incr(ctx context.Context, key string) (int64, error) {
+    return r.client.Incr(ctx, key).Result()
+}
+
+func (r *RedisService) Decr(ctx context.Context, key string) (int64, error) {
+    return r.client.Decr(ctx, key).Result()
+}
+
+func (r *RedisService) Expire(ctx context.Context, key string, expiration time.Duration) (bool, error) {
+    return r.client.Expire(ctx, key, expiration).Result()
+}

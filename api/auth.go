@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"image"
 	"log"
 	"net/http"
 	"strconv"
@@ -61,7 +62,7 @@ func (a Auth) router(server *Server) {
 	// serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
 	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
 	serverGroupV1.POST("change-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.changePassword)
-	serverGroupV1.POST("forgot-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPassword)
+	serverGroupV1.POST("forgot-password", a.forgotPassword)
 	serverGroupV1.POST("reset-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPassword)
 	serverGroupV1.POST("forgot-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPasscode)
 	serverGroupV1.POST("reset-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPasscode)
@@ -77,7 +78,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
 	serverGroupV1.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
 	serverGroupV1.POST("set-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.SetTwoFA)
-	serverGroupV1.POST("verify-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyTwoFA)
+	serverGroupV1.POST("verify-2fa", a.verifyTwoFA)
 	serverGroupV1.POST("logout", a.server.authMiddleware.AuthenticatedMiddleware(), a.logout)
 	serverGroupV1.POST("logout-all", a.server.authMiddleware.AuthenticatedMiddleware(), a.logoutAll)
 
@@ -186,10 +187,38 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
+	// Track failed login attempts in Redis
+	failedKey := fmt.Sprintf("failed_login:%s", user.Email)
+	emailService := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: 10 * time.Second}}
+
+	// Verify password
 	if err = utils.VerifyHashValue(user.Password, dbUser.HashedPassword.String); err != nil {
+		failedCount, _ := a.server.redis.Incr(ctx, failedKey)
+		if failedCount == 1 {
+			a.server.redis.Expire(ctx, failedKey, 15*time.Minute)
+		}
+		if failedCount > 3 {
+			tplData := map[string]any{
+				"FirstName": dbUser.FirstName.String,
+				"Attempts":  failedCount,
+				"IP":        ctx.ClientIP(),
+				"Time":      time.Now().Format("02 Jan 2006 15:04 MST"),
+				"Year":      time.Now().Year(),
+			}
+			body, err := utils.RenderEmailTemplate("templates/failed_login_alert.html", tplData)
+			if err == nil {
+				subject := "SwiftFiat - Multiple Failed Login Attempts Detected"
+				if err := emailService.SendEmail(dbUser.Email, subject, body); err != nil {
+					a.server.logger.Error(fmt.Sprintf("Failed to send failed login alert: %v", err))
+				}
+			}
+		}
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
 		return
 	}
+
+	// Reset failed login attempts on successful login
+	a.server.redis.Delete(ctx, failedKey)
 
 	if !dbUser.IsActive {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
@@ -229,8 +258,32 @@ func (a *Auth) login(ctx *gin.Context) {
 	tokenData, err := a.server.redis.Get(ctx, tokenKey)
 	alreadyLoggedIn := (err == nil && tokenData != "") // true if token exists
 
-	// Require 2FA when user has 2FA enabled and either this is a new device or there's no active session token
-	if dbUser.TwofaEnabled.Bool && (isNewDevice || !alreadyLoggedIn) {
+	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+
+	// Send email notification for logins on new device
+	if isNewDevice {
+		tplData := map[string]any{
+			"FirstName": dbUser.FirstName.String,
+			"LoginTime": time.Now().Format("02 Jan 2006 15:04 MST"),
+			"IP":        currentDevice.IP,
+			"UserAgent": currentDevice.UserAgent,
+			"Location":  utils.GetLocationFromIP(currentDevice.IP),
+			"Year":      time.Now().Year(),
+		}
+		body, err := utils.RenderEmailTemplate("templates/new_device_login.html", tplData)
+		if err != nil {
+			a.server.logger.Error(logrus.ErrorLevel, err.Error())
+		} else {
+			subject := "SwiftFiat - New Device Login Alert"
+			err = email.SendEmail(dbUser.Email, subject, body)
+			if err != nil {
+				a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send new device login email: %v", err))
+			}
+		}
+	}
+
+	// Require 2FA when user has 2FA enabled and either this is a new device or there's no active session token or user is admin
+	if dbUser.TwofaEnabled.Bool && (isNewDevice || !alreadyLoggedIn) || dbUser.Role != models.USER {
 		// generate temporary login token
 		tmpToken, err := TokenController.CreateToken(utils.TokenObject{
 			UserID: dbUser.ID,
@@ -257,8 +310,6 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	if dbUser.Role != models.USER {
-		email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
-
 		// Generate verification code
 		verificationCode := utils.GenerateOTP()
 
@@ -347,7 +398,8 @@ type TwoFAResponse struct {
 	// OTPAuthURL is the URL used to generate the QR code for 2FA setup
 	OTPAuthURL string `json:"otp_auth_url"`
 	// Secret is the secret key used for generating TOTP codes
-	Secret string `json:"secret"`
+	Secret string      `json:"secret"`
+	Image  image.Image `json:"image"`
 }
 
 // SetTwoFA godoc
@@ -380,10 +432,10 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role != models.USER {
-	// 	ctx.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-	// 	return
-	// }
+	if activeUser.Role != models.USER {
+		ctx.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
 
 	user, err := a.server.queries.GetUserByID(ctx, int64(activeUser.UserID))
 	if err != nil {
@@ -393,6 +445,11 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	}
 
 	if req.Enable {
+		if user.TwofaEnabled.Bool && user.TwofaEnabled.Valid {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("2FA is already enabled"))
+			return
+		}
+
 		key, err := totp.Generate(totp.GenerateOpts{
 			Issuer:      "SwiftFiat",
 			AccountName: user.Email,
@@ -420,15 +477,21 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 			UserID:    int32(user.ID),
 			Action:    "2FA enabled",
 			Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
+			UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
 		})
 		if err != nil {
 			a.server.logger.Error(fmt.Sprintf("error logging 2FA setup: %v", err))
 		}
 
+		keyImage, err := key.Image(100, 100)
+		if err != nil {
+			a.server.logger.Error("error creating 2fa qrcode")
+		}
+
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA enabled successfully", TwoFAResponse{
 			OTPAuthURL: key.URL(),
 			Secret:     key.Secret(),
+			Image:      keyImage,
 		}))
 
 		return
@@ -573,7 +636,7 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 func (a *Auth) logout(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
@@ -1111,6 +1174,29 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		ID:        newUser.ID,
 	})
 
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "SwiftFiat",
+		AccountName: newUser.Email,
+	})
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, apistrings.ServerError)
+		return
+	}
+
+	// Set 2FA as enabled for admin users by default
+	_, err = a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
+		ID:           int64(newUser.ID),
+		TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
+		TwofaSecret:  sql.NullString{String: key.Secret()},
+		UpdatedAt:    time.Now(),
+	})
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred enabling 2FA for admin user"))
+		return
+	}
+
 	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
 		UserID:    int32(newUser.ID),
 		Action:    fmt.Sprintf("User %s registered as admin ", newUser.FirstName.String),
@@ -1307,6 +1393,25 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
+	}
+
+	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+
+	tplData := map[string]any{
+		"FirstName": user.FirstName.String,
+		"Field":     "Password",
+		"Timestamp": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":      time.Now().Year(),
+	}
+	body, err := utils.RenderEmailTemplate("templates/account_update.html", tplData)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err.Error())
+	} else {
+		subject := "SwiftFiat - Account Password Changed"
+		err = email.SendEmail(user.Email, subject, body)
+		if err != nil {
+			a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send change password email: %v", err))
+		}
 	}
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
