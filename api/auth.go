@@ -390,7 +390,7 @@ func (a *Auth) login(ctx *gin.Context) {
 }
 
 type TwoFARequest struct {
-	Enable bool `json:"enable" binding:"required"`
+	Enable bool `json:"enable"`
 }
 
 type TwoFAResponse struct {
@@ -414,7 +414,7 @@ type TwoFAResponse struct {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/set-2fa [post]
+// @Router /api/v1/auth/set-2fa [post]
 func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
