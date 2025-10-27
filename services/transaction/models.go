@@ -49,6 +49,7 @@ const (
 	GiftCardOutflowTransaction TransactionPlatform = "giftcard"
 	FiatOutflowTransaction     TransactionPlatform = "fiat"
 	BillOutflowTransaction     TransactionPlatform = "bill"
+	StablecoinWalletFundingTransaction TransactionPlatform = "stablecoin_funding"
 )
 
 var SupportedBillTransactions = []TransactionType{Airtime, Data, TV, Electricity}
@@ -246,4 +247,32 @@ type CreateTransactionFeeRequest struct {
 	TransactionType string  `json:"transaction_type" binding:"required"`
 	FeePercentage   float64 `json:"fee_percentage" binding:"gte=0"` // changed to gte=0
 	MaxFee          float64 `json:"max_fee" binding:"gte=0"`
+}
+
+type StablecoinFundingTransaction struct {
+    SourceHash         string
+    DestinationAddress string
+    AmountInSatoshis   decimal.Decimal
+    Coin               string
+    Description        string
+    Type               TransactionType
+    ReceivedAmount     decimal.Decimal
+    TransactionID      uuid.UUID
+    DestinationAccount uuid.UUID
+    Rate               decimal.Decimal
+    SentAmount         decimal.Decimal
+    Fees               decimal.Decimal
+}
+
+type StablecoinMetadataResponse struct {
+    ID                   int32     `json:"id"`
+    DestinationWallet    uuid.UUID `json:"destination_wallet"`
+    Coin                 string    `json:"coin"`
+    SourceHash           string    `json:"source_hash"`
+    Rate                 string    `json:"rate"`
+    Fees                 string    `json:"fees"`
+    ReceivedAmount       string    `json:"received_amount"`
+    SentAmount           string    `json:"sent_amount"`
+    ServiceProvider      string    `json:"service_provider"`
+    ServiceTransactionID string   `json:"service_transaction_id"`
 }
