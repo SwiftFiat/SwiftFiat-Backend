@@ -1,5 +1,22 @@
 basePath: /api/v1
 definitions:
+  activitylogs.AuditLogResponse:
+    properties:
+      action:
+        type: string
+      createdAt:
+        type: string
+      id:
+        format: int32
+        type: integer
+      ip:
+        type: string
+      userAgent:
+        type: string
+      userID:
+        format: int32
+        type: integer
+    type: object
   api.AdminEditUserRequest:
     properties:
       email:
@@ -66,13 +83,13 @@ definitions:
     properties:
       enable:
         type: boolean
-    required:
-    - enable
     type: object
   api.TwoFAResponse:
     properties:
       otp_auth_url:
         description: OTPAuthURL is the URL used to generate the QR code for 2FA setup
+        type: string
+      qr_code:
         type: string
       secret:
         description: Secret is the secret key used for generating TOTP codes
@@ -129,21 +146,6 @@ definitions:
     required:
     - code
     - temp_token
-    type: object
-  db.AuditLog:
-    properties:
-      action:
-        type: string
-      created_at:
-        type: string
-      id:
-        type: integer
-      ip:
-        type: string
-      user_agent:
-        type: string
-      user_id:
-        type: integer
     type: object
   db.Referral:
     properties:
@@ -561,14 +563,9 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/db.AuditLog'
-                  type: array
-              type: object
+            items:
+              $ref: '#/definitions/activitylogs.AuditLogResponse'
+            type: array
         "400":
           description: Bad Request
           schema:
@@ -646,14 +643,9 @@ paths:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  items:
-                    $ref: '#/definitions/db.AuditLog'
-                  type: array
-              type: object
+            items:
+              $ref: '#/definitions/activitylogs.AuditLogResponse'
+            type: array
         "400":
           description: Bad Request
           schema:
@@ -1337,7 +1329,10 @@ paths:
     post:
       consumes:
       - application/json
-      description: Authenticate user with email and password
+      description: |-
+        Authenticate user with email and password
+        If 2FA is enabled, a temporary token will be returned for 2FA verification, if its a new device or no active session
+        If user is admin, an OTP will be sent to email for verification
       parameters:
       - description: Login credentials
         in: body
@@ -1401,6 +1396,56 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: User login with passcode
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Logs the user out by deleting their active session
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: User logout
+      tags:
+      - auth
+  /api/v1/auth/logout-all:
+    post:
+      consumes:
+      - application/json
+      description: Logs the user out from all devices by deleting all active sessions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Logout from all devices
       tags:
       - auth
   /api/v1/auth/profile:
@@ -1642,6 +1687,53 @@ paths:
       summary: Send OTP via Twilio
       tags:
       - auth
+  /api/v1/auth/set-2fa:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Enable or disable two-factor authentication for the authenticated user
+        When enabling 2FA, an OTPAuthURL and Secret will be returned for setting up the authenticator app
+      parameters:
+      - description: Two-Factor Authentication Request
+        in: body
+        name: twoFARequest
+        required: true
+        schema:
+          $ref: '#/definitions/api.TwoFARequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TwoFAResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Set Two-Factor Authentication (2FA) [UNTESTED]
+      tags:
+      - auth
   /api/v1/auth/test:
     get:
       consumes:
@@ -1697,7 +1789,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Verify the provided 2FA code for the authenticated user
+      description: |-
+        Verify the provided 2FA code for the authenticated user
+        On successful verification, a main session token will be issued
       parameters:
       - description: Verify 2FA Request
         in: body
@@ -2808,52 +2902,6 @@ paths:
       summary: Get User Referral
       tags:
       - user
-  /api/v1/user/set-2fa:
-    post:
-      consumes:
-      - application/json
-      description: Enable or disable two-factor authentication for the authenticated
-        user
-      parameters:
-      - description: Two-Factor Authentication Request
-        in: body
-        name: twoFARequest
-        required: true
-        schema:
-          $ref: '#/definitions/api.TwoFARequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.TwoFAResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Set Two-Factor Authentication (2FA) [UNTESTED]
-      tags:
-      - auth
   /api/v1/user/update-name:
     put:
       consumes:
