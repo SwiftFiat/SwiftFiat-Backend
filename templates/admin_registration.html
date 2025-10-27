@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;">
+      <tr>
+        <td align="center">
+          <table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:12px;overflow:hidden;margin:30px 0;">
+            <tr>
+              <td style="background-color:#532181;color:#fff;padding:20px 30px;text-align:center;font-size:24px;font-weight:bold;">
+                SwiftFiat Admin Registration
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:30px;color:#333;">
+                <p style="font-size:16px;">Hi <strong>{{.FirstName}}</strong>,</p>
+                <p style="font-size:15px;line-height:1.6;">
+                  Welcome to the <strong>SwiftFiat Team as {{.Role}}</strong>.  
+                  Your admin account has been successfully created.  
+                  Please complete your <strong>Two-Factor Authentication (2FA)</strong> setup to secure your account.
+                </p>
+
+                <p style="font-size:15px;line-height:1.6;">
+                  You can also set up 2FA manually using the link below:
+                </p>
+                <p>Copy this link into your authenticator app:</p>
+                <p style="word-break:break-all;">{{.TwoFASetupURL}}</p>
+
+
+                <p style="font-size:13px;color:#666;margin-top:25px;">
+                  Keep this information safe. Do not share your 2FA details or token with anyone.
+                </p>
+
+                <p style="font-size:13px;color:#666;">Stay secure,<br>The SwiftFiat Security Team</p>
+              </td>
+            </tr>
+            <tr>
+              <td style="background-color:#f0f0f0;padding:15px;text-align:center;font-size:12px;color:#888;">
+                © {{.Year}} SwiftFiat. All rights reserved.
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

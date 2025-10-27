@@ -2,17 +2,24 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"time"
 
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
 type Plunk struct {
 	HttpClient *http.Client
 	Config     *utils.Config
+	Redis      *redis.RedisService
 }
 
 type EmailRequest struct {
@@ -31,6 +38,13 @@ type TrackingEvent struct {
 	EmailID   string `json:"email_id"`
 	Event     string `json:"event"`
 	TargetURL string `json:"target_url,omitempty"`
+}
+
+func NewPlunkService(config *utils.Config) *Plunk {
+	return &Plunk{
+		Config:     config,
+		HttpClient: &http.Client{},
+	}
 }
 
 func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
@@ -56,7 +70,7 @@ func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
- 
+
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, err
@@ -99,4 +113,141 @@ func (s *Plunk) TrackAction(email, event string, data map[string]any) error {
 		"data":       data,
 	})
 	return err
+}
+
+// Helper function to send failed login alert
+func (s *Plunk) SendFailedLoginAlert(dbUser *db.User, failedCount int, clientIP string) error {
+	tplData := map[string]any{
+		"FirstName": dbUser.FirstName.String,
+		"Attempts":  failedCount,
+		"IP":        clientIP,
+		"Time":      time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":      time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/failed_login_alert.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render failed login template: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: s.HttpClient,
+	}
+
+	subject := "SwiftFiat - Multiple Failed Login Attempts Detected"
+	if err := emailService.SendEmail(dbUser.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to render failed login template: %v", err)
+	}
+	return nil
+}
+
+// Helper function to send new device alert
+func (s *Plunk) SendNewDeviceAlert(dbUser *db.User, device struct{ IP, UserAgent string }) error {
+	tplData := map[string]any{
+		"FirstName": dbUser.FirstName.String,
+		"LoginTime": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"IP":        device.IP,
+		"UserAgent": device.UserAgent,
+		"Location":  utils.GetLocationFromIP(device.IP),
+		"Year":      time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/new_device_login.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render new device login template: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: s.HttpClient,
+	}
+
+	subject := "SwiftFiat - New Device Login Alert"
+	if err := emailService.SendEmail(dbUser.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send new device login alert: %v", err)
+	}
+	return nil
+}
+
+// Helper function to send admin OTP
+func (s *Plunk) SendAdminOTP(dbUser *db.User, email, otp string) error {
+	tplData := map[string]any{
+		"Name": dbUser.FirstName.String,
+		"OTP":  otp,
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render admin OTP template: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: s.HttpClient,
+	}
+
+	subject := "SwiftFiat - Admin Login OTP"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		return fmt.Errorf("failed to send admin OTP email: %v", err)
+	}
+	return nil
+}
+
+// sendVerificationEmail sends the email verification OTP
+func (s *Plunk) SendVerificationEmail(user *db.User, email, verificationCode string) error {
+	tplData := map[string]any{
+		"Name": user.FirstName.String,
+		"OTP":  verificationCode,
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render verification template: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: s.HttpClient,
+	}
+
+	subject := "SwiftFiat - Verify your email"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		logging.NewLogger().Error(fmt.Sprintf("failed to send verification email to %s: %v", email, err))
+
+		// Store failed email attempt for potential retry or admin notification
+		bgCtx := context.Background()
+		retryKey := fmt.Sprintf("failed_verification_email:%d", user.ID)
+		if setErr := s.Redis.Set(bgCtx, retryKey, email, 24*time.Hour); setErr != nil {
+			return fmt.Errorf("failed to store failed email attempt: %v", setErr)
+		}
+	}
+	return nil
+}
+
+func (s *Plunk) SendAdminRegistrationEmail(user *db.User, twoFASecret, twoFAQRCode, twoFASetupURL string) error {
+	tplData := map[string]any{
+		"FirstName":     user.FirstName.String,
+		"Email":         user.Email,
+		"Role":          user.Role,
+		"TwoFASetupURL": twoFASetupURL,
+		"Year":          time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/admin_registration.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render admin registration email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat Admin Registration - Complete Your 2FA Setup"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send admin registration email: %v", err)
+	}
+
+	return nil
 }

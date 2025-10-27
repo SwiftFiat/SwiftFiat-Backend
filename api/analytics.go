@@ -53,7 +53,7 @@ func (h ActivityLog) router(server *Server) {
 // @Param        id     path      int  true  "User ID"
 // @Param        limit   query     int    false  "Limit number of logs"  default(50)
 // @Param        offset  query     int    false  "Offset for pagination"  default(0)
-// @Success      200  {object}  basemodels.SuccessResponse{data=[]db.AuditLog}
+// @Success      200  {object}  []activitylogs.AuditLogResponse
 // @Failure      400  {object}  basemodels.ErrorResponse
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Failure      403  {object}  basemodels.ErrorResponse
@@ -88,7 +88,12 @@ func (h *ActivityLog) GetUserActivityLogs(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", logs))
+	var formattedLogs []activitylogs.AuditLogResponse
+	for _, log := range logs {
+		formattedLogs = append(formattedLogs, activitylogs.ToAuditLogResponse(log))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", formattedLogs))
 
 }
 
@@ -100,7 +105,7 @@ func (h *ActivityLog) GetUserActivityLogs(c *gin.Context) {
 // @Produce      json
 // @Param        limit   query     int    false  "Limit number of logs"  default(50)
 // @Param        offset  query     int    false  "Offset for pagination"  default(0)
-// @Success      200  {object}  basemodels.SuccessResponse{data=[]db.AuditLog}
+// @Success      200  {object}  []activitylogs.AuditLogResponse
 // @Failure      400  {object}  basemodels.ErrorResponse
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Failure      403  {object}  basemodels.ErrorResponse
@@ -127,7 +132,11 @@ func (h *ActivityLog) GetRecentActivityLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get recent activity logs"))
 		return
 	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", logs))
+	var formattedLogs []activitylogs.AuditLogResponse
+	for _, log := range logs {
+		formattedLogs = append(formattedLogs, activitylogs.ToAuditLogResponse(log))
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", formattedLogs))
 }
 
 // GetActiveUsersCount godoc
