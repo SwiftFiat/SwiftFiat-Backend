@@ -54,3 +54,23 @@ func (a *ActivityLog) CountActiveUsers(ctx context.Context, start, end time.Time
 func (a *ActivityLog) DeleteOldLogs(ctx context.Context) error {
 	return a.store.DeleteOldAuditLogs(ctx)
 }
+
+type AuditLogResponse struct {
+	ID        int32
+	UserID    int32
+	Action    string
+	CreatedAt time.Time
+	Ip        string
+	UserAgent string
+}
+
+func ToAuditLogResponse(log db.AuditLog) AuditLogResponse {
+	return AuditLogResponse{
+		ID:        log.ID,
+		UserID:    log.UserID,
+		Action:    log.Action,
+		CreatedAt: log.CreatedAt,
+		Ip:        log.Ip.String,
+		UserAgent: log.UserAgent.String,
+	}
+}

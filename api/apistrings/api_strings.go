@@ -15,6 +15,7 @@ const (
 
 	/// Core Functionality Error
 	ServerError = "a server error occurred, please try again later"
+	InvalidRequestData = "invalid request data"
 
 	/// KYC Related Strings
 	InvalidBVNInput     = "invalid bvn input, please check submitted information"
