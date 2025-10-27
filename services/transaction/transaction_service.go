@@ -169,7 +169,10 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	return tObj, nil
 }
 
-// / May return an arbitrary error or an error defined in [transaction_strings]
+// May return an arbitrary error or an error defined in [transaction_strings]
+// Handles CRYPTO -> WALLET transactions
+// Crypto inflow transactions are those where a user sends crypto from an external wallet to their SwiftFiat wallet
+// The crypto is then converted to fiat and credited to the user's fiat wallet
 func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, orderID string, tx CryptoTransaction, prov *providers.ProviderService) (*TransactionResponse[CryptoMetadataResponse], error) {
 	s.logger.Info("starting crypto inflow transaction")
 
@@ -322,6 +325,106 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 
 	s.logger.Info("crypto inflow transaction completed successfully", tx)
 
+	return tObj, nil
+}
+
+func (s *TransactionService) CreateStablecoinFundingTransaction(ctx context.Context, orderID string, tx StablecoinFundingTransaction, prov *providers.ProviderService) (*TransactionResponse[StablecoinMetadataResponse], error) {
+	s.logger.Info("starting stablecoin funding transaction")
+
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// Check if trail exists for this hash
+	trailExists, err := s.store.WithTx(dbTx).CheckCryptoTransactionTrailByTransactionHash(ctx, tx.SourceHash)
+	if err != nil {
+		return nil, fmt.Errorf("issue with checking for transactionHash %v", err)
+	}
+
+	if trailExists {
+		return nil, fmt.Errorf("transaction already recorded, please check transaction hash: %v", tx.SourceHash)
+	}
+
+	// Create transaction trail
+	params := db.CreateCryptoTransactionTrailParams{
+		AddressID:       tx.DestinationAddress,
+		TransactionHash: tx.SourceHash,
+		Amount: sql.NullString{
+			String: tx.AmountInSatoshis.StringFixed(10),
+			Valid:  !tx.AmountInSatoshis.IsZero(),
+		},
+	}
+	_, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("error creating transaction trail: %v", err)
+	}
+
+	// Get cryptomus address
+	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
+	}
+
+	// Get user's stablecoin wallet
+	walletParams := db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: walletAddress.CustomerID.Int64,
+		Currency:   tx.Coin, // USDT or USDC
+	}
+	userStablecoinWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)", walletParams.CustomerID, walletParams.Currency)
+	}
+
+	// Set transaction values
+	tx.DestinationAccount = userStablecoinWallet.ID
+	tx.Rate = decimal.New(1, 0) // 1:1 for stablecoins
+	tx.SentAmount = tx.AmountInSatoshis
+	tx.ReceivedAmount = tx.AmountInSatoshis
+
+	// Currency flow
+	currFlow := fmt.Sprintf("%s to %s", tx.Coin, tx.Coin)
+
+	// Create transaction record
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, StablecoinWalletFundingTransaction, &tx, currFlow)
+	if err != nil {
+		return nil, fmt.Errorf("create transaction record: %w", err)
+	}
+	tObj := tempObj.(*TransactionResponse[StablecoinMetadataResponse])
+
+	// Create ledger entries
+	balance, err := decimal.NewFromString(userStablecoinWallet.Balance.String)
+	if err != nil {
+		s.logger.Error("failed to parse the balance string")
+	}
+
+	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
+		TransactionID: tObj.ID,
+		Credit: Entry{
+			AccountID: userStablecoinWallet.ID,
+			Amount:    tx.ReceivedAmount,
+			Balance:   balance,
+		},
+		Platform:        StablecoinWalletFundingTransaction,
+		SourceType:      OffPlatform,
+		DestinationType: OnPlatform,
+	}); err != nil {
+		return nil, fmt.Errorf("create ledger entries: %w", err)
+	}
+
+	// Update account balances
+	if err := s.updateBalance(ctx, dbTx, userStablecoinWallet.ID, tx.ReceivedAmount); err != nil {
+		return nil, fmt.Errorf("update wallet balance: %w", err)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	s.logger.Info("stablecoin funding transaction completed successfully", tx)
 	return tObj, nil
 }
 

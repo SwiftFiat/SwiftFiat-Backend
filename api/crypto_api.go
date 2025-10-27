@@ -10,6 +10,7 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
@@ -77,6 +78,10 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.POST("/test-crypto-api", c.testCryptoAPI)
 	serverGroupV1.POST("/payment-info", c.GetPaymentInfo)
 }
+
+// var (
+// 	callback = fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
+// )
 
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
 	dr := basemodels.SuccessResponse{
@@ -168,7 +173,8 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-	callbackURL := "https://8d097378f71e.ngrok-free.app/api/v1/crypto/webhook"
+	// callbackURL := "https://8d097378f71e.ngrok-free.app/api/v1/crypto/webhook"
+	callbackURL := fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,
@@ -326,57 +332,122 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 
 	if res.Status == "paid" {
 		// Call the wallet service and credit the user basse
-		c.server.logger.Info(fmt.Sprintf("sent amount %v", payload.PaymentAmount))
-		c.server.logger.Info(fmt.Sprintf("received amount %v", payload.MerchantAmount))
-		c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
-		c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
-		c.server.logger.Info(fmt.Sprintf("convert to %v", payload.Convert.ToCurrency))
-		c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
-		c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
+		// c.server.logger.Info(fmt.Sprintf("sent amount %v", payload.PaymentAmount))
+		// c.server.logger.Info(fmt.Sprintf("received amount %v", payload.MerchantAmount))
+		// c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
+		// c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
+		// c.server.logger.Info(fmt.Sprintf("convert to %v", payload.Convert.ToCurrency))
+		// c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
+		// c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
 
-		amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
-		if err != nil {
-			c.server.logger.Errorf("conversion error1: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-			return
-		}
-		amounRecieved, err := decimal.NewFromString(payload.MerchantAmount)
-		if err != nil {
-			c.server.logger.Errorf("conversion error2: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-			return
+		// Handle USDT and USDC wallet funding
+		if payload.Currency == "USDT" || payload.Currency == "USDC" {
+			err = c.handleStablecoinFunding(ctx, &payload)
+			if err != nil {
+				c.server.logger.Error(fmt.Sprintf("stablecoin funding error: %v", err))
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to process stablecoin funding"))
+				return
+			}
+		} else {
+			// Handle regular crypto inflow
+			amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
+			if err != nil {
+				c.server.logger.Errorf("conversion error1: %v", err)
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+				return
+			}
+			amounRecieved, err := decimal.NewFromString(payload.MerchantAmount)
+			if err != nil {
+				c.server.logger.Errorf("conversion error2: %v", err)
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+				return
+			}
+			txid, err := uuid.Parse(payload.UUID)
+			if err != nil {
+				c.server.logger.Errorf("UUID conversion error3: %v", err)
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
+				return
+			}
+
+			cryptoTransaction := transaction.CryptoTransaction{
+				SourceHash:         payload.Sign,
+				DestinationAddress: payload.From,
+				AmountInSatoshis:   amountInSatoshis,
+				Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
+				Description:        "Crypto Inflow",
+				Type:               transaction.Deposit,
+				ReceivedAmount:     amounRecieved,
+				TransactionID:      txid,
+			}
+
+			_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
+			if err != nil {
+				c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+			}
 		}
 
-		txid, err := uuid.Parse(payload.UUID)
-		if err != nil {
-			c.server.logger.Errorf("UUID conversion error3: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
-			return
-		}
-
-		cryptoTransaction := transaction.CryptoTransaction{
-			SourceHash:         payload.Sign,
-			DestinationAddress: payload.From,
-			AmountInSatoshis:   amountInSatoshis,
-			Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
-			Description:        "Crypto Inflow",
-			Type:               transaction.Deposit,
-			ReceivedAmount:     amounRecieved,
-			TransactionID:      txid,
-		}
-
-		_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
-		if err != nil {
-			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
-		}
 	}
-
-	// Respond with success
 	ctx.JSON(http.StatusOK, gin.H{
 		"data":     res,
 		"order_id": payload.OrderID,
 		"status":   payload.Status,
 	})
+}
+
+func (c *CryptoAPI) handleStablecoinFunding(ctx *gin.Context, payload *cryptocurrency.WebhookPayload) error {
+	// Get the cryptomus address record
+	walletAddress, err := c.server.queries.GetCryptomusAddressByOrderID(ctx, payload.OrderID)
+	if err != nil {
+		return fmt.Errorf("failed to fetch cryptomus address: %v", err)
+	}
+
+	// Get user's stablecoin wallet (USDT or USDC)
+	walletParams := db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: walletAddress.CustomerID.Int64,
+		Currency:   payload.Currency, // This will be USDT or USDC
+	}
+
+	userStablecoinWallet, err := c.server.queries.GetWalletByCurrencyForUpdate(ctx, walletParams)
+	if err != nil {
+		return fmt.Errorf("failed to fetch %s wallet for customer (%v): %v",
+			payload.Currency, walletParams.CustomerID, err)
+	}
+
+	// Parse the amount received
+	amountReceived, err := decimal.NewFromString(payload.MerchantAmount)
+	if err != nil {
+		return fmt.Errorf("failed to parse amount: %v", err)
+	}
+
+	// Create stablecoin funding transaction
+	stablecoinTransaction := transaction.StablecoinFundingTransaction{
+		SourceHash:         payload.Sign,
+		DestinationAddress: payload.From,
+		AmountInSatoshis:   amountReceived,
+		Coin:               strings.ToUpper(payload.Currency),
+		Description:        fmt.Sprintf("%s Wallet Funding", payload.Currency),
+		Type:               transaction.Deposit,
+		ReceivedAmount:     amountReceived,
+		TransactionID:      uuid.MustParse(payload.UUID),
+		DestinationAccount: userStablecoinWallet.ID,
+	}
+
+	// Process the stablecoin funding transaction
+	_, err = c.transactionService.CreateStablecoinFundingTransaction(ctx, payload.OrderID, stablecoinTransaction, c.server.provider)
+	if err != nil {
+		return fmt.Errorf("failed to create stablecoin funding transaction: %v", err)
+	}
+
+	// Send notification to user
+	user, err := c.server.queries.GetUserByID(ctx, walletAddress.CustomerID.Int64)
+	if err == nil {
+		c.notifyr.Create(ctx, int32(user.ID),
+			"Successful Stablecoin Funding",
+			fmt.Sprintf("You have received %s %s in your %s wallet",
+				amountReceived.String(), payload.Currency, payload.Currency))
+	}
+
+	return nil
 }
 
 func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
@@ -561,4 +632,96 @@ func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
+}
+
+type CreateStablecoinFundingAddressRequest struct {
+	Currency string `json:"currency" binding:"required"`
+	Network  string `json:"network" binding:"required"`
+}
+
+func (c *CryptoAPI) createStablecoinFundingAddress(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var request CreateStablecoinFundingAddressRequest
+	err = ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
+		return
+	}
+
+	// Validate currency (only USDT/USDC allowed)
+	if request.Currency != "USDT" && request.Currency != "USDC" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("only USDT and USDC are supported"))
+		return
+	}
+
+	// Get Cryptomus provider
+	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
+	if !exists {
+		c.server.logger.Error("failed to get provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider"))
+		return
+	}
+
+	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
+	if !ok {
+		c.server.logger.Error("failed to parse crypto provider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed"))
+		return
+	}
+
+	// Generate Order ID
+	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		c.server.logger.Error("failed to get user by ID", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to get user"))
+		return
+	}
+	orderID := utils.GenerateOrderID(dbUser.FirstName.String, dbUser.LastName.String)
+	callbackURL := fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
+
+	c.server.logger.Infof("orderid is %s \n and callbackurl is %s \n", orderID, callbackURL)
+
+	// Create static wallet request
+	walletRequest := &cryptocurrency.StaticWalletRequest{
+		Currency:    request.Currency,
+		Network:     request.Network,
+		OrderId:     orderID,
+		UrlCallback: callbackURL,
+	}
+
+	staticWallet, err := cryptoProvider.CreateStaticWallet(walletRequest)
+	if err != nil {
+		c.server.logger.Error("failed to create static wallet", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to create wallet"))
+		return
+	}
+
+	// Store the address in database
+	err = c.userService.AssignCryptomusAddressToUser(ctx,
+		staticWallet.WalletUUID,
+		staticWallet.UUID,
+		orderID,
+		staticWallet.Address,
+		activeUser.UserID,
+		staticWallet.Currency,
+		staticWallet.Network,
+		staticWallet.Url,
+		callbackURL)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to assign wallet"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Funding Address Created", gin.H{
+		"address":     staticWallet.Address,
+		"currency":    staticWallet.Currency,
+		"network":     staticWallet.Network,
+		"order_id":    orderID,
+		"payment_url": staticWallet.Url,
+	}))
 }

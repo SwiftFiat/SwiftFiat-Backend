@@ -49,7 +49,8 @@ type Config struct {
 	TwilioKeySecret           string `mapstructure:"TWILIO_KEY_SECRET"`
 	PlunkApiKey               string `mapstructure:"PLUNK_API_KEY"`
 	PlunkBaseUrl              string `mapstructure:"PLUNK_BASE_URL"`
-	PlunkSecretKey           string `mapstructure:"PLUNK_SECRET_KEY"`
+	PlunkSecretKey            string `mapstructure:"PLUNK_SECRET_KEY"`
+	SwiftBaseUrl              string `mapstructure:"SWIFT_BASE_URL"`
 }
 
 func LoadConfig(path string) (*Config, error) {
