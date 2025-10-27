@@ -43,6 +43,7 @@ type Server struct {
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
 	authMiddleware   *AuthMiddleware
+	emailService	 *service.Plunk
 }
 
 func NewServer(envPath string) *Server {
@@ -76,6 +77,7 @@ func NewServer(envPath string) *Server {
 	l := logging.NewLogger()
 	p := providers.NewProviderService()
 	pn := service.NewPushNotificationService(l)
+	email  := service.NewPlunkService(c)
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
@@ -147,6 +149,7 @@ func NewServer(envPath string) *Server {
 		redis:            r,
 		pushNotification: pn,
 		authMiddleware:   am,
+		emailService: email,
 	}
 }
 

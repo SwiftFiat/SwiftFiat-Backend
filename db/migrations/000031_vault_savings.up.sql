@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS "vault_savings" (
     "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
 
     -- Name of the vault savings account
-    "name" VARCHAR(100) NOT NULL,
+    "vault_name" VARCHAR(100) NOT NULL,
 
     -- Description of the vault savings account
     "description" TEXT,
