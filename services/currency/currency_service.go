@@ -14,7 +14,7 @@ import (
 )
 
 // SupportedCurrencies is a list of currencies that are supported by the currency service
-var SupportedCurrencies = []string{"NGN", "USD"} // , "EUR"}
+var SupportedCurrencies = []string{"NGN", "USD", "USDT", "USDC"} // , "EUR"}
 
 // denominationMap stores the number of decimal places for each coin - with case-sensitivity
 var denominationMap = map[string]int64{

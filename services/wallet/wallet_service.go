@@ -135,6 +135,7 @@ func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID 
 	return wallets, nil
 }
 
+// GetFiatBanks retrieves the list of banks from cache or FIAT provider
 func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *string) (*models.BankResponseCollection, error) {
 
 	/// Check existence of banks in Cache
@@ -197,6 +198,7 @@ func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *str
 	return &banksCollection, nil
 }
 
+// ResolveAccount attempts to resolve a bank account number using the FIAT provider
 func (w *WalletService) ResolveAccount(prov *providers.ProviderService, accountNumber *string, bankCode *string) (*fiat.AccountInfo, error) {
 
 	w.logger.Info("resolving account number")
