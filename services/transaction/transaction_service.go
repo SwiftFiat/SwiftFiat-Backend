@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -328,8 +329,8 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	return tObj, nil
 }
 
-func (s *TransactionService) CreateStablecoinFundingTransaction(ctx context.Context, orderID string, tx StablecoinFundingTransaction, prov *providers.ProviderService) (*TransactionResponse[StablecoinMetadataResponse], error) {
-	s.logger.Info("starting stablecoin funding transaction")
+func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, orderID string, tx CryptoTransaction, prov *providers.ProviderService) (*TransactionResponse[CryptoMetadataResponse], error) {
+	s.logger.Info("starting crypto inflow transaction")
 
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -343,12 +344,11 @@ func (s *TransactionService) CreateStablecoinFundingTransaction(ctx context.Cont
 	if err != nil {
 		return nil, fmt.Errorf("issue with checking for transactionHash %v", err)
 	}
-
 	if trailExists {
 		return nil, fmt.Errorf("transaction already recorded, please check transaction hash: %v", tx.SourceHash)
 	}
 
-	// Create transaction trail
+	// Record trail
 	params := db.CreateCryptoTransactionTrailParams{
 		AddressID:       tx.DestinationAddress,
 		TransactionHash: tx.SourceHash,
@@ -357,74 +357,135 @@ func (s *TransactionService) CreateStablecoinFundingTransaction(ctx context.Cont
 			Valid:  !tx.AmountInSatoshis.IsZero(),
 		},
 	}
-	_, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params)
-	if err != nil {
+	if _, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params); err != nil {
 		return nil, fmt.Errorf("error creating transaction trail: %v", err)
 	}
 
-	// Get cryptomus address
+	// Resolve the Cryptomus address and the destination currency/wallet
 	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
 	}
 
-	// Get user's stablecoin wallet
+	// Normalize coin symbol
+	coinSym := strings.ToUpper(tx.Coin)
+
+	// Determine coinAmount in main unit
+	var coinAmount decimal.Decimal
+	if coinSym == "BTC" {
+		coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, coinSym)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
+		}
+	} else {
+		coinAmount = tx.AmountInSatoshis
+	}
+
+	var (
+		destCurrency string
+		rate         decimal.Decimal
+		amount       decimal.Decimal
+		currFlow     string
+	)
+
+	// Stablecoin branch: USDT/USDC -> credit same coin wallet 1:1
+	if strings.EqualFold(coinSym, "USDT") || strings.EqualFold(coinSym, "USDC") {
+		destCurrency = coinSym
+		rate = decimal.New(1, 0)
+		amount = coinAmount
+		currFlow = destCurrency + " to " + destCurrency
+	} else {
+		// Other coins: convert to USD -> credit USD wallet
+		rate, err = s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
+		if err != nil {
+			return nil, currency.NewCurrencyError(err, coinSym, "USD")
+		}
+		destCurrency = "USD"
+		amount = coinAmount.Mul(rate)
+		currFlow = coinSym + " to USD"
+	}
+
+	// Pull destination wallet by currency and lock
 	walletParams := db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: walletAddress.CustomerID.Int64,
-		Currency:   tx.Coin, // USDT or USDC
+		Currency:   destCurrency,
 	}
-	userStablecoinWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
+	destWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)", walletParams.CustomerID, walletParams.Currency)
 	}
 
-	// Set transaction values
-	tx.DestinationAccount = userStablecoinWallet.ID
-	tx.Rate = decimal.New(1, 0) // 1:1 for stablecoins
+	// Populate transaction object
+	tx.DestinationAccount = destWallet.ID
+	tx.Rate = rate
 	tx.SentAmount = tx.AmountInSatoshis
-	tx.ReceivedAmount = tx.AmountInSatoshis
-
-	// Currency flow
-	currFlow := fmt.Sprintf("%s to %s", tx.Coin, tx.Coin)
+	tx.ReceivedAmount = amount
+	tx.Coin = coinSym
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, StablecoinWalletFundingTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
-	tObj := tempObj.(*TransactionResponse[StablecoinMetadataResponse])
+	tObj := tempObj.(*TransactionResponse[CryptoMetadataResponse])
 
-	// Create ledger entries
-	balance, err := decimal.NewFromString(userStablecoinWallet.Balance.String)
+	// Create ledger credit entry
+	balance, err := decimal.NewFromString(destWallet.Balance.String)
 	if err != nil {
 		s.logger.Error("failed to parse the balance string")
 	}
-
 	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
 		TransactionID: tObj.ID,
 		Credit: Entry{
-			AccountID: userStablecoinWallet.ID,
-			Amount:    tx.ReceivedAmount,
+			AccountID: destWallet.ID,
+			Amount:    amount,
 			Balance:   balance,
 		},
-		Platform:        StablecoinWalletFundingTransaction,
+		Platform:        CryptoInflowTransaction,
 		SourceType:      OffPlatform,
 		DestinationType: OnPlatform,
 	}); err != nil {
 		return nil, fmt.Errorf("create ledger entries: %w", err)
 	}
 
-	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, userStablecoinWallet.ID, tx.ReceivedAmount); err != nil {
-		return nil, fmt.Errorf("update wallet balance: %w", err)
+	// Update account balance
+	if err := s.updateBalance(ctx, dbTx, destWallet.ID, amount); err != nil {
+		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
-	// Commit transaction
+	// Commit
 	if err := dbTx.Commit(); err != nil {
 		return nil, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	s.logger.Info("stablecoin funding transaction completed successfully", tx)
+	// Notify + Email
+	email := service.Plunk{Config: s.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
+	tplData := map[string]any{
+		"Amount":        amount,
+		"Currency":      destCurrency,
+		"TransactionID": tx.TransactionID,
+		"Date":          time.Now().Format("2006-01-02 15:04:05"),
+	}
+	body, err := utils.RenderEmailTemplate("templates/cryptp_transaction.html", tplData)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, err.Error())
+	}
+
+	user, err := s.store.GetUserByID(ctx, walletAddress.CustomerID.Int64)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to fetch user by ID: %v, %v", walletAddress.CustomerID.Int64, err))
+		return nil, fmt.Errorf("failed to fetch user by ID: %v", walletAddress.CustomerID.Int64)
+	}
+
+	subject := "SwiftFiat - Successful Crypto Inflow Transaction"
+	if err = email.SendEmail(user.Email, subject, body); err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto confirmation email: %v", err))
+	}
+	s.logger.Info("crypto inflow transaction email sent successfully", user.Email)
+
+	s.notifyr.Create(ctx, int32(user.ID), "Succcessful Crypto Transaction", fmt.Sprintf("You have received %s %s on %s wallet", amount.String(), destCurrency, destCurrency))
+
+	s.logger.Info("crypto inflow transaction completed successfully", tx)
 	return tObj, nil
 }
 

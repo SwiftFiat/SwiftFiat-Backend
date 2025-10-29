@@ -192,3 +192,27 @@ func InterfaceToMap(metadata interface{}) (map[string]interface{}, error) {
 
 	return metadataMap, nil
 }
+
+type TransactionFeeResponse struct {
+	ID              int64     `json:"id"`
+	TransactionType string    `json:"transaction_type"`
+	FeePercentage   string    `json:"fee_percentage"`
+	MaxFee          string    `json:"max_fee"`
+	FlatFee         string    `json:"flat_fee"`
+	EffectiveTime   time.Time `json:"effective_time"`
+	Source          string    `json:"source"`
+	CreatedAt       time.Time `json:"created_at"`
+}
+
+func ToTransactioFeeResponse(tf *db.TransactionFee) *TransactionFeeResponse {
+	return &TransactionFeeResponse{
+		ID:              tf.ID,
+		TransactionType: tf.TransactionType,
+		FeePercentage:   tf.FeePercentage.String,
+		MaxFee:          tf.MaxFee.String,
+		FlatFee:         tf.FlatFee.String,
+		EffectiveTime:   tf.EffectiveTime,
+		Source:          tf.Source,
+		CreatedAt:       tf.CreatedAt,
+	}
+}
