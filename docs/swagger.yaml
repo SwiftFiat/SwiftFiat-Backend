@@ -30,12 +30,29 @@ definitions:
       role:
         type: string
     type: object
+  api.CreateStaticWalletRequest:
+    properties:
+      currency:
+        type: string
+      network:
+        type: string
+    required:
+    - currency
+    - network
+    type: object
   api.DeleteAccountRequest:
     properties:
       password:
         type: string
     required:
     - password
+    type: object
+  api.FiatTransferResponse:
+    properties:
+      saved_beneficiary:
+        type: boolean
+      transaction:
+        $ref: '#/definitions/transaction.TransactionResponse-transaction_FiatWithdrawalMetadataResponse'
     type: object
   api.KYCListResponse:
     properties:
@@ -61,6 +78,11 @@ definitions:
         type: string
     required:
     - phone_number
+    type: object
+  api.QRCodeRequest:
+    properties:
+      wallet_uuid:
+        type: string
     type: object
   api.ReferralWithUser:
     properties:
@@ -147,6 +169,35 @@ definitions:
     - code
     - temp_token
     type: object
+  cryptocurrency.PaymentInfoRequest:
+    properties:
+      order_id:
+        type: string
+      uuid:
+        type: string
+    type: object
+  cryptocurrency.ResendWebhookRequest:
+    properties:
+      order_id:
+        type: string
+      uuid:
+        type: string
+    type: object
+  cryptocurrency.TestWebhookRequest:
+    properties:
+      currency:
+        type: string
+      network:
+        type: string
+      order_id:
+        type: string
+      status:
+        type: string
+      url_callback:
+        type: string
+      uuid:
+        type: string
+    type: object
   db.Referral:
     properties:
       created_at:
@@ -154,6 +205,43 @@ definitions:
       id:
         type: integer
       referral_key:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.AccountInfoResponse:
+    properties:
+      account_name:
+        type: string
+      account_number:
+        type: string
+    type: object
+  models.BankResponse:
+    properties:
+      code:
+        type: string
+      logo_url:
+        type: string
+      longcode:
+        type: string
+      name:
+        type: string
+      slug:
+        type: string
+    type: object
+  models.BeneficiaryResponse:
+    properties:
+      account_number:
+        type: string
+      bank_code:
+        type: string
+      beneficiary_name:
+        type: string
+      created_at:
+        type: string
+      id:
         type: string
       updated_at:
         type: string
@@ -288,6 +376,59 @@ definitions:
       status:
         type: string
       version:
+        type: string
+    type: object
+  models.TagResolveResponse:
+    properties:
+      currency:
+        type: string
+      customer_id:
+        type: integer
+      customer_name:
+        type: string
+      status:
+        type: string
+      wallet_id:
+        type: string
+    type: object
+  models.TransactionFeeResponse:
+    properties:
+      created_at:
+        type: string
+      effective_time:
+        type: string
+      fee_percentage:
+        type: string
+      flat_fee:
+        type: string
+      id:
+        type: integer
+      max_fee:
+        type: string
+      source:
+        type: string
+      transaction_type:
+        type: string
+    type: object
+  models.TransactionResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      metadata:
+        description: |-
+          DeletedFromAccountID uuid.UUID   `json:"deleted_from_account_id,omitempty"`
+          DeletedToAccountID   uuid.UUID   `json:"deleted_to_account_id,omitempty"`
+      status:
+        type: string
+      transaction_flow:
+        type: string
+      type:
+        type: string
+      updated_at:
         type: string
     type: object
   models.UpdateTransactionPinParams:
@@ -475,6 +616,108 @@ definitions:
     x-enum-varnames:
     - ReferralStatusPending
     - ReferralStatusActive
+  transaction.CreateTransactionFeeRequest:
+    properties:
+      fee_percentage:
+        description: changed to gte=0
+        minimum: 0
+        type: number
+      max_fee:
+        minimum: 0
+        type: number
+      transaction_type:
+        type: string
+    required:
+    - transaction_type
+    type: object
+  transaction.FiatWithdrawalMetadataResponse:
+    properties:
+      account_name:
+        type: string
+      account_number:
+        type: string
+      bank_code:
+        type: string
+      fees:
+        type: string
+      id:
+        type: string
+      rate:
+        type: string
+      received_amount:
+        type: string
+      sent_amount:
+        type: string
+      service_provider:
+        type: string
+      service_transaction_id:
+        type: string
+      source_wallet:
+        type: string
+    type: object
+  transaction.SwapTransferMetadataResponse:
+    properties:
+      currency:
+        type: string
+      description:
+        type: string
+      destination_wallet:
+        type: string
+      fees:
+        type: string
+      id:
+        type: string
+      rate:
+        type: string
+      received_amount:
+        type: string
+      sent_amount:
+        type: string
+      source_wallet:
+        type: string
+      transfer_type:
+        type: string
+      user_tag:
+        type: string
+    type: object
+  transaction.TransactionResponse-transaction_FiatWithdrawalMetadataResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/transaction.FiatWithdrawalMetadataResponse'
+      status:
+        type: string
+      transaction_flow:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  transaction.TransactionResponse-transaction_SwapTransferMetadataResponse:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      metadata:
+        $ref: '#/definitions/transaction.SwapTransferMetadataResponse'
+      status:
+        type: string
+      transaction_flow:
+        type: string
+      type:
+        type: string
+      updated_at:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -489,6 +732,76 @@ info:
   title: SwiftFiat API
   version: "1.0"
 paths:
+  /api/admin/v1/wallets/add-to-wallet-balance:
+    post:
+      consumes:
+      - application/json
+      description: Adds a specified amount to a user's wallet balance. This endpoint
+        is intended for administrative use only.
+      parameters:
+      - description: Request Body
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WalletResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Add to Wallet Balance (Admin Only)
+      tags:
+      - Wallets
+  /api/admin/v1/wallets/transaction-fee:
+    post:
+      consumes:
+      - application/json
+      description: Creates or updates the fee structure for a specific transaction
+        type.
+      parameters:
+      - description: Transaction Fee Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/transaction.CreateTransactionFeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransactionFeeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Transaction Fee
+      tags:
+      - Wallets
   /api/v1/analytics/active-users-today:
     get:
       consumes:
@@ -1933,6 +2246,320 @@ paths:
       summary: Verify OTP via Twilio
       tags:
       - auth
+  /api/v1/crypto/coin-data:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information about a specific cryptocurrency
+        coin using the CoinRanking provider.
+      parameters:
+      - description: Coin Symbol (e.g., BTC, ETH)
+        in: query
+        name: coin
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Coin Data
+      tags:
+      - Crypto
+  /api/v1/crypto/coin-price-data:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves historical price data for a specific cryptocurrency coin
+        over a defined time period using the CoinRanking provider.
+      parameters:
+      - description: Coin Symbol (e.g., BTC, ETH)
+        in: query
+        name: coin
+        required: true
+        type: string
+      - default: 24h
+        description: Time Period (e.g., 24h, 7d, 1m, 1y)
+        in: query
+        name: timePeriod
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Coin Price History
+      tags:
+      - Crypto
+  /api/v1/crypto/create-stablecoin-wallet:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Creates a stablecoin funding address for the authenticated user using the Cryptomus provider.
+        Supported stablecoins are USDT and USDC.
+      parameters:
+      - description: Stablecoin Funding Address Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateStaticWalletRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create Stablecoin Funding Address
+      tags:
+      - Crypto
+  /api/v1/crypto/create-wallet:
+    post:
+      consumes:
+      - application/json
+      description: Creates a static cryptocurrency wallet for the authenticated user
+        using the Cryptomus provider.
+      parameters:
+      - description: Wallet Creation Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateStaticWalletRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create Static Wallet
+      tags:
+      - Crypto
+  /api/v1/crypto/images:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of image filenames from the assets directory.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Images
+      tags:
+      - Crypto
+  /api/v1/crypto/payment-info:
+    post:
+      consumes:
+      - application/json
+      description: Retrieves payment information for a specific order using the Cryptomus
+        provider.
+      parameters:
+      - description: Payment Info Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/cryptocurrency.PaymentInfoRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Payment Info
+      tags:
+      - Crypto
+  /api/v1/crypto/qr-code:
+    post:
+      consumes:
+      - application/json
+      description: Generates a QR code for a specified wallet UUID using the Cryptomus
+        provider.
+      parameters:
+      - description: QR Code Generation Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.QRCodeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Generate QR Code
+      tags:
+      - Crypto
+  /api/v1/crypto/resend-webhook:
+    post:
+      consumes:
+      - application/json
+      description: Resends a previously sent webhook notification using the Cryptomus
+        provider.
+      parameters:
+      - description: Resend Webhook Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/cryptocurrency.ResendWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Resend Cryptomus Webhook
+      tags:
+      - Crypto
+  /api/v1/crypto/services:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of available cryptocurrency services from the
+        Cryptomus provider.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Fetch Crypto Services
+      tags:
+      - Crypto
+  /api/v1/crypto/test-crypto-api:
+    post:
+      consumes:
+      - application/json
+      description: Tests if the Crypto API is active and reachable
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Test Crypto API Endpoint
+      tags:
+      - Crypto
+  /api/v1/crypto/test-webhook:
+    post:
+      consumes:
+      - application/json
+      description: Triggers a test webhook to verify the Cryptomus webhook endpoint
+        functionality.
+      parameters:
+      - description: Test Webhook Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/cryptocurrency.TestWebhookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Test Cryptomus Webhook Endpoint
+      tags:
+      - Crypto
   /api/v1/referral/earnings:
     get:
       consumes:
@@ -3037,6 +3664,465 @@ paths:
       summary: Set User Tag
       tags:
       - user
+  /api/v1/wallets:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the wallets associated with the authenticated user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.WalletResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Wallets
+      tags:
+      - Wallets
+  /api/v1/wallets/banks:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a list of supported banks for fiat transactions. Can
+        be filtered using a query parameter.
+      parameters:
+      - description: Search query to filter banks
+        in: query
+        name: query
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.BankResponse'
+            type: array
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Bank List
+      tags:
+      - Wallets
+  /api/v1/wallets/beneficiaries:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the list of saved beneficiaries for the authenticated
+        user.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.BeneficiaryResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User's Beneficiaries
+      tags:
+      - Wallets
+  /api/v1/wallets/resolve-bank-account:
+    get:
+      consumes:
+      - application/json
+      description: Validates and retrieves bank account details using account number
+        and bank code.
+      parameters:
+      - description: Bank account number
+        in: query
+        name: accountNumber
+        required: true
+        type: string
+      - description: Bank code
+        in: query
+        name: bankCode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.AccountInfoResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resolve Bank Account
+      tags:
+      - Wallets
+  /api/v1/wallets/resolve-user-tag:
+    get:
+      consumes:
+      - application/json
+      description: Resolves a user tag to retrieve associated wallet information for
+        a specific currency.
+      parameters:
+      - description: User tag to resolve
+        in: query
+        name: userTag
+        required: true
+        type: string
+      - description: Currency code (USD|NGN|EUR)
+        in: query
+        name: currency
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.TagResolveResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resolve User Tag
+      tags:
+      - Wallets
+  /api/v1/wallets/swap:
+    post:
+      consumes:
+      - application/json
+      description: Performs a currency swap between user's wallets. This endpoint
+        handles currency conversion between supported currencies.
+      parameters:
+      - description: Swap Request
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/transaction.TransactionResponse-transaction_SwapTransferMetadataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Swap Between Currencies
+      tags:
+      - Wallets
+  /api/v1/wallets/transaction-fee:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the fee structure for a specific transaction type.
+      parameters:
+      - description: Transaction type (Transfer|Withdrawal|Deposit|Swap|GiftCard|Airtime)
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransactionFeeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Transaction Fee
+      tags:
+      - Wallets
+  /api/v1/wallets/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the transactions associated with the authenticated user's
+        wallets.
+      parameters:
+      - description: Number of transactions to retrieve per page
+        in: query
+        name: page_limit
+        type: integer
+      - description: Offset for pagination
+        in: query
+        name: page_offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.TransactionResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Wallet Transactions
+      tags:
+      - Wallets
+  /api/v1/wallets/transactions-cursor:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the transactions associated with the authenticated user's
+        wallets using cursor-based pagination.
+      parameters:
+      - description: Cursor date for pagination (RFC3339 format)
+        in: query
+        name: cursor_date
+        type: string
+      - description: Cursor transaction ID for pagination
+        in: query
+        name: cursor_transaction_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.TransactionResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Wallet Transactions with Cursor Pagination
+      tags:
+      - Wallets
+  /api/v1/wallets/transactions/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves a specific transaction associated with the authenticated
+        user's wallet.
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.TransactionResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Single Wallet Transaction
+      tags:
+      - Wallets
+  /api/v1/wallets/transfer:
+    post:
+      consumes:
+      - application/json
+      description: Performs a transfer between user wallets. This endpoint handles
+        internal transfers between users' wallets.
+      parameters:
+      - description: Transfer Request
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/transaction.TransactionResponse-transaction_SwapTransferMetadataResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Transfer Between Wallets
+      tags:
+      - Wallets
+  /api/v1/wallets/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Executes a fiat currency transfer to a bank account.
+      parameters:
+      - description: Fiat Transfer Request
+        in: body
+        name: request
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.FiatTransferResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Perform Fiat Transfer
+      tags:
+      - Wallets
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

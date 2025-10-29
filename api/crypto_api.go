@@ -144,6 +144,12 @@ func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin data is successful", coinData))
 }
 
+
+type CreateStaticWalletRequest struct {
+	Currency string `json:"currency" binding:"required"`
+	Network  string `json:"network" binding:"required"`
+}
+
 // createStaticWallet godoc
 // @Summary      Create Static Wallet
 // @Description  Creates a static cryptocurrency wallet for the authenticated user using the Cryptomus provider.
@@ -269,21 +275,23 @@ func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
 	}))
 }
 
+type QRCodeRequest struct {
+	WalletUUID uuid.UUID `json:"wallet_uuid"`
+}
+
 // GenerateQRCode godoc
 // @Summary      Generate QR Code
 // @Description  Generates a QR code for a specified wallet UUID using the Cryptomus provider.
 // @Tags         Crypto
 // @Accept       json
 // @Produce      json
-// @Param        body  body      struct{WalletUUID uuid.UUID `json:"wallet_uuid"`}  true  "QR Code Generation Request"
+// @Param        body  body      QRCodeRequest  true  "QR Code Generation Request"
 // @Success      200   {object}  basemodels.SuccessResponse
 // @Failure      400   {object}  basemodels.ErrorResponse
 // @Failure      500   {object}  basemodels.ErrorResponse
 // @Router       /api/v1/crypto/qr-code [post]
 func (c *CryptoAPI) GenerateQRCode(ctx *gin.Context) {
-	var req = struct {
-		WalletUUID uuid.UUID `json:"wallet_uuid"`
-	}{}
+	var req QRCodeRequest
 
 	if err := ctx.ShouldBind(&req); err != nil {
 		c.server.logger.Error("failed to bind request", err)
@@ -668,11 +676,6 @@ func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
 }
 
-type CreateStablecoinFundingAddressRequest struct {
-	Currency string `json:"currency" binding:"required"`
-	Network  string `json:"network" binding:"required"`
-}
-
 // createStablecoinFundingAddress godoc
 // @Summary      Create Stablecoin Funding Address
 // @Description  Creates a stablecoin funding address for the authenticated user using the Cryptomus provider.
@@ -680,7 +683,7 @@ type CreateStablecoinFundingAddressRequest struct {
 // @Tags         Crypto
 // @Accept       json
 // @Produce      json
-// @Param        body  body      CreateStablecoinFundingAddressRequest  true  "Stablecoin Funding Address Request"
+// @Param        body  body      CreateStaticWalletRequest  true  "Stablecoin Funding Address Request"
 // @Success      200   {object}  basemodels.SuccessResponse
 // @Failure      400   {object}  basemodels.ErrorResponse
 // @Failure      401   {object}  basemodels.ErrorResponse
@@ -693,7 +696,7 @@ func (c *CryptoAPI) createStablecoinFundingAddress(ctx *gin.Context) {
 		return
 	}
 
-	var request CreateStablecoinFundingAddressRequest
+	var request CreateStaticWalletRequest
 	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))

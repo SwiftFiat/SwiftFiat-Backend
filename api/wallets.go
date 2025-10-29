@@ -76,6 +76,19 @@ func (w Wallet) router(server *Server) {
 
 }
 
+// addToWalletBalance godoc
+// @Summary      Add to Wallet Balance (Admin Only)
+// @Description  Adds a specified amount to a user's wallet balance. This endpoint is intended for administrative use only.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security 	 BearerAuth
+// @Param        request        body      object  true  "Request Body"  schema(example={"wallet_id": "string", "amount": 100.0, "currency": "USD"})
+// @Success      200            {object}  models.WalletResponse
+// @Failure      400            {object}  basemodels.ErrorResponse
+// @Failure      401            {object}  basemodels.ErrorResponse
+// @Failure      500            {object}  basemodels.ErrorResponse
+// @Router       /api/admin/v1/wallets/add-to-wallet-balance [post]
 func (w *Wallet) addToWalletBalance(ctx *gin.Context) {
 
 	request := struct {
@@ -118,10 +131,22 @@ func (w *Wallet) addToWalletBalance(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Balance Updated Successfully", response))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Balance Updated Successfully", models.ToWalletResponse(&response)))
 
 }
 
+// getUserWallets godoc
+// @Summary      Get User Wallets
+// @Description  Retrieves the wallets associated with the authenticated user.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security 	 BearerAuth
+// @Success      200            {object}  models.WalletCollectionResponse
+// @Failure      400            {object}  basemodels.ErrorResponse
+// @Failure      401            {object}  basemodels.ErrorResponse
+// @Failure      500            {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets [get]
 func (w *Wallet) getUserWallets(ctx *gin.Context) {
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -176,6 +201,20 @@ func (w *Wallet) getUserWallets(ctx *gin.Context) {
 // 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transaction Fetched Successfully", transaction))
 // }
 
+// getTransactions godoc
+// @Summary      Get User Wallet Transactions
+// @Description  Retrieves the transactions associated with the authenticated user's wallets.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security 	 BearerAuth
+// @Param        page_limit     query     int     false "Number of transactions to retrieve per page"
+// @Param        page_offset    query     int     false "Offset for pagination"
+// @Success      200            {object}  basemodels.SuccessResponse{data=[]models.TransactionResponse}
+// @Failure      400            {object}  basemodels.ErrorResponse
+// @Failure      401            {object}  basemodels.ErrorResponse
+// @Failure      500            {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/transactions [get]
 func (w *Wallet) getTransactions(ctx *gin.Context) {
 	/// Pagination
 	// cursor := ctx.Query("cursor")
@@ -242,6 +281,19 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 
 }
 
+// getTransaction godoc
+// @Summary      Get Single Wallet Transaction
+// @Description  Retrieves a specific transaction associated with the authenticated user's wallet.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security 	 BearerAuth
+// @Param        id             path      string  true  "Transaction ID"
+// @Success      200            {object}  basemodels.SuccessResponse{data=models.TransactionResponse}
+// @Failure      400            {object}  basemodels.ErrorResponse
+// @Failure      401            {object}  basemodels.ErrorResponse
+// @Failure      500            {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/transactions/{id} [get]
 func (w *Wallet) getTransaction(ctx *gin.Context) {
 	transactionID := ctx.Param("id")
 
@@ -265,6 +317,20 @@ func (w *Wallet) getTransaction(ctx *gin.Context) {
 
 }
 
+// getTransactionsCursor godoc
+// @Summary      Get User Wallet Transactions with Cursor Pagination
+// @Description  Retrieves the transactions associated with the authenticated user's wallets using cursor-based pagination.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security 	 BearerAuth
+// @Param        cursor_date        query     string  false "Cursor date for pagination (RFC3339 format)"
+// @Param        cursor_transaction_id  query     string  false "Cursor transaction ID for pagination"
+// @Success      200                {object}  basemodels.SuccessResponse{data=[]models.TransactionResponse}
+// @Failure      400                {object}  basemodels.ErrorResponse
+// @Failure	  	 401                {object}  basemodels.ErrorResponse
+// @Failure      500                {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/transactions-cursor [get]
 func (w *Wallet) getTransactionsCursor(ctx *gin.Context) {
 	/// Pagination
 	var cursorDate time.Time
@@ -337,6 +403,20 @@ func (w *Wallet) getTransactionsCursor(ctx *gin.Context) {
 
 }
 
+// walletTransfer godoc
+// @Summary      Transfer Between Wallets
+// @Description  Performs a transfer between user wallets. This endpoint handles internal transfers between users' wallets.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      object  true  "Transfer Request"  SchemaExample({"source_account":"uuid","destination_account":"uuid","amount":100.00,"target_user_tag":"user123","description":"Transfer description","pin":"1234"})
+// @Success      200      {object}  transaction.TransactionResponse[transaction.SwapTransferMetadataResponse]
+// @Failure      400      {object}  basemodels.ErrorResponse
+// @Failure      401      {object}  basemodels.ErrorResponse
+// @Failure      403      {object}  basemodels.ErrorResponse
+// @Failure      500      {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/transfer [post]
 func (w *Wallet) walletTransfer(ctx *gin.Context) {
 
 	/// Active USER must OWN source wallet
@@ -459,6 +539,20 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
 }
 
+// swap godoc
+// @Summary      Swap Between Currencies
+// @Description  Performs a currency swap between user's wallets. This endpoint handles currency conversion between supported currencies.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      object  true  "Swap Request"  SchemaExample({"source_account":"uuid","destination_account":"uuid","amount":100.00,"description":"Swap description","pin":"1234"})
+// @Success      200      {object}  transaction.TransactionResponse[transaction.SwapTransferMetadataResponse]
+// @Failure      400      {object}  basemodels.ErrorResponse
+// @Failure      401      {object}  basemodels.ErrorResponse
+// @Failure      403      {object}  basemodels.ErrorResponse
+// @Failure      500      {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/swap [post]
 func (w *Wallet) swap(ctx *gin.Context) {
 
 	/// Active USER must OWN source wallet
@@ -576,6 +670,17 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
 }
 
+// banks godoc
+// @Summary      Get Bank List
+// @Description  Retrieves a list of supported banks for fiat transactions. Can be filtered using a query parameter.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        query    query     string  false  "Search query to filter banks"
+// @Success      200     {object}  models.BankResponseCollection
+// @Failure      500     {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/banks [get]
 func (w *Wallet) banks(ctx *gin.Context) {
 	query := ctx.Query("query")
 
@@ -588,6 +693,19 @@ func (w *Wallet) banks(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched banks successfully", banks))
 }
 
+// resolveBankAccount godoc
+// @Summary      Resolve Bank Account
+// @Description  Validates and retrieves bank account details using account number and bank code.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        accountNumber  query     string  true   "Bank account number"
+// @Param        bankCode      query     string  true   "Bank code"
+// @Success      200          {object}  basemodels.SuccessResponse{data=models.AccountInfoResponse}
+// @Failure      400          {object}  basemodels.ErrorResponse
+// @Failure      500          {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/resolve-bank-account [get]
 func (w *Wallet) resolveBankAccount(ctx *gin.Context) {
 	accountNumber := ctx.Query("accountNumber")
 	bankCode := ctx.Query("bankCode")
@@ -606,6 +724,19 @@ func (w *Wallet) resolveBankAccount(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account resolved successfully", models.ToAccountInfoResponse(userInfo)))
 }
 
+// resolveUserTag godoc
+// @Summary      Resolve User Tag
+// @Description  Resolves a user tag to retrieve associated wallet information for a specific currency.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        userTag   query     string  true   "User tag to resolve"
+// @Param        currency  query     string  true   "Currency code (USD|NGN|EUR)"
+// @Success      200      {object}  basemodels.SuccessResponse{data=models.TagResolveResponse}
+// @Failure      400      {object}  basemodels.ErrorResponse
+// @Failure      500      {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/resolve-user-tag [get]
 func (w *Wallet) resolveUserTag(ctx *gin.Context) {
 	userTag := ctx.Query("userTag")
 	curr := ctx.Query("currency")
@@ -634,6 +765,17 @@ func (w *Wallet) resolveUserTag(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("tag resolved successfully", models.ToTagResolveResponse(*tagInfo)))
 }
 
+// getBeneficiaries godoc
+// @Summary      Get User's Beneficiaries
+// @Description  Retrieves the list of saved beneficiaries for the authenticated user.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Success      200  {object}  basemodels.SuccessResponse{data=[]models.BeneficiaryResponse}
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/beneficiaries [get]
 func (w *Wallet) getBeneficiaries(ctx *gin.Context) {
 	/// Active USER must OWN source wallet
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -655,6 +797,24 @@ func (w *Wallet) getBeneficiaries(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("beneficiaries retrieved successfully", models.ToBeneficiaryResponseCollection(beneficiaries)))
 }
 
+type FiatTransferResponse struct {
+	TransactionInfo  transaction.TransactionResponse[transaction.FiatWithdrawalMetadataResponse] `json:"transaction"`
+	SavedBeneficiary bool                                                                        `json:"saved_beneficiary"`
+}
+
+// fiatTransfer godoc
+// @Summary      Perform Fiat Transfer
+// @Description  Executes a fiat currency transfer to a bank account.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      object  true  "Fiat Transfer Request"  SchemaExample({"name":"John Doe","account_number":"0123456789","bank_code":"057","wallet_id":"uuid","amount":1000,"pin":"1234","save_beneficiary":true})
+// @Success      200     {object}  FiatTransferResponse
+// @Failure      400     {object}  basemodels.ErrorResponse
+// @Failure      401     {object}  basemodels.ErrorResponse
+// @Failure      500     {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/withdraw [post]
 func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 
 	request := struct {
@@ -808,19 +968,34 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		savedBeneficiary = false
 	}
 
-	response := struct {
-		TransactionInfo  transaction.TransactionResponse[transaction.FiatWithdrawalMetadataResponse] `json:"transaction"`
-		SavedBeneficiary bool                                                                        `json:"saved_beneficiary"`
-	}{
-		TransactionInfo:  *transactionInfo,
-		SavedBeneficiary: savedBeneficiary,
-	}
+	// response := struct {
+	// 	TransactionInfo  transaction.TransactionResponse[transaction.FiatWithdrawalMetadataResponse] `json:"transaction"`
+	// 	SavedBeneficiary bool                                                                        `json:"saved_beneficiary"`
+	// }{
+	// 	TransactionInfo:  *transactionInfo,
+	// 	SavedBeneficiary: savedBeneficiary,
+	// }
 
 	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount))
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", response))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", FiatTransferResponse{
+		TransactionInfo:  *transactionInfo,
+		SavedBeneficiary: savedBeneficiary,
+	}))
 }
 
+// createTransactionFee godoc
+// @Summary      Create Transaction Fee
+// @Description  Creates or updates the fee structure for a specific transaction type.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        request  body      transaction.CreateTransactionFeeRequest  true  "Transaction Fee Details"
+// @Success      200     {object}  models.TransactionFeeResponse
+// @Failure      400     {object}  basemodels.ErrorResponse
+// @Failure      500     {object}  basemodels.ErrorResponse
+// @Router       /api/admin/v1/wallets/transaction-fee [post]
 func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 	var request transaction.CreateTransactionFeeRequest
 
@@ -848,9 +1023,21 @@ func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Fee Created Successfully", feeInfo))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Fee Created Successfully", models.ToTransactioFeeResponse(&feeInfo)))
 }
 
+// getTransactionFee godoc
+// @Summary      Get Transaction Fee
+// @Description  Retrieves the fee structure for a specific transaction type.
+// @Tags         Wallets
+// @Accept       json
+// @Produce      json
+// @Security     BearerAuth
+// @Param        type     query     string  true   "Transaction type (Transfer|Withdrawal|Deposit|Swap|GiftCard|Airtime)"
+// @Success      200     {object}  models.TransactionFeeResponse
+// @Failure      400     {object}  basemodels.ErrorResponse
+// @Failure      500     {object}  basemodels.ErrorResponse
+// @Router       /api/v1/wallets/transaction-fee [get]
 func (w *Wallet) getTransactionFee(ctx *gin.Context) {
 	transactionType := ctx.Query("type")
 
@@ -870,5 +1057,5 @@ func (w *Wallet) getTransactionFee(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Fee Fetched Successfully", feeInfo))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Fee Fetched Successfully", models.ToTransactioFeeResponse(&feeInfo)))
 }

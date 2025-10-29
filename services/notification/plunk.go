@@ -251,3 +251,36 @@ func (s *Plunk) SendAdminRegistrationEmail(user *db.User, twoFASecret, twoFAQRCo
 
 	return nil
 }
+
+// ==========================================================
+// Vault Savings
+// ==========================================================
+func (s *Plunk) SendGoalCreatedEmail(ctx context.Context, user *db.User, vaultName, currency, target_amount string) error{
+	return nil
+}
+
+func (s *Plunk) SendGoalCompletedEmail(ctx context.Context, user *db.User, name, goalAmount, currency string) error {return  nil}
+
+func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name, goalAmount, currency string) error {
+	return nil
+}
+
+func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.User, txID string) error {
+	return nil
+}
+
+func (s *Plunk) SendWithdrawalPendingApprovalEmail(ctx context.Context, user *db.User, txID string) error {
+	return nil
+}
+
+func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+	return nil
+}
+
+func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, reason string) error {
+	return nil
+}
+
+func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+	return nil
+}
