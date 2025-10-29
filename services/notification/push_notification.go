@@ -1,7 +1,7 @@
 package service
 
 /// We need to set up FCM for this project
- 
+
 import (
 	"context"
 	"fmt"
@@ -157,4 +157,27 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 
 	return nil
 
+}
+
+// ======================================
+// Vault Savings
+// ======================================
+func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID int64, name string) error {
+	return nil
+}
+
+func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, userID int64, name string) error {
+	return nil
+}
+
+func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	return nil
+}
+
+func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	return nil
+}
+
+func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	return nil
 }

@@ -404,6 +404,82 @@ type UserToken struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+type VaultSaving struct {
+	ID                   uuid.UUID             `json:"id"`
+	UserID               int64                 `json:"user_id"`
+	VaultName            string                `json:"vault_name"`
+	Description          sql.NullString        `json:"description"`
+	GoalAmount           sql.NullString        `json:"goal_amount"`
+	CurrentBalance       sql.NullString        `json:"current_balance"`
+	Currency             string                `json:"currency"`
+	AutoSaveEnabled      bool                  `json:"auto_save_enabled"`
+	AutoSaveFrequency    sql.NullString        `json:"auto_save_frequency"`
+	AutoSaveAmount       sql.NullString        `json:"auto_save_amount"`
+	NextAutoSave         sql.NullTime          `json:"next_auto_save"`
+	RecurringRule        pqtype.NullRawMessage `json:"recurring_rule"`
+	TotalYieldEarned     sql.NullString        `json:"total_yield_earned"`
+	NextYieldCalculation sql.NullTime          `json:"next_yield_calculation"`
+	LastYieldCalculation sql.NullTime          `json:"last_yield_calculation"`
+	Status               string                `json:"status"`
+	VaultType            string                `json:"vault_type"`
+	CreatedAt            time.Time             `json:"created_at"`
+	UpdatedAt            time.Time             `json:"updated_at"`
+	CompletedAt          sql.NullTime          `json:"completed_at"`
+}
+
+type VaultTransaction struct {
+	ID                    uuid.UUID             `json:"id"`
+	UserID                int64                 `json:"user_id"`
+	VaultID               uuid.UUID             `json:"vault_id"`
+	TransactionType       string                `json:"transaction_type"`
+	Amount                string                `json:"amount"`
+	Currency              string                `json:"currency"`
+	SourceWallet          uuid.NullUUID         `json:"source_wallet"`
+	DestinationWallet     uuid.NullUUID         `json:"destination_wallet"`
+	BalanceBefore         string                `json:"balance_before"`
+	BalanceAfter          string                `json:"balance_after"`
+	Reference             sql.NullString        `json:"reference"`
+	Description           sql.NullString        `json:"description"`
+	Metadata              pqtype.NullRawMessage `json:"metadata"`
+	Status                sql.NullString        `json:"status"`
+	Requires2fa           sql.NullBool          `json:"requires_2fa"`
+	TwoFaVerifiedAt       sql.NullTime          `json:"two_fa_verified_at"`
+	RequiresAdminApproval sql.NullBool          `json:"requires_admin_approval"`
+	AdminApprovedBy       sql.NullInt64         `json:"admin_approved_by"`
+	AdminApprovedAt       sql.NullTime          `json:"admin_approved_at"`
+	ApprovalNotes         sql.NullString        `json:"approval_notes"`
+	CompletedAt           sql.NullTime          `json:"completed_at"`
+	CreatedAt             time.Time             `json:"created_at"`
+}
+
+type VaultYield struct {
+	ID                     uuid.UUID      `json:"id"`
+	UserID                 int64          `json:"user_id"`
+	VaultID                uuid.UUID      `json:"vault_id"`
+	YieldAmount            string         `json:"yield_amount"`
+	YieldRate              string         `json:"yield_rate"`
+	CalculationPeriodStart time.Time      `json:"calculation_period_start"`
+	CalculationPeriodEnd   time.Time      `json:"calculation_period_end"`
+	VaultBalanceSnapshot   string         `json:"vault_balance_snapshot"`
+	Status                 sql.NullString `json:"status"`
+	CreditedAt             sql.NullTime   `json:"credited_at"`
+	CreatedAt              time.Time      `json:"created_at"`
+}
+
+type VaultYieldConfig struct {
+	ID                 uuid.UUID      `json:"id"`
+	Currency           string         `json:"currency"`
+	ApyRate            string         `json:"apy_rate"`
+	MinBalanceForYield string         `json:"min_balance_for_yield"`
+	CompoundFrequency  sql.NullString `json:"compound_frequency"`
+	IsActive           bool           `json:"is_active"`
+	EffectiveFrom      time.Time      `json:"effective_from"`
+	EffectiveUntil     sql.NullTime   `json:"effective_until"`
+	Notes              sql.NullString `json:"notes"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
 type WithdrawalRequest struct {
 	ID        int64     `json:"id"`
 	UserID    int32     `json:"user_id"`
