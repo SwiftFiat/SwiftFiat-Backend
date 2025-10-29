@@ -10,7 +10,6 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
-	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
@@ -77,12 +76,21 @@ func (c CryptoAPI) router(server *Server) {
 	serverGroupV1.POST("/resend-webhook", c.ResendWebhook)
 	serverGroupV1.POST("/test-crypto-api", c.testCryptoAPI)
 	serverGroupV1.POST("/payment-info", c.GetPaymentInfo)
+	serverGroupV1.POST("/create-stablecoin-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStablecoinFundingAddress)
 }
 
 // var (
 // 	callback = fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
 // )
 
+// testCryptoAPI godoc
+// @Summary      Test Crypto API Endpoint
+// @Description  Tests if the Crypto API is active and reachable
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Router       /api/v1/crypto/test-crypto-api [post]
 func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
 	dr := basemodels.SuccessResponse{
 		Status:  "success",
@@ -93,6 +101,17 @@ func (c *CryptoAPI) testCryptoAPI(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, dr)
 }
 
+// GetCoinData godoc
+// @Summary      Get Coin Data
+// @Description  Retrieves detailed information about a specific cryptocurrency coin using the CoinRanking provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        coin  query     string  true  "Coin Symbol (e.g., BTC, ETH)"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/coin-data [get]
 func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 	coin := ctx.Query("coin")
 	c.server.logger.Info(fmt.Sprintf("getting info on %s", coin))
@@ -125,6 +144,18 @@ func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin data is successful", coinData))
 }
 
+// createStaticWallet godoc
+// @Summary      Create Static Wallet
+// @Description  Creates a static cryptocurrency wallet for the authenticated user using the Cryptomus provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      CreateStaticWalletRequest  true  "Wallet Creation Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      401   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/create-wallet [post]
 func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	// Get Active User
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -201,6 +232,15 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", staticWallet))
 }
 
+// fetchServices godoc
+// @Summary      Fetch Crypto Services
+// @Description  Retrieves a list of available cryptocurrency services from the Cryptomus provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/services [get]
 func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
@@ -229,6 +269,17 @@ func (c *CryptoAPI) fetchServices(ctx *gin.Context) {
 	}))
 }
 
+// GenerateQRCode godoc
+// @Summary      Generate QR Code
+// @Description  Generates a QR code for a specified wallet UUID using the Cryptomus provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      struct{WalletUUID uuid.UUID `json:"wallet_uuid"`}  true  "QR Code Generation Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/qr-code [post]
 func (c *CryptoAPI) GenerateQRCode(ctx *gin.Context) {
 	var req = struct {
 		WalletUUID uuid.UUID `json:"wallet_uuid"`
@@ -341,52 +392,37 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		// c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
 
 		// Handle USDT and USDC wallet funding
-		if payload.Currency == "USDT" || payload.Currency == "USDC" {
-			err = c.handleStablecoinFunding(ctx, &payload)
-			if err != nil {
-				c.server.logger.Error(fmt.Sprintf("stablecoin funding error: %v", err))
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to process stablecoin funding"))
-				return
-			}
-		} else {
-			// Handle regular crypto inflow
-			amountInSatoshis, err := decimal.NewFromString(payload.MerchantAmount)
-			if err != nil {
-				c.server.logger.Errorf("conversion error1: %v", err)
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-				return
-			}
-			amounRecieved, err := decimal.NewFromString(payload.MerchantAmount)
-			if err != nil {
-				c.server.logger.Errorf("conversion error2: %v", err)
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-				return
-			}
-			txid, err := uuid.Parse(payload.UUID)
-			if err != nil {
-				c.server.logger.Errorf("UUID conversion error3: %v", err)
-				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
-				return
-			}
-
-			cryptoTransaction := transaction.CryptoTransaction{
-				SourceHash:         payload.Sign,
-				DestinationAddress: payload.From,
-				AmountInSatoshis:   amountInSatoshis,
-				Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
-				Description:        "Crypto Inflow",
-				Type:               transaction.Deposit,
-				ReceivedAmount:     amounRecieved,
-				TransactionID:      txid,
-			}
-
-			_, err = c.transactionService.CreateCryptoInflowTransaction(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
-			if err != nil {
-				c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
-			}
+		// Handle regular crypto inflow
+		amountDec, err := decimal.NewFromString(payload.MerchantAmount)
+		if err != nil {
+			c.server.logger.Errorf("conversion error2: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+			return
+		}
+		txid, err := uuid.Parse(payload.UUID)
+		if err != nil {
+			c.server.logger.Errorf("UUID conversion error3: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
+			return
 		}
 
+		cryptoTransaction := transaction.CryptoTransaction{
+			SourceHash:         payload.Sign,
+			DestinationAddress: payload.From,
+			AmountInSatoshis:   amountDec,
+			Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
+			Description:        "Crypto Inflow",
+			Type:               transaction.Deposit,
+			ReceivedAmount:     amountDec,
+			TransactionID:      txid,
+		}
+
+		_, err = c.transactionService.CreateAllCryptoINflowTXs(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
+		if err != nil {
+			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+		}
 	}
+
 	ctx.JSON(http.StatusOK, gin.H{
 		"data":     res,
 		"order_id": payload.OrderID,
@@ -394,62 +430,18 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	})
 }
 
-func (c *CryptoAPI) handleStablecoinFunding(ctx *gin.Context, payload *cryptocurrency.WebhookPayload) error {
-	// Get the cryptomus address record
-	walletAddress, err := c.server.queries.GetCryptomusAddressByOrderID(ctx, payload.OrderID)
-	if err != nil {
-		return fmt.Errorf("failed to fetch cryptomus address: %v", err)
-	}
-
-	// Get user's stablecoin wallet (USDT or USDC)
-	walletParams := db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: walletAddress.CustomerID.Int64,
-		Currency:   payload.Currency, // This will be USDT or USDC
-	}
-
-	userStablecoinWallet, err := c.server.queries.GetWalletByCurrencyForUpdate(ctx, walletParams)
-	if err != nil {
-		return fmt.Errorf("failed to fetch %s wallet for customer (%v): %v",
-			payload.Currency, walletParams.CustomerID, err)
-	}
-
-	// Parse the amount received
-	amountReceived, err := decimal.NewFromString(payload.MerchantAmount)
-	if err != nil {
-		return fmt.Errorf("failed to parse amount: %v", err)
-	}
-
-	// Create stablecoin funding transaction
-	stablecoinTransaction := transaction.StablecoinFundingTransaction{
-		SourceHash:         payload.Sign,
-		DestinationAddress: payload.From,
-		AmountInSatoshis:   amountReceived,
-		Coin:               strings.ToUpper(payload.Currency),
-		Description:        fmt.Sprintf("%s Wallet Funding", payload.Currency),
-		Type:               transaction.Deposit,
-		ReceivedAmount:     amountReceived,
-		TransactionID:      uuid.MustParse(payload.UUID),
-		DestinationAccount: userStablecoinWallet.ID,
-	}
-
-	// Process the stablecoin funding transaction
-	_, err = c.transactionService.CreateStablecoinFundingTransaction(ctx, payload.OrderID, stablecoinTransaction, c.server.provider)
-	if err != nil {
-		return fmt.Errorf("failed to create stablecoin funding transaction: %v", err)
-	}
-
-	// Send notification to user
-	user, err := c.server.queries.GetUserByID(ctx, walletAddress.CustomerID.Int64)
-	if err == nil {
-		c.notifyr.Create(ctx, int32(user.ID),
-			"Successful Stablecoin Funding",
-			fmt.Sprintf("You have received %s %s in your %s wallet",
-				amountReceived.String(), payload.Currency, payload.Currency))
-	}
-
-	return nil
-}
-
+// GetCoinPriceHistory godoc
+// @Summary      Get Coin Price History
+// @Description  Retrieves historical price data for a specific cryptocurrency coin over a defined time period using the CoinRanking provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        coin        query     string  true   "Coin Symbol (e.g., BTC, ETH)"
+// @Param        timePeriod  query     string  false  "Time Period (e.g., 24h, 7d, 1m, 1y)"  default(24h)
+// @Success      200         {object}  basemodels.SuccessResponse
+// @Failure      400         {object}  basemodels.ErrorResponse
+// @Failure      500         {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/coin-price-data [get]
 func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 	coin := ctx.Query("coin")
 	timePeriod := ctx.DefaultQuery("timePeriod", "24h")
@@ -484,6 +476,15 @@ func (c *CryptoAPI) GetCoinPriceHistory(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin price data is successful", basemodels.NewSuccess("coin price data", historydata)))
 }
 
+// GetImages godoc
+// @Summary      Get Images
+// @Description  Retrieves a list of image filenames from the assets directory.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/images [get]
 func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 	files, err := os.ReadDir("./assets")
 	if err != nil {
@@ -502,6 +503,17 @@ func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
 }
 
+// TestCryptomusWebhookEndpoint godoc
+// @Summary      Test Cryptomus Webhook Endpoint
+// @Description  Triggers a test webhook to verify the Cryptomus webhook endpoint functionality.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      cryptocurrency.TestWebhookRequest  true  "Test Webhook Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/test-webhook [post]
 func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	var req cryptocurrency.TestWebhookRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -551,6 +563,17 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	})
 }
 
+// ResendWebhook godoc
+// @Summary      Resend Cryptomus Webhook
+// @Description  Resends a previously sent webhook notification using the Cryptomus provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      cryptocurrency.ResendWebhookRequest  true  "Resend Webhook Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/resend-webhook [post]
 func (c *CryptoAPI) ResendWebhook(ctx *gin.Context) {
 	var req cryptocurrency.ResendWebhookRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -592,6 +615,17 @@ func (c *CryptoAPI) ResendWebhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
 }
 
+// GetPaymentInfo godoc
+// @Summary      Get Payment Info
+// @Description  Retrieves payment information for a specific order using the Cryptomus provider.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      cryptocurrency.PaymentInfoRequest  true  "Payment Info Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/payment-info [post]
 func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 	var req cryptocurrency.PaymentInfoRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -639,6 +673,19 @@ type CreateStablecoinFundingAddressRequest struct {
 	Network  string `json:"network" binding:"required"`
 }
 
+// createStablecoinFundingAddress godoc
+// @Summary      Create Stablecoin Funding Address
+// @Description  Creates a stablecoin funding address for the authenticated user using the Cryptomus provider.
+// @Description  Supported stablecoins are USDT and USDC.
+// @Tags         Crypto
+// @Accept       json
+// @Produce      json
+// @Param        body  body      CreateStablecoinFundingAddressRequest  true  "Stablecoin Funding Address Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      401   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Router       /api/v1/crypto/create-stablecoin-wallet [post]
 func (c *CryptoAPI) createStablecoinFundingAddress(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -683,6 +730,7 @@ func (c *CryptoAPI) createStablecoinFundingAddress(ctx *gin.Context) {
 	}
 	orderID := utils.GenerateOrderID(dbUser.FirstName.String, dbUser.LastName.String)
 	callbackURL := fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
+	// callbackURL := "https://bb132a871d4b.ngrok-free.app/api/v1/crypto/webhook"
 
 	c.server.logger.Infof("orderid is %s \n and callbackurl is %s \n", orderID, callbackURL)
 
