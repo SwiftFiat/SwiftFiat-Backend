@@ -4696,6 +4696,1017 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/vault/admin/metrics": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get vault system metrics for admin dashboard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault-admin"
+                ],
+                "summary": "Get Vault Metrics (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/db.GetVaultsDashboardMetricsRow"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/admin/scheduler/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get current vault scheduler statistics",
+                "tags": [
+                    "vault-admin"
+                ],
+                "summary": "Get Scheduler Stats (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.SchedulerStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/admin/scheduler/trigger": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually trigger recurring deposits processing",
+                "tags": [
+                    "vault-admin"
+                ],
+                "summary": "Trigger Scheduler Now (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all vault savings goals for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "List User's Vault Goals",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by status (active, completed, paused)",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/vaultsavings.VaultSavingResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new savings goal with optional recurring deposits",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Create Vault Savings Goal",
+                "parameters": [
+                    {
+                        "description": "Create Goal Request",
+                        "name": "createGoalRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.CreateVaultGoalRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.VaultSavingResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get details of a specific vault savings goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Get Vault Goal Details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.VaultSavingResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update vault goal details (name, description, target amount)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Update Vault Goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Goal Request",
+                        "name": "updateGoalRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "description": {
+                                    "type": "string"
+                                },
+                                "goal_amount": {
+                                    "type": "string"
+                                },
+                                "name": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a vault goal (only if balance is zero)",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Delete Vault Goal",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/deposit": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Deposit funds from wallet to vault savings goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Deposit to Vault",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Deposit Request",
+                        "name": "depositRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "amount": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "from_wallet_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.DepositResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/progress": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get progress details for a specific vault goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Get Goal Progress",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.GetVaultGoalProgressResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/recurring": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update recurring deposit settings for a vault goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Update Recurring Rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update Recurring Request",
+                        "name": "updateRecurringRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.UpdateRecurringRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/recurring/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Pause automatic recurring deposits for a vault goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Pause Recurring Deposits",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/recurring/resume": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Resume automatic recurring deposits for a vault goal",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Resume Recurring Deposits",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get transaction history for a specific vault",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Get Vault Transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/vaultsavings.DepositResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/goals/{id}/withdraw": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Withdraw funds from vault savings goal to wallet",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Withdraw from Vault",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Vault Goal ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Withdraw Request",
+                        "name": "withdrawRequest",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "amount": {
+                                    "type": "string"
+                                },
+                                "description": {
+                                    "type": "string"
+                                },
+                                "to_wallet_id": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/vaultsavings.DepositResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get summary of all vaults for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Get Vault Summary",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/db.GetUserVaultsSummaryRow"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/vault/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all vault transactions for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "Get All Vault Transactions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/vaultsavings.DepositResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/wallets": {
             "get": {
                 "security": [
@@ -5734,6 +6745,46 @@ const docTemplate = `{
                 }
             }
         },
+        "db.GetUserVaultsSummaryRow": {
+            "type": "object",
+            "properties": {
+                "active_vaults": {
+                    "type": "integer"
+                },
+                "completed_vaults": {
+                    "type": "integer"
+                },
+                "total_ngn": {},
+                "total_usd": {},
+                "total_usdc": {},
+                "total_usdt": {},
+                "total_vaults": {
+                    "type": "integer"
+                },
+                "total_yield_earned": {}
+            }
+        },
+        "db.GetVaultsDashboardMetricsRow": {
+            "type": "object",
+            "properties": {
+                "average_vault_balance": {},
+                "deposits_last_30_days": {},
+                "new_users_last_30_days": {
+                    "type": "integer"
+                },
+                "total_active_vaults": {
+                    "type": "integer"
+                },
+                "total_ngn_locked": {},
+                "total_usd_locked": {},
+                "total_usdc_locked": {},
+                "total_usdt_locked": {},
+                "unique_users": {
+                    "type": "integer"
+                },
+                "withdrawals_last_30_days": {}
+            }
+        },
         "db.Referral": {
             "type": "object",
             "properties": {
@@ -6515,6 +7566,404 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "vaultsavings.CreateVaultGoalRequest": {
+            "type": "object",
+            "required": [
+                "currency",
+                "name",
+                "target_amount"
+            ],
+            "properties": {
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "NGN",
+                        "USD",
+                        "USDC",
+                        "USDT"
+                    ],
+                    "example": "NGN"
+                },
+                "description": {
+                    "type": "string",
+                    "example": "Saving for a trip to Hawaii"
+                },
+                "name": {
+                    "type": "string",
+                    "example": "Vacation Fund"
+                },
+                "recurring_rule": {
+                    "$ref": "#/definitions/vaultsavings.RecurringRule"
+                },
+                "target_amount": {
+                    "type": "string",
+                    "example": "5000.00"
+                },
+                "vault_type": {
+                    "type": "string",
+                    "default": "flexible",
+                    "enum": [
+                        "flexible",
+                        "locked"
+                    ]
+                }
+            }
+        },
+        "vaultsavings.DepositResponse": {
+            "type": "object",
+            "properties": {
+                "admin_approved_at": {
+                    "type": "string"
+                },
+                "admin_approved_by": {
+                    "type": "integer"
+                },
+                "amount": {
+                    "type": "string"
+                },
+                "approval_notes": {
+                    "type": "string"
+                },
+                "balance_after": {
+                    "type": "string"
+                },
+                "balance_before": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "destination_wallet": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "reference": {
+                    "type": "string"
+                },
+                "requires_2fa": {
+                    "type": "boolean"
+                },
+                "requires_admin_approval": {
+                    "type": "boolean"
+                },
+                "source_wallet": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "transaction_type": {
+                    "type": "string"
+                },
+                "two_fa_verified_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "vault_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "vaultsavings.GetVaultGoalProgressResponse": {
+            "type": "object",
+            "properties": {
+                "current_balance": {
+                    "type": "string"
+                },
+                "goal_amount": {
+                    "type": "string"
+                },
+                "goal_reached": {
+                    "type": "boolean"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "progress_percentage": {
+                    "type": "integer"
+                },
+                "vault_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "vaultsavings.Interval": {
+            "type": "string",
+            "enum": [
+                "daily",
+                "weekly",
+                "monthly"
+            ],
+            "x-enum-comments": {
+                "IntervalDaily": "Execute once per day",
+                "IntervalMonthly": "Execute once per month",
+                "IntervalWeekly": "Execute once per week"
+            },
+            "x-enum-descriptions": [
+                "Execute once per day",
+                "Execute once per week",
+                "Execute once per month"
+            ],
+            "x-enum-varnames": [
+                "IntervalDaily",
+                "IntervalWeekly",
+                "IntervalMonthly"
+            ]
+        },
+        "vaultsavings.RecurringRule": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "Amount is the deposit amount as a string to maintain precision.\nShould be a valid decimal number (e.g., \"100.00\", \"50\", \"25.50\").\nThis is the amount transferred from wallet to vault on each execution.",
+                    "type": "string",
+                    "example": "100.00"
+                },
+                "day_of_month": {
+                    "description": "DayOfMonth specifies which day for monthly intervals (optional).\nOnly used when Interval is \"monthly\".\nValid range: 1-31, or -1 for last day of month\nIf day doesn't exist (e.g., Feb 30), uses last valid day.\nExample: 1 = first of month, 15 = mid-month, -1 = last day",
+                    "type": "integer",
+                    "example": 15
+                },
+                "day_of_week": {
+                    "description": "DayOfWeek specifies which day for weekly intervals (optional).\nOnly used when Interval is \"weekly\".\nValues: Sunday=0, Monday=1, ..., Saturday=6\nExample: ptr(time.Friday) for deposits every Friday.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/vaultsavings.Weekday"
+                        }
+                    ],
+                    "example": 5
+                },
+                "enabled": {
+                    "description": "Enabled indicates whether recurring deposits are active.\nWhen false, the scheduler will skip this vault entirely.\nUsers can toggle this to pause/resume their auto-savings without losing configuration.",
+                    "type": "boolean"
+                },
+                "end_date": {
+                    "description": "EndDate is when recurring deposits should stop (optional).\nIf set, no executions will occur after this date.\nNil means deposits continue indefinitely until manually stopped.\nUseful for time-limited savings plans (e.g., \"save for 6 months\").",
+                    "type": "string",
+                    "example": "2024-12-31T00:00:00Z"
+                },
+                "execution_count": {
+                    "description": "ExecutionCount tracks how many times this rule has executed successfully.\nIncremented after each successful deposit.\nUsed with MaxExecutions to limit total number of deposits.\nUseful for analytics and debugging.",
+                    "type": "integer"
+                },
+                "interval": {
+                    "description": "Interval defines how frequently deposits occur.\nValid values: \"daily\", \"weekly\", \"monthly\"\nDetermines which calculation method is used for NextExecutionAt.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/vaultsavings.Interval"
+                        }
+                    ]
+                },
+                "last_execution_at": {
+                    "description": "LastExecutionAt records when the last successful deposit occurred (optional).\nUpdated after each successful execution.\nUseful for debugging, auditing, and showing users last activity.\nNil if never executed.",
+                    "type": "string"
+                },
+                "max_executions": {
+                    "description": "MaxExecutions limits total number of deposits (optional).\nWhen ExecutionCount reaches this value, rule becomes inactive.\nNil means unlimited executions.\nExample: ptr(12) for exactly 12 monthly deposits (1 year).",
+                    "type": "integer",
+                    "example": 12
+                },
+                "max_retries": {
+                    "description": "MaxRetries specifies maximum retry attempts for failed deposits.\nOnly used when RetryOnFailure is true.\nAfter MaxRetries failed attempts, execution is skipped and marked as failed.\nExample: 3 means try initial + 3 retries = 4 total attempts.",
+                    "type": "integer"
+                },
+                "metadata": {
+                    "description": "Metadata stores additional custom data for future features (optional).\nFree-form map for extension without schema changes.\nExamples:\n  - {\"campaign_id\": \"summer_savings\"}\n  - {\"goal_milestone\": 50}\n  - {\"user_note\": \"Emergency fund\"}\nNot used by core system, available for custom logic.",
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "next_execution_at": {
+                    "description": "NextExecutionAt is the calculated timestamp for the next deposit.\nAutomatically updated after each execution via CalculateNextExecution().\nScheduler checks this field to determine if execution is due.\nThis field is managed by the system, not user-configurable.",
+                    "type": "string"
+                },
+                "notify_on_failure": {
+                    "description": "NotifyOnFailure determines if user receives notification when deposits fail.\nWhen true, sends alert about failed deposit with reason.\nRecommended: true so users can address issues (low balance, etc.)\nImportant for debugging and user awareness.",
+                    "type": "boolean"
+                },
+                "notify_on_success": {
+                    "description": "NotifyOnSuccess determines if user receives notification after successful deposits.\nWhen true, triggers email and/or push notification.\nUseful for users who want confirmation of each auto-save.\nCan be disabled to reduce notification fatigue for frequent deposits.",
+                    "type": "boolean"
+                },
+                "pause_on_low_balance": {
+                    "description": "PauseOnLowBalance determines behavior when wallet has insufficient funds.\nWhen true: execution is skipped, rule remains enabled (will retry next cycle)\nWhen false: execution fails, may trigger failure notifications\nRecommended: true for better user experience (avoids failure emails for expected low balance)",
+                    "type": "boolean"
+                },
+                "retry_count": {
+                    "description": "RetryCount tracks current retry attempt for this execution cycle.\nIncremented on each retry, reset to 0 after successful execution.\nWhen this reaches MaxRetries, retries stop.\nManaged by the system during failure handling.",
+                    "type": "integer"
+                },
+                "retry_on_failure": {
+                    "description": "RetryOnFailure enables automatic retry of failed deposits.\nWhen true, failed deposits will be retried up to MaxRetries times.\nFailures may occur due to insufficient wallet balance, network issues, etc.\nHelps ensure deposits eventually succeed for transient failures.",
+                    "type": "boolean"
+                },
+                "skip_weekends": {
+                    "description": "SkipWeekends determines if Saturday/Sunday executions are postponed.\nWhen true and execution falls on weekend, moves to next Monday.\nUseful for mimicking payroll schedules or avoiding weekend processing.\nOnly affects calculated NextExecutionAt, not stored schedules",
+                    "type": "boolean"
+                },
+                "start_date": {
+                    "description": "StartDate is when recurring deposits should begin.\nExecutions will not occur before this date.\nUseful for scheduling future auto-savings (e.g., \"start next month\").",
+                    "type": "string",
+                    "example": "2024-07-01T00:00:00Z"
+                },
+                "time_of_day": {
+                    "description": "TimeOfDay specifies when deposits execute (format: \"HH:MM\").\nUses 24-hour format. Timezone is server timezone.\nExample: \"09:00\" = 9 AM, \"14:30\" = 2:30 PM, \"00:00\" = midnight\nApplied to all intervals (daily/weekly/monthly).",
+                    "type": "string",
+                    "example": "09:00"
+                }
+            }
+        },
+        "vaultsavings.SchedulerStats": {
+            "type": "object",
+            "properties": {
+                "active_recurring_rules": {
+                    "type": "integer"
+                },
+                "check_interval": {
+                    "type": "string"
+                },
+                "is_running": {
+                    "type": "boolean"
+                },
+                "last_check_time": {
+                    "type": "string"
+                },
+                "total_vaults_checked": {
+                    "type": "integer"
+                }
+            }
+        },
+        "vaultsavings.UpdateRecurringRuleRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "day_of_month": {
+                    "type": "integer"
+                },
+                "day_of_week": {
+                    "$ref": "#/definitions/vaultsavings.Weekday"
+                },
+                "enabled": {
+                    "type": "boolean"
+                },
+                "interval": {
+                    "$ref": "#/definitions/vaultsavings.Interval"
+                },
+                "max_executions": {
+                    "type": "integer"
+                },
+                "skip_weekends": {
+                    "type": "boolean"
+                },
+                "time_of_day": {
+                    "type": "string"
+                }
+            }
+        },
+        "vaultsavings.VaultSavingResponse": {
+            "type": "object",
+            "properties": {
+                "auto_save_amount": {
+                    "type": "string"
+                },
+                "auto_save_enabled": {
+                    "type": "boolean"
+                },
+                "auto_save_frequency": {
+                    "type": "string"
+                },
+                "completed_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "current_balance": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "goal_amount": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_yield_calculation": {
+                    "type": "string"
+                },
+                "next_auto_save": {
+                    "type": "string"
+                },
+                "next_yield_calculation": {
+                    "type": "string"
+                },
+                "recurring_rule": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "status": {
+                    "type": "string"
+                },
+                "total_yield_earned": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "vault_name": {
+                    "type": "string"
+                },
+                "vault_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "vaultsavings.Weekday": {
+            "type": "integer",
+            "enum": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7
+            ],
+            "x-enum-varnames": [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday"
+            ]
         }
     },
     "securityDefinitions": {

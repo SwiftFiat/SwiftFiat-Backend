@@ -8,10 +8,10 @@ import (
 )
 
 type ActivityLog struct {
-	store db.Store
+	store *db.Store
 }
 
-func NewActivityLog(store db.Store) *ActivityLog {
+func NewActivityLog(store *db.Store) *ActivityLog {
 	return &ActivityLog{
 		store: store,
 	}

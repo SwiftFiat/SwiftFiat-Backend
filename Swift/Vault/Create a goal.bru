@@ -1,0 +1,32 @@
+meta {
+  name: Create a goal
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/vault/goals
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "name": "Vacation",
+    "description": "Nairobi trip",
+    "target_amount": "10000",
+    "currency": "NGN",
+    "recurring_rule": {
+    
+  }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

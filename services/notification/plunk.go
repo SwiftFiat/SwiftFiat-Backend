@@ -277,10 +277,11 @@ func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, n
 	return nil
 }
 
-func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, reason string) error {
+func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, amount, currency, reason string) error {
 	return nil
 }
 
 func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
 	return nil
 }
+
