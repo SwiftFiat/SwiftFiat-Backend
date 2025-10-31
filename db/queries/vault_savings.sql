@@ -618,3 +618,28 @@ WHERE status = 'active'
   AND current_balance < goal_amount * 0.1  -- Less than 10% of goal
 ORDER BY (current_balance / NULLIF(goal_amount, 0)) ASC
 LIMIT $1;
+
+-- name: GetVaultsWithDueRecurringDeposits :many
+-- Get all vaults with recurring deposits that are due for execution
+SELECT *
+FROM vault_savings
+WHERE recurring_rule IS NOT NULL
+  AND recurring_rule->>'enabled' = 'true'
+  AND (recurring_rule->>'next_execution_at')::timestamptz <= $1::timestamptz
+  AND status = 'active'
+ORDER BY (recurring_rule->>'next_execution_at')::timestamptz ASC;
+
+-- name: GetVaultsWithActiveRecurringRules :many
+-- Get all vaults that have active recurring rules (for stats)
+SELECT *
+FROM vault_savings
+WHERE recurring_rule IS NOT NULL
+  AND recurring_rule->>'enabled' = 'true'
+  AND status = 'active';
+
+-- name: UpdateVaultRecurringRule :exec
+-- Update the recurring rule for a vault
+UPDATE vault_savings
+SET recurring_rule = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
