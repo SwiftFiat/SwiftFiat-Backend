@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	_ "github.com/SwiftFiat/SwiftFiat-Backend/docs" // This will be generated
@@ -16,10 +17,13 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
+	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
+	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-migrate/migrate/v4"
@@ -39,11 +43,15 @@ type Server struct {
 	config           *utils.Config
 	logger           *logging.Logger
 	taskScheduler    *tasks.TaskScheduler
+	vaultScheduler   *vaultsavings.VaultScheduler
+	vaultService     *vaultsavings.VaultService
 	provider         *providers.ProviderService
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
 	authMiddleware   *AuthMiddleware
-	emailService	 *service.Plunk
+	emailService     *service.Plunk
+	walletService    *wallet.WalletService
+	auditLog         *activitylogs.ActivityLog
 }
 
 func NewServer(envPath string) *Server {
@@ -77,7 +85,7 @@ func NewServer(envPath string) *Server {
 	l := logging.NewLogger()
 	p := providers.NewProviderService()
 	pn := service.NewPushNotificationService(l)
-	email  := service.NewPlunkService(c)
+	email := service.NewPlunkService(c)
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
@@ -117,6 +125,18 @@ func NewServer(envPath string) *Server {
 	TokenController = utils.NewJWTToken(c)
 	t := tasks.NewTaskScheduler(l)
 
+	// wallet
+	ws := wallet.NewWalletService(q, l)
+
+	// auditlogs
+	al := activitylogs.NewActivityLog(q)
+
+	// vault service
+	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, al)
+
+	// vault scheduler
+	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -149,7 +169,11 @@ func NewServer(envPath string) *Server {
 		redis:            r,
 		pushNotification: pn,
 		authMiddleware:   am,
-		emailService: email,
+		emailService:     email,
+		vaultScheduler:   vaultScheduler,
+		walletService:    ws,
+		auditLog:         al,
+		vaultService:     vs,
 	}
 }
 
@@ -179,6 +203,7 @@ func (s *Server) Start() error {
 	Bills{}.router(s)
 	Referral{}.router(s)
 	ActivityLog{}.router(s)
+	Vault{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

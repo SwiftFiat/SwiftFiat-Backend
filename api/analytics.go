@@ -23,7 +23,7 @@ type ActivityLog struct {
 
 func (h ActivityLog) router(server *Server) {
 	h.server = server
-	h.service = *activitylogs.NewActivityLog(*h.server.queries)
+	h.service = *activitylogs.NewActivityLog(h.server.queries)
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivityLogs)
