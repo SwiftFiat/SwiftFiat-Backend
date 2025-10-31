@@ -51,7 +51,7 @@ func (a Auth) router(server *Server) {
 	a.refRepo = referral.NewReferralRepository(server.queries)
 	a.notifr = service.NewNotificationService(server.queries)
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr)
-	a.activityTracker = activitylogs.NewActivityLog(*a.server.queries)
+	a.activityTracker = activitylogs.NewActivityLog(a.server.queries)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")

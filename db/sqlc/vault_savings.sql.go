@@ -2093,6 +2093,114 @@ func (q *Queries) GetVaultsDueForYieldCalculation(ctx context.Context, limit int
 	return items, nil
 }
 
+const getVaultsWithActiveRecurringRules = `-- name: GetVaultsWithActiveRecurringRules :many
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
+FROM vault_savings
+WHERE recurring_rule IS NOT NULL
+  AND recurring_rule->>'enabled' = 'true'
+  AND status = 'active'
+`
+
+// Get all vaults that have active recurring rules (for stats)
+func (q *Queries) GetVaultsWithActiveRecurringRules(ctx context.Context) ([]VaultSaving, error) {
+	rows, err := q.db.QueryContext(ctx, getVaultsWithActiveRecurringRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VaultSaving{}
+	for rows.Next() {
+		var i VaultSaving
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.VaultName,
+			&i.Description,
+			&i.GoalAmount,
+			&i.CurrentBalance,
+			&i.Currency,
+			&i.AutoSaveEnabled,
+			&i.AutoSaveFrequency,
+			&i.AutoSaveAmount,
+			&i.NextAutoSave,
+			&i.RecurringRule,
+			&i.TotalYieldEarned,
+			&i.NextYieldCalculation,
+			&i.LastYieldCalculation,
+			&i.Status,
+			&i.VaultType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getVaultsWithDueRecurringDeposits = `-- name: GetVaultsWithDueRecurringDeposits :many
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
+FROM vault_savings
+WHERE recurring_rule IS NOT NULL
+  AND recurring_rule->>'enabled' = 'true'
+  AND (recurring_rule->>'next_execution_at')::timestamptz <= $1::timestamptz
+  AND status = 'active'
+ORDER BY (recurring_rule->>'next_execution_at')::timestamptz ASC
+`
+
+// Get all vaults with recurring deposits that are due for execution
+func (q *Queries) GetVaultsWithDueRecurringDeposits(ctx context.Context, dollar_1 time.Time) ([]VaultSaving, error) {
+	rows, err := q.db.QueryContext(ctx, getVaultsWithDueRecurringDeposits, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VaultSaving{}
+	for rows.Next() {
+		var i VaultSaving
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.VaultName,
+			&i.Description,
+			&i.GoalAmount,
+			&i.CurrentBalance,
+			&i.Currency,
+			&i.AutoSaveEnabled,
+			&i.AutoSaveFrequency,
+			&i.AutoSaveAmount,
+			&i.NextAutoSave,
+			&i.RecurringRule,
+			&i.TotalYieldEarned,
+			&i.NextYieldCalculation,
+			&i.LastYieldCalculation,
+			&i.Status,
+			&i.VaultType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getVaultsWithLowBalance = `-- name: GetVaultsWithLowBalance :many
 SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE status = 'active'
@@ -2602,6 +2710,24 @@ func (q *Queries) UpdateVaultGoalDetails(ctx context.Context, arg UpdateVaultGoa
 		arg.Description,
 		arg.GoalAmount,
 	)
+	return err
+}
+
+const updateVaultRecurringRule = `-- name: UpdateVaultRecurringRule :exec
+UPDATE vault_savings
+SET recurring_rule = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+type UpdateVaultRecurringRuleParams struct {
+	ID            uuid.UUID             `json:"id"`
+	RecurringRule pqtype.NullRawMessage `json:"recurring_rule"`
+}
+
+// Update the recurring rule for a vault
+func (q *Queries) UpdateVaultRecurringRule(ctx context.Context, arg UpdateVaultRecurringRuleParams) error {
+	_, err := q.db.ExecContext(ctx, updateVaultRecurringRule, arg.ID, arg.RecurringRule)
 	return err
 }
 
