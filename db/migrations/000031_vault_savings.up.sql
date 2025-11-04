@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS "vault_savings" (
     "description" TEXT,
     "goal_amount" DECIMAL(19,4) DEFAULT 0,
     "current_balance" DECIMAL(19,4) DEFAULT 0,
+    "category" VARCHAR(100) NOT NULL,
     "currency" VARCHAR(4) NOT NULL DEFAULT 'USDT' CHECK (currency IN ('USDT', 'USDC', 'NGN', 'USD')),
     
     -- Auto-save configuration
@@ -66,10 +67,6 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
     -- Security & approval
     "requires_2fa" BOOLEAN DEFAULT FALSE,
     "two_fa_verified_at" TIMESTAMPTZ,
-    "requires_admin_approval" BOOLEAN DEFAULT FALSE,
-    "admin_approved_by" BIGINT REFERENCES users("id"),
-    "admin_approved_at" TIMESTAMPTZ,
-    "approval_notes" TEXT,
     
     -- Timestamps
     "completed_at" TIMESTAMPTZ,

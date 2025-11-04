@@ -72,6 +72,54 @@ const (
 	Sunday
 )
 
+type SavingsFrequency string
+
+const (
+	SavingsFrequencyDaily   SavingsFrequency = "daily"
+	SavingsFrequencyWeekly  SavingsFrequency = "weekly"
+	SavingsFrequencyMonthly SavingsFrequency = "monthly"
+)
+
+type SavingsType string
+
+const (
+	SavingsTypeFlexible SavingsType = "flexible"
+	SavingsTypeLocked   SavingsType = "locked"
+)
+
+type SavingsStatus string
+
+const (
+	SavingsStatusActive    SavingsStatus = "active"
+	SavingsStatusPaused    SavingsStatus = "paused"
+	SavingsStatusCancelled SavingsStatus = "cancelled"
+	SavingsStatusCompleted SavingsStatus = "completed"
+)
+
+type TransactionType string
+
+const (
+	TransactionTypeDeposit     TransactionType = "deposit"
+	TransactionTypeWithdrawal  TransactionType = "withdrawal"
+	TransactionTypeAutoSave    TransactionType = "auto_save"
+	TransactionTypeYieldCredit TransactionType = "yield_credit"
+)
+
+type TransactionStatus string
+
+const (
+	TransactionStatusPending   TransactionStatus = "pending"
+	TransactionStatusCompleted TransactionStatus = "completed"
+	TransactionStatusFailed    TransactionStatus = "failed"
+)
+
+type TransactionRequires2fa bool
+
+const (
+	TransactionRequires2faTrue  TransactionRequires2fa = true
+	TransactionRequires2faFalse TransactionRequires2fa = false
+)
+
 // ============================================================================
 // RECURRING RULE MODELS
 // ============================================================================
@@ -735,27 +783,23 @@ type DepositResponse struct {
 
 func MapVaultTxToDepositResponse(d *db.VaultTransaction) *DepositResponse {
 	return &DepositResponse{
-		ID:                    d.ID,
-		UserID:                d.UserID,
-		Amount:                d.Amount,
-		VaultID:               d.VaultID,
-		TransactionType:       d.TransactionType,
-		Currency:              d.Currency,
-		SourceWallet:          d.SourceWallet.UUID,
-		DestinationWallet:     d.DestinationWallet.UUID,
-		BalanceBefore:         d.BalanceBefore,
-		BalanceAfter:          d.BalanceAfter,
-		Reference:             d.Reference.String,
-		Description:           d.Description.String,
-		Metadata:              utils.UnmarshalMetadata(d.Metadata),
-		Status:                d.Status.String,
-		Requires2fa:           d.Requires2fa.Bool,
-		RequiresAdminApproval: d.RequiresAdminApproval.Bool,
-		AdminApprovedBy:       d.AdminApprovedBy.Int64,
-		AdminApprovedAt:       d.AdminApprovedAt.Time,
-		ApprovalNotes:         d.ApprovalNotes.String,
-		CompletedAt:           d.CompletedAt.Time,
-		CreatedAt:             d.CreatedAt,
+		ID:                d.ID,
+		UserID:            d.UserID,
+		Amount:            d.Amount,
+		VaultID:           d.VaultID,
+		TransactionType:   d.TransactionType,
+		Currency:          d.Currency,
+		SourceWallet:      d.SourceWallet.UUID,
+		DestinationWallet: d.DestinationWallet.UUID,
+		BalanceBefore:     d.BalanceBefore,
+		BalanceAfter:      d.BalanceAfter,
+		Reference:         d.Reference.String,
+		Description:       d.Description.String,
+		Metadata:          utils.UnmarshalMetadata(d.Metadata),
+		Status:            d.Status.String,
+		Requires2fa:       d.Requires2fa.Bool,
+		CompletedAt:       d.CompletedAt.Time,
+		CreatedAt:         d.CreatedAt,
 	}
 }
 
@@ -814,7 +858,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 
 	// Set default vault type
 	if req.VaultType == "" {
-		req.VaultType = "flexible"
+		req.VaultType = string(SavingsTypeFlexible)
 	}
 
 	var freq, amt string
@@ -844,7 +888,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		AutoSaveAmount:    nullString(amt),
 		NextAutoSave:      nextAuto,
 		RecurringRule:     recurring,
-		Status:            "active",
+		Status:            string(SavingsStatusActive),
 		VaultType:         req.VaultType,
 	}
 
@@ -995,19 +1039,18 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Create transaction record
 	txParams := db.CreateVaultTransactionParams{
-		UserID:                req.UserID,
-		VaultID:               req.VaultID,
-		TransactionType:       "deposit",
-		Amount:                req.Amount,
-		Currency:              req.Currency,
-		SourceWallet:          uuid.NullUUID{UUID: req.FromWalletID, Valid: true},
-		BalanceBefore:         vault.CurrentBalance.String,
-		BalanceAfter:          newVaultBalance.String(),
-		Reference:             sql.NullString{String: reference, Valid: true},
-		Description:           sql.NullString{String: req.Description, Valid: req.Description != ""},
-		Status:                nullString("completed"),
-		Requires2fa:           sql.NullBool{Bool: false, Valid: true},
-		RequiresAdminApproval: sql.NullBool{Bool: false, Valid: true},
+		UserID:          req.UserID,
+		VaultID:         req.VaultID,
+		TransactionType: string(TransactionTypeDeposit),
+		Amount:          req.Amount,
+		Currency:        req.Currency,
+		SourceWallet:    uuid.NullUUID{UUID: req.FromWalletID, Valid: true},
+		BalanceBefore:   vault.CurrentBalance.String,
+		BalanceAfter:    newVaultBalance.String(),
+		Reference:       sql.NullString{String: reference, Valid: true},
+		Description:     sql.NullString{String: req.Description, Valid: req.Description != ""},
+		Status:          nullString(string(TransactionStatusCompleted)),
+		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
 	}
 
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
@@ -1039,7 +1082,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		goalReached = true
 		if err := qtx.UpdateVaultStatus(ctx, db.UpdateVaultStatusParams{
 			ID:     req.VaultID,
-			Status: "completed",
+			Status: string(SavingsStatusCompleted),
 		}); err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to mark vault as completed: %v", err))
 		}
@@ -1058,6 +1101,13 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	}
 	_ = s.activityLogService.Create(ctx, auditParams)
 
+	progress := newVaultBalance.Div(goalAmount).Mul(decimal.NewFromInt(100)).String()
+
+	if progress == "" {
+		progress = "0"
+	}
+
+
 	// Get user for notifications
 	user, err := s.store.GetUserByID(ctx, req.UserID)
 	if err != nil {
@@ -1068,15 +1118,16 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 			bgCtx := context.Background()
 
 			if goalReached {
+				daysToComplete := int(time.Since(vault.CreatedAt).Hours() / 24)
 				if s.emailService != nil {
-					_ = s.emailService.SendGoalCompletedEmail(bgCtx, &user, vault.VaultName, goalAmount.String(), vault.Currency)
+					_ = s.emailService.SendGoalCompletedEmail(bgCtx, &user, vault.VaultName, goalAmount.String(), vault.Currency, fmt.Sprintf("%d days", daysToComplete))
 				}
 				if s.pushService != nil {
 					_ = s.pushService.SendGoalCompletedPush(bgCtx, req.UserID, vault.VaultName)
 				}
 			} else {
 				if s.emailService != nil {
-					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency)
+					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), fmt.Sprintf("%s%%", progress))
 				}
 				if s.pushService != nil {
 					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
@@ -1102,8 +1153,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Determine security requirements
-	requires2FA := amount.GreaterThan(decimal.NewFromInt(1000))            // $1,000 threshold
-	requiresAdminApproval := amount.GreaterThan(decimal.NewFromInt(10000)) // $10,000 threshold
+	requires2FA := amount.GreaterThan(decimal.NewFromInt(1000)) // $1,000 threshold
 
 	// Start transaction
 	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -1142,26 +1192,25 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Determine status
-	status := "completed"
-	if requires2FA || requiresAdminApproval {
-		status = "pending"
+	status := string(TransactionStatusCompleted)
+	if requires2FA {
+		status = string(TransactionStatusPending)
 	}
 
 	// Create transaction record
 	txParams := db.CreateVaultTransactionParams{
-		UserID:                req.UserID,
-		VaultID:               req.VaultID,
-		TransactionType:       "withdrawal",
-		Amount:                req.Amount,
-		Currency:              vault.Currency,
-		DestinationWallet:     uuid.NullUUID{UUID: req.ToWalletID, Valid: true},
-		BalanceBefore:         vault.CurrentBalance.String,
-		BalanceAfter:          newVaultBalance.String(),
-		Reference:             sql.NullString{String: reference, Valid: true},
-		Description:           sql.NullString{String: req.Description, Valid: req.Description != ""},
-		Status:                nullString(status),
-		Requires2fa:           nullBool(requires2FA),
-		RequiresAdminApproval: nullBool(requiresAdminApproval),
+		UserID:            req.UserID,
+		VaultID:           req.VaultID,
+		TransactionType:   string(TransactionTypeWithdrawal),
+		Amount:            req.Amount,
+		Currency:          vault.Currency,
+		DestinationWallet: uuid.NullUUID{UUID: req.ToWalletID, Valid: true},
+		BalanceBefore:     vault.CurrentBalance.String,
+		BalanceAfter:      newVaultBalance.String(),
+		Reference:         sql.NullString{String: reference, Valid: true},
+		Description:       sql.NullString{String: req.Description, Valid: req.Description != ""},
+		Status:            nullString(status),
+		Requires2fa:       nullBool(requires2FA),
 	}
 
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
@@ -1170,7 +1219,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Only update balances if not requiring approval
-	if status == "completed" {
+	if status == string(TransactionStatusCompleted) {
 		// Update vault balance
 		if err := qtx.DecrementVaultBalance(ctx, db.DecrementVaultBalanceParams{
 			ID:             req.VaultID,
@@ -1219,9 +1268,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 			bgCtx := context.Background()
 
 			if requires2FA && s.emailService != nil {
-				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, transaction.ID.String())
-			} else if requiresAdminApproval && s.emailService != nil {
-				_ = s.emailService.SendWithdrawalPendingApprovalEmail(bgCtx, &user, transaction.ID.String())
+				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, transaction.ID.String(), req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"))
 			} else {
 				if s.emailService != nil {
 					_ = s.emailService.SendWithdrawalSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, vault.Currency)
