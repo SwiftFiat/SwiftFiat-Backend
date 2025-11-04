@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftFiat - Vault Recurring Deposit Failed</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="email-wrapper">
+        <div class="email-header">
+            <div class="logo">SwiftFiat</div>
+            <div class="header-subtitle">Smart Savings, Secure Future</div>
+        </div>
+        
+        <div class="email-body">
+            <div class="icon">⚠️</div>
+
+            <h2 class="greeting">Recurring Deposit Failed, {{.FirstName}}</h2>
+
+            <p class="message">
+                We attempted to process your recurring deposit to "<strong>{{.VaultName}}</strong>" 
+                but it was unsuccessful. Don't worry - your vault and savings are safe.
+            </p>
+
+            <div class="card">
+                <div class="card-title">Failed Deposit Details</div>
+                <div class="detail-row">
+                    <span class="detail-label">Vault Name</span>
+                    <span class="detail-value">{{.VaultName}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Attempted Amount</span>
+                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Failure Reason</span>
+                    <span class="detail-value">{{.Reason}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Attempted At</span>
+                    <span class="detail-value">{{.AttemptedTime}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Next Attempt</span>
+                    <span class="detail-value">{{.NextAttemptDate}}</span>
+                </div>
+            </div>
+
+            <div class="alert alert-warning">
+                <strong>⚠️ Action Required:</strong><br>
+                {{.ActionMessage}}
+            </div>
+
+            <div style="text-align: center;">
+                <a href="{{.WalletURL}}" class="button">Add Funds to Wallet 💳</a>
+            </div>
+
+            <div class="alert alert-info">
+                <strong>💡 Common Solutions:</strong><br>
+                • <strong>Insufficient balance:</strong> Add funds to your {{.Currency}} wallet<br>
+                • <strong>Wallet locked:</strong> Contact support to unlock your account<br>
+                • <strong>System error:</strong> We'll automatically retry in 1 hour
+            </div>
+
+            <p class="message">
+                Your recurring deposit is still active and will be attempted again on the next scheduled time. 
+                No action needed if this was temporary!
+            </p>
+        </div>
+        
+        <div class="email-footer">
+            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
+            <div class="footer-links">
+                <a href="https://swiftfiat.com">Home</a>
+                <a href="https://swiftfiat.com/support">Support</a>
+                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
+            </div>
+            <div class="social-links">
+                <a href="#">📘</a>
+                <a href="#">🐦</a>
+                <a href="#">📷</a>
+            </div>
+            <p style="margin-top: 20px; color: #999;">
+                This is an automated message from SwiftFiat. Please do not reply to this email.
+            </p>
+            <p style="margin-top: 10px; font-size: 11px; color: #999;">
+                © {{.Year}} SwiftFiat. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

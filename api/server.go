@@ -44,7 +44,9 @@ type Server struct {
 	logger           *logging.Logger
 	taskScheduler    *tasks.TaskScheduler
 	vaultScheduler   *vaultsavings.VaultScheduler
+	yieldScheduler   *vaultsavings.YieldScheduler
 	vaultService     *vaultsavings.VaultService
+	yieldService     *vaultsavings.YieldService
 	provider         *providers.ProviderService
 	redis            *redis.RedisService
 	pushNotification *service.PushNotificationService
@@ -134,6 +136,11 @@ func NewServer(envPath string) *Server {
 	// vault service
 	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, al)
 
+	// vault yield service
+	ys := vaultsavings.NewYieldService(q, l, email, pn)
+
+	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 0)
+
 	// vault scheduler
 	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
 
@@ -174,6 +181,8 @@ func NewServer(envPath string) *Server {
 		walletService:    ws,
 		auditLog:         al,
 		vaultService:     vs,
+		yieldService:     ys,
+		yieldScheduler:   yieldScheduler,
 	}
 }
 
@@ -208,6 +217,19 @@ func (s *Server) Start() error {
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
 
+	// Start vault scheduler
+	if s.vaultScheduler != nil {
+		if err := s.vaultScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start vault scheduler", "error", err)
+		}
+	}
+
+	if s.yieldScheduler != nil {
+		if err := s.yieldScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
+		}
+	}                                           
+
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
 }
@@ -218,6 +240,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	var shutdownErr error
 
 	go func() {
+		// Stop vault scheduler first
+		if s.vaultScheduler != nil {
+			if err := s.vaultScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping vault scheduler", "error", err)
+			}
+		}
+
+		if s.yieldScheduler != nil {
+			if err := s.yieldScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
+			}
+		}
+
+
 		// Close Redis connection with context awareness
 		if err := s.redis.Close(); err != nil {
 			s.logger.Error("Error closing Redis connection", "error", err)

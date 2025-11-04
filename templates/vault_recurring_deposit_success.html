@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftFiat - Vault Recurring Deposit Success</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="email-wrapper">
+        <div class="email-header">
+            <div class="logo">SwiftFiat</div>
+            <div class="header-subtitle">Smart Savings, Secure Future</div>
+        </div>
+        
+        <div class="email-body">
+            <div class="icon">🔄</div>
+
+            <h2 class="greeting">Recurring Deposit Successful! 💰</h2>
+
+            <p class="message">
+                Great news, {{.FirstName}}! Your automated recurring deposit to 
+                "<strong>{{.VaultName}}</strong>" has been processed successfully.
+            </p>
+
+            <div class="amount-highlight">
+                +{{.Amount}} <span class="currency">{{.Currency}}</span>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Recurring Deposit Details</div>
+                <div class="detail-row">
+                    <span class="detail-label">Vault Name</span>
+                    <span class="detail-value">{{.VaultName}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Amount Deposited</span>
+                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">New Balance</span>
+                    <span class="detail-value">{{.NewBalance}} {{.Currency}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Frequency</span>
+                    <span class="detail-value">{{.Frequency}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Next Deposit</span>
+                    <span class="detail-value">{{.NextDepositDate}}</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Total Deposits</span>
+                    <span class="detail-value">{{.TotalDeposits}}</span>
+                </div>
+            </div>
+
+            <!-- <div class="progress-bar-container">
+                <div class="progress-bar" style="width: {{.Progress}}%;">
+                    {{.Progress}}% Complete
+                </div>
+            </div> -->
+
+            <div style="text-align: center;">
+                <a href="{{.VaultURL}}" class="button">View Progress 📈</a>
+            </div>
+
+            <div class="alert alert-success">
+                <strong>🎯 You're on track!</strong><br>
+                You've made {{.TotalDeposits}} automated deposits. Keep it up and you'll reach 
+                your goal in {{.EstimatedMonths}} months!
+            </div>
+
+            <p class="message">
+                Consistency is key! Your automated savings strategy is working perfectly.
+            </p>
+        </div>
+        
+        <div class="email-footer">
+            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
+            <div class="footer-links">
+                <a href="https://swiftfiat.com">Home</a>
+                <a href="https://swiftfiat.com/support">Support</a>
+                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
+            </div>
+            <div class="social-links">
+                <a href="#">📘</a>
+                <a href="#">🐦</a>
+                <a href="#">📷</a>
+            </div>
+            <p style="margin-top: 20px; color: #999;">
+                This is an automated message from SwiftFiat. Please do not reply to this email.
+            </p>
+            <p style="margin-top: 10px; font-size: 11px; color: #999;">
+                © {{.Date}} SwiftFiat. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
