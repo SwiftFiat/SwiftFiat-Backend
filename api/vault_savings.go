@@ -1036,7 +1036,7 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 // @Param id path string true "Vault ID"
 // @Param limit query int false "Limit" default(20)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {object} basemodels.SuccessResponse{data=[]db.VaultYield}
+// @Success 200 {object} basemodels.SuccessResponse{data=[]vaultsavings.VaultYieldResponse}
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
@@ -1090,7 +1090,12 @@ func (v *Vault) getYieldHistory(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield history retrieved", yields))
+	yieldsResponse := make([]vaultsavings.VaultYieldResponse, len(yields))
+	for i, y := range yields {
+		yieldsResponse[i] = *vaultsavings.MapVaultYieldToResponse(&y)
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield history retrieved", yieldsResponse))
 }
 
 // getYieldProjection godoc
@@ -1102,7 +1107,7 @@ func (v *Vault) getYieldHistory(ctx *gin.Context) {
 // @Security BearerAuth
 // @Param id path string true "Vault ID"
 // @Param days query int false "Projection period in days" default(30)
-// @Success 200 {object} basemodels.SuccessResponse{data=vault.YieldProjection}
+// @Success 200 {object} basemodels.SuccessResponse{data=vaultsavings.YieldProjection}
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
@@ -1225,7 +1230,7 @@ func (v *Vault) getYieldSummary(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} basemodels.SuccessResponse{data=[]db.VaultYieldConfig}
+// @Success 200 {object} basemodels.SuccessResponse{data=[]vaultsavings.VaultYieldConfigResponse}
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs [get]
@@ -1249,7 +1254,12 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield configs retrieved", configs))
+	configsResponse := make([]vaultsavings.VaultYieldConfigResponse, len(configs))
+	for i, c := range configs {
+		configsResponse[i] = *vaultsavings.MapVaultYieldConfigToResponse(&c)
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield configs retrieved", configsResponse))
 }
 
 // createYieldConfig godoc
@@ -1260,7 +1270,7 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param createYieldConfigRequest body db.CreateYieldConfigParams true "Yield Config"
-// @Success 201 {object} basemodels.SuccessResponse{data=db.VaultYieldConfig}
+// @Success 201 {object} basemodels.SuccessResponse{data=vaultsavings.VaultYieldConfigResponse}
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
@@ -1299,7 +1309,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", config))
+	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", *vaultsavings.MapVaultYieldConfigToResponse(config)))
 }
 
 // updateYieldConfig godoc

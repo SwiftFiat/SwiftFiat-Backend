@@ -41,6 +41,36 @@ func NewYieldService(
 	}
 }
 
+type VaultYieldResponse struct {
+	ID                     uuid.UUID `json:"id"`
+	UserID                 int64     `json:"user_id"`
+	VaultID                uuid.UUID `json:"vault_id"`
+	YieldAmount            string    `json:"yield_amount"`
+	YieldRate              string    `json:"yield_rate"`
+	CalculationPeriodStart time.Time `json:"calculation_period_start"`
+	CalculationPeriodEnd   time.Time `json:"calculation_period_end"`
+	VaultBalanceSnapshot   string    `json:"vault_balance_snapshot"`
+	Status                 string    `json:"status"`
+	CreditedAt             time.Time `json:"credited_at"`
+	CreatedAt              time.Time `json:"created_at"`
+}
+
+func MapVaultYieldToResponse(v *db.VaultYield) *VaultYieldResponse {
+	return &VaultYieldResponse{
+		ID:                     v.ID,
+		UserID:                 v.UserID,
+		VaultID:                v.VaultID,
+		YieldAmount:            v.YieldAmount,
+		YieldRate:              v.YieldRate,
+		CalculationPeriodStart: v.CalculationPeriodStart,
+		CalculationPeriodEnd:   v.CalculationPeriodEnd,
+		VaultBalanceSnapshot:   v.VaultBalanceSnapshot,
+		Status:                 v.Status.String,
+		CreditedAt:             v.CreditedAt.Time,
+		CreatedAt:              v.CreatedAt,
+	}
+}
+
 // ============================================================================
 // YIELD CALCULATION MODELS
 // ============================================================================
@@ -284,17 +314,17 @@ func (ys *YieldService) creditYieldToVault(
 	balanceAfter := newBalance.StringFixed(4)
 
 	_, err = qtx.CreateVaultTransaction(ctx, db.CreateVaultTransactionParams{
-		UserID:                vault.UserID,
-		VaultID:               vault.ID,
-		TransactionType:       string(TransactionTypeYieldCredit),
-		Amount:                result.YieldAmount,
-		Currency:              vault.Currency,
-		BalanceBefore:         balanceBefore.String,
-		BalanceAfter:          balanceAfter,
-		Reference:             nullString(transactionRef),
-		Description:           nullString((fmt.Sprintf("Yield earned: %s%% APY for %d days", config.ApyRate, result.DaysInPeriod))),
-		Status:                nullString(string(TransactionStatusCompleted)),
-		Requires2fa:           nullBool(false),
+		UserID:          vault.UserID,
+		VaultID:         vault.ID,
+		TransactionType: string(TransactionTypeYieldCredit),
+		Amount:          result.YieldAmount,
+		Currency:        vault.Currency,
+		BalanceBefore:   balanceBefore.String,
+		BalanceAfter:    balanceAfter,
+		Reference:       nullString(transactionRef),
+		Description:     nullString((fmt.Sprintf("Yield earned: %s%% APY for %d days", config.ApyRate, result.DaysInPeriod))),
+		Status:          nullString(string(TransactionStatusCompleted)),
+		Requires2fa:     nullBool(false),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create transaction: %w", err)
@@ -503,6 +533,35 @@ func (ys *YieldService) GetYieldProjection(ctx context.Context, vaultID uuid.UUI
 // YIELD CONFIG MANAGEMENT
 // ============================================================================
 
+type VaultYieldConfigResponse struct {
+	ID                 uuid.UUID      `json:"id"`
+	Currency           string         `json:"currency"`
+	ApyRate            string         `json:"apy_rate"`
+	MinBalanceForYield string         `json:"min_balance_for_yield"`
+	CompoundFrequency  string         `json:"compound_frequency"`
+	IsActive           bool           `json:"is_active"`
+	EffectiveFrom      time.Time      `json:"effective_from"`
+	EffectiveUntil     time.Time      `json:"effective_until"`
+	Notes              string         `json:"notes"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+func MapVaultYieldConfigToResponse(v *db.VaultYieldConfig) *VaultYieldConfigResponse {
+	return &VaultYieldConfigResponse{
+		ID:                 v.ID,
+		Currency:           v.Currency,
+		ApyRate:            v.ApyRate,
+		MinBalanceForYield: v.MinBalanceForYield,
+		CompoundFrequency:  v.CompoundFrequency.String,
+		IsActive:           v.IsActive,
+		EffectiveFrom:      v.EffectiveFrom,
+		EffectiveUntil:     v.EffectiveUntil.Time,
+		Notes:              v.Notes.String,
+		CreatedAt:          v.CreatedAt,
+		UpdatedAt:          v.UpdatedAt,
+	}
+}
 // CreateYieldConfig creates a new yield configuration
 func (ys *YieldService) CreateYieldConfig(ctx context.Context, params db.CreateYieldConfigParams) (*db.VaultYieldConfig, error) {
 	ys.logger.Info(fmt.Sprintf("Creating yield config for %s: %s%% APY", params.Currency, params.ApyRate))
