@@ -255,33 +255,229 @@ func (s *Plunk) SendAdminRegistrationEmail(user *db.User, twoFASecret, twoFAQRCo
 // ==========================================================
 // Vault Savings
 // ==========================================================
-func (s *Plunk) SendGoalCreatedEmail(ctx context.Context, user *db.User, vaultName, currency, target_amount string) error{
+func (s *Plunk) SendGoalCreatedEmail(ctx context.Context, user *db.User, vaultName, currency, target_amount string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    vaultName,
+		"Currency":     currency,
+		"TargetAmount": target_amount,
+		"CreatedDate":  time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/goal_created.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault goal created email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Goal Created"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault goal created email: %v", err)
+	}
+
 	return nil
 }
 
-func (s *Plunk) SendGoalCompletedEmail(ctx context.Context, user *db.User, name, goalAmount, currency string) error {return  nil}
+func (s *Plunk) SendGoalCompletedEmail(ctx context.Context, user *db.User, name, goalAmount, currency, daysToComplete string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"GoalAmount":   goalAmount,
+		"CompletedDate": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"DaysToComplete": daysToComplete,
+		"Year":         time.Now().Year(),
+	}
 
-func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name, goalAmount, currency string) error {
+	body, err := utils.RenderEmailTemplate("templates/goal_completed.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault goal completed email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Goal Completed"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault goal completed email: %v", err)
+	}
+
 	return nil
 }
 
-func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.User, txID string) error {
+func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency, newBalance, progress string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"Amount":   amount,
+		"NewBalance":   newBalance,
+		"Progress":     progress,
+		"TransactionTime": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/goal_deposit_success.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault goal deposit success email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Goal Deposit Success"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault goal deposit success email: %v", err)
+	}
+
 	return nil
 }
 
-func (s *Plunk) SendWithdrawalPendingApprovalEmail(ctx context.Context, user *db.User, txID string) error {
+func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.User, txID, amount, currency, initiatedTime string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"TransactionID": txID,
+		"Amount":        amount,
+		"Currency":      currency,
+		"InitiatedTime": initiatedTime,
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/vault_withdrawal_2fa_required.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault withdrawal 2FA required email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Withdrawal 2FA Required"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault withdrawal 2FA required email: %v", err)
+	}
+
 	return nil
 }
 
 func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"Amount":       amount,
+		"CompletedTime": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/vault_withdrawal_success.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault withdrawal success email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Withdrawal Success"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault withdrawal success email: %v", err)
+	}
+
 	return nil
 }
 
 func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, amount, currency, reason string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"Amount":       amount,
+		"Reason":       reason,
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/vault_recurring_deposit_failed.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault recurring deposit failed email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Recurring Deposit Failed"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault recurring deposit failed email: %v", err)
+	}
+
 	return nil
 }
 
 func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"Amount":       amount,
+		"CompletedTime": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/vault_recurring_deposit_success.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault recurring deposit success email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Recurring Deposit Success"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault recurring deposit success email: %v", err)
+	}
+
 	return nil
 }
 
+func (s *Plunk) SendYieldCredited(ctx context.Context, user *db.User, name, amount, currency, balance string) error {
+	tplData := map[string]any{
+		"FirstName":    user.FirstName.String,
+		"VaultName":    name,
+		"Currency":     currency,
+		"Amount":       amount,
+		"Balance":      balance,
+		"Year":         time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/vault_yield_credited.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render vault yield credited email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Yield Credited"
+	if err := emailService.SendEmail(user.Email, subject, body); err != nil {
+		return fmt.Errorf("failed to send vault yield credited email: %v", err)
+	}
+
+	return nil
+}

@@ -185,3 +185,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Context, userID int64, name, reason string) error {
 	return nil
 }
+
+func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID int64, name, amount, currency string) error {
+	return nil
+}

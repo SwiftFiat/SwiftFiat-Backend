@@ -428,28 +428,24 @@ type VaultSaving struct {
 }
 
 type VaultTransaction struct {
-	ID                    uuid.UUID             `json:"id"`
-	UserID                int64                 `json:"user_id"`
-	VaultID               uuid.UUID             `json:"vault_id"`
-	TransactionType       string                `json:"transaction_type"`
-	Amount                string                `json:"amount"`
-	Currency              string                `json:"currency"`
-	SourceWallet          uuid.NullUUID         `json:"source_wallet"`
-	DestinationWallet     uuid.NullUUID         `json:"destination_wallet"`
-	BalanceBefore         string                `json:"balance_before"`
-	BalanceAfter          string                `json:"balance_after"`
-	Reference             sql.NullString        `json:"reference"`
-	Description           sql.NullString        `json:"description"`
-	Metadata              pqtype.NullRawMessage `json:"metadata"`
-	Status                sql.NullString        `json:"status"`
-	Requires2fa           sql.NullBool          `json:"requires_2fa"`
-	TwoFaVerifiedAt       sql.NullTime          `json:"two_fa_verified_at"`
-	RequiresAdminApproval sql.NullBool          `json:"requires_admin_approval"`
-	AdminApprovedBy       sql.NullInt64         `json:"admin_approved_by"`
-	AdminApprovedAt       sql.NullTime          `json:"admin_approved_at"`
-	ApprovalNotes         sql.NullString        `json:"approval_notes"`
-	CompletedAt           sql.NullTime          `json:"completed_at"`
-	CreatedAt             time.Time             `json:"created_at"`
+	ID                uuid.UUID             `json:"id"`
+	UserID            int64                 `json:"user_id"`
+	VaultID           uuid.UUID             `json:"vault_id"`
+	TransactionType   string                `json:"transaction_type"`
+	Amount            string                `json:"amount"`
+	Currency          string                `json:"currency"`
+	SourceWallet      uuid.NullUUID         `json:"source_wallet"`
+	DestinationWallet uuid.NullUUID         `json:"destination_wallet"`
+	BalanceBefore     string                `json:"balance_before"`
+	BalanceAfter      string                `json:"balance_after"`
+	Reference         sql.NullString        `json:"reference"`
+	Description       sql.NullString        `json:"description"`
+	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	Status            sql.NullString        `json:"status"`
+	Requires2fa       sql.NullBool          `json:"requires_2fa"`
+	TwoFaVerifiedAt   sql.NullTime          `json:"two_fa_verified_at"`
+	CompletedAt       sql.NullTime          `json:"completed_at"`
+	CreatedAt         time.Time             `json:"created_at"`
 }
 
 type VaultYield struct {

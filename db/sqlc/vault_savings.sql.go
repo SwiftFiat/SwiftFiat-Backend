@@ -15,27 +15,6 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
-const approveTransactionByAdmin = `-- name: ApproveTransactionByAdmin :exec
-UPDATE vault_transactions
-SET admin_approved_by = $2,
-    admin_approved_at = NOW(),
-    approval_notes = $3,
-    status = 'completed',
-    completed_at = NOW()
-WHERE id = $1 AND requires_admin_approval = TRUE
-`
-
-type ApproveTransactionByAdminParams struct {
-	ID              uuid.UUID      `json:"id"`
-	AdminApprovedBy sql.NullInt64  `json:"admin_approved_by"`
-	ApprovalNotes   sql.NullString `json:"approval_notes"`
-}
-
-func (q *Queries) ApproveTransactionByAdmin(ctx context.Context, arg ApproveTransactionByAdminParams) error {
-	_, err := q.db.ExecContext(ctx, approveTransactionByAdmin, arg.ID, arg.AdminApprovedBy, arg.ApprovalNotes)
-	return err
-}
-
 const batchUpdateVaultBalances = `-- name: BatchUpdateVaultBalances :exec
 
 UPDATE vault_savings
@@ -175,29 +154,27 @@ INSERT INTO vault_transactions (
     description,
     metadata,
     status,
-    requires_2fa,
-    requires_admin_approval
+    requires_2fa
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-) RETURNING id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+) RETURNING id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at
 `
 
 type CreateVaultTransactionParams struct {
-	UserID                int64                 `json:"user_id"`
-	VaultID               uuid.UUID             `json:"vault_id"`
-	TransactionType       string                `json:"transaction_type"`
-	Amount                string                `json:"amount"`
-	Currency              string                `json:"currency"`
-	SourceWallet          uuid.NullUUID         `json:"source_wallet"`
-	DestinationWallet     uuid.NullUUID         `json:"destination_wallet"`
-	BalanceBefore         string                `json:"balance_before"`
-	BalanceAfter          string                `json:"balance_after"`
-	Reference             sql.NullString        `json:"reference"`
-	Description           sql.NullString        `json:"description"`
-	Metadata              pqtype.NullRawMessage `json:"metadata"`
-	Status                sql.NullString        `json:"status"`
-	Requires2fa           sql.NullBool          `json:"requires_2fa"`
-	RequiresAdminApproval sql.NullBool          `json:"requires_admin_approval"`
+	UserID            int64                 `json:"user_id"`
+	VaultID           uuid.UUID             `json:"vault_id"`
+	TransactionType   string                `json:"transaction_type"`
+	Amount            string                `json:"amount"`
+	Currency          string                `json:"currency"`
+	SourceWallet      uuid.NullUUID         `json:"source_wallet"`
+	DestinationWallet uuid.NullUUID         `json:"destination_wallet"`
+	BalanceBefore     string                `json:"balance_before"`
+	BalanceAfter      string                `json:"balance_after"`
+	Reference         sql.NullString        `json:"reference"`
+	Description       sql.NullString        `json:"description"`
+	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	Status            sql.NullString        `json:"status"`
+	Requires2fa       sql.NullBool          `json:"requires_2fa"`
 }
 
 // ============================================================================
@@ -219,7 +196,6 @@ func (q *Queries) CreateVaultTransaction(ctx context.Context, arg CreateVaultTra
 		arg.Metadata,
 		arg.Status,
 		arg.Requires2fa,
-		arg.RequiresAdminApproval,
 	)
 	var i VaultTransaction
 	err := row.Scan(
@@ -239,10 +215,6 @@ func (q *Queries) CreateVaultTransaction(ctx context.Context, arg CreateVaultTra
 		&i.Status,
 		&i.Requires2fa,
 		&i.TwoFaVerifiedAt,
-		&i.RequiresAdminApproval,
-		&i.AdminApprovedBy,
-		&i.AdminApprovedAt,
-		&i.ApprovalNotes,
 		&i.CompletedAt,
 		&i.CreatedAt,
 	)
@@ -626,7 +598,7 @@ func (q *Queries) GetAllActiveYieldConfigs(ctx context.Context) ([]VaultYieldCon
 }
 
 const getPendingVaultTransactions = `-- name: GetPendingVaultTransactions :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE status = 'pending'
 ORDER BY created_at ASC
 `
@@ -657,10 +629,6 @@ func (q *Queries) GetPendingVaultTransactions(ctx context.Context) ([]VaultTrans
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
 		); err != nil {
@@ -879,7 +847,7 @@ func (q *Queries) GetTotalYieldEarned(ctx context.Context, vaultID uuid.UUID) (i
 }
 
 const getTransactionsRequiring2FA = `-- name: GetTransactionsRequiring2FA :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE requires_2fa = TRUE
   AND two_fa_verified_at IS NULL
   AND status = 'pending'
@@ -913,97 +881,8 @@ func (q *Queries) GetTransactionsRequiring2FA(ctx context.Context, userID int64)
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTransactionsRequiringAdminApproval = `-- name: GetTransactionsRequiringAdminApproval :many
-SELECT vt.id, vt.user_id, vt.vault_id, vt.transaction_type, vt.amount, vt.currency, vt.source_wallet, vt.destination_wallet, vt.balance_before, vt.balance_after, vt.reference, vt.description, vt.metadata, vt.status, vt.requires_2fa, vt.two_fa_verified_at, vt.requires_admin_approval, vt.admin_approved_by, vt.admin_approved_at, vt.approval_notes, vt.completed_at, vt.created_at, vs.vault_name, vs.currency
-FROM vault_transactions vt
-JOIN vault_savings vs ON vt.vault_id = vs.id
-WHERE vt.requires_admin_approval = TRUE
-  AND vt.admin_approved_at IS NULL
-  AND vt.status = 'pending'
-ORDER BY vt.created_at ASC
-`
-
-type GetTransactionsRequiringAdminApprovalRow struct {
-	ID                    uuid.UUID             `json:"id"`
-	UserID                int64                 `json:"user_id"`
-	VaultID               uuid.UUID             `json:"vault_id"`
-	TransactionType       string                `json:"transaction_type"`
-	Amount                string                `json:"amount"`
-	Currency              string                `json:"currency"`
-	SourceWallet          uuid.NullUUID         `json:"source_wallet"`
-	DestinationWallet     uuid.NullUUID         `json:"destination_wallet"`
-	BalanceBefore         string                `json:"balance_before"`
-	BalanceAfter          string                `json:"balance_after"`
-	Reference             sql.NullString        `json:"reference"`
-	Description           sql.NullString        `json:"description"`
-	Metadata              pqtype.NullRawMessage `json:"metadata"`
-	Status                sql.NullString        `json:"status"`
-	Requires2fa           sql.NullBool          `json:"requires_2fa"`
-	TwoFaVerifiedAt       sql.NullTime          `json:"two_fa_verified_at"`
-	RequiresAdminApproval sql.NullBool          `json:"requires_admin_approval"`
-	AdminApprovedBy       sql.NullInt64         `json:"admin_approved_by"`
-	AdminApprovedAt       sql.NullTime          `json:"admin_approved_at"`
-	ApprovalNotes         sql.NullString        `json:"approval_notes"`
-	CompletedAt           sql.NullTime          `json:"completed_at"`
-	CreatedAt             time.Time             `json:"created_at"`
-	VaultName             string                `json:"vault_name"`
-	Currency_2            string                `json:"currency_2"`
-}
-
-func (q *Queries) GetTransactionsRequiringAdminApproval(ctx context.Context) ([]GetTransactionsRequiringAdminApprovalRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTransactionsRequiringAdminApproval)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetTransactionsRequiringAdminApprovalRow{}
-	for rows.Next() {
-		var i GetTransactionsRequiringAdminApprovalRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.VaultID,
-			&i.TransactionType,
-			&i.Amount,
-			&i.Currency,
-			&i.SourceWallet,
-			&i.DestinationWallet,
-			&i.BalanceBefore,
-			&i.BalanceAfter,
-			&i.Reference,
-			&i.Description,
-			&i.Metadata,
-			&i.Status,
-			&i.Requires2fa,
-			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
-			&i.CompletedAt,
-			&i.CreatedAt,
-			&i.VaultName,
-			&i.Currency_2,
 		); err != nil {
 			return nil, err
 		}
@@ -1417,7 +1296,7 @@ func (q *Queries) GetVaultHealthCheck(ctx context.Context) ([]GetVaultHealthChec
 }
 
 const getVaultTransactionByID = `-- name: GetVaultTransactionByID :one
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE id = $1
 `
 
@@ -1441,10 +1320,6 @@ func (q *Queries) GetVaultTransactionByID(ctx context.Context, id uuid.UUID) (Va
 		&i.Status,
 		&i.Requires2fa,
 		&i.TwoFaVerifiedAt,
-		&i.RequiresAdminApproval,
-		&i.AdminApprovedBy,
-		&i.AdminApprovedAt,
-		&i.ApprovalNotes,
 		&i.CompletedAt,
 		&i.CreatedAt,
 	)
@@ -1452,7 +1327,7 @@ func (q *Queries) GetVaultTransactionByID(ctx context.Context, id uuid.UUID) (Va
 }
 
 const getVaultTransactionByReference = `-- name: GetVaultTransactionByReference :one
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE reference = $1
 `
 
@@ -1476,10 +1351,6 @@ func (q *Queries) GetVaultTransactionByReference(ctx context.Context, reference 
 		&i.Status,
 		&i.Requires2fa,
 		&i.TwoFaVerifiedAt,
-		&i.RequiresAdminApproval,
-		&i.AdminApprovedBy,
-		&i.AdminApprovedAt,
-		&i.ApprovalNotes,
 		&i.CompletedAt,
 		&i.CreatedAt,
 	)
@@ -1528,7 +1399,7 @@ func (q *Queries) GetVaultTransactionStats(ctx context.Context, vaultID uuid.UUI
 }
 
 const getVaultTransactionsByDateRange = `-- name: GetVaultTransactionsByDateRange :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE vault_id = $1
   AND created_at BETWEEN $2 AND $3
 ORDER BY created_at DESC
@@ -1566,10 +1437,6 @@ func (q *Queries) GetVaultTransactionsByDateRange(ctx context.Context, arg GetVa
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
 		); err != nil {
@@ -1587,7 +1454,7 @@ func (q *Queries) GetVaultTransactionsByDateRange(ctx context.Context, arg GetVa
 }
 
 const getVaultTransactionsByType = `-- name: GetVaultTransactionsByType :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE vault_id = $1 AND transaction_type = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -1631,10 +1498,6 @@ func (q *Queries) GetVaultTransactionsByType(ctx context.Context, arg GetVaultTr
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
 		); err != nil {
@@ -1652,7 +1515,7 @@ func (q *Queries) GetVaultTransactionsByType(ctx context.Context, arg GetVaultTr
 }
 
 const getVaultTransactionsByUserID = `-- name: GetVaultTransactionsByUserID :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1690,10 +1553,6 @@ func (q *Queries) GetVaultTransactionsByUserID(ctx context.Context, arg GetVault
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
 		); err != nil {
@@ -1711,7 +1570,7 @@ func (q *Queries) GetVaultTransactionsByUserID(ctx context.Context, arg GetVault
 }
 
 const getVaultTransactionsByVaultID = `-- name: GetVaultTransactionsByVaultID :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, requires_admin_approval, admin_approved_by, admin_approved_at, approval_notes, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE vault_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1749,10 +1608,6 @@ func (q *Queries) GetVaultTransactionsByVaultID(ctx context.Context, arg GetVaul
 			&i.Status,
 			&i.Requires2fa,
 			&i.TwoFaVerifiedAt,
-			&i.RequiresAdminApproval,
-			&i.AdminApprovedBy,
-			&i.AdminApprovedAt,
-			&i.ApprovalNotes,
 			&i.CompletedAt,
 			&i.CreatedAt,
 		); err != nil {
