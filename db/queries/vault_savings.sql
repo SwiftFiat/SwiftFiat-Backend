@@ -16,9 +16,10 @@ INSERT INTO vault_savings (
     next_auto_save,
     recurring_rule,
     status,
-    vault_type
+    vault_type,
+    category
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 ) RETURNING *;
 
 -- name: GetVaultGoalByID :one
@@ -185,10 +186,9 @@ INSERT INTO vault_transactions (
     description,
     metadata,
     status,
-    requires_2fa,
-    requires_admin_approval
+    requires_2fa
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 ) RETURNING *;
 
 -- name: GetVaultTransactionByID :one
@@ -231,28 +231,10 @@ UPDATE vault_transactions
 SET two_fa_verified_at = NOW()
 WHERE id = $1 AND requires_2fa = TRUE;
 
--- name: ApproveTransactionByAdmin :exec
-UPDATE vault_transactions
-SET admin_approved_by = $2,
-    admin_approved_at = NOW(),
-    approval_notes = $3,
-    status = 'completed',
-    completed_at = NOW()
-WHERE id = $1 AND requires_admin_approval = TRUE;
-
 -- name: GetPendingVaultTransactions :many
 SELECT * FROM vault_transactions
 WHERE status = 'pending'
 ORDER BY created_at ASC;
-
--- name: GetTransactionsRequiringAdminApproval :many
-SELECT vt.*, vs.vault_name, vs.currency
-FROM vault_transactions vt
-JOIN vault_savings vs ON vt.vault_id = vs.id
-WHERE vt.requires_admin_approval = TRUE
-  AND vt.admin_approved_at IS NULL
-  AND vt.status = 'pending'
-ORDER BY vt.created_at ASC;
 
 -- name: GetTransactionsRequiring2FA :many
 SELECT * FROM vault_transactions

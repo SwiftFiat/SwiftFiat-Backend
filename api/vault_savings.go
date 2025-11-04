@@ -27,6 +27,7 @@ import (
 type Vault struct {
 	server        *Server
 	vaultService  *vaultsavings.VaultService
+	yieldService  *vaultsavings.YieldService
 	walletService *wallet.WalletService
 	pushService   *service.PushNotificationService
 	emailService  *service.Plunk
@@ -40,6 +41,7 @@ func (v Vault) router(server *Server) {
 	v.emailService = v.server.emailService
 	v.auditLogs = v.server.auditLog
 	v.vaultService = v.server.vaultService
+	v.yieldService = v.server.yieldService
 
 	vaultGroup := server.router.Group("/api/v1/vault")
 	vaultGroup.Use(v.server.authMiddleware.AuthenticatedMiddleware())
@@ -68,6 +70,19 @@ func (v Vault) router(server *Server) {
 		vaultGroup.GET("/admin/metrics", v.getAdminMetrics)
 		vaultGroup.GET("/admin/scheduler/stats", v.getSchedulerStats)
 		vaultGroup.POST("/admin/scheduler/trigger", v.triggerSchedulerNow)
+
+		// Yield Routes (User)
+		vaultGroup.GET("/goals/:id/yield-history", v.getYieldHistory)
+		vaultGroup.GET("/goals/:id/yield-projection", v.getYieldProjection)
+		vaultGroup.GET("/yield-summary", v.getYieldSummary)
+
+		// Yield Routes (Admin)
+		vaultGroup.GET("/admin/yield-configs", v.listYieldConfigs)
+		vaultGroup.POST("/admin/yield-configs", v.createYieldConfig)
+		vaultGroup.PUT("/admin/yield-configs/:id", v.updateYieldConfig)
+		vaultGroup.POST("/admin/yield-configs/:id/deactivate", v.deactivateYieldConfig)
+		vaultGroup.POST("/admin/process-yields-now", v.processYieldsNow)
+		vaultGroup.GET("/admin/yield-scheduler/stats", v.getYieldSchedulerStats)
 	}
 }
 
@@ -505,8 +520,6 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 	var message string
 	if tx.Requires2fa.Bool {
 		message = "withdrawal requires 2FA verification"
-	} else if tx.RequiresAdminApproval.Bool { // remove
-		message = "withdrawal pending admin approval"
 	} else {
 		message = "withdrawal successful"
 	}
@@ -1008,3 +1021,450 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("scheduler triggered", nil))
 }
+
+// ============================================================================
+// USER YIELD ENDPOINTS
+// ============================================================================
+
+// getYieldHistory godoc
+// @Summary Get Vault Yield History
+// @Description Get historical yield earnings for a specific vault
+// @Tags vault-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault ID"
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Success 200 {object} basemodels.SuccessResponse{data=[]db.VaultYield}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/goals/{id}/yield-history [get]
+func (v *Vault) getYieldHistory(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	// Verify ownership
+	vault, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+	if vault.UserID != activeUser.UserID {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+		return
+	}
+	// Parse pagination
+	limit := int32(20)
+	offset := int32(0)
+	if l := ctx.Query("limit"); l != "" {
+		if parsedLimit, err := strconv.Atoi(l); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+		}
+	}
+	if o := ctx.Query("offset"); o != "" {
+		if parsedOffset, err := strconv.Atoi(o); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	yields, err := v.server.queries.GetVaultYieldsByVaultID(ctx.Request.Context(), db.GetVaultYieldsByVaultIDParams{
+		VaultID: vaultID,
+		Limit:   limit,
+		Offset:  offset,
+	})
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to get yield history: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get yield history"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield history retrieved", yields))
+}
+
+// getYieldProjection godoc
+// @Summary Get Yield Projection
+// @Description Get estimated future yield earnings for a vault
+// @Tags vault-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault ID"
+// @Param days query int false "Projection period in days" default(30)
+// @Success 200 {object} basemodels.SuccessResponse{data=vault.YieldProjection}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/goals/{id}/yield-projection [get]
+func (v *Vault) getYieldProjection(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	// Verify ownership
+	vault, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+	if vault.UserID != activeUser.UserID {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+		return
+	}
+
+	// Parse days parameter
+	days := 30 // Default 30 days
+	if d := ctx.Query("days"); d != "" {
+		if parsed, err := strconv.Atoi(d); err == nil && parsed > 0 && parsed <= 365 {
+			days = parsed
+		}
+	}
+
+	projection, err := v.yieldService.GetYieldProjection(ctx.Request.Context(), vaultID, days)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to get yield projection: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to calculate projection"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield projection calculated", projection))
+}
+
+// getYieldSummary godoc
+// @Summary Get User Yield Summary
+// @Description Get summary of all yield earnings across all vaults
+// @Tags vault-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/yield-summary [get]
+func (v *Vault) getYieldSummary(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// Get all yields for user
+	yields, err := v.server.queries.GetVaultYieldsByUserID(ctx.Request.Context(), db.GetVaultYieldsByUserIDParams{
+		UserID: activeUser.UserID,
+		Limit:  1000,
+		Offset: 0,
+	})
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to get yields: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get yield summary"))
+		return
+	}
+
+	// Calculate totals by currency
+	totals := make(map[string]decimal.Decimal)
+	totalEarnings := decimal.Zero
+
+	for _, y := range yields {
+		if y.Status.Valid && y.Status.String == "credited" { // make status enums a const type
+			amount, _ := decimal.NewFromString(y.YieldAmount)
+
+			// Currency-specific totals
+			if existing, ok := totals[y.VaultName]; ok {
+				totals[y.VaultName] = existing.Add(amount)
+			} else {
+				totals[y.VaultName] = amount
+			}
+
+			// Overall total
+			totalEarnings = totalEarnings.Add(amount)
+		}
+	}
+
+	summary := map[string]any{
+		"total_yield_earnings": totalEarnings.StringFixed(4),
+		"total_yield_events":   len(yields),
+		"by_vault":             totals,
+		"last_credited":        nil,
+	}
+
+	if len(yields) > 0 {
+		summary["last_credited"] = yields[0].CreditedAt
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield summary retrieved", summary))
+}
+
+// ============================================================================
+// ADMIN YIELD MANAGEMENT ENDPOINTS
+// ============================================================================
+
+// listYieldConfigs godoc
+// @Summary List Yield Configurations (Admin)
+// @Description Get all yield configurations
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse{data=[]db.VaultYieldConfig}
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/yield-configs [get]
+func (v *Vault) listYieldConfigs(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	configs, err := v.server.queries.GetAllActiveYieldConfigs(ctx.Request.Context())
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to get yield configs: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get yield configs"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield configs retrieved", configs))
+}
+
+// createYieldConfig godoc
+// @Summary Create Yield Configuration (Admin)
+// @Description Create a new yield configuration for a currency
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param createYieldConfigRequest body db.CreateYieldConfigParams true "Yield Config"
+// @Success 201 {object} basemodels.SuccessResponse{data=db.VaultYieldConfig}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/yield-configs [post]
+func (v *Vault) createYieldConfig(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var req db.CreateYieldConfigParams
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		return
+	}
+
+	// Validate APY is reasonable (0-50%)
+	apy, _ := decimal.NewFromString(req.ApyRate)
+	if apy.LessThan(decimal.Zero) || apy.GreaterThan(decimal.NewFromInt(50)) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("APY must be between 0 and 50"))
+		return
+	}
+
+	config, err := v.yieldService.CreateYieldConfig(ctx.Request.Context(), req)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to create yield config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create yield config"))
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", config))
+}
+
+// updateYieldConfig godoc
+// @Summary Update Yield Configuration (Admin)
+// @Description Update an existing yield configuration
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Config ID"
+// @Param updateYieldConfigRequest body db.UpdateYieldConfigParams true "Updated Config"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/yield-configs/{id} [put]
+func (v *Vault) updateYieldConfig(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	configID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid config ID"))
+		return
+	}
+
+	var req db.UpdateYieldConfigParams
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		return
+	}
+
+	if err := v.yieldService.UpdateYieldConfig(ctx.Request.Context(), configID, req); err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to update yield config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update yield config"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config updated", nil))
+}
+
+// deactivateYieldConfig godoc
+// @Summary Deactivate Yield Configuration (Admin)
+// @Description Deactivate a yield configuration
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Config ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/yield-configs/{id}/deactivate [post]
+func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	configID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid config ID"))
+		return
+	}
+
+	if err := v.server.queries.DeactivateYieldConfig(ctx.Request.Context(), configID); err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to deactivate config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to deactivate config"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config deactivated", nil))
+}
+
+// @Summary Process Yields Now (Admin)
+// @Description Manually trigger yield calculations for all due vaults
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/process-yields-now [post]
+func (v *Vault) processYieldsNow(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	successCount, failureCount, err := v.yieldService.ProcessAllDueYields(ctx.Request.Context(), 1000)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to process yields: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to process yields"))
+		return
+	}
+
+	result := map[string]interface{}{
+		"success_count":   successCount,
+		"failure_count":   failureCount,
+		"total_processed": successCount + failureCount,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yields processed", result))
+}
+
+// getYieldSchedulerStats godoc
+// @Summary Get Yield Scheduler Stats (Admin)
+// @Description Get statistics about the yield calculation scheduler
+// @Tags vault-admin-yields
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/yield-scheduler/stats [get]
+func (v *Vault) getYieldSchedulerStats(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role != "admin" {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	stats, err := v.server.yieldScheduler.GetStats(ctx.Request.Context())
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to get scheduler stats: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get stats"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("scheduler stats retrieved", stats))
+}
+
+func (v *Vault) ProcessVaultNow(ctx *gin.Context) {} // use ProcessVaultNow in vault scheduler
+
+func (v *Vault) ProcessVaultYieldNow(ctx *gin.Context) {} // use ProcessVaultYieldNow in yield_scheduler

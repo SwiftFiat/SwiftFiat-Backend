@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftFiat - Goal Created</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="email-wrapper">
+        <div class="email-header">
+            <div class="logo">SwiftFiat</div>
+            <div class="header-subtitle">Smart Savings, Secure Future</div>
+        </div>
+        
+        <div class="email-body">
+            <div class="icon">🎯</div>
+
+        <h2 class="greeting">Congratulations, {{.FirstName}}! 🎉</h2>
+
+        <p class="message">
+            Your savings goal "<strong>{{.VaultName}}</strong>" has been successfully created! 
+            You're taking a great step towards achieving your financial dreams.
+        </p>
+
+        <div class="card">
+            <div class="card-title">Goal Details</div>
+            <div class="detail-row">
+                <span class="detail-label">Goal Name</span>
+                <span class="detail-value">{{.VaultName}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Target Amount</span>
+                <span class="detail-value">{{.TargetAmount}} {{.Currency}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Current Balance</span>
+                <span class="detail-value">0.00 {{.Currency}}</span>
+            </div>
+            <div class="detail-row">
+                <span class="detail-label">Created</span>
+                <span class="detail-value">{{.CreatedDate}}</span>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="{{.VaultURL}}" class="button">View My Vault 💰</a>
+        </div>
+
+        <div class="alert alert-info">
+            <strong>💡 Pro Tip:</strong> Set up recurring deposits to reach your goal faster! 
+            Automated savings help you stay consistent without thinking about it.
+        </div>
+
+        <p class="message">
+            Ready to start saving? Make your first deposit and watch your progress grow!
+        </p>
+        </div>
+        
+        <div class="email-footer">
+            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
+            <div class="footer-links">
+                <a href="https://swiftfiat.com">Home</a>
+                <a href="https://swiftfiat.com/support">Support</a>
+                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
+            </div>
+            <div class="social-links">
+                <a href="#">📘</a>
+                <a href="#">🐦</a>
+                <a href="#">📷</a>
+            </div>
+            <p style="margin-top: 20px; color: #999;">
+                This is an automated message from SwiftFiat. Please do not reply to this email.
+            </p>
+            <p style="margin-top: 10px; font-size: 11px; color: #999;">
+                © {{.Year}} SwiftFiat. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
