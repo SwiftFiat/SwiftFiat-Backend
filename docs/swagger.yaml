@@ -198,6 +198,8 @@ definitions:
       uuid:
         type: string
     type: object
+  db.CreateYieldConfigParams:
+    type: object
   db.GetUserVaultsSummaryRow:
     properties:
       active_vaults:
@@ -240,6 +242,8 @@ definitions:
         type: string
       user_id:
         type: integer
+    type: object
+  db.UpdateYieldConfigParams:
     type: object
   models.AccountInfoResponse:
     properties:
@@ -1090,6 +1094,56 @@ definitions:
       vault_type:
         type: string
     type: object
+  vaultsavings.VaultYieldConfigResponse:
+    properties:
+      apy_rate:
+        type: string
+      compound_frequency:
+        type: string
+      created_at:
+        type: string
+      currency:
+        type: string
+      effective_from:
+        type: string
+      effective_until:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      min_balance_for_yield:
+        type: string
+      notes:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  vaultsavings.VaultYieldResponse:
+    properties:
+      calculation_period_end:
+        type: string
+      calculation_period_start:
+        type: string
+      created_at:
+        type: string
+      credited_at:
+        type: string
+      id:
+        type: string
+      status:
+        type: string
+      user_id:
+        type: integer
+      vault_balance_snapshot:
+        type: string
+      vault_id:
+        type: string
+      yield_amount:
+        type: string
+      yield_rate:
+        type: string
+    type: object
   vaultsavings.Weekday:
     enum:
     - 1
@@ -1108,6 +1162,27 @@ definitions:
     - Friday
     - Saturday
     - Sunday
+  vaultsavings.YieldProjection:
+    properties:
+      apy:
+        type: string
+      current_balance:
+        type: string
+      daily_yield:
+        type: string
+      estimated_yield:
+        type: string
+      monthly_yield:
+        type: string
+      projected_balance:
+        type: string
+      projection_period_days:
+        type: integer
+      weekly_yield:
+        type: string
+      yearly_yield:
+        type: string
+    type: object
 host: localhost:8080
 info:
   contact:
@@ -4088,6 +4163,31 @@ paths:
       summary: Get Vault Metrics (Admin)
       tags:
       - vault-admin
+  /api/v1/vault/admin/process-yields-now:
+    post:
+      consumes:
+      - application/json
+      description: Manually trigger yield calculations for all due vaults
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Process Yields Now (Admin)
+      tags:
+      - vault-admin-yields
   /api/v1/vault/admin/scheduler/stats:
     get:
       description: Get current vault scheduler statistics
@@ -4114,6 +4214,179 @@ paths:
       summary: Trigger Scheduler Now (Admin)
       tags:
       - vault-admin
+  /api/v1/vault/admin/yield-configs:
+    get:
+      consumes:
+      - application/json
+      description: Get all yield configurations
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/vaultsavings.VaultYieldConfigResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Yield Configurations (Admin)
+      tags:
+      - vault-admin-yields
+    post:
+      consumes:
+      - application/json
+      description: Create a new yield configuration for a currency
+      parameters:
+      - description: Yield Config
+        in: body
+        name: createYieldConfigRequest
+        required: true
+        schema:
+          $ref: '#/definitions/db.CreateYieldConfigParams'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/vaultsavings.VaultYieldConfigResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Yield Configuration (Admin)
+      tags:
+      - vault-admin-yields
+  /api/v1/vault/admin/yield-configs/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Update an existing yield configuration
+      parameters:
+      - description: Config ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated Config
+        in: body
+        name: updateYieldConfigRequest
+        required: true
+        schema:
+          $ref: '#/definitions/db.UpdateYieldConfigParams'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Yield Configuration (Admin)
+      tags:
+      - vault-admin-yields
+  /api/v1/vault/admin/yield-configs/{id}/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: Deactivate a yield configuration
+      parameters:
+      - description: Config ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Deactivate Yield Configuration (Admin)
+      tags:
+      - vault-admin-yields
+  /api/v1/vault/admin/yield-scheduler/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get statistics about the yield calculation scheduler
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Yield Scheduler Stats (Admin)
+      tags:
+      - vault-admin-yields
   /api/v1/vault/goals:
     get:
       consumes:
@@ -4626,6 +4899,103 @@ paths:
       summary: Withdraw from Vault
       tags:
       - vault
+  /api/v1/vault/goals/{id}/yield-history:
+    get:
+      consumes:
+      - application/json
+      description: Get historical yield earnings for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 20
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/vaultsavings.VaultYieldResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Vault Yield History
+      tags:
+      - vault-yields
+  /api/v1/vault/goals/{id}/yield-projection:
+    get:
+      consumes:
+      - application/json
+      description: Get estimated future yield earnings for a vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - default: 30
+        description: Projection period in days
+        in: query
+        name: days
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/vaultsavings.YieldProjection'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Yield Projection
+      tags:
+      - vault-yields
   /api/v1/vault/summary:
     get:
       consumes:
@@ -4694,6 +5064,27 @@ paths:
       summary: Get All Vault Transactions
       tags:
       - vault
+  /api/v1/vault/yield-summary:
+    get:
+      consumes:
+      - application/json
+      description: Get summary of all yield earnings across all vaults
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User Yield Summary
+      tags:
+      - vault-yields
   /api/v1/wallets:
     get:
       consumes:
