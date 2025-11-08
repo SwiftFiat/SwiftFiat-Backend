@@ -69,6 +69,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("reset-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPasscode)
 	serverGroupV1.POST("create-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPin)
+	serverGroupV1.POST("verify-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyTransactionPin)
 	serverGroupV1.PUT("update-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.updateTransactionPin)
 	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
 	serverGroupV1.GET("user", a.server.authMiddleware.AuthenticatedMiddleware(), a.getUserID)
@@ -1715,6 +1716,51 @@ func (a *Auth) createPin(ctx *gin.Context) {
 	})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
+}
+
+// verifyTransactionPin godoc
+// @Summary Verify transaction pin
+// @Description Verify the authenticated user's transaction pin
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param data body object{pin=string} true "verify pin request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/verify-pin [post]
+func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
+    req := struct {
+        Pin string `json:"pin" binding:"required"`
+    }{}
+
+    if err := ctx.ShouldBindJSON(&req); err != nil {
+        ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
+        return
+    }
+
+    activeUser, err := utils.GetActiveUser(ctx)
+    if err != nil {
+        ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+        return
+    }
+
+    dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+        return
+    }
+
+    // Verify provided pin against stored hashed pin
+    if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
+        a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
+        ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid pin"))
+        return
+    }
+
+    ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin verified successfully", struct{}{}))
 }
 
 // updateTransactionPin godoc
