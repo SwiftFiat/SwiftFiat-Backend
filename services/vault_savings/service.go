@@ -1029,7 +1029,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	}
 
 	newVaultBalance := currentBalance.Add(amount)
-	newWalletBalance := walletBalance.Sub(amount)
+	// newWalletBalance := walletBalance.Sub(amount)
 
 	// Generate reference
 	reference := req.Reference
@@ -1061,15 +1061,17 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	// Update vault balance
 	if err := qtx.IncrementVaultBalance(ctx, db.IncrementVaultBalanceParams{
 		ID:             req.VaultID,
-		CurrentBalance: nullString(newVaultBalance.String()),
+		CurrentBalance: nullString(req.Amount),
 	}); err != nil {
 		return nil, fmt.Errorf("failed to update vault balance: %w", err)
 	}
 
 	// Update wallet balance (deduct)
+	// Calculate the negative amount to subtract from wallet
+	negativeAmount := amount.Neg().String()
 	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
 		ID:     req.FromWalletID,
-		Amount: sql.NullString{String: newWalletBalance.String(), Valid: true},
+		Amount: sql.NullString{String: negativeAmount, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
