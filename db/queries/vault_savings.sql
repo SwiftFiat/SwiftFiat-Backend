@@ -68,6 +68,7 @@ WHERE id = $1;
 -- name: UpdateRecurringRule :exec
 UPDATE vault_savings
 SET recurring_rule = $2,
+    next_auto_save = (recurring_rule->>'next_execution_at')::timestamptz,
     updated_at = NOW()
 WHERE id = $1;
 
@@ -623,5 +624,6 @@ WHERE recurring_rule IS NOT NULL
 -- Update the recurring rule for a vault
 UPDATE vault_savings
 SET recurring_rule = $2,
+    next_auto_save = ($2->>'next_execution_at')::timestamptz,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1;
