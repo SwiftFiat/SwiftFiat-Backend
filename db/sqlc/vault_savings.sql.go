@@ -71,10 +71,11 @@ INSERT INTO vault_savings (
     next_auto_save,
     recurring_rule,
     status,
-    vault_type
+    vault_type,
+    category
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-) RETURNING id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+) RETURNING id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
 `
 
 type CreateVaultGoalParams struct {
@@ -91,6 +92,7 @@ type CreateVaultGoalParams struct {
 	RecurringRule     pqtype.NullRawMessage `json:"recurring_rule"`
 	Status            string                `json:"status"`
 	VaultType         string                `json:"vault_type"`
+	Category          string                `json:"category"`
 }
 
 // ============================================================================
@@ -111,6 +113,7 @@ func (q *Queries) CreateVaultGoal(ctx context.Context, arg CreateVaultGoalParams
 		arg.RecurringRule,
 		arg.Status,
 		arg.VaultType,
+		arg.Category,
 	)
 	var i VaultSaving
 	err := row.Scan(
@@ -120,6 +123,7 @@ func (q *Queries) CreateVaultGoal(ctx context.Context, arg CreateVaultGoalParams
 		&i.Description,
 		&i.GoalAmount,
 		&i.CurrentBalance,
+		&i.Category,
 		&i.Currency,
 		&i.AutoSaveEnabled,
 		&i.AutoSaveFrequency,
@@ -420,7 +424,7 @@ func (q *Queries) EnableAutoSave(ctx context.Context, arg EnableAutoSaveParams) 
 }
 
 const filterVaultsByStatus = `-- name: FilterVaultsByStatus :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE user_id = $1 
   AND status = ANY($2::text[])
 ORDER BY created_at DESC
@@ -447,6 +451,7 @@ func (q *Queries) FilterVaultsByStatus(ctx context.Context, arg FilterVaultsBySt
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -476,7 +481,7 @@ func (q *Queries) FilterVaultsByStatus(ctx context.Context, arg FilterVaultsBySt
 }
 
 const getActiveVaultGoalsByUserID = `-- name: GetActiveVaultGoalsByUserID :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE user_id = $1 AND status = 'active'
 ORDER BY created_at DESC
 `
@@ -497,6 +502,7 @@ func (q *Queries) GetActiveVaultGoalsByUserID(ctx context.Context, userID int64)
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -1051,7 +1057,7 @@ func (q *Queries) GetVaultCompletionStats(ctx context.Context, createdAt time.Ti
 }
 
 const getVaultGoalByID = `-- name: GetVaultGoalByID :one
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE id = $1 AND status != 'cancelled'
 `
 
@@ -1065,6 +1071,7 @@ func (q *Queries) GetVaultGoalByID(ctx context.Context, id uuid.UUID) (VaultSavi
 		&i.Description,
 		&i.GoalAmount,
 		&i.CurrentBalance,
+		&i.Category,
 		&i.Currency,
 		&i.AutoSaveEnabled,
 		&i.AutoSaveFrequency,
@@ -1125,7 +1132,7 @@ func (q *Queries) GetVaultGoalProgress(ctx context.Context, id uuid.UUID) (GetVa
 }
 
 const getVaultGoalsByUserID = `-- name: GetVaultGoalsByUserID :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE user_id = $1 AND status != 'cancelled'
 ORDER BY created_at DESC
 `
@@ -1146,6 +1153,7 @@ func (q *Queries) GetVaultGoalsByUserID(ctx context.Context, userID int64) ([]Va
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -1175,7 +1183,7 @@ func (q *Queries) GetVaultGoalsByUserID(ctx context.Context, userID int64) ([]Va
 }
 
 const getVaultGoalsByUserIDAndCurrency = `-- name: GetVaultGoalsByUserIDAndCurrency :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE user_id = $1 AND currency = $2 AND status != 'cancelled'
 ORDER BY created_at DESC
 `
@@ -1201,6 +1209,7 @@ func (q *Queries) GetVaultGoalsByUserIDAndCurrency(ctx context.Context, arg GetV
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -1844,7 +1853,7 @@ func (q *Queries) GetVaultsDashboardMetrics(ctx context.Context) (GetVaultsDashb
 }
 
 const getVaultsDueForAutoSave = `-- name: GetVaultsDueForAutoSave :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE auto_save_enabled = TRUE
   AND status = 'active'
   AND next_auto_save <= NOW()
@@ -1867,6 +1876,7 @@ func (q *Queries) GetVaultsDueForAutoSave(ctx context.Context) ([]VaultSaving, e
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -1896,7 +1906,7 @@ func (q *Queries) GetVaultsDueForAutoSave(ctx context.Context) ([]VaultSaving, e
 }
 
 const getVaultsDueForYieldCalculation = `-- name: GetVaultsDueForYieldCalculation :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE status = 'active'
   AND current_balance > 0
   AND (next_yield_calculation IS NULL OR next_yield_calculation <= NOW())
@@ -1920,6 +1930,7 @@ func (q *Queries) GetVaultsDueForYieldCalculation(ctx context.Context, limit int
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -1949,7 +1960,7 @@ func (q *Queries) GetVaultsDueForYieldCalculation(ctx context.Context, limit int
 }
 
 const getVaultsWithActiveRecurringRules = `-- name: GetVaultsWithActiveRecurringRules :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
 FROM vault_savings
 WHERE recurring_rule IS NOT NULL
   AND recurring_rule->>'enabled' = 'true'
@@ -1973,6 +1984,7 @@ func (q *Queries) GetVaultsWithActiveRecurringRules(ctx context.Context) ([]Vaul
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -2002,7 +2014,7 @@ func (q *Queries) GetVaultsWithActiveRecurringRules(ctx context.Context) ([]Vaul
 }
 
 const getVaultsWithDueRecurringDeposits = `-- name: GetVaultsWithDueRecurringDeposits :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
 FROM vault_savings
 WHERE recurring_rule IS NOT NULL
   AND recurring_rule->>'enabled' = 'true'
@@ -2028,6 +2040,7 @@ func (q *Queries) GetVaultsWithDueRecurringDeposits(ctx context.Context, dollar_
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -2057,7 +2070,7 @@ func (q *Queries) GetVaultsWithDueRecurringDeposits(ctx context.Context, dollar_
 }
 
 const getVaultsWithLowBalance = `-- name: GetVaultsWithLowBalance :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE status = 'active'
   AND current_balance > 0
   AND current_balance < goal_amount * 0.1  -- Less than 10% of goal
@@ -2081,6 +2094,7 @@ func (q *Queries) GetVaultsWithLowBalance(ctx context.Context, limit int32) ([]V
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -2110,7 +2124,7 @@ func (q *Queries) GetVaultsWithLowBalance(ctx context.Context, limit int32) ([]V
 }
 
 const getVaultsWithRecurringRules = `-- name: GetVaultsWithRecurringRules :many
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE recurring_rule IS NOT NULL
   AND status = 'active'
   AND (recurring_rule->>'enabled')::boolean = true
@@ -2135,6 +2149,7 @@ func (q *Queries) GetVaultsWithRecurringRules(ctx context.Context, limit int32) 
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -2344,7 +2359,7 @@ func (q *Queries) IncrementVaultBalance(ctx context.Context, arg IncrementVaultB
 
 const lockVaultForUpdate = `-- name: LockVaultForUpdate :one
 
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE id = $1
 FOR UPDATE
 `
@@ -2360,6 +2375,7 @@ func (q *Queries) LockVaultForUpdate(ctx context.Context, id uuid.UUID) (VaultSa
 		&i.Description,
 		&i.GoalAmount,
 		&i.CurrentBalance,
+		&i.Category,
 		&i.Currency,
 		&i.AutoSaveEnabled,
 		&i.AutoSaveFrequency,
@@ -2434,7 +2450,7 @@ func (q *Queries) ProcessVaultWithdrawal(ctx context.Context, arg ProcessVaultWi
 const searchVaultsByName = `-- name: SearchVaultsByName :many
 
 
-SELECT id, user_id, vault_name, description, goal_amount, current_balance, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
 WHERE user_id = $1 
   AND vault_name ILIKE '%' || $2 || '%'
   AND status != 'cancelled'
@@ -2480,6 +2496,7 @@ func (q *Queries) SearchVaultsByName(ctx context.Context, arg SearchVaultsByName
 			&i.Description,
 			&i.GoalAmount,
 			&i.CurrentBalance,
+			&i.Category,
 			&i.Currency,
 			&i.AutoSaveEnabled,
 			&i.AutoSaveFrequency,
@@ -2511,6 +2528,7 @@ func (q *Queries) SearchVaultsByName(ctx context.Context, arg SearchVaultsByName
 const updateRecurringRule = `-- name: UpdateRecurringRule :exec
 UPDATE vault_savings
 SET recurring_rule = $2,
+    next_auto_save = (recurring_rule->>'next_execution_at')::timestamptz,
     updated_at = NOW()
 WHERE id = $1
 `
@@ -2571,6 +2589,7 @@ func (q *Queries) UpdateVaultGoalDetails(ctx context.Context, arg UpdateVaultGoa
 const updateVaultRecurringRule = `-- name: UpdateVaultRecurringRule :exec
 UPDATE vault_savings
 SET recurring_rule = $2,
+    next_auto_save = ($2->>'next_execution_at')::timestamptz,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 `
