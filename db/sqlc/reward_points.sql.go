@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -81,9 +82,9 @@ RETURNING id, user_id, transaction_id, transaction_type, source_transaction_type
 `
 
 type AwardRewardPointsParams struct {
-	UserID                int32          `json:"user_id"`
+	UserID                int64          `json:"user_id"`
 	PointsAmount          string         `json:"points_amount"`
-	TransactionID         sql.NullInt64  `json:"transaction_id"`
+	TransactionID         uuid.NullUUID  `json:"transaction_id"`
 	SourceTransactionType sql.NullString `json:"source_transaction_type"`
 	TransactionAmount     sql.NullString `json:"transaction_amount"`
 	RewardConfigID        sql.NullInt64  `json:"reward_config_id"`
@@ -161,7 +162,7 @@ WHERE user_id = $1
 `
 
 // Count total reward transactions for a user
-func (q *Queries) CountUserRewardTransactions(ctx context.Context, userID int32) (int64, error) {
+func (q *Queries) CountUserRewardTransactions(ctx context.Context, userID int64) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countUserRewardTransactions, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -176,7 +177,7 @@ WHERE user_id = $1
 `
 
 type CountUserRewardTransactionsByTypeParams struct {
-	UserID          int32  `json:"user_id"`
+	UserID          int64  `json:"user_id"`
 	TransactionType string `json:"transaction_type"`
 }
 
@@ -281,7 +282,7 @@ INSERT INTO reward_redemptions (
 type CreateRewardRedemptionParams struct {
 	RewardTransactionID      int64          `json:"reward_transaction_id"`
 	UserID                   int32          `json:"user_id"`
-	BillPaymentTransactionID int64          `json:"bill_payment_transaction_id"`
+	BillPaymentTransactionID uuid.UUID      `json:"bill_payment_transaction_id"`
 	PointsRedeemed           string         `json:"points_redeemed"`
 	DiscountAmount           string         `json:"discount_amount"`
 	OriginalBillAmount       string         `json:"original_bill_amount"`
@@ -341,8 +342,8 @@ INSERT INTO reward_transactions (
 `
 
 type CreateRewardTransactionParams struct {
-	UserID                int32                 `json:"user_id"`
-	TransactionID         sql.NullInt64         `json:"transaction_id"`
+	UserID                int64                 `json:"user_id"`
+	TransactionID         uuid.NullUUID         `json:"transaction_id"`
 	TransactionType       string                `json:"transaction_type"`
 	SourceTransactionType sql.NullString        `json:"source_transaction_type"`
 	TransactionAmount     sql.NullString        `json:"transaction_amount"`
@@ -602,7 +603,7 @@ LIMIT $2
 `
 
 type GetRecentRewardActivityParams struct {
-	UserID int32 `json:"user_id"`
+	UserID int64 `json:"user_id"`
 	Limit  int32 `json:"limit"`
 }
 
@@ -650,7 +651,7 @@ WHERE bill_payment_transaction_id = $1
 `
 
 // Get redemption details for a specific bill payment
-func (q *Queries) GetRedemptionDetailsByBillTransaction(ctx context.Context, billPaymentTransactionID int64) (RewardRedemption, error) {
+func (q *Queries) GetRedemptionDetailsByBillTransaction(ctx context.Context, billPaymentTransactionID uuid.UUID) (RewardRedemption, error) {
 	row := q.db.QueryRowContext(ctx, getRedemptionDetailsByBillTransaction, billPaymentTransactionID)
 	var i RewardRedemption
 	err := row.Scan(
@@ -983,7 +984,7 @@ ORDER BY created_at DESC
 `
 
 // Get all reward transactions associated with a specific transaction
-func (q *Queries) GetRewardTransactionsByTransactionID(ctx context.Context, transactionID sql.NullInt64) ([]RewardTransaction, error) {
+func (q *Queries) GetRewardTransactionsByTransactionID(ctx context.Context, transactionID uuid.NullUUID) ([]RewardTransaction, error) {
 	rows, err := q.db.QueryContext(ctx, getRewardTransactionsByTransactionID, transactionID)
 	if err != nil {
 		return nil, err
@@ -1331,7 +1332,7 @@ LIMIT $2 OFFSET $3
 `
 
 type ListUserRewardTransactionsParams struct {
-	UserID int32 `json:"user_id"`
+	UserID int64 `json:"user_id"`
 	Limit  int32 `json:"limit"`
 	Offset int32 `json:"offset"`
 }
@@ -1386,7 +1387,7 @@ LIMIT $4 OFFSET $5
 `
 
 type ListUserRewardTransactionsByDateRangeParams struct {
-	UserID      int32     `json:"user_id"`
+	UserID      int64     `json:"user_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
 	Limit       int32     `json:"limit"`
@@ -1448,7 +1449,7 @@ LIMIT $3 OFFSET $4
 `
 
 type ListUserRewardTransactionsByTypeParams struct {
-	UserID          int32  `json:"user_id"`
+	UserID          int64  `json:"user_id"`
 	TransactionType string `json:"transaction_type"`
 	Limit           int32  `json:"limit"`
 	Offset          int32  `json:"offset"`
@@ -1510,7 +1511,7 @@ LIMIT $5 OFFSET $6
 `
 
 type ListUserRewardTransactionsByTypeAndDateRangeParams struct {
-	UserID          int32     `json:"user_id"`
+	UserID          int64     `json:"user_id"`
 	TransactionType string    `json:"transaction_type"`
 	CreatedAt       time.Time `json:"created_at"`
 	CreatedAt_2     time.Time `json:"created_at_2"`
@@ -1603,9 +1604,9 @@ RETURNING id, user_id, transaction_id, transaction_type, source_transaction_type
 `
 
 type RedeemRewardPointsSimpleParams struct {
-	UserID            int32          `json:"user_id"`
+	UserID            int64          `json:"user_id"`
 	PointsAmount      string         `json:"points_amount"`
-	TransactionID     sql.NullInt64  `json:"transaction_id"`
+	TransactionID     uuid.NullUUID  `json:"transaction_id"`
 	TransactionAmount sql.NullString `json:"transaction_amount"`
 	Description       sql.NullString `json:"description"`
 }
