@@ -22,6 +22,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -54,6 +56,7 @@ type Server struct {
 	emailService     *service.Plunk
 	walletService    *wallet.WalletService
 	auditLog         *activitylogs.ActivityLog
+	rewardService    *rewards.RewardService
 }
 
 func NewServer(envPath string) *Server {
@@ -144,6 +147,9 @@ func NewServer(envPath string) *Server {
 	// vault scheduler
 	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
 
+	// reward service
+	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -183,6 +189,7 @@ func NewServer(envPath string) *Server {
 		vaultService:     vs,
 		yieldService:     ys,
 		yieldScheduler:   yieldScheduler,
+		rewardService:    rs,
 	}
 }
 
@@ -228,7 +235,7 @@ func (s *Server) Start() error {
 		if err := s.yieldScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
 		}
-	}                                           
+	}
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
@@ -252,7 +259,6 @@ func (s *Server) Shutdown(ctx context.Context) error {
 				s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
 			}
 		}
-
 
 		// Close Redis connection with context awareness
 		if err := s.redis.Close(); err != nil {

@@ -1,7 +1,6 @@
 package security
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -39,17 +38,17 @@ func (cm *Cache) Start() error {
 	return nil
 }
 
-func (cm *Cache) Insert(k string, x interface{}) {
+func (cm *Cache) Insert(k string, x any) {
 	cm.c.Set(k, x, cache.DefaultExpiration)
 }
 
-func (cm *Cache) Get(key string) (interface{}, error) {
+func (cm *Cache) Get(key string) (any, bool) {
 	val, found := cm.c.Get(key)
-	if found {
-		return val, nil
-	}
+	return val, found
+}
 
-	return nil, fmt.Errorf("value not found")
+func (cm *Cache) Delete(key string) {
+	cm.c.Delete(key)
 }
 
 func (cm *Cache) Stop() error {

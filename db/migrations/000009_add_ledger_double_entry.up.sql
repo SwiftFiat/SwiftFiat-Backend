@@ -1,6 +1,6 @@
 -- Ledger entries table (for double-entry accounting)
 CREATE TABLE IF NOT EXISTS "ledger_entries" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "transaction_id" UUID NOT NULL REFERENCES transactions(id),
     "wallet_id" UUID, -- NULL if destination/source is off-platform
     "type" VARCHAR(10) NOT NULL, -- 'debit' or 'credit'
