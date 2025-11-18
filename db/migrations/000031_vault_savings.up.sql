@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- VAULT SAVINGS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_savings" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_name" VARCHAR(100) NOT NULL,
     "description" TEXT,
@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS "vault_savings" (
 -- VAULT TRANSACTIONS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_transactions" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "transaction_type" VARCHAR(30) NOT NULL CHECK(transaction_type IN ('deposit', 'withdrawal', 'auto_save', 'yield_credit')),
@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
 -- VAULT YIELDS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_yields" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "yield_amount" DECIMAL(19, 4) NOT NULL,
@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS "vault_yields" (
 -- VAULT YIELD CONFIGS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_yield_configs" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "currency" VARCHAR(4) NOT NULL CHECK(currency IN ('USDT', 'USDC', 'NGN', 'USD')),
     "apy_rate" DECIMAL(19, 4) NOT NULL, -- Annual percentage yield (e.g., 3.5 for 3.5%)
     "min_balance_for_yield" DECIMAL(19, 4) NOT NULL DEFAULT 0, -- Minimum balance to earn yield

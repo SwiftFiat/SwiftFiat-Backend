@@ -309,7 +309,7 @@ func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
 
 const getUserAndKYCByID = `-- name: GetUserAndKYCByID :one
 SELECT 
-    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled,
+    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed,
     k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -339,6 +339,9 @@ type GetUserAndKYCByIDRow struct {
 	IsActive              sql.NullBool          `json:"is_active"`
 	TwofaSecret           sql.NullString        `json:"twofa_secret"`
 	TwofaEnabled          sql.NullBool          `json:"twofa_enabled"`
+	RewardBalance         sql.NullString        `json:"reward_balance"`
+	TotalRewardEarned     sql.NullString        `json:"total_reward_earned"`
+	TotalRewardRedeemed   sql.NullString        `json:"total_reward_redeemed"`
 	ID_2                  int64                 `json:"id_2"`
 	UserID                int32                 `json:"user_id"`
 	Tier                  int32                 `json:"tier"`
@@ -395,6 +398,9 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 		&i.IsActive,
 		&i.TwofaSecret,
 		&i.TwofaEnabled,
+		&i.RewardBalance,
+		&i.TotalRewardEarned,
+		&i.TotalRewardRedeemed,
 		&i.ID_2,
 		&i.UserID,
 		&i.Tier,

@@ -1,6 +1,6 @@
 -- Base transactions table with common fields only
 CREATE TABLE IF NOT EXISTS "transactions" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "type" VARCHAR(20) NOT NULL, -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
     "description" TEXT, -- e.g. User entered transaction description
     "transaction_flow" VARCHAR(50), -- e.g. tbtc -> USD
@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS "transactions" (
  
 -- Swift Wallet Transactions metadata for transfer or swap
 CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "currency" VARCHAR(3) NOT NULL,
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     "transfer_type" VARCHAR(10) NOT NULL, -- 'transfer' or 'swap'
@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
 
 -- Crypto transaction metadata
 CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "destination_wallet" UUID REFERENCES swift_wallets(id),
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     "coin" VARCHAR(10) NOT NULL, -- specifies coin received (e.g. btc, tbtc)
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
 
 -- Giftcard transaction metadata
 CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "source_wallet" UUID REFERENCES swift_wallets(id), -- wallet from which funds for purchase were pulled
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     "rate" DECIMAL(19,4), -- determines amount to be removed from the wallet
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
 
 -- Fiat withdrawal metadata
 CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "source_wallet" UUID REFERENCES swift_wallets(id), -- wallet from which withdrawal is initiated
     "rate" DECIMAL(19,4), -- rate from source to destination FIAT account
     "received_amount" DECIMAL(19,4), -- amount received into FIAT account
@@ -75,7 +75,7 @@ CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
 
 -- Services metadata for services like TV subscription, airtime-data purchase, etc.
 CREATE TABLE IF NOT EXISTS "services_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "source_wallet" UUID REFERENCES swift_wallets(id),
     "rate" DECIMAL(19,4), -- rate from source wallet to destination provider's service
     "received_amount" DECIMAL(19,4), -- amount received by services provider
