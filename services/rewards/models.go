@@ -7,6 +7,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/google/uuid"
 )
 
 // ============================================================================
@@ -78,7 +79,7 @@ type UpdateRewardConfigRequest struct {
 type RewardTransactionResponse struct {
 	ID                    int64          `json:"id"`
 	UserID                int32          `json:"user_id"`
-	TransactionID         int64          `json:"transaction_id,omitempty"`
+	TransactionID         uuid.UUID          `json:"transaction_id,omitempty"`
 	TransactionType       string         `json:"transaction_type"` // "earned" or "redeemed"
 	SourceTransactionType string         `json:"source_transaction_type,omitempty"`
 	TransactionAmount     string         `json:"transaction_amount,omitempty"`
@@ -96,8 +97,8 @@ type RewardTransactionResponse struct {
 func MapRewardTransactionToResponse(r *db.RewardTransaction) *RewardTransactionResponse {
 	return &RewardTransactionResponse{
 		ID:                    r.ID,
-		UserID:                r.UserID,
-		TransactionID:         r.TransactionID.Int64,
+		UserID:                int32(r.UserID),
+		TransactionID:         r.TransactionID.UUID,
 		TransactionType:       r.TransactionType,
 		SourceTransactionType: r.SourceTransactionType.String,
 		TransactionAmount:     r.TransactionAmount.String,
@@ -118,7 +119,7 @@ type RewardRedemptionResponse struct {
 	ID                       int64     `json:"id"`
 	RewardTransactionID      int64     `json:"reward_transaction_id"`
 	UserID                   int32     `json:"user_id"`
-	BillPaymentTransactionID int64     `json:"bill_payment_transaction_id"`
+	BillPaymentTransactionID uuid.UUID `json:"bill_payment_transaction_id"`
 	PointsRedeemed           string    `json:"points_redeemed"`
 	DiscountAmount           string    `json:"discount_amount"`
 	OriginalBillAmount       string    `json:"original_bill_amount"`
@@ -325,9 +326,9 @@ const (
 // an integer transaction amount and a floating-point reward rate.
 //
 // Example:
-//   points := CalculateRewardPoints(5000, 0.02)
-//   fmt.Println(points) // Output: 100
 //
+//	points := CalculateRewardPoints(5000, 0.02)
+//	fmt.Println(points) // Output: 100
 func CalculateRewardPoints(amount int64, rewardRate float64) int64 {
 	points := float64(amount) * rewardRate
 	return int64(points)

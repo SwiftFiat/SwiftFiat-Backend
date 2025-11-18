@@ -22,8 +22,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -56,7 +54,8 @@ type Server struct {
 	emailService     *service.Plunk
 	walletService    *wallet.WalletService
 	auditLog         *activitylogs.ActivityLog
-	rewardService    *rewards.RewardService
+	inAppnotificationService *service.Notification
+	// rewardService    *rewards.RewardService
 }
 
 func NewServer(envPath string) *Server {
@@ -136,8 +135,11 @@ func NewServer(envPath string) *Server {
 	// auditlogs
 	al := activitylogs.NewActivityLog(q)
 
+	// in app notification service
+	ns := service.NewNotificationService(q)
+
 	// vault service
-	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, al)
+	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, al, ns)
 
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)
@@ -148,7 +150,7 @@ func NewServer(envPath string) *Server {
 	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
 
 	// reward service
-	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
+	// rs := rewards.NewRewardService(q, l, pn, security.NewCache())
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -189,7 +191,8 @@ func NewServer(envPath string) *Server {
 		vaultService:     vs,
 		yieldService:     ys,
 		yieldScheduler:   yieldScheduler,
-		rewardService:    rs,
+		inAppnotificationService: ns,
+		// rewardService:    rs,
 	}
 }
 

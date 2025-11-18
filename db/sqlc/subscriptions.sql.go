@@ -34,7 +34,7 @@ RETURNING id, user_id, card_id, subscription_id, topup_amount, wallet_balance_be
 `
 
 type CreateAutoTopupLogParams struct {
-	UserID              uuid.UUID             `json:"user_id"`
+	UserID              int64                 `json:"user_id"`
 	CardID              uuid.UUID             `json:"card_id"`
 	SubscriptionID      uuid.NullUUID         `json:"subscription_id"`
 	TopupAmount         string                `json:"topup_amount"`
@@ -102,7 +102,7 @@ RETURNING id, user_id, card_id, wallet_id, amount, currency, funding_type, trans
 `
 
 type CreateCardFundingHistoryParams struct {
-	UserID        uuid.UUID             `json:"user_id"`
+	UserID        int64                 `json:"user_id"`
 	CardID        uuid.UUID             `json:"card_id"`
 	WalletID      uuid.UUID             `json:"wallet_id"`
 	Amount        string                `json:"amount"`
@@ -172,7 +172,7 @@ RETURNING id, user_id, card_id, merchant_id, merchant_name, amount, currency, fi
 `
 
 type CreateSubscriptionParams struct {
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	CardID                   uuid.UUID             `json:"card_id"`
 	MerchantID               uuid.NullUUID         `json:"merchant_id"`
 	MerchantName             string                `json:"merchant_name"`
@@ -351,7 +351,7 @@ RETURNING id, user_id, subscription_id, notification_type, title, message, actio
 `
 
 type CreateSubscriptionNotificationParams struct {
-	UserID           uuid.UUID             `json:"user_id"`
+	UserID           int64                 `json:"user_id"`
 	SubscriptionID   uuid.NullUUID         `json:"subscription_id"`
 	NotificationType string                `json:"notification_type"`
 	Title            string                `json:"title"`
@@ -487,7 +487,7 @@ INSERT INTO virtual_cards (
 `
 
 type CreateVirtualCardParams struct {
-	UserID            uuid.UUID             `json:"user_id"`
+	UserID            int64                 `json:"user_id"`
 	FlutterwaveCardID string                `json:"flutterwave_card_id"`
 	CardPanLast4      sql.NullString        `json:"card_pan_last4"`
 	CardBrand         sql.NullString        `json:"card_brand"`
@@ -637,7 +637,7 @@ LIMIT 1
 `
 
 type FindExistingSubscriptionParams struct {
-	UserID       uuid.UUID     `json:"user_id"`
+	UserID       int64         `json:"user_id"`
 	CardID       uuid.UUID     `json:"card_id"`
 	MerchantID   uuid.NullUUID `json:"merchant_id"`
 	MerchantName string        `json:"merchant_name"`
@@ -767,7 +767,7 @@ type GetCardFundingHistoryParams struct {
 
 type GetCardFundingHistoryRow struct {
 	ID              uuid.UUID             `json:"id"`
-	UserID          uuid.UUID             `json:"user_id"`
+	UserID          int64                 `json:"user_id"`
 	CardID          uuid.UUID             `json:"card_id"`
 	WalletID        uuid.UUID             `json:"wallet_id"`
 	Amount          string                `json:"amount"`
@@ -995,7 +995,7 @@ type GetRecentFailedTransactionsRow struct {
 	Metadata                 pqtype.NullRawMessage `json:"metadata"`
 	CreatedAt                sql.NullTime          `json:"created_at"`
 	MerchantName             string                `json:"merchant_name"`
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	UserEmail                string                `json:"user_email"`
 }
 
@@ -1054,7 +1054,7 @@ WHERE s.id = $1
 
 type GetSubscriptionRow struct {
 	ID                       uuid.UUID             `json:"id"`
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	CardID                   uuid.UUID             `json:"card_id"`
 	MerchantID               uuid.NullUUID         `json:"merchant_id"`
 	MerchantName             string                `json:"merchant_name"`
@@ -1225,7 +1225,7 @@ type GetSubscriptionSpendByCategoryRow struct {
 	LifetimeSpend       int64          `json:"lifetime_spend"`
 }
 
-func (q *Queries) GetSubscriptionSpendByCategory(ctx context.Context, userID uuid.UUID) ([]GetSubscriptionSpendByCategoryRow, error) {
+func (q *Queries) GetSubscriptionSpendByCategory(ctx context.Context, userID int64) ([]GetSubscriptionSpendByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getSubscriptionSpendByCategory, userID)
 	if err != nil {
 		return nil, err
@@ -1284,7 +1284,7 @@ ORDER BY month DESC
 `
 
 type GetSubscriptionSpendTrendsParams struct {
-	UserID            uuid.UUID `json:"user_id"`
+	UserID            int64     `json:"user_id"`
 	TransactionDate   time.Time `json:"transaction_date"`
 	TransactionDate_2 time.Time `json:"transaction_date_2"`
 }
@@ -1422,7 +1422,7 @@ ORDER BY s.next_estimated_renewal_date ASC
 
 type GetSubscriptionsNearingRenewalRow struct {
 	ID                       uuid.UUID             `json:"id"`
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	CardID                   uuid.UUID             `json:"card_id"`
 	MerchantID               uuid.NullUUID         `json:"merchant_id"`
 	MerchantName             string                `json:"merchant_name"`
@@ -1531,7 +1531,7 @@ WHERE tc.card_balance < tc.total_required
 
 type GetSubscriptionsRequiringTopupRow struct {
 	SubscriptionID    uuid.UUID      `json:"subscription_id"`
-	UserID            uuid.UUID      `json:"user_id"`
+	UserID            int64          `json:"user_id"`
 	CardID            uuid.UUID      `json:"card_id"`
 	RequiredAmount    string         `json:"required_amount"`
 	CardBalance       string         `json:"card_balance"`
@@ -1597,7 +1597,7 @@ LIMIT $3
 `
 
 type GetTopMerchantsBySpendParams struct {
-	UserID          uuid.UUID `json:"user_id"`
+	UserID          int64     `json:"user_id"`
 	TransactionDate time.Time `json:"transaction_date"`
 	Limit           int32     `json:"limit"`
 }
@@ -1717,7 +1717,7 @@ WHERE user_id = $1
 // =====================================================
 // Auto Top-up
 // =====================================================
-func (q *Queries) GetUserAutoTopupSettings(ctx context.Context, userID uuid.UUID) (AutoTopupSetting, error) {
+func (q *Queries) GetUserAutoTopupSettings(ctx context.Context, userID int64) (AutoTopupSetting, error) {
 	row := q.db.QueryRowContext(ctx, getUserAutoTopupSettings, userID)
 	var i AutoTopupSetting
 	err := row.Scan(
@@ -1752,14 +1752,14 @@ ORDER BY cfh.created_at DESC
 `
 
 type GetUserFundingHistoryParams struct {
-	UserID      uuid.UUID    `json:"user_id"`
+	UserID      int64        `json:"user_id"`
 	CreatedAt   sql.NullTime `json:"created_at"`
 	CreatedAt_2 sql.NullTime `json:"created_at_2"`
 }
 
 type GetUserFundingHistoryRow struct {
 	ID            uuid.UUID             `json:"id"`
-	UserID        uuid.UUID             `json:"user_id"`
+	UserID        int64                 `json:"user_id"`
 	CardID        uuid.UUID             `json:"card_id"`
 	WalletID      uuid.UUID             `json:"wallet_id"`
 	Amount        string                `json:"amount"`
@@ -1825,14 +1825,14 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserNotificationsParams struct {
-	UserID uuid.UUID `json:"user_id"`
-	Limit  int32     `json:"limit"`
-	Offset int32     `json:"offset"`
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
 }
 
 type GetUserNotificationsRow struct {
 	ID               uuid.UUID             `json:"id"`
-	UserID           uuid.UUID             `json:"user_id"`
+	UserID           int64                 `json:"user_id"`
 	SubscriptionID   uuid.NullUUID         `json:"subscription_id"`
 	NotificationType string                `json:"notification_type"`
 	Title            string                `json:"title"`
@@ -1948,7 +1948,7 @@ type GetUserSubscriptionSummaryRow struct {
 // =====================================================
 // Analytics & Reporting
 // =====================================================
-func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID uuid.UUID) (GetUserSubscriptionSummaryRow, error) {
+func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) (GetUserSubscriptionSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserSubscriptionSummary, userID)
 	var i GetUserSubscriptionSummaryRow
 	err := row.Scan(
@@ -1979,14 +1979,14 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserTopupLogsParams struct {
-	UserID uuid.UUID `json:"user_id"`
-	Limit  int32     `json:"limit"`
-	Offset int32     `json:"offset"`
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
 }
 
 type GetUserTopupLogsRow struct {
 	ID                  uuid.UUID             `json:"id"`
-	UserID              uuid.UUID             `json:"user_id"`
+	UserID              int64                 `json:"user_id"`
 	CardID              uuid.UUID             `json:"card_id"`
 	SubscriptionID      uuid.NullUUID         `json:"subscription_id"`
 	TopupAmount         string                `json:"topup_amount"`
@@ -2057,13 +2057,13 @@ LIMIT $2
 `
 
 type GetUserUnreadNotificationsParams struct {
-	UserID uuid.UUID `json:"user_id"`
-	Limit  int32     `json:"limit"`
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
 }
 
 type GetUserUnreadNotificationsRow struct {
 	ID               uuid.UUID             `json:"id"`
-	UserID           uuid.UUID             `json:"user_id"`
+	UserID           int64                 `json:"user_id"`
 	SubscriptionID   uuid.NullUUID         `json:"subscription_id"`
 	NotificationType string                `json:"notification_type"`
 	Title            string                `json:"title"`
@@ -2345,13 +2345,13 @@ ORDER BY s.next_estimated_renewal_date ASC
 `
 
 type ListUserSubscriptionsParams struct {
-	UserID  uuid.UUID `json:"user_id"`
-	Column2 []string  `json:"column_2"`
+	UserID  int64    `json:"user_id"`
+	Column2 []string `json:"column_2"`
 }
 
 type ListUserSubscriptionsRow struct {
 	ID                       uuid.UUID             `json:"id"`
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	CardID                   uuid.UUID             `json:"card_id"`
 	MerchantID               uuid.NullUUID         `json:"merchant_id"`
 	MerchantName             string                `json:"merchant_name"`
@@ -2434,7 +2434,7 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListUserVirtualCards(ctx context.Context, userID uuid.UUID) ([]VirtualCard, error) {
+func (q *Queries) ListUserVirtualCards(ctx context.Context, userID int64) ([]VirtualCard, error) {
 	rows, err := q.db.QueryContext(ctx, listUserVirtualCards, userID)
 	if err != nil {
 		return nil, err
@@ -2689,7 +2689,7 @@ WHERE user_id = $1
 RETURNING id, user_id, enabled, default_card_id, topup_strategy, fixed_amount, buffer_percentage, buffer_fixed_amount, min_wallet_balance_required, check_time_hours_before, max_topup_per_day, daily_topup_count, last_topup_date, created_at, updated_at
 `
 
-func (q *Queries) UpdateDailyTopupCounter(ctx context.Context, userID uuid.UUID) (AutoTopupSetting, error) {
+func (q *Queries) UpdateDailyTopupCounter(ctx context.Context, userID int64) (AutoTopupSetting, error) {
 	row := q.db.QueryRowContext(ctx, updateDailyTopupCounter, userID)
 	var i AutoTopupSetting
 	err := row.Scan(
@@ -2886,7 +2886,7 @@ RETURNING id, user_id, enabled, default_card_id, topup_strategy, fixed_amount, b
 `
 
 type UpsertAutoTopupSettingsParams struct {
-	UserID                   uuid.UUID      `json:"user_id"`
+	UserID                   int64          `json:"user_id"`
 	Enabled                  sql.NullBool   `json:"enabled"`
 	DefaultCardID            uuid.NullUUID  `json:"default_card_id"`
 	TopupStrategy            sql.NullString `json:"topup_strategy"`
