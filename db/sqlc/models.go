@@ -21,6 +21,41 @@ type AuditLog struct {
 	UserAgent sql.NullString `json:"user_agent"`
 }
 
+type AutoTopupLog struct {
+	ID                  uuid.UUID             `json:"id"`
+	UserID              uuid.UUID             `json:"user_id"`
+	CardID              uuid.UUID             `json:"card_id"`
+	SubscriptionID      uuid.NullUUID         `json:"subscription_id"`
+	TopupAmount         string                `json:"topup_amount"`
+	WalletBalanceBefore sql.NullString        `json:"wallet_balance_before"`
+	WalletBalanceAfter  sql.NullString        `json:"wallet_balance_after"`
+	CardBalanceBefore   sql.NullString        `json:"card_balance_before"`
+	CardBalanceAfter    sql.NullString        `json:"card_balance_after"`
+	Status              string                `json:"status"`
+	FailureReason       sql.NullString        `json:"failure_reason"`
+	TransactionID       uuid.NullUUID         `json:"transaction_id"`
+	Metadata            pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt           sql.NullTime          `json:"created_at"`
+}
+
+type AutoTopupSetting struct {
+	ID                       uuid.UUID      `json:"id"`
+	UserID                   uuid.UUID      `json:"user_id"`
+	Enabled                  sql.NullBool   `json:"enabled"`
+	DefaultCardID            uuid.NullUUID  `json:"default_card_id"`
+	TopupStrategy            sql.NullString `json:"topup_strategy"`
+	FixedAmount              sql.NullString `json:"fixed_amount"`
+	BufferPercentage         sql.NullString `json:"buffer_percentage"`
+	BufferFixedAmount        sql.NullString `json:"buffer_fixed_amount"`
+	MinWalletBalanceRequired sql.NullString `json:"min_wallet_balance_required"`
+	CheckTimeHoursBefore     sql.NullInt32  `json:"check_time_hours_before"`
+	MaxTopupPerDay           sql.NullString `json:"max_topup_per_day"`
+	DailyTopupCount          sql.NullInt32  `json:"daily_topup_count"`
+	LastTopupDate            sql.NullTime   `json:"last_topup_date"`
+	CreatedAt                sql.NullTime   `json:"created_at"`
+	UpdatedAt                sql.NullTime   `json:"updated_at"`
+}
+
 type Beneficiary struct {
 	ID              uuid.UUID     `json:"id"`
 	UserID          sql.NullInt64 `json:"user_id"`
@@ -35,6 +70,22 @@ type Brand struct {
 	ID        int32          `json:"id"`
 	BrandID   int64          `json:"brand_id"`
 	BrandName sql.NullString `json:"brand_name"`
+}
+
+type CardFundingHistory struct {
+	ID            uuid.UUID             `json:"id"`
+	UserID        uuid.UUID             `json:"user_id"`
+	CardID        uuid.UUID             `json:"card_id"`
+	WalletID      uuid.UUID             `json:"wallet_id"`
+	Amount        string                `json:"amount"`
+	Currency      string                `json:"currency"`
+	FundingType   string                `json:"funding_type"`
+	TransactionID uuid.NullUUID         `json:"transaction_id"`
+	LedgerEntryID uuid.NullUUID         `json:"ledger_entry_id"`
+	Status        string                `json:"status"`
+	FailureReason sql.NullString        `json:"failure_reason"`
+	Metadata      pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt     sql.NullTime          `json:"created_at"`
 }
 
 type Category struct {
@@ -293,6 +344,67 @@ type ReferralEntry struct {
 	DeletedAt      sql.NullTime `json:"deleted_at"`
 }
 
+// Admin-defined reward rate configurations
+type RewardConfiguration struct {
+	ID         int64  `json:"id"`
+	ConfigName string `json:"config_name"`
+	// Percentage of transaction amount earned as reward (e.g., 0.01 = 1%)
+	RewardRate string `json:"reward_rate"`
+	// Type of transaction eligible for rewards (e.g., bill_payment)
+	TransactionType string `json:"transaction_type"`
+	// Minimum transaction amount to earn rewards (Naira)
+	MinTransactionAmount string `json:"min_transaction_amount"`
+	// Maximum reward points per single transaction
+	MaxPointsPerTransaction sql.NullString `json:"max_points_per_transaction"`
+	IsActive                bool           `json:"is_active"`
+	ValidFrom               time.Time      `json:"valid_from"`
+	ValidUntil              sql.NullTime   `json:"valid_until"`
+	CreatedBy               sql.NullInt32  `json:"created_by"`
+	CreatedAt               time.Time      `json:"created_at"`
+	UpdatedAt               time.Time      `json:"updated_at"`
+}
+
+// Detailed records of reward point redemptions on bill payments
+type RewardRedemption struct {
+	ID                       int64 `json:"id"`
+	RewardTransactionID      int64 `json:"reward_transaction_id"`
+	UserID                   int32 `json:"user_id"`
+	BillPaymentTransactionID int64 `json:"bill_payment_transaction_id"`
+	// Reward points redeemed (₦ value)
+	PointsRedeemed string `json:"points_redeemed"`
+	// Discount applied to bill payment (₦ value)
+	DiscountAmount     string         `json:"discount_amount"`
+	OriginalBillAmount string         `json:"original_bill_amount"`
+	FinalAmountPaid    string         `json:"final_amount_paid"`
+	ServiceType        sql.NullString `json:"service_type"`
+	ServiceProvider    sql.NullString `json:"service_provider"`
+	RedeemedAt         time.Time      `json:"redeemed_at"`
+	CreatedAt          time.Time      `json:"created_at"`
+}
+
+// Complete history of reward points earned and redeemed
+type RewardTransaction struct {
+	ID            int64         `json:"id"`
+	UserID        int32         `json:"user_id"`
+	TransactionID sql.NullInt64 `json:"transaction_id"`
+	// Type: earned or redeemed
+	TransactionType       string         `json:"transaction_type"`
+	SourceTransactionType sql.NullString `json:"source_transaction_type"`
+	TransactionAmount     sql.NullString `json:"transaction_amount"`
+	// Reward points involved in transaction
+	PointsAmount string `json:"points_amount"`
+	// Equivalent Naira value (1 point = ₦1)
+	NairaValue     string         `json:"naira_value"`
+	RewardConfigID sql.NullInt64  `json:"reward_config_id"`
+	Description    sql.NullString `json:"description"`
+	Status         string         `json:"status"`
+	// User reward balance after this transaction
+	BalanceAfter string                `json:"balance_after"`
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt    time.Time             `json:"created_at"`
+	UpdatedAt    time.Time             `json:"updated_at"`
+}
+
 // Metadata for service purchases like airtime and TV subscriptions
 type ServicesMetadatum struct {
 	ID                   uuid.UUID      `json:"id"`
@@ -307,6 +419,101 @@ type ServicesMetadatum struct {
 	ServiceID            sql.NullString `json:"service_id"`
 	ServiceStatus        string         `json:"service_status"`
 	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+}
+
+type Subscription struct {
+	ID                       uuid.UUID             `json:"id"`
+	UserID                   uuid.UUID             `json:"user_id"`
+	CardID                   uuid.UUID             `json:"card_id"`
+	MerchantID               uuid.NullUUID         `json:"merchant_id"`
+	MerchantName             string                `json:"merchant_name"`
+	Amount                   string                `json:"amount"`
+	Currency                 string                `json:"currency"`
+	FirstTransactionDate     time.Time             `json:"first_transaction_date"`
+	LastTransactionDate      sql.NullTime          `json:"last_transaction_date"`
+	NextEstimatedRenewalDate time.Time             `json:"next_estimated_renewal_date"`
+	RenewalIntervalDays      sql.NullInt32         `json:"renewal_interval_days"`
+	Status                   string                `json:"status"`
+	ConfidenceScore          sql.NullString        `json:"confidence_score"`
+	TotalSpend               sql.NullString        `json:"total_spend"`
+	TransactionCount         sql.NullInt32         `json:"transaction_count"`
+	FailedPaymentCount       sql.NullInt32         `json:"failed_payment_count"`
+	LastFailedPaymentDate    sql.NullTime          `json:"last_failed_payment_date"`
+	CancellationDate         sql.NullTime          `json:"cancellation_date"`
+	CancellationReason       sql.NullString        `json:"cancellation_reason"`
+	Metadata                 pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt                sql.NullTime          `json:"created_at"`
+	UpdatedAt                sql.NullTime          `json:"updated_at"`
+}
+
+type SubscriptionCategory struct {
+	ID           uuid.UUID      `json:"id"`
+	Name         string         `json:"name"`
+	Description  sql.NullString `json:"description"`
+	IconUrl      sql.NullString `json:"icon_url"`
+	DisplayOrder sql.NullInt32  `json:"display_order"`
+	CreatedAt    sql.NullTime   `json:"created_at"`
+}
+
+type SubscriptionMerchant struct {
+	ID                 uuid.UUID             `json:"id"`
+	MerchantName       string                `json:"merchant_name"`
+	MerchantIdentifier string                `json:"merchant_identifier"`
+	CategoryID         uuid.NullUUID         `json:"category_id"`
+	LogoUrl            sql.NullString        `json:"logo_url"`
+	Description        sql.NullString        `json:"description"`
+	WebsiteUrl         sql.NullString        `json:"website_url"`
+	DefaultRenewalDays sql.NullInt32         `json:"default_renewal_days"`
+	CommonAmounts      []string              `json:"common_amounts"`
+	IsActive           sql.NullBool          `json:"is_active"`
+	Metadata           pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt          sql.NullTime          `json:"created_at"`
+	UpdatedAt          sql.NullTime          `json:"updated_at"`
+}
+
+type SubscriptionNotification struct {
+	ID               uuid.UUID             `json:"id"`
+	UserID           uuid.UUID             `json:"user_id"`
+	SubscriptionID   uuid.NullUUID         `json:"subscription_id"`
+	NotificationType string                `json:"notification_type"`
+	Title            string                `json:"title"`
+	Message          string                `json:"message"`
+	ActionUrl        sql.NullString        `json:"action_url"`
+	Priority         sql.NullString        `json:"priority"`
+	SentAt           sql.NullTime          `json:"sent_at"`
+	ReadAt           sql.NullTime          `json:"read_at"`
+	ClickedAt        sql.NullTime          `json:"clicked_at"`
+	DeliveryStatus   sql.NullString        `json:"delivery_status"`
+	DeliveryChannel  sql.NullString        `json:"delivery_channel"`
+	Metadata         pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt        sql.NullTime          `json:"created_at"`
+}
+
+type SubscriptionSpendingAnalytic struct {
+	UserID               uuid.UUID      `json:"user_id"`
+	Month                int64          `json:"month"`
+	CategoryName         sql.NullString `json:"category_name"`
+	ActiveSubscriptions  int64          `json:"active_subscriptions"`
+	TotalTransactions    int64          `json:"total_transactions"`
+	TotalSpent           int64          `json:"total_spent"`
+	FailedTransactions   int64          `json:"failed_transactions"`
+	AvgTransactionAmount float64        `json:"avg_transaction_amount"`
+}
+
+type SubscriptionTransaction struct {
+	ID                       uuid.UUID             `json:"id"`
+	SubscriptionID           uuid.UUID             `json:"subscription_id"`
+	TransactionID            uuid.NullUUID         `json:"transaction_id"`
+	FlutterwaveTransactionID sql.NullString        `json:"flutterwave_transaction_id"`
+	Amount                   string                `json:"amount"`
+	Currency                 string                `json:"currency"`
+	TransactionDate          time.Time             `json:"transaction_date"`
+	Status                   string                `json:"status"`
+	FailureReason            sql.NullString        `json:"failure_reason"`
+	MerchantDescriptor       sql.NullString        `json:"merchant_descriptor"`
+	IsRenewal                sql.NullBool          `json:"is_renewal"`
+	Metadata                 pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt                sql.NullTime          `json:"created_at"`
 }
 
 // Metadata for wallet-to-wallet transfers and swaps
@@ -383,6 +590,12 @@ type User struct {
 	IsActive       bool           `json:"is_active"`
 	TwofaSecret    sql.NullString `json:"twofa_secret"`
 	TwofaEnabled   sql.NullBool   `json:"twofa_enabled"`
+	// Current available reward points balance (₦ value)
+	RewardBalance string `json:"reward_balance"`
+	// Lifetime total reward points earned
+	TotalRewardEarned string `json:"total_reward_earned"`
+	// Lifetime total reward points redeemed
+	TotalRewardRedeemed string `json:"total_reward_redeemed"`
 }
 
 type UserReferral struct {
@@ -411,6 +624,7 @@ type VaultSaving struct {
 	Description          sql.NullString        `json:"description"`
 	GoalAmount           sql.NullString        `json:"goal_amount"`
 	CurrentBalance       sql.NullString        `json:"current_balance"`
+	Category             string                `json:"category"`
 	Currency             string                `json:"currency"`
 	AutoSaveEnabled      bool                  `json:"auto_save_enabled"`
 	AutoSaveFrequency    sql.NullString        `json:"auto_save_frequency"`
@@ -474,6 +688,29 @@ type VaultYieldConfig struct {
 	Notes              sql.NullString `json:"notes"`
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+type VirtualCard struct {
+	ID                uuid.UUID             `json:"id"`
+	UserID            uuid.UUID             `json:"user_id"`
+	FlutterwaveCardID string                `json:"flutterwave_card_id"`
+	CardPanLast4      sql.NullString        `json:"card_pan_last4"`
+	CardBrand         sql.NullString        `json:"card_brand"`
+	CardType          sql.NullString        `json:"card_type"`
+	Balance           string                `json:"balance"`
+	Currency          string                `json:"currency"`
+	NameOnCard        sql.NullString        `json:"name_on_card"`
+	ExpiryMonth       sql.NullString        `json:"expiry_month"`
+	ExpiryYear        sql.NullString        `json:"expiry_year"`
+	CvvEncrypted      sql.NullString        `json:"cvv_encrypted"`
+	Status            string                `json:"status"`
+	BillingAddress    pqtype.NullRawMessage `json:"billing_address"`
+	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	IsFrozen          sql.NullBool          `json:"is_frozen"`
+	FreezeReason      sql.NullString        `json:"freeze_reason"`
+	CreatedAt         sql.NullTime          `json:"created_at"`
+	UpdatedAt         sql.NullTime          `json:"updated_at"`
+	DeletedAt         sql.NullTime          `json:"deleted_at"`
 }
 
 type WithdrawalRequest struct {

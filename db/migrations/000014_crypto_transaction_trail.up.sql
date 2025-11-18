@@ -4,7 +4,7 @@ BEGIN;
 
 -- Crypto Transaction Trail table
 CREATE TABLE IF NOT EXISTS "crypto_transaction_trail" (
-    "id" UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "address_id" VARCHAR(200) NOT NULL,
     "transaction_hash" VARCHAR(128) NOT NULL,
     "amount" DECIMAL(30,10) DEFAULT 0,
