@@ -137,10 +137,10 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 	response, err := p.client.Publish(
 		&expo.PushMessage{
 			To:       []expo.ExponentPushToken{expo.ExponentPushToken(info.UserExpoToken)},
-			Body:     "This is a test notification",
+			Body:     info.Message,
 			Data:     map[string]string{"withSome": "data"},
 			Sound:    "default",
-			Title:    "Notification Title",
+			Title:   info.Title,
 			Priority: expo.DefaultPriority,
 		},
 	)
@@ -189,3 +189,5 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID int64, name, amount, currency string) error {
 	return nil
 }
+
+func (p *PushNotificationService) SendRewardNotification(userID int64, message, txType string, pointEarned int64) error { return  nil}
