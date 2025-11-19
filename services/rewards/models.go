@@ -50,7 +50,7 @@ func MapRewardConfigToResponse(r *db.RewardConfiguration) *RewardConfigurationRe
 // CreateRewardConfigRequest represents the request to create reward configuration
 type CreateRewardConfigRequest struct {
 	ConfigName              string     `json:"config_name" binding:"required"`
-	RewardRate              string     `json:"reward_rate" binding:"required,gt=0,lte=1"`
+	RewardRate              int32     `json:"reward_rate" binding:"required,gt=0,lte=1"`
 	TransactionType         string     `json:"transaction_type" binding:"required"`
 	MinTransactionAmount    string     `json:"min_transaction_amount" binding:"gte=0"`
 	MaxPointsPerTransaction *string    `json:"max_points_per_transaction,omitempty"`
