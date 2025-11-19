@@ -26,6 +26,7 @@ type VaultService struct {
 	emailService       *service.Plunk
 	pushService        *service.PushNotificationService
 	activityLogService *activitylogs.ActivityLog
+	notifService       *service.Notification
 }
 
 func NewVaultService(
@@ -35,6 +36,7 @@ func NewVaultService(
 	emailService *service.Plunk,
 	pushService *service.PushNotificationService,
 	activityLogService *activitylogs.ActivityLog,
+	notifService *service.Notification,
 ) *VaultService {
 	return &VaultService{
 		store:              store,
@@ -43,6 +45,7 @@ func NewVaultService(
 		emailService:       emailService,
 		pushService:        pushService,
 		activityLogService: activityLogService,
+		notifService:       notifService,
 	}
 }
 
@@ -302,20 +305,38 @@ func (r *RecurringRule) Scan(value any) error {
 		return nil
 	}
 
-	bytes, ok := value.([]byte)
-	if !ok {
-		return fmt.Errorf("failed to scan RecurringRule: expected []byte, got %T", value)
+	var bytes []byte
+
+	// Handle both []byte and pqtype.NullRawMessage
+	switch v := value.(type) {
+	case []byte:
+		bytes = v
+	case pqtype.NullRawMessage:
+		if !v.Valid {
+			return nil
+		}
+		bytes = v.RawMessage
+	default:
+		return fmt.Errorf("failed to scan RecurringRule: unsupported type %T", value)
+	}
+
+	if len(bytes) == 0 {
+		return nil
 	}
 
 	return json.Unmarshal(bytes, r)
 }
 
 // Value implements driver.Valuer interface for RecurringRule
-func (r RecurringRule) Value() (interface{}, error) {
+func (r RecurringRule) Value() (any, error) {
 	if r.Amount == "" {
 		return nil, nil
 	}
-	return json.Marshal(r)
+	bytes, err := json.Marshal(r)
+	if err != nil {
+		return nil, err
+	}
+	return pqtype.NullRawMessage{RawMessage: bytes, Valid: true}, nil
 }
 
 // ============================================================================
@@ -366,26 +387,24 @@ func (r *RecurringRule) IsActive() bool {
 // EXECUTION TIME CALCULATION
 // ============================================================================
 
-// CalculateNextExecution computes the next timestamp when deposit should occur.
-// Takes into account:
-//   - Current interval (daily/weekly/monthly)
-//   - Day of week/month preferences
-//   - Time of day
-//   - Weekend skipping (if enabled)
-//
-// This method is called:
-//   - After rule creation to set initial NextExecutionAt
-//   - After successful execution to schedule next deposit
-//   - After rule updates to recalculate schedule
-//
-// Returns: time.Time of next scheduled execution
 func (r *RecurringRule) CalculateNextExecution() time.Time {
 	now := time.Now()
+
+	// if last execution exists, calculate from there
+	if r.LastExecutionAt != nil {
+		return r.CalculateFromLastExecution(now)
+	}
+
+	// first execution - find the next valid execution time
+	return r.calculateFirstExecution(now)
+}
+func (r *RecurringRule) CalculateFromLastExecution(now time.Time) time.Time {
+
 	var next time.Time
 
 	switch r.Interval {
 	case IntervalDaily:
-		next = r.calculateNextDaily(now)
+		next = r.LastExecutionAt.Add(24 * time.Hour)
 	case IntervalWeekly:
 		next = r.calculateNextWeekly(now)
 	case IntervalMonthly:
@@ -405,14 +424,45 @@ func (r *RecurringRule) CalculateNextExecution() time.Time {
 	return next
 }
 
-// calculateNextDaily computes next execution for daily interval.
-// Simply adds 24 hours to current time.
-//
-// Example:
-//
-//	If now is "2024-01-15 10:00", returns "2024-01-16 10:00"
-func (r *RecurringRule) calculateNextDaily(from time.Time) time.Time {
-	return from.Add(24 * time.Hour)
+func (r *RecurringRule) calculateFirstExecution(now time.Time) time.Time {
+	var next time.Time
+
+	switch r.Interval {
+	case IntervalDaily:
+		next = now
+	case IntervalWeekly:
+		next = r.calculateNextWeekly(now)
+	case IntervalMonthly:
+		next = r.calculateNextMonthly(now)
+	default:
+		next = now
+	}
+
+	next = r.applyTimeOfDay(next)
+
+	// if calcuated time is in the past, move to the next interval
+	if next.Before(now) || next.Equal(now) {
+		switch r.Interval {
+		case IntervalDaily:
+			next = next.Add(24 * time.Hour)
+		case IntervalWeekly:
+			next = next.Add(7 * 24 * time.Hour)
+		case IntervalMonthly:
+			next = r.addMonth(next)
+		}
+	}
+
+	// Skip weekends if configured
+	if r.SkipWeekends {
+		next = r.skipWeekends(next)
+	}
+
+	return next
+}
+
+func (r *RecurringRule) addMonth(t time.Time) time.Time {
+	// Add one month, handling year rollover
+	return time.Date(t.Year(), t.Month()+1, t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond(), t.Location())
 }
 
 // calculateNextWeekly computes next execution for weekly interval.
@@ -423,21 +473,51 @@ func (r *RecurringRule) calculateNextDaily(from time.Time) time.Time {
 //	If DayOfWeek=Friday and today is Monday,
 //	returns next Friday instead of next Monday.
 func (r *RecurringRule) calculateNextWeekly(from time.Time) time.Time {
-	next := from.Add(7 * 24 * time.Hour)
+	if r.DayOfWeek == nil {
+		// NO specific day, use simple weekly calculation for next executiom
 
-	if r.DayOfWeek != nil {
-		targetWeekday := time.Weekday(*r.DayOfWeek)
-		currentWeekday := next.Weekday()
-
-		daysUntilTarget := int(targetWeekday - currentWeekday)
-		if daysUntilTarget < 0 {
-			daysUntilTarget += 7
+		if r.LastExecutionAt != nil {
+			return r.LastExecutionAt.Add(7 * 24 * time.Hour)
 		}
 
-		next = next.Add(time.Duration(daysUntilTarget) * 24 * time.Hour)
+		// First execution - if todays time hasnt passed, use today
+		todayExecution := r.applyTimeOfDay(from)
+		if todayExecution.After(from) {
+			return todayExecution
+		}
+		// Otherwise, schedule for next week
+		return todayExecution.Add(7 * 24 * time.Hour)
 	}
 
-	return next
+	targetWeekday := time.Weekday(*r.DayOfWeek)
+	currentWeekday := from.Weekday()
+
+	if currentWeekday == targetWeekday {
+		todayExecution := r.applyTimeOfDay(from)
+		// If today's execution time hasn't passed yet, use today
+		if todayExecution.After(from) {
+			return todayExecution
+		}
+		// If time has passed, schedule for next week
+		return todayExecution.Add(7 * 24 * time.Hour)
+	}
+
+	// calculate days until target weekday
+	daysUntiTarget := int(targetWeekday - currentWeekday)
+	if daysUntiTarget <= 0 {
+		daysUntiTarget += 7 // move to next week
+	}
+
+	nextDate := from.Add(time.Duration(daysUntiTarget) * 24 * time.Hour)
+	nextExecution := r.applyTimeOfDay(nextDate)
+
+	// If this calculated time is in the past (shouldn't happen with proper logic),
+	// move to next week
+	if nextExecution.Before(from) || nextExecution.Equal(from) {
+		nextExecution = nextExecution.Add(7 * 24 * time.Hour)
+	}
+
+	return nextExecution
 }
 
 // calculateNextMonthly computes next execution for monthly interval.
@@ -452,32 +532,59 @@ func (r *RecurringRule) calculateNextWeekly(from time.Time) time.Time {
 //	If DayOfMonth=15 and today is Jan 20,
 //	returns Feb 15
 func (r *RecurringRule) calculateNextMonthly(from time.Time) time.Time {
-	year, month, _ := from.Date()
+	now := time.Now()
+	year, month, day := now.Date()
 
-	// Move to next month
+	targetDay := 1
+	if r.DayOfMonth != nil {
+		if *r.DayOfMonth == -1 {
+			// last day of month
+			targetDay = r.lastDayOfMonth(year, month)
+		} else {
+			targetDay = *r.DayOfMonth
+			// ensure day is valid for the month
+			lastDay := r.lastDayOfMonth(year, month)
+			if targetDay > lastDay {
+				targetDay = lastDay
+			}
+		}
+	}
+
+	// check if execution can be done this month
+	if day <= targetDay {
+		// We're before or on the target day this month
+		thisMonthExecution := time.Date(year, month, targetDay, 0, 0, 0, 0, from.Location())
+
+		// if execution time has not passed, use this month
+		if thisMonthExecution.After(now) {
+			return thisMonthExecution
+		}
+	}
+
+	// else move to next month
 	month++
 	if month > 12 {
 		month = 1
 		year++
 	}
 
-	// Determine day of month
-	day := 1
+	// determine day for next month
 	if r.DayOfMonth != nil {
 		if *r.DayOfMonth == -1 {
-			// Last day of month
-			day = r.lastDayOfMonth(year, month)
+			// last day of month
+			targetDay = r.lastDayOfMonth(year, month)
 		} else {
-			day = *r.DayOfMonth
-			// Ensure day is valid for the month
+			targetDay = *r.DayOfMonth
+			// ensure day is valid for the month
 			lastDay := r.lastDayOfMonth(year, month)
-			if day > lastDay {
-				day = lastDay
+			if targetDay > lastDay {
+				targetDay = lastDay
 			}
 		}
 	}
 
-	return time.Date(year, month, day, 0, 0, 0, 0, from.Location())
+	nextExecution := time.Date(year, month, targetDay, 0, 0, 0, 0, from.Location())
+	return r.applyTimeOfDay(nextExecution)
 }
 
 // lastDayOfMonth returns the last day number for a given month/year.
@@ -911,6 +1018,12 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 	go func() {
 		bgCtx := context.Background()
 
+		if s.notifService != nil {
+			if _, err := s.notifService.Create(bgCtx, int32(userID), "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName)); err != nil {
+				s.logger.Error(fmt.Sprintf("Failed to create vault goal notification: %v", err))
+			}
+		}
+
 		if s.emailService != nil {
 			if err := s.emailService.SendGoalCreatedEmail(bgCtx, &user, req.Name, req.Currency, req.TargetAmount); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to send goal created email: %v", err))
@@ -1109,7 +1222,6 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		progress = "0"
 	}
 
-
 	// Get user for notifications
 	user, err := s.store.GetUserByID(ctx, req.UserID)
 	if err != nil {
@@ -1127,12 +1239,22 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 				if s.pushService != nil {
 					_ = s.pushService.SendGoalCompletedPush(bgCtx, req.UserID, vault.VaultName)
 				}
+				if s.notifService != nil {
+					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName)); err != nil {
+						s.logger.Error(fmt.Sprintf("Failed to create goal completed notification: %v", err))
+					}
+				}
 			} else {
 				if s.emailService != nil {
 					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), fmt.Sprintf("%s%%", progress))
 				}
 				if s.pushService != nil {
 					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
+				}
+				if s.notifService != nil {
+					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName)); err != nil {
+						s.logger.Error(fmt.Sprintf("Failed to create deposit notification: %v", err))
+					}
 				}
 			}
 		}()
@@ -1278,6 +1400,11 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 				if s.pushService != nil {
 					_ = s.pushService.SendWithdrawalSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
 				}
+				if s.notifService != nil {
+					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName)); err != nil {
+						s.logger.Error(fmt.Sprintf("Failed to create withdrawal notification: %v", err))
+					}
+				}
 			}
 		}()
 	}
@@ -1418,6 +1545,11 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 		}
 		if s.pushService != nil {
 			_ = s.pushService.SendRecurringDepositSuccessPush(ctx, vault.UserID, vault.VaultName, rule.Amount, vault.Currency)
+		}
+		if s.notifService != nil {
+			if _, err := s.notifService.Create(ctx, int32(vault.UserID), "Recurring Deposit Successful", fmt.Sprintf("A recurring deposit of %s %s has been made to your vault: %s", rule.Amount, vault.Currency, vault.VaultName)); err != nil {
+				s.logger.Error(fmt.Sprintf("Failed to create recurring deposit success notification: %v", err))
+			}
 		}
 	}
 

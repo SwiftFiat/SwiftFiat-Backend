@@ -2,6 +2,8 @@ package vaultsavings
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -268,21 +270,17 @@ func (vs *VaultScheduler) handleDepositSuccess(
 	rule.MarkExecuted()
 
 	// Save the updated rule
-	ruleValue, err := rule.Value()
+	rulebytes, err := json.Marshal(rule)
 	if err != nil {
 		return fmt.Errorf("failed to serialize rule: %w", err)
 	}
 
-	// Convert to pqtype.NullRawMessage
-	bytes, ok := ruleValue.([]byte)
-	if !ok {
-		return fmt.Errorf("unexpected rule value type: %T", ruleValue)
-	}
-	recurringRule := pqtype.NullRawMessage{RawMessage: bytes, Valid: true}
+	recurringRule := pqtype.NullRawMessage{RawMessage: rulebytes, Valid: true}
 
 	if err := vs.store.UpdateVaultRecurringRule(ctx, db.UpdateVaultRecurringRuleParams{
 		ID:            vault.ID,
 		RecurringRule: recurringRule,
+		NextAutoSave: sql.NullTime{Time: rule.NextExecutionAt, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to update recurring rule: %w", err)
 	}
@@ -320,17 +318,11 @@ func (vs *VaultScheduler) handleDepositFailure(
 			vault.ID, rule.RetryCount, rule.MaxRetries))
 
 		// Save updated retry count
-		ruleValue, err := rule.Value()
+		ruleBytes, err := json.Marshal(rule)
 		if err != nil {
 			return fmt.Errorf("failed to serialize rule: %w", err)
 		}
-
-		// Convert to pqtype.NullRawMessage
-		bytes, ok := ruleValue.([]byte)
-		if !ok {
-			return fmt.Errorf("unexpected rule value type: %T", ruleValue)
-		}
-		recurringRule := pqtype.NullRawMessage{RawMessage: bytes, Valid: true}
+		recurringRule := pqtype.NullRawMessage{RawMessage: ruleBytes, Valid: true}
 
 		if err := vs.store.UpdateVaultRecurringRule(ctx, db.UpdateVaultRecurringRuleParams{
 			ID:            vault.ID,

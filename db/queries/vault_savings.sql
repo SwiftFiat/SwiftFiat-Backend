@@ -608,9 +608,9 @@ SELECT *
 FROM vault_savings
 WHERE recurring_rule IS NOT NULL
   AND recurring_rule->>'enabled' = 'true'
-  AND (recurring_rule->>'next_execution_at')::timestamptz <= $1::timestamptz
+  AND next_auto_save <= $1::timestamptz
   AND status = 'active'
-ORDER BY (recurring_rule->>'next_execution_at')::timestamptz ASC;
+ORDER BY next_auto_save ASC;
 
 -- name: GetVaultsWithActiveRecurringRules :many
 -- Get all vaults that have active recurring rules (for stats)
@@ -624,6 +624,24 @@ WHERE recurring_rule IS NOT NULL
 -- Update the recurring rule for a vault
 UPDATE vault_savings
 SET recurring_rule = $2,
-    next_auto_save = ($2->>'next_execution_at')::timestamptz,
+    next_auto_save = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1;
+
+-- name: GetDueVaultsWithRecurringRules :many
+SELECT vs.* FROM vault_savings vs
+WHERE vs.auto_save_enabled = true
+AND vs.recurring_rule IS NOT NULL
+AND vs.status = 'active'
+AND (
+    vs.next_auto_save <= NOW()
+    OR EXISTS (
+        SELECT 1 FROM jsonb_to_record(vs.recurring_rule) AS rule(
+            next_execution_at timestamptz,
+            enabled boolean
+        )
+        WHERE rule.enabled = true 
+        AND rule.next_execution_at <= NOW()
+    )
+)
+LIMIT $1;
