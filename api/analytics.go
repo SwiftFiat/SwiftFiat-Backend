@@ -451,7 +451,7 @@ func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -661,7 +661,7 @@ func (h *ActivityLog) AdminEditUser(c *gin.Context) {
 		return
 	}
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role != "admin" {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
