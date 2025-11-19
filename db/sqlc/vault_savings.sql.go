@@ -2018,9 +2018,9 @@ SELECT id, user_id, vault_name, description, goal_amount, current_balance, categ
 FROM vault_savings
 WHERE recurring_rule IS NOT NULL
   AND recurring_rule->>'enabled' = 'true'
-  AND (recurring_rule->>'next_execution_at')::timestamptz <= $1::timestamptz
+  AND next_auto_save <= $1::timestamptz
   AND status = 'active'
-ORDER BY (recurring_rule->>'next_execution_at')::timestamptz ASC
+ORDER BY next_auto_save ASC
 `
 
 // Get all vaults with recurring deposits that are due for execution
@@ -2589,7 +2589,7 @@ func (q *Queries) UpdateVaultGoalDetails(ctx context.Context, arg UpdateVaultGoa
 const updateVaultRecurringRule = `-- name: UpdateVaultRecurringRule :exec
 UPDATE vault_savings
 SET recurring_rule = $2,
-    next_auto_save = ($2->>'next_execution_at')::timestamptz,
+    next_auto_save = $3,
     updated_at = CURRENT_TIMESTAMP
 WHERE id = $1
 `
@@ -2597,11 +2597,12 @@ WHERE id = $1
 type UpdateVaultRecurringRuleParams struct {
 	ID            uuid.UUID             `json:"id"`
 	RecurringRule pqtype.NullRawMessage `json:"recurring_rule"`
+	NextAutoSave  sql.NullTime          `json:"next_auto_save"`
 }
 
 // Update the recurring rule for a vault
 func (q *Queries) UpdateVaultRecurringRule(ctx context.Context, arg UpdateVaultRecurringRuleParams) error {
-	_, err := q.db.ExecContext(ctx, updateVaultRecurringRule, arg.ID, arg.RecurringRule)
+	_, err := q.db.ExecContext(ctx, updateVaultRecurringRule, arg.ID, arg.RecurringRule, arg.NextAutoSave)
 	return err
 }
 

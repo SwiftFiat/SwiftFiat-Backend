@@ -23,7 +23,7 @@ type AuditLog struct {
 
 type AutoTopupLog struct {
 	ID                  uuid.UUID             `json:"id"`
-	UserID              uuid.UUID             `json:"user_id"`
+	UserID              int64                 `json:"user_id"`
 	CardID              uuid.UUID             `json:"card_id"`
 	SubscriptionID      uuid.NullUUID         `json:"subscription_id"`
 	TopupAmount         string                `json:"topup_amount"`
@@ -40,7 +40,7 @@ type AutoTopupLog struct {
 
 type AutoTopupSetting struct {
 	ID                       uuid.UUID      `json:"id"`
-	UserID                   uuid.UUID      `json:"user_id"`
+	UserID                   int64          `json:"user_id"`
 	Enabled                  sql.NullBool   `json:"enabled"`
 	DefaultCardID            uuid.NullUUID  `json:"default_card_id"`
 	TopupStrategy            sql.NullString `json:"topup_strategy"`
@@ -74,7 +74,7 @@ type Brand struct {
 
 type CardFundingHistory struct {
 	ID            uuid.UUID             `json:"id"`
-	UserID        uuid.UUID             `json:"user_id"`
+	UserID        int64                 `json:"user_id"`
 	CardID        uuid.UUID             `json:"card_id"`
 	WalletID      uuid.UUID             `json:"wallet_id"`
 	Amount        string                `json:"amount"`
@@ -366,10 +366,10 @@ type RewardConfiguration struct {
 
 // Detailed records of reward point redemptions on bill payments
 type RewardRedemption struct {
-	ID                       int64 `json:"id"`
-	RewardTransactionID      int64 `json:"reward_transaction_id"`
-	UserID                   int32 `json:"user_id"`
-	BillPaymentTransactionID int64 `json:"bill_payment_transaction_id"`
+	ID                       int64     `json:"id"`
+	RewardTransactionID      int64     `json:"reward_transaction_id"`
+	UserID                   int32     `json:"user_id"`
+	BillPaymentTransactionID uuid.UUID `json:"bill_payment_transaction_id"`
 	// Reward points redeemed (₦ value)
 	PointsRedeemed string `json:"points_redeemed"`
 	// Discount applied to bill payment (₦ value)
@@ -385,8 +385,8 @@ type RewardRedemption struct {
 // Complete history of reward points earned and redeemed
 type RewardTransaction struct {
 	ID            int64         `json:"id"`
-	UserID        int32         `json:"user_id"`
-	TransactionID sql.NullInt64 `json:"transaction_id"`
+	UserID        int64         `json:"user_id"`
+	TransactionID uuid.NullUUID `json:"transaction_id"`
 	// Type: earned or redeemed
 	TransactionType       string         `json:"transaction_type"`
 	SourceTransactionType sql.NullString `json:"source_transaction_type"`
@@ -423,7 +423,7 @@ type ServicesMetadatum struct {
 
 type Subscription struct {
 	ID                       uuid.UUID             `json:"id"`
-	UserID                   uuid.UUID             `json:"user_id"`
+	UserID                   int64                 `json:"user_id"`
 	CardID                   uuid.UUID             `json:"card_id"`
 	MerchantID               uuid.NullUUID         `json:"merchant_id"`
 	MerchantName             string                `json:"merchant_name"`
@@ -473,7 +473,7 @@ type SubscriptionMerchant struct {
 
 type SubscriptionNotification struct {
 	ID               uuid.UUID             `json:"id"`
-	UserID           uuid.UUID             `json:"user_id"`
+	UserID           int64                 `json:"user_id"`
 	SubscriptionID   uuid.NullUUID         `json:"subscription_id"`
 	NotificationType string                `json:"notification_type"`
 	Title            string                `json:"title"`
@@ -490,7 +490,7 @@ type SubscriptionNotification struct {
 }
 
 type SubscriptionSpendingAnalytic struct {
-	UserID               uuid.UUID      `json:"user_id"`
+	UserID               int64          `json:"user_id"`
 	Month                int64          `json:"month"`
 	CategoryName         sql.NullString `json:"category_name"`
 	ActiveSubscriptions  int64          `json:"active_subscriptions"`
@@ -692,7 +692,7 @@ type VaultYieldConfig struct {
 
 type VirtualCard struct {
 	ID                uuid.UUID             `json:"id"`
-	UserID            uuid.UUID             `json:"user_id"`
+	UserID            int64                 `json:"user_id"`
 	FlutterwaveCardID string                `json:"flutterwave_card_id"`
 	CardPanLast4      sql.NullString        `json:"card_pan_last4"`
 	CardBrand         sql.NullString        `json:"card_brand"`
