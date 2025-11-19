@@ -1339,3 +1339,58 @@ func (s *TransactionService) ListAllTransactions(ctx context.Context) ([]db.List
 
 	return transactions, nil
 }
+
+// ===============================================
+// REWARDS
+// ===============================================
+
+// ProcessRewardRedemption handles reward point redemption for bill payments
+func (s *TransactionService) ProcessRewardRedemption(
+	ctx context.Context,
+	dbTx *sql.Tx,
+	user *db.User,
+	pointsToRedeem decimal.Decimal,
+	originalAmount decimal.Decimal,
+) (finalAmount decimal.Decimal, redeemed bool, err error) {
+	// if no points to redeem, return original amount
+	if pointsToRedeem.LessThanOrEqual(decimal.NewFromInt(0)) {
+		return originalAmount, false, nil
+	}
+
+	qtx := s.store.WithTx(dbTx)
+
+	// Fetch user's reward balance
+	balance, err := qtx.GetUserRewardBalance(ctx, user.ID)
+	if err != nil {
+		return decimal.Zero, false, fmt.Errorf("failed to fetch user reward balance: %w", err)
+	}
+
+	balanceDecimal, err := decimal.NewFromString(balance.RewardBalance)
+	if err != nil {
+		return decimal.Zero, false, fmt.Errorf("invalid reward balance format: %w", err)
+	}
+
+	// Validate: User has sufficient balance
+	if pointsToRedeem.GreaterThan(balanceDecimal) {
+		return originalAmount, false, fmt.Errorf(
+			"insufficient reward balance. Available: ₦%d, Requested: ₦%d",
+			balance.RewardBalance, pointsToRedeem,
+		)
+	}
+
+	// Validate: Points don't exceed bill amount
+	if pointsToRedeem.GreaterThan(originalAmount) {
+		return originalAmount, false, fmt.Errorf(
+			"cannot redeem more points (₦%d) than bill amount (₦%d)",
+			pointsToRedeem, originalAmount.InexactFloat64(),
+		)
+	}
+
+	// calculate final amount after discount
+	finalAmount = originalAmount.Sub(pointsToRedeem)
+
+	s.logger.Info(fmt.Sprintf("Reward redemption validated: Original=₦%.2f, Points=₦%.2f, Final=₦%.2f",
+		originalAmount.InexactFloat64(), pointsToRedeem, finalAmount.InexactFloat64()))
+
+	return finalAmount, true, nil
+}
