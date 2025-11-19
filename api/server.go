@@ -225,6 +225,7 @@ func (s *Server) Start() error {
 	Referral{}.router(s)
 	ActivityLog{}.router(s)
 	Vault{}.router(s)
+	Rewards{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
