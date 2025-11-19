@@ -1374,7 +1374,7 @@ func (s *TransactionService) ProcessRewardRedemption(
 	if pointsToRedeem.GreaterThan(balanceDecimal) {
 		return originalAmount, false, fmt.Errorf(
 			"insufficient reward balance. Available: ₦%d, Requested: ₦%d",
-			balance.RewardBalance, pointsToRedeem,
+			balanceDecimal, pointsToRedeem,
 		)
 	}
 
@@ -1382,15 +1382,149 @@ func (s *TransactionService) ProcessRewardRedemption(
 	if pointsToRedeem.GreaterThan(originalAmount) {
 		return originalAmount, false, fmt.Errorf(
 			"cannot redeem more points (₦%d) than bill amount (₦%d)",
-			pointsToRedeem, originalAmount.InexactFloat64(),
+			pointsToRedeem, originalAmount,
 		)
 	}
 
 	// calculate final amount after discount
 	finalAmount = originalAmount.Sub(pointsToRedeem)
 
-	s.logger.Info(fmt.Sprintf("Reward redemption validated: Original=₦%.2f, Points=₦%.2f, Final=₦%.2f",
-		originalAmount.InexactFloat64(), pointsToRedeem, finalAmount.InexactFloat64()))
+	s.logger.Info(fmt.Sprintf("Reward redemption validated: Original=₦%d, Points=₦%d, Final=₦%d",
+		originalAmount, pointsToRedeem, finalAmount))
 
 	return finalAmount, true, nil
+}
+
+// CompleteRewardRedemption completes the reward redemption after bill payment succeeds
+func (s *TransactionService) CompleteRewardRedemption(
+	ctx context.Context,
+	dbTx *sql.Tx,
+	userID int32,
+	transactionID uuid.UUID,
+	pointsRedeemed decimal.Decimal,
+	originalAmount decimal.Decimal,
+	finalAmount decimal.Decimal,
+	serviceType string,
+	serviceProvider string,
+) error {
+	qtx := s.store.WithTx(dbTx)
+
+	// Redeem Points, deduct from balance
+	description := fmt.Sprintf("Redeemed ₦%s points for %s payment via %s",
+		pointsRedeemed.String(), serviceType, serviceProvider)
+
+	rewardTx, err := qtx.RedeemRewardPointsSimple(ctx, db.RedeemRewardPointsSimpleParams{
+		UserID:            int64(userID),
+		PointsAmount:      pointsRedeemed.String(),
+		TransactionID:     uuid.NullUUID{UUID: transactionID, Valid: true},
+		TransactionAmount: sql.NullString{String: originalAmount.String(), Valid: true},
+		Description:       sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to complete reward redemption: %w", err)
+	}
+
+	// Create detailed redemption record
+	_, err = qtx.CreateRewardRedemption(ctx, db.CreateRewardRedemptionParams{
+		RewardTransactionID:      rewardTx.ID,
+		UserID:                   userID,
+		PointsRedeemed:           pointsRedeemed.String(),
+		BillPaymentTransactionID: transactionID,
+		DiscountAmount:           pointsRedeemed.String(), // same as points redeemed
+		OriginalBillAmount:       originalAmount.String(),
+		FinalAmountPaid:          finalAmount.String(),
+		ServiceType:              sql.NullString{String: serviceType, Valid: true},
+		ServiceProvider:          sql.NullString{String: serviceProvider, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create reward redemption record: %w", err)
+	}
+
+	s.logger.Info(fmt.Sprintf("Reward redemption completed: User=%d, Points=₦%d, TX=%d",
+		userID, pointsRedeemed, transactionID))
+
+	return nil
+}
+
+func (s *TransactionService) AwardRewardPoints(
+	ctx context.Context,
+	dbTx *sql.Tx,
+	userID int32,
+	transactionID uuid.UUID,
+	paidAmount decimal.Decimal,
+	serviceType string,
+) (pointsEarned decimal.Decimal, err error) {
+	qtx := s.store.WithTx(dbTx)
+
+	// Get active reward configuration
+	config, err := qtx.GetActiveRewardConfiguration(ctx, "bill_payment")
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// No active configuration, skip reward
+			s.logger.Info("No active reward configuration found, skipping reward")
+			return decimal.Zero, nil
+		}
+		return decimal.Zero, fmt.Errorf("failed to get reward configuration: %w", err)
+	}
+
+	// Check minimum transaction amount
+	minAmount, err := decimal.NewFromString(config.MinTransactionAmount)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("invalid minimum transaction amount format: %w", err)
+	}
+	if paidAmount.LessThan(minAmount) {
+		s.logger.Info(fmt.Sprintf("Amount ₦%d below minimum ₦%s, skipping reward",
+			paidAmount, config.MinTransactionAmount))
+		return decimal.Zero, nil
+	}
+
+	// Calculate reward points: amount × rate
+	rewardRate, err := decimal.NewFromString(config.RewardRate)
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("invalid reward rate format: %w", err)
+	}
+	points := paidAmount.Mul(rewardRate)
+
+	// Apply max points cap if configured
+	if config.MaxPointsPerTransaction.Valid {
+		maxPoints, err := decimal.NewFromString(config.MaxPointsPerTransaction.String)
+		if err != nil {
+			return decimal.Zero, fmt.Errorf("invalid max points format: %w", err)
+		}
+		if points.GreaterThan(maxPoints) {
+			points = maxPoints
+		}
+	}
+
+	// Award points
+	description := fmt.Sprintf("Earned ₦%d reward points from %s payment of ₦%d",
+		pointsEarned, serviceType, paidAmount)
+
+	_, err = qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
+		UserID:                int64(userID),
+		PointsAmount:               pointsEarned.String(),
+		TransactionID:         uuid.NullUUID{UUID: transactionID, Valid: true},
+		SourceTransactionType: sql.NullString{String: "bill_payment", Valid: true},
+		TransactionAmount:     sql.NullString{String: paidAmount.String(), Valid: true},
+		RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
+		Description:           sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return decimal.Zero, fmt.Errorf("failed to award reward points: %w", err)
+	}
+
+	s.logger.Info(fmt.Sprintf("Reward points awarded: User=%d, Points=₦%d, TX=%d, Rate=%s%%",
+		userID, pointsEarned, transactionID, config.RewardRate))
+
+	return pointsEarned, nil
+
+}
+
+// GetUserRewardBalance is a convenience method to get user's reward balance
+func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID int64) (string, error) {
+    balance, err := s.store.GetUserRewardBalance(ctx, userID)
+    if err != nil {
+        return "", fmt.Errorf("failed to get reward balance: %w", err)
+    }
+    return balance.RewardBalance, nil
 }

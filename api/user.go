@@ -59,7 +59,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
 	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
 	serverGroupV1.POST("delete-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
-	serverGroupV1.POST("get-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
+	serverGroupV1.GET("get-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
 	serverGroupV1.PUT("/notification/mark-as-read/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkNotificationAsRead)
 	serverGroupV1.DELETE("/notification/delete/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteNotification)
 	serverGroupV1.GET("/notification/mark-all-as-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkAllNotificationsAsRead)
@@ -1069,7 +1069,7 @@ type UserDetailResponse struct {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/get-user-by-id/{id} [get]
+// @Router /api/v1/user/get-user/{id} [get]
 func (u *User) GetUserByID(c *gin.Context) {
 	id := c.Param("id")
 	userID, err := strconv.Atoi(id)
