@@ -326,7 +326,7 @@ func (u *User) pushToken(ctx *gin.Context) {
 		FCMToken   string `json:"fcm_token"`
 		ExpoToken  string `json:"expo_token"`
 		DeviceUUID string `json:"device_uuid"`
-	}{}
+	}{} 
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
@@ -621,7 +621,7 @@ func (u *User) GetNewUsersToday(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
@@ -655,7 +655,7 @@ func (u *User) ListUsers(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
@@ -701,7 +701,7 @@ func (u *User) ListKYCs(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
@@ -1029,7 +1029,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role != models.SUPER_ADMIN && activeUser.Role != models.ADMIN {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1085,7 +1085,7 @@ func (u *User) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1184,7 +1184,7 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}

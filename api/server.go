@@ -22,6 +22,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -38,24 +40,24 @@ import (
 var TokenController *utils.JWTToken
 
 type Server struct {
-	router           *gin.Engine
-	queries          *db.Store
-	config           *utils.Config
-	logger           *logging.Logger
-	taskScheduler    *tasks.TaskScheduler
-	vaultScheduler   *vaultsavings.VaultScheduler
-	yieldScheduler   *vaultsavings.YieldScheduler
-	vaultService     *vaultsavings.VaultService
-	yieldService     *vaultsavings.YieldService
-	provider         *providers.ProviderService
-	redis            *redis.RedisService
-	pushNotification *service.PushNotificationService
-	authMiddleware   *AuthMiddleware
-	emailService     *service.Plunk
-	walletService    *wallet.WalletService
-	auditLog         *activitylogs.ActivityLog
+	router                   *gin.Engine
+	queries                  *db.Store
+	config                   *utils.Config
+	logger                   *logging.Logger
+	taskScheduler            *tasks.TaskScheduler
+	vaultScheduler           *vaultsavings.VaultScheduler
+	yieldScheduler           *vaultsavings.YieldScheduler
+	vaultService             *vaultsavings.VaultService
+	yieldService             *vaultsavings.YieldService
+	provider                 *providers.ProviderService
+	redis                    *redis.RedisService
+	pushNotification         *service.PushNotificationService
+	authMiddleware           *AuthMiddleware
+	emailService             *service.Plunk
+	walletService            *wallet.WalletService
+	auditLog                 *activitylogs.ActivityLog
 	inAppnotificationService *service.Notification
-	// rewardService    *rewards.RewardService
+	rewardService            *rewards.RewardService
 }
 
 func NewServer(envPath string) *Server {
@@ -150,7 +152,7 @@ func NewServer(envPath string) *Server {
 	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
 
 	// reward service
-	// rs := rewards.NewRewardService(q, l, pn, security.NewCache())
+	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -175,24 +177,24 @@ func NewServer(envPath string) *Server {
 	// accessible via e.g ```server.services.WalletService```
 
 	return &Server{
-		router:           g,
-		queries:          q,
-		config:           c,
-		logger:           l,
-		taskScheduler:    t,
-		provider:         p,
-		redis:            r,
-		pushNotification: pn,
-		authMiddleware:   am,
-		emailService:     email,
-		vaultScheduler:   vaultScheduler,
-		walletService:    ws,
-		auditLog:         al,
-		vaultService:     vs,
-		yieldService:     ys,
-		yieldScheduler:   yieldScheduler,
+		router:                   g,
+		queries:                  q,
+		config:                   c,
+		logger:                   l,
+		taskScheduler:            t,
+		provider:                 p,
+		redis:                    r,
+		pushNotification:         pn,
+		authMiddleware:           am,
+		emailService:             email,
+		vaultScheduler:           vaultScheduler,
+		walletService:            ws,
+		auditLog:                 al,
+		vaultService:             vs,
+		yieldService:             ys,
+		yieldScheduler:           yieldScheduler,
 		inAppnotificationService: ns,
-		// rewardService:    rs,
+		rewardService:    rs,
 	}
 }
 
