@@ -274,7 +274,6 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 		return nil, 0, err
 	}
 
-
 	// Send notification asynchronously
 	go func() {
 		serviceInfo := fmt.Sprintf("%s payment", params.ServiceType)
@@ -593,4 +592,26 @@ func (s *RewardService) VerifyUserRewardBalance(ctx context.Context, userID int6
 
 	// Check if there's any discrepancy
 	return result.Discrepancy == 0, nil
+}
+
+type GetTopUsersByRewardsEarnedRow struct {
+	ID                  int64  `json:"id"`
+	FirstName           string `json:"first_name"`
+	LastName            string `json:"last_name"`
+	Email               string `json:"email"`
+	RewardBalance       string `json:"reward_balance"`
+	TotalRewardEarned   string `json:"total_reward_earned"`
+	TotalRewardRedeemed string `json:"total_reward_redeemed"`
+}
+
+func MapGetTopUsersByRewardsEarnedRowToResponse(row *db.GetTopUsersByRewardsEarnedRow) *GetTopUsersByRewardsEarnedRow {
+	return &GetTopUsersByRewardsEarnedRow{
+		ID:                  row.ID,
+		FirstName:           row.FirstName.String,
+		LastName:            row.LastName.String,
+		Email:               row.Email,
+		RewardBalance:       row.RewardBalance,
+		TotalRewardEarned:   row.TotalRewardEarned,
+		TotalRewardRedeemed: row.TotalRewardRedeemed,
+	}
 }
