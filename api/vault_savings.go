@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -1310,6 +1311,16 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", *vaultsavings.MapVaultYieldConfigToResponse(config)))
+}
+
+type UpdateYieldConfigParams struct {
+	ID                 uuid.UUID `json:"id"`
+	ApyRate            string    `json:"apy_rate"`
+	MinBalanceForYield string    `json:"min_balance_for_yield"`
+	CompoundFrequency  string    `json:"compound_frequency"`
+	IsActive           bool      `json:"is_active"`
+	EffectiveUntil     time.Time `json:"effective_until"`
+	Notes              string    `json:"notes"`
 }
 
 // updateYieldConfig godoc
