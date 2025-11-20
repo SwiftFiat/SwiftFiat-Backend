@@ -3,7 +3,6 @@ package api
 import (
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -326,7 +325,7 @@ func (u *User) pushToken(ctx *gin.Context) {
 		FCMToken   string `json:"fcm_token"`
 		ExpoToken  string `json:"expo_token"`
 		DeviceUUID string `json:"device_uuid"`
-	}{} 
+	}{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
@@ -1097,16 +1096,16 @@ func (u *User) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	ref, err := u.server.queries.GetReferralByUserID(c, int32(activeUser.UserID))
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			c.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
-			return
-		}
-		u.server.logger.Error(err.Error())
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
+	ref, _ := u.server.queries.GetReferralByUserID(c, int32(activeUser.UserID))
+	// if err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		c.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
+	// 		return
+	// 	}
+	// 	u.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+	// 	return
+	// }
 
 	earnings, err := u.server.queries.GetReferralEarnings(c, int32(user.ID))
 	if err != nil {

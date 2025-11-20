@@ -70,9 +70,9 @@ func (r Rewards) router(server *Server) {
 // @Tags rewards
 // @Accept json
 // @Produce json
-// @Success 200 {object} RewardBalanceResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardBalanceResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/rewards/balance [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
@@ -100,9 +100,9 @@ func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
 // @Tags rewards
 // @Accept json
 // @Produce json
-// @Success 200 {object} RewardSummaryResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardSummaryResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/rewards/summary [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardSummary(ctx *gin.Context) {
@@ -134,10 +134,10 @@ func (r *Rewards) getUserRewardSummary(ctx *gin.Context) {
 // @Param date_to query string false "End date (RFC3339)"
 // @Param page query int false "Page number" default(1)
 // @Param page_size query int false "Page size" default(20)
-// @Success 200 {object} RewardHistoryResponse
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardHistoryResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/rewards/history [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
@@ -224,12 +224,12 @@ func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 // @Tags admin,rewards
 // @Accept json
 // @Produce json
-// @Param request body CreateRewardConfigRequest true "Configuration details"
-// @Success 201 {object} RewardConfiguration
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Param request body rewards.CreateRewardConfigRequest true "Configuration details"
+// @Success 201 {object} rewards.RewardConfigurationResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/configure [post]
 // @Security BearerAuth
 func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
@@ -273,11 +273,11 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 // @Tags admin,rewards
 // @Accept json
 // @Produce json
-// @Success 200 {object} RewardConfiguration
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardConfigurationResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/config [get]
 // @Security BearerAuth
 func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
@@ -306,7 +306,7 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, config)
+	ctx.JSON(http.StatusOK, rewards.MapRewardConfigToResponse(&config))
 }
 
 // listRewardConfigurations godoc
@@ -317,10 +317,10 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param page_size query int false "Page size" default(20)
-// @Success 200 {array} RewardConfiguration
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {array} []rewards.RewardConfigurationResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/configurations [get]
 // @Security BearerAuth
 func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
@@ -362,7 +362,12 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, configs)
+	var responseConfigs []rewards.RewardConfigurationResponse
+	for _, config := range configs {
+		responseConfigs = append(responseConfigs, *rewards.MapRewardConfigToResponse(&config))
+	}
+
+	ctx.JSON(http.StatusOK, responseConfigs)
 }
 
 // updateRewardConfiguration godoc
@@ -372,13 +377,13 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Configuration ID"
-// @Param request body UpdateRewardConfigRequest true "Updated configuration"
-// @Success 200 {object} RewardConfiguration
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 404 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Param request body rewards.UpdateRewardConfigRequest true "Updated configuration"
+// @Success 200 {object} rewards.RewardConfigurationResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/configure/{id} [put]
 // @Security BearerAuth
 func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
@@ -434,11 +439,11 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Configuration ID"
-// @Success 200 {object} RewardConfiguration
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardConfigurationResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/configure/{id}/activate [post]
 // @Security BearerAuth
 func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
@@ -466,7 +471,7 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, config)
+	ctx.JSON(http.StatusOK, rewards.MapRewardConfigToResponse(&config))
 }
 
 // deactivateRewardConfiguration godoc
@@ -476,11 +481,11 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param id path int true "Configuration ID"
-// @Success 200 {object} RewardConfiguration
-// @Failure 400 {object} ErrorResponse
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} rewards.RewardConfigurationResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/configure/{id}/deactivate [post]
 // @Security BearerAuth
 func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
@@ -508,7 +513,7 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, config)
+	ctx.JSON(http.StatusOK, rewards.MapRewardConfigToResponse(&config))
 }
 
 // ==============================================================
@@ -521,10 +526,10 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 // @Tags admin,rewards
 // @Accept json
 // @Produce json
-// @Success 200 {object} RewardStatisticsSummary
-// @Failure 401 {object} ErrorResponse
-// @Failure 403 {object} ErrorResponse
-// @Failure 500 {object} ErrorResponse
+// @Success 200 {object} []rewards.GetTopUsersByRewardsEarnedRow
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/rewards/statistics [get]
 // @Security BearerAuth
 func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
@@ -553,7 +558,12 @@ func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, users)
+	var usersResponse []rewards.GetTopUsersByRewardsEarnedRow
+	for _, user := range users {
+		usersResponse = append(usersResponse, *rewards.MapGetTopUsersByRewardsEarnedRowToResponse(&user))
+	}
+
+	ctx.JSON(http.StatusOK, usersResponse)
 }
 
 func (r *Rewards) getRewardStatistics(ctx *gin.Context) {

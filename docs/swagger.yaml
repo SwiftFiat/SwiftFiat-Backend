@@ -650,6 +650,166 @@ definitions:
     x-enum-varnames:
     - ReferralStatusPending
     - ReferralStatusActive
+  rewards.CreateRewardConfigRequest:
+    properties:
+      config_name:
+        type: string
+      is_active:
+        type: boolean
+      max_points_per_transaction:
+        type: string
+      min_transaction_amount:
+        minLength: 0
+        type: string
+      reward_rate:
+        maximum: 1
+        type: integer
+      transaction_type:
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+    required:
+    - config_name
+    - reward_rate
+    - transaction_type
+    type: object
+  rewards.GetTopUsersByRewardsEarnedRow:
+    properties:
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      reward_balance:
+        type: string
+      total_reward_earned:
+        type: string
+      total_reward_redeemed:
+        type: string
+    type: object
+  rewards.PaginationMetadata:
+    properties:
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_count:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  rewards.RewardBalanceResponse:
+    properties:
+      available_points:
+        description: Same as current_balance, for clarity
+        type: string
+      current_balance:
+        type: string
+      total_earned:
+        type: string
+      total_redeemed:
+        type: string
+    type: object
+  rewards.RewardConfigurationResponse:
+    properties:
+      config_name:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      max_points_per_transaction:
+        type: string
+      min_transaction_amount:
+        type: string
+      reward_rate:
+        description: e.g., 0.01 for 1%
+        type: string
+      transaction_type:
+        type: string
+      updated_at:
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+    type: object
+  rewards.RewardHistoryResponse:
+    properties:
+      pagination:
+        $ref: '#/definitions/rewards.PaginationMetadata'
+      transactions:
+        items:
+          $ref: '#/definitions/rewards.RewardTransactionItem'
+        type: array
+    type: object
+  rewards.RewardSummaryResponse:
+    properties:
+      current_balance:
+        type: string
+      last_updated:
+        type: string
+      total_earn_transactions:
+        type: integer
+      total_earned:
+        type: string
+      total_redeem_transactions:
+        type: integer
+      total_redeemed:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  rewards.RewardTransactionItem:
+    properties:
+      amount:
+        type: string
+      balance_after:
+        type: string
+      date:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      source_transaction:
+        type: string
+      status:
+        type: string
+      type:
+        description: '"earned" or "redeemed"'
+        type: string
+    type: object
+  rewards.UpdateRewardConfigRequest:
+    properties:
+      config_name:
+        type: string
+      is_active:
+        type: boolean
+      max_points_per_transaction:
+        type: string
+      min_transaction_amount:
+        minLength: 0
+        type: string
+      reward_rate:
+        maxLength: 1
+        type: string
+      transaction_type:
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+    type: object
   transaction.CreateTransactionFeeRequest:
     properties:
       fee_percentage:
@@ -1267,6 +1427,288 @@ paths:
       summary: Create Transaction Fee
       tags:
       - Wallets
+  /api/v1/admin/rewards/config:
+    get:
+      consumes:
+      - application/json
+      description: Get current active reward configuration
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/configurations:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of all reward configurations
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              items:
+                $ref: '#/definitions/rewards.RewardConfigurationResponse'
+              type: array
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all reward configurations (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/configure:
+    post:
+      consumes:
+      - application/json
+      description: Create a new reward configuration to define earning rates
+      parameters:
+      - description: Configuration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rewards.CreateRewardConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/configure/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Update an existing reward configuration
+      parameters:
+      - description: Configuration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rewards.UpdateRewardConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/configure/{id}/activate:
+    post:
+      consumes:
+      - application/json
+      description: Activate a reward configuration
+      parameters:
+      - description: Configuration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Activate reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/configure/{id}/deactivate:
+    post:
+      consumes:
+      - application/json
+      description: Deactivate a reward configuration
+      parameters:
+      - description: Configuration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Deactivate reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/admin/rewards/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Get comprehensive statistics about the reward system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/rewards.GetTopUsersByRewardsEarnedRow'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get reward system statistics (Admin)
+      tags:
+      - admin
+      - rewards
   /api/v1/analytics/active-users-today:
     get:
       consumes:
@@ -2711,6 +3153,45 @@ paths:
       summary: Verify OTP via Twilio
       tags:
       - auth
+  /api/v1/auth/verify-pin:
+    post:
+      consumes:
+      - application/json
+      description: Verify the authenticated user's transaction pin
+      parameters:
+      - description: verify pin request
+        in: body
+        name: data
+        required: true
+        schema:
+          properties:
+            pin:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Verify transaction pin
+      tags:
+      - auth
   /api/v1/crypto/coin-data:
     get:
       consumes:
@@ -3176,6 +3657,110 @@ paths:
       summary: Get Referral Earnings
       tags:
       - Referral
+  /api/v1/rewards/balance:
+    get:
+      consumes:
+      - application/json
+      description: Get current reward points balance and summary for authenticated
+        user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardBalanceResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user reward balance
+      tags:
+      - rewards
+  /api/v1/rewards/history:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of reward transactions with optional filters
+      parameters:
+      - description: Transaction type (earned/redeemed)
+        in: query
+        name: type
+        type: string
+      - description: Start date (RFC3339)
+        in: query
+        name: date_from
+        type: string
+      - description: End date (RFC3339)
+        in: query
+        name: date_to
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardHistoryResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get reward transaction history
+      tags:
+      - rewards
+  /api/v1/rewards/summary:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed reward summary including balance, totals, and transaction
+        counts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardSummaryResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get comprehensive reward summary
+      tags:
+      - rewards
   /api/v1/user/{user_id}/avatar:
     get:
       consumes:
@@ -3437,45 +4022,6 @@ paths:
       summary: Test Push Notification
       tags:
       - user
-  /api/v1/user/get-user-by-id/{id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve user details by ID (admin only)
-      parameters:
-      - description: User ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.UserDetailResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get User by ID
-      tags:
-      - user
   /api/v1/user/get-user-id:
     post:
       consumes:
@@ -3512,6 +4058,45 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get User ID
+      tags:
+      - user
+  /api/v1/user/get-user/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve user details by ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.UserDetailResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get User by ID
       tags:
       - user
   /api/v1/user/list-kyc:
