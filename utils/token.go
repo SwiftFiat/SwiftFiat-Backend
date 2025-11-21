@@ -34,7 +34,7 @@ func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
 		UserID:   user.UserID,
 		Role:     user.Role,
 		Verified: user.Verified,
-		Exp:      time.Now().Add(time.Hour * 2400).Unix(),
+		Exp:      time.Now().Add(time.Hour * 24 * 30).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

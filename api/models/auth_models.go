@@ -47,6 +47,7 @@ type UserResponse struct {
 	Email     string `json:"email"`
 	AvatarURL string `json:"avatar_url"`
 	// AvatarBlob  []byte    `json:"avatar_blob"`
+	Role         string    `json:"role"`
 	UserTag      string    `json:"user_tag"`
 	PhoneNumber  string    `json:"phone_number"`
 	Verified     bool      `json:"verified"`
@@ -56,6 +57,9 @@ type UserResponse struct {
 	IsActive     bool      `json:"is_active"`
 	TwofaSecret  string    `json:"twofa_secret"`
 	TwofaEnabled bool      `json:"twofa_enabled"`
+    RewardBalance string `json:"reward_balance"`
+    TotalRewardEarned string `json:"total_reward_earned"`
+    TotalRewardRedeemed string `json:"total_reward_redeemed"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
