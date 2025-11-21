@@ -603,6 +603,70 @@ func (q *Queries) GetAllActiveYieldConfigs(ctx context.Context) ([]VaultYieldCon
 	return items, nil
 }
 
+const getDueVaultsWithRecurringRules = `-- name: GetDueVaultsWithRecurringRules :many
+SELECT vs.id, vs.user_id, vs.vault_name, vs.description, vs.goal_amount, vs.current_balance, vs.category, vs.currency, vs.auto_save_enabled, vs.auto_save_frequency, vs.auto_save_amount, vs.next_auto_save, vs.recurring_rule, vs.total_yield_earned, vs.next_yield_calculation, vs.last_yield_calculation, vs.status, vs.vault_type, vs.created_at, vs.updated_at, vs.completed_at FROM vault_savings vs
+WHERE vs.auto_save_enabled = true
+AND vs.recurring_rule IS NOT NULL
+AND vs.status = 'active'
+AND (
+    vs.next_auto_save <= NOW()
+    OR EXISTS (
+        SELECT 1 FROM jsonb_to_record(vs.recurring_rule) AS rule(
+            next_execution_at timestamptz,
+            enabled boolean
+        )
+        WHERE rule.enabled = true 
+        AND rule.next_execution_at <= NOW()
+    )
+)
+LIMIT $1
+`
+
+func (q *Queries) GetDueVaultsWithRecurringRules(ctx context.Context, limit int32) ([]VaultSaving, error) {
+	rows, err := q.db.QueryContext(ctx, getDueVaultsWithRecurringRules, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VaultSaving{}
+	for rows.Next() {
+		var i VaultSaving
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.VaultName,
+			&i.Description,
+			&i.GoalAmount,
+			&i.CurrentBalance,
+			&i.Category,
+			&i.Currency,
+			&i.AutoSaveEnabled,
+			&i.AutoSaveFrequency,
+			&i.AutoSaveAmount,
+			&i.NextAutoSave,
+			&i.RecurringRule,
+			&i.TotalYieldEarned,
+			&i.NextYieldCalculation,
+			&i.LastYieldCalculation,
+			&i.Status,
+			&i.VaultType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPendingVaultTransactions = `-- name: GetPendingVaultTransactions :many
 SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
 WHERE status = 'pending'
