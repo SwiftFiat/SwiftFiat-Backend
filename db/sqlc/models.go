@@ -56,6 +56,30 @@ type AutoTopupSetting struct {
 	UpdatedAt                sql.NullTime   `json:"updated_at"`
 }
 
+// User bank accounts for withdrawals and QR payments - users can have multiple accounts with one default
+type BankAccount struct {
+	ID                    uuid.UUID      `json:"id"`
+	UserID                int64          `json:"user_id"`
+	AccountName           string         `json:"account_name"`
+	AccountNumber         string         `json:"account_number"`
+	BankCode              string         `json:"bank_code"`
+	BankName              string         `json:"bank_name"`
+	AccountType           sql.NullString `json:"account_type"`
+	Currency              string         `json:"currency"`
+	IsVerified            bool           `json:"is_verified"`
+	VerifiedAt            sql.NullTime   `json:"verified_at"`
+	VerificationMethod    sql.NullString `json:"verification_method"`
+	VerificationReference sql.NullString `json:"verification_reference"`
+	IsDefault             bool           `json:"is_default"`
+	IsActive              bool           `json:"is_active"`
+	Status                string         `json:"status"`
+	Label                 sql.NullString `json:"label"`
+	Description           sql.NullString `json:"description"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	DeletedAt             sql.NullTime   `json:"deleted_at"`
+}
+
 type Beneficiary struct {
 	ID              uuid.UUID     `json:"id"`
 	UserID          sql.NullInt64 `json:"user_id"`
@@ -92,6 +116,72 @@ type Category struct {
 	ID         int32  `json:"id"`
 	CategoryID int64  `json:"category_id"`
 	Name       string `json:"name"`
+}
+
+// Complete audit trail of all conversion executions
+type ConversionHistory struct {
+	ID                       uuid.UUID      `json:"id"`
+	ConversionRuleID         uuid.NullUUID  `json:"conversion_rule_id"`
+	UserID                   int64          `json:"user_id"`
+	TransactionID            uuid.NullUUID  `json:"transaction_id"`
+	SourceCurrency           string         `json:"source_currency"`
+	TargetCurrency           string         `json:"target_currency"`
+	SourceWalletID           uuid.NullUUID  `json:"source_wallet_id"`
+	TargetWalletID           uuid.NullUUID  `json:"target_wallet_id"`
+	TriggerRate              sql.NullString `json:"trigger_rate"`
+	ExecutedRate             string         `json:"executed_rate"`
+	RateDifferencePercentage sql.NullString `json:"rate_difference_percentage"`
+	RateProvider             sql.NullString `json:"rate_provider"`
+	SourceAmount             string         `json:"source_amount"`
+	TargetAmount             string         `json:"target_amount"`
+	Fees                     sql.NullString `json:"fees"`
+	NetAmount                string         `json:"net_amount"`
+	SourceBalanceBefore      sql.NullString `json:"source_balance_before"`
+	SourceBalanceAfter       sql.NullString `json:"source_balance_after"`
+	TargetBalanceBefore      sql.NullString `json:"target_balance_before"`
+	TargetBalanceAfter       sql.NullString `json:"target_balance_after"`
+	ExecutionType            string         `json:"execution_type"`
+	TriggerType              sql.NullString `json:"trigger_type"`
+	Status                   string         `json:"status"`
+	FailureReason            sql.NullString `json:"failure_reason"`
+	ExecutedAt               time.Time      `json:"executed_at"`
+	CreatedAt                time.Time      `json:"created_at"`
+}
+
+// User-defined automated conversion rules with rate-based and scheduled triggers
+type ConversionRule struct {
+	ID                  uuid.UUID      `json:"id"`
+	UserID              int64          `json:"user_id"`
+	SourceCurrency      string         `json:"source_currency"`
+	TargetCurrency      string         `json:"target_currency"`
+	SourceWalletID      uuid.NullUUID  `json:"source_wallet_id"`
+	TargetWalletID      uuid.NullUUID  `json:"target_wallet_id"`
+	TriggerRate         sql.NullString `json:"trigger_rate"`
+	TriggerType         string         `json:"trigger_type"`
+	TriggerCondition    sql.NullString `json:"trigger_condition"`
+	PercentageThreshold sql.NullString `json:"percentage_threshold"`
+	ConversionType      string         `json:"conversion_type"`
+	FixedAmount         sql.NullString `json:"fixed_amount"`
+	Percentage          sql.NullString `json:"percentage"`
+	ScheduleFrequency   sql.NullString `json:"schedule_frequency"`
+	ScheduleDayOfWeek   sql.NullInt32  `json:"schedule_day_of_week"`
+	ScheduleDayOfMonth  sql.NullInt32  `json:"schedule_day_of_month"`
+	ScheduleTime        sql.NullTime   `json:"schedule_time"`
+	NextExecutionAt     sql.NullTime   `json:"next_execution_at"`
+	Timezone            sql.NullString `json:"timezone"`
+	Status              string         `json:"status"`
+	IsActive            bool           `json:"is_active"`
+	LastTriggeredAt     sql.NullTime   `json:"last_triggered_at"`
+	LastTriggerRate     sql.NullString `json:"last_trigger_rate"`
+	ExecutionCount      int32          `json:"execution_count"`
+	MaxExecutions       sql.NullInt32  `json:"max_executions"`
+	FailureCount        int32          `json:"failure_count"`
+	LastFailureReason   sql.NullString `json:"last_failure_reason"`
+	Description         sql.NullString `json:"description"`
+	Label               sql.NullString `json:"label"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
 }
 
 type Country struct {
@@ -306,6 +396,87 @@ type ProofOfAddressImage struct {
 	UpdatedAt  time.Time    `json:"updated_at"`
 	Verified   bool         `json:"verified"`
 	VerifiedAt sql.NullTime `json:"verified_at"`
+}
+
+// Generated QR codes for receiving crypto via Cryptomus with auto-conversion to fiat
+type QrCode struct {
+	ID                  uuid.UUID      `json:"id"`
+	Token               uuid.UUID      `json:"token"`
+	UserID              int64          `json:"user_id"`
+	QrType              string         `json:"qr_type"`
+	CurrencyPreference  string         `json:"currency_preference"`
+	ConversionMode      string         `json:"conversion_mode"`
+	Network             string         `json:"network"`
+	CryptoCurrency      string         `json:"crypto_currency"`
+	CryptomusAddressID  uuid.NullUUID  `json:"cryptomus_address_id"`
+	LinkedWalletID      uuid.NullUUID  `json:"linked_wallet_id"`
+	LinkedBankAccountID uuid.NullUUID  `json:"linked_bank_account_id"`
+	FixedAmount         sql.NullString `json:"fixed_amount"`
+	MinAmount           sql.NullString `json:"min_amount"`
+	MaxAmount           sql.NullString `json:"max_amount"`
+	QrCodeData          string         `json:"qr_code_data"`
+	QrCodeImageUrl      sql.NullString `json:"qr_code_image_url"`
+	Description         sql.NullString `json:"description"`
+	Label               sql.NullString `json:"label"`
+	Status              string         `json:"status"`
+	UsageLimit          sql.NullInt32  `json:"usage_limit"`
+	UsageCount          int32          `json:"usage_count"`
+	ExpiresAt           sql.NullTime   `json:"expires_at"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	LastUsedAt          sql.NullTime   `json:"last_used_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
+}
+
+// Complete lifecycle tracking of QR payments: Received → Converted → Paid Out
+type QrTransaction struct {
+	ID                     uuid.UUID             `json:"id"`
+	QrCodeID               uuid.UUID             `json:"qr_code_id"`
+	TransactionID          uuid.NullUUID         `json:"transaction_id"`
+	UserID                 int64                 `json:"user_id"`
+	CryptomusTransactionID sql.NullString        `json:"cryptomus_transaction_id"`
+	CryptomusOrderID       sql.NullString        `json:"cryptomus_order_id"`
+	CryptomusUuid          sql.NullString        `json:"cryptomus_uuid"`
+	CryptomusAddressID     uuid.NullUUID         `json:"cryptomus_address_id"`
+	WebhookData            pqtype.NullRawMessage `json:"webhook_data"`
+	SenderAddress          sql.NullString        `json:"sender_address"`
+	SenderName             sql.NullString        `json:"sender_name"`
+	CryptoCurrency         string                `json:"crypto_currency"`
+	CryptoNetwork          string                `json:"crypto_network"`
+	CryptoAmount           string                `json:"crypto_amount"`
+	CryptoAmountUsd        sql.NullString        `json:"crypto_amount_usd"`
+	TransactionHash        sql.NullString        `json:"transaction_hash"`
+	ConfirmationBlocks     sql.NullInt32         `json:"confirmation_blocks"`
+	RequiredConfirmations  sql.NullInt32         `json:"required_confirmations"`
+	ConversionRate         sql.NullString        `json:"conversion_rate"`
+	FiatCurrency           sql.NullString        `json:"fiat_currency"`
+	FiatAmount             sql.NullString        `json:"fiat_amount"`
+	ConversionFees         string                `json:"conversion_fees"`
+	PlatformFees           string                `json:"platform_fees"`
+	NetworkFees            string                `json:"network_fees"`
+	TotalFees              string                `json:"total_fees"`
+	NetAmount              sql.NullString        `json:"net_amount"`
+	BankAccountID          uuid.NullUUID         `json:"bank_account_id"`
+	BankAccountName        sql.NullString        `json:"bank_account_name"`
+	BankAccountNumber      sql.NullString        `json:"bank_account_number"`
+	BankCode               sql.NullString        `json:"bank_code"`
+	PayoutReference        sql.NullString        `json:"payout_reference"`
+	PayoutProvider         sql.NullString        `json:"payout_provider"`
+	PayoutProviderResponse pqtype.NullRawMessage `json:"payout_provider_response"`
+	Status                 string                `json:"status"`
+	PaymentReceivedAt      sql.NullTime          `json:"payment_received_at"`
+	PaymentConfirmedAt     sql.NullTime          `json:"payment_confirmed_at"`
+	ConversionStartedAt    sql.NullTime          `json:"conversion_started_at"`
+	ConversionCompletedAt  sql.NullTime          `json:"conversion_completed_at"`
+	PayoutInitiatedAt      sql.NullTime          `json:"payout_initiated_at"`
+	PayoutCompletedAt      sql.NullTime          `json:"payout_completed_at"`
+	FailureReason          sql.NullString        `json:"failure_reason"`
+	FailureStage           sql.NullString        `json:"failure_stage"`
+	RetryCount             int32                 `json:"retry_count"`
+	LastRetryAt            sql.NullTime          `json:"last_retry_at"`
+	MaxRetries             sql.NullInt32         `json:"max_retries"`
+	CreatedAt              time.Time             `json:"created_at"`
+	UpdatedAt              time.Time             `json:"updated_at"`
 }
 
 type RedeemInstruction struct {
