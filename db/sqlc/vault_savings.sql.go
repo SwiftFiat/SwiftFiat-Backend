@@ -158,10 +158,11 @@ INSERT INTO vault_transactions (
     description,
     metadata,
     status,
-    requires_2fa
+    requires_2fa,
+    transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-) RETURNING id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+) RETURNING id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id
 `
 
 type CreateVaultTransactionParams struct {
@@ -179,6 +180,7 @@ type CreateVaultTransactionParams struct {
 	Metadata          pqtype.NullRawMessage `json:"metadata"`
 	Status            sql.NullString        `json:"status"`
 	Requires2fa       sql.NullBool          `json:"requires_2fa"`
+	TransactionID     uuid.NullUUID         `json:"transaction_id"`
 }
 
 // ============================================================================
@@ -200,6 +202,7 @@ func (q *Queries) CreateVaultTransaction(ctx context.Context, arg CreateVaultTra
 		arg.Metadata,
 		arg.Status,
 		arg.Requires2fa,
+		arg.TransactionID,
 	)
 	var i VaultTransaction
 	err := row.Scan(
@@ -221,6 +224,7 @@ func (q *Queries) CreateVaultTransaction(ctx context.Context, arg CreateVaultTra
 		&i.TwoFaVerifiedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.TransactionID,
 	)
 	return i, err
 }
@@ -668,7 +672,7 @@ func (q *Queries) GetDueVaultsWithRecurringRules(ctx context.Context, limit int3
 }
 
 const getPendingVaultTransactions = `-- name: GetPendingVaultTransactions :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE status = 'pending'
 ORDER BY created_at ASC
 `
@@ -701,6 +705,7 @@ func (q *Queries) GetPendingVaultTransactions(ctx context.Context) ([]VaultTrans
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -917,7 +922,7 @@ func (q *Queries) GetTotalYieldEarned(ctx context.Context, vaultID uuid.UUID) (i
 }
 
 const getTransactionsRequiring2FA = `-- name: GetTransactionsRequiring2FA :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE requires_2fa = TRUE
   AND two_fa_verified_at IS NULL
   AND status = 'pending'
@@ -953,6 +958,7 @@ func (q *Queries) GetTransactionsRequiring2FA(ctx context.Context, userID int64)
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -1369,7 +1375,7 @@ func (q *Queries) GetVaultHealthCheck(ctx context.Context) ([]GetVaultHealthChec
 }
 
 const getVaultTransactionByID = `-- name: GetVaultTransactionByID :one
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE id = $1
 `
 
@@ -1395,12 +1401,13 @@ func (q *Queries) GetVaultTransactionByID(ctx context.Context, id uuid.UUID) (Va
 		&i.TwoFaVerifiedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.TransactionID,
 	)
 	return i, err
 }
 
 const getVaultTransactionByReference = `-- name: GetVaultTransactionByReference :one
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE reference = $1
 `
 
@@ -1426,6 +1433,7 @@ func (q *Queries) GetVaultTransactionByReference(ctx context.Context, reference 
 		&i.TwoFaVerifiedAt,
 		&i.CompletedAt,
 		&i.CreatedAt,
+		&i.TransactionID,
 	)
 	return i, err
 }
@@ -1472,7 +1480,7 @@ func (q *Queries) GetVaultTransactionStats(ctx context.Context, vaultID uuid.UUI
 }
 
 const getVaultTransactionsByDateRange = `-- name: GetVaultTransactionsByDateRange :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE vault_id = $1
   AND created_at BETWEEN $2 AND $3
 ORDER BY created_at DESC
@@ -1512,6 +1520,7 @@ func (q *Queries) GetVaultTransactionsByDateRange(ctx context.Context, arg GetVa
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -1527,7 +1536,7 @@ func (q *Queries) GetVaultTransactionsByDateRange(ctx context.Context, arg GetVa
 }
 
 const getVaultTransactionsByType = `-- name: GetVaultTransactionsByType :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE vault_id = $1 AND transaction_type = $2
 ORDER BY created_at DESC
 LIMIT $3 OFFSET $4
@@ -1573,6 +1582,7 @@ func (q *Queries) GetVaultTransactionsByType(ctx context.Context, arg GetVaultTr
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -1588,7 +1598,7 @@ func (q *Queries) GetVaultTransactionsByType(ctx context.Context, arg GetVaultTr
 }
 
 const getVaultTransactionsByUserID = `-- name: GetVaultTransactionsByUserID :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1628,6 +1638,7 @@ func (q *Queries) GetVaultTransactionsByUserID(ctx context.Context, arg GetVault
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -1643,7 +1654,7 @@ func (q *Queries) GetVaultTransactionsByUserID(ctx context.Context, arg GetVault
 }
 
 const getVaultTransactionsByVaultID = `-- name: GetVaultTransactionsByVaultID :many
-SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at FROM vault_transactions
+SELECT id, user_id, vault_id, transaction_type, amount, currency, source_wallet, destination_wallet, balance_before, balance_after, reference, description, metadata, status, requires_2fa, two_fa_verified_at, completed_at, created_at, transaction_id FROM vault_transactions
 WHERE vault_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1683,6 +1694,7 @@ func (q *Queries) GetVaultTransactionsByVaultID(ctx context.Context, arg GetVaul
 			&i.TwoFaVerifiedAt,
 			&i.CompletedAt,
 			&i.CreatedAt,
+			&i.TransactionID,
 		); err != nil {
 			return nil, err
 		}
@@ -2708,6 +2720,22 @@ type UpdateVaultTransactionStatusParams struct {
 
 func (q *Queries) UpdateVaultTransactionStatus(ctx context.Context, arg UpdateVaultTransactionStatusParams) error {
 	_, err := q.db.ExecContext(ctx, updateVaultTransactionStatus, arg.ID, arg.Status)
+	return err
+}
+
+const updateVaultTransactionTransactionID = `-- name: UpdateVaultTransactionTransactionID :exec
+UPDATE vault_transactions
+SET transaction_id = $1
+WHERE id = $2
+`
+
+type UpdateVaultTransactionTransactionIDParams struct {
+	TransactionID uuid.NullUUID `json:"transaction_id"`
+	ID            uuid.UUID     `json:"id"`
+}
+
+func (q *Queries) UpdateVaultTransactionTransactionID(ctx context.Context, arg UpdateVaultTransactionTransactionIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateVaultTransactionTransactionID, arg.TransactionID, arg.ID)
 	return err
 }
 
