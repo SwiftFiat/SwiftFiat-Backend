@@ -1153,6 +1153,17 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		reference = fmt.Sprintf("vault_deposit_%s_%d", uuid.New().String()[:8], time.Now().Unix())
 	}
 
+	// Create main Transaction record
+	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:            string(TransactionTypeSavingsDeposit),
+		Description:     sql.NullString{String: req.Description, Valid: true},
+		Status:          string(TransactionStatusCompleted),
+		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	// Create transaction record
 	txParams := db.CreateVaultTransactionParams{
 		UserID:          req.UserID,
@@ -1167,22 +1178,12 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		Description:     sql.NullString{String: req.Description, Valid: true},
 		Status:          nullString(string(TransactionStatusCompleted)),
 		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
+		TransactionID:   uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
 
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
-	}
-
-	// Create main Transaction record
-	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		Type:            string(TransactionTypeDeposit),
-		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          string(TransactionStatusCompleted),
-		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
 	// Update vault balance
@@ -1335,6 +1336,17 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		status = string(TransactionStatusPending)
 	}
 
+	// Create main Transaction
+	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:            string(TransactionTypeSavingsWithdrawal),
+		Description:     sql.NullString{String: req.Description, Valid: true},
+		Status:          string(TransactionStatusCompleted),
+		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	// Create transaction record
 	txParams := db.CreateVaultTransactionParams{
 		UserID:            req.UserID,
@@ -1349,6 +1361,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		Description:       sql.NullString{String: req.Description, Valid: req.Description != ""},
 		Status:            nullString(status),
 		Requires2fa:       nullBool(requires2FA),
+		TransactionID: uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
 
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
@@ -1382,17 +1395,6 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		if err != nil {
 			return nil, fmt.Errorf("failed to update wallet balance: %w", err)
 		}
-	}
-
-	// Create main Transaction
-	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		Type:            string(TransactionTypeSavingsWithdrawal),
-		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          string(TransactionStatusCompleted),
-		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
 	// Commit transaction

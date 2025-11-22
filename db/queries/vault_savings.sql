@@ -190,9 +190,10 @@ INSERT INTO vault_transactions (
     description,
     metadata,
     status,
-    requires_2fa
+    requires_2fa,
+    transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 ) RETURNING *;
 
 -- name: GetVaultTransactionByID :one
@@ -648,3 +649,8 @@ AND (
     )
 )
 LIMIT $1;
+
+-- name: UpdateVaultTransactionTransactionID :exec
+UPDATE vault_transactions
+SET transaction_id = $1
+WHERE id = $2;
