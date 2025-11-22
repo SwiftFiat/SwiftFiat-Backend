@@ -56,14 +56,17 @@ SET vault_name = COALESCE(sqlc.narg('vault_name'), vault_name),
 WHERE id = $1;
 
 -- name: UpdateVaultStatus :exec
+-- name: UpdateVaultStatus :exec
 UPDATE vault_savings
-SET status = $2,
+SET status = sqlc.arg(status)::text,
     updated_at = NOW(),
     completed_at = CASE 
-        WHEN $2::text = 'completed' THEN NOW()
+        WHEN sqlc.arg(status)::text = 'completed' THEN NOW()
         ELSE completed_at
     END
-WHERE id = $1;
+WHERE id = sqlc.arg(id);
+
+
 
 -- name: UpdateRecurringRule :exec
 UPDATE vault_savings

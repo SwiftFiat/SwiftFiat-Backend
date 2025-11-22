@@ -2672,22 +2672,22 @@ func (q *Queries) UpdateVaultRecurringRule(ctx context.Context, arg UpdateVaultR
 
 const updateVaultStatus = `-- name: UpdateVaultStatus :exec
 UPDATE vault_savings
-SET status = $2,
+SET status = $1::text,
     updated_at = NOW(),
     completed_at = CASE 
-        WHEN $2::text = 'completed' THEN NOW()
+        WHEN $1::text = 'completed' THEN NOW()
         ELSE completed_at
     END
-WHERE id = $1
+WHERE id = $2
 `
 
 type UpdateVaultStatusParams struct {
-	ID     uuid.UUID `json:"id"`
 	Status string    `json:"status"`
+	ID     uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateVaultStatus(ctx context.Context, arg UpdateVaultStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateVaultStatus, arg.ID, arg.Status)
+	_, err := q.db.ExecContext(ctx, updateVaultStatus, arg.Status, arg.ID)
 	return err
 }
 
