@@ -254,17 +254,43 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 		return
 	}
 
+	// transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
+	// 	UsdWalletID: uuid.NullUUID{
+	// 		UUID:  wallet[0].ID,
+	// 		Valid: true,
+	// 	},
+	// 	NgnWalletID: uuid.NullUUID{
+	// 		UUID:  wallet[1].ID,
+	// 		Valid: true, 
+	// 	},
+	// 	Limit:  int32(pageLimitInt),
+	// 	Offset: int32(pageOffsetInt),
+	// })
+
+
+	// Find wallets by currency
+	var usdWalletID, ngnWalletID, usdcWalletID, usdtWalletID uuid.NullUUID
+	
+	for _, w := range wallet {
+		switch w.Currency {
+		case "USD":
+			usdWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
+		case "NGN":
+			ngnWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
+		case "USDC":
+			usdcWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
+		case "USDT":
+			usdtWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
+		}
+	}
+
 	transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
-		UsdWalletID: uuid.NullUUID{
-			UUID:  wallet[0].ID,
-			Valid: true,
-		},
-		NgnWalletID: uuid.NullUUID{
-			UUID:  wallet[1].ID,
-			Valid: true,
-		},
-		Limit:  int32(pageLimitInt),
-		Offset: int32(pageOffsetInt),
+		UsdWalletID:  usdWalletID,
+		NgnWalletID:  ngnWalletID,
+		UsdcWalletID: usdcWalletID,
+		UsdtWalletID: usdtWalletID,
+		Limit:        int32(pageLimitInt),
+		Offset:       int32(pageOffsetInt),
 	})
 
 	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)

@@ -89,7 +89,7 @@ type SavingsType string
 const (
 	SavingsTypeFlexible SavingsType = "flexible"
 	SavingsTypeLocked   SavingsType = "locked"
-)
+) 
 
 type SavingsStatus string
 

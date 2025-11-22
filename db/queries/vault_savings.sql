@@ -606,7 +606,7 @@ LIMIT $1;
 -- Get all vaults with recurring deposits that are due for execution
 SELECT *
 FROM vault_savings
-WHERE recurring_rule IS NOT NULL
+WHERE recurring_rule IS NOT NULL 
   AND recurring_rule->>'enabled' = 'true'
   AND next_auto_save <= $1::timestamptz
   AND status = 'active'

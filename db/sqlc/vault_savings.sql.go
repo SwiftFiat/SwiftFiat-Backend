@@ -2080,7 +2080,7 @@ func (q *Queries) GetVaultsWithActiveRecurringRules(ctx context.Context) ([]Vaul
 const getVaultsWithDueRecurringDeposits = `-- name: GetVaultsWithDueRecurringDeposits :many
 SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at
 FROM vault_savings
-WHERE recurring_rule IS NOT NULL
+WHERE recurring_rule IS NOT NULL 
   AND recurring_rule->>'enabled' = 'true'
   AND next_auto_save <= $1::timestamptz
   AND status = 'active'
