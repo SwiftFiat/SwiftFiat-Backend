@@ -120,7 +120,7 @@ WHERE t.id = $1 LIMIT 1;
 
 -- name: GetTransactionByIDForUpdate :one
 SELECT * FROM transactions
-WHERE id = $1 LIMIT 1
+WHERE id = $1 LIMIT 1 
 FOR UPDATE;
 
 -- name: GetTransactionsByWallet :many
@@ -296,28 +296,104 @@ WITH pagination AS (
 ),
 matching_transactions AS (
     SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
-    WHERE cm.destination_wallet = sqlc.arg(usd_wallet_id) OR cm.destination_wallet = sqlc.arg(ngn_wallet_id)
+    WHERE cm.destination_wallet = sqlc.arg(usd_wallet_id) 
+       OR cm.destination_wallet = sqlc.arg(ngn_wallet_id)
+       OR cm.destination_wallet = sqlc.arg(usdc_wallet_id)
+       OR cm.destination_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
     SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
-    WHERE fm.source_wallet = sqlc.arg(usd_wallet_id) OR fm.source_wallet = sqlc.arg(ngn_wallet_id)
+    WHERE fm.source_wallet = sqlc.arg(usd_wallet_id) 
+       OR fm.source_wallet = sqlc.arg(ngn_wallet_id)
+       OR fm.source_wallet = sqlc.arg(usdc_wallet_id)
+       OR fm.source_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
     SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
-    WHERE gm.source_wallet = sqlc.arg(usd_wallet_id) OR gm.source_wallet = sqlc.arg(ngn_wallet_id)
+    WHERE gm.source_wallet = sqlc.arg(usd_wallet_id) 
+       OR gm.source_wallet = sqlc.arg(ngn_wallet_id)
+       OR gm.source_wallet = sqlc.arg(usdc_wallet_id)
+       OR gm.source_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
     SELECT sm.transaction_id FROM public.services_metadata sm
-    WHERE sm.source_wallet = sqlc.arg(usd_wallet_id) OR sm.source_wallet = sqlc.arg(ngn_wallet_id)
+    WHERE sm.source_wallet = sqlc.arg(usd_wallet_id) 
+       OR sm.source_wallet = sqlc.arg(ngn_wallet_id)
+       OR sm.source_wallet = sqlc.arg(usdc_wallet_id)
+       OR sm.source_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
     SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
-    WHERE stm.source_wallet = sqlc.arg(usd_wallet_id) OR stm.source_wallet = sqlc.arg(ngn_wallet_id)
-    OR stm.destination_wallet = sqlc.arg(usd_wallet_id) OR stm.destination_wallet = sqlc.arg(ngn_wallet_id)
+    WHERE stm.source_wallet = sqlc.arg(usd_wallet_id) 
+       OR stm.source_wallet = sqlc.arg(ngn_wallet_id)
+       OR stm.source_wallet = sqlc.arg(usdc_wallet_id)
+       OR stm.source_wallet = sqlc.arg(usdt_wallet_id)
+       OR stm.destination_wallet = sqlc.arg(usd_wallet_id) 
+       OR stm.destination_wallet = sqlc.arg(ngn_wallet_id)
+       OR stm.destination_wallet = sqlc.arg(usdc_wallet_id)
+       OR stm.destination_wallet = sqlc.arg(usdt_wallet_id)
+    UNION ALL
+    -- Add vault transactions: match transactions with transaction_flow = 'Vault' 
+    -- that have corresponding vault_transactions with matching wallet IDs
+    SELECT t.id as transaction_id FROM public.transactions t
+    INNER JOIN public.vault_transactions vt ON (
+        t.transaction_flow = 'Vault'
+        AND ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5  -- Match within 5 seconds
+        AND (
+            (vt.source_wallet IS NOT NULL AND (
+                vt.source_wallet = sqlc.arg(usd_wallet_id) 
+                OR vt.source_wallet = sqlc.arg(ngn_wallet_id)
+                OR vt.source_wallet = sqlc.arg(usdc_wallet_id)
+                OR vt.source_wallet = sqlc.arg(usdt_wallet_id)
+            ))
+            OR (vt.destination_wallet IS NOT NULL AND (
+                vt.destination_wallet = sqlc.arg(usd_wallet_id) 
+                OR vt.destination_wallet = sqlc.arg(ngn_wallet_id)
+                OR vt.destination_wallet = sqlc.arg(usdc_wallet_id)
+                OR vt.destination_wallet = sqlc.arg(usdt_wallet_id)
+            ))
+        )
+    )
 ),
 total_count AS (
     SELECT COUNT(*) as total FROM matching_transactions
 ),
 transaction_data AS (
     SELECT
-        t.*,
+        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
         CASE
+            WHEN t.transaction_flow = 'Vault' THEN (
+                -- Handle vault transactions
+                SELECT jsonb_build_object(
+                    'vault_id', vt.vault_id,
+                    'transaction_type', vt.transaction_type,
+                    'source_wallet', vt.source_wallet,
+                    'destination_wallet', vt.destination_wallet,
+                    'amount', vt.amount,
+                    'currency', vt.currency,
+                    'balance_before', vt.balance_before,
+                    'balance_after', vt.balance_after,
+                    'reference', vt.reference,
+                    'description', vt.description,
+                    'metadata', vt.metadata,
+                    'status', vt.status,
+                    'requires_2fa', vt.requires_2fa
+                )::jsonb
+                FROM public.vault_transactions vt
+                WHERE ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
+                  AND (
+                      (vt.source_wallet IS NOT NULL AND (
+                          vt.source_wallet = sqlc.arg(usd_wallet_id) 
+                          OR vt.source_wallet = sqlc.arg(ngn_wallet_id)
+                          OR vt.source_wallet = sqlc.arg(usdc_wallet_id)
+                          OR vt.source_wallet = sqlc.arg(usdt_wallet_id)
+                      ))
+                      OR (vt.destination_wallet IS NOT NULL AND (
+                          vt.destination_wallet = sqlc.arg(usd_wallet_id) 
+                          OR vt.destination_wallet = sqlc.arg(ngn_wallet_id)
+                          OR vt.destination_wallet = sqlc.arg(usdc_wallet_id)
+                          OR vt.destination_wallet = sqlc.arg(usdt_wallet_id)
+                      ))
+                  )
+                ORDER BY ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at)))
+                LIMIT 1
+            )
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -409,6 +485,7 @@ SELECT
         'has_more', (SELECT (page_offset + page_limit) < total FROM pagination, total_count)
     ) as result
 FROM transaction_data;
+
 
 -- name: GetTransactionsForWalletCursor :one
 WITH pagination AS (

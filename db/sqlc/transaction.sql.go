@@ -591,7 +591,7 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 
 const getTransactionByIDForUpdate = `-- name: GetTransactionByIDForUpdate :one
 SELECT id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
-WHERE id = $1 LIMIT 1
+WHERE id = $1 LIMIT 1 
 FOR UPDATE
 `
 
@@ -1073,20 +1073,60 @@ WITH pagination AS (
 ),
 matching_transactions AS (
     SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
-    WHERE cm.destination_wallet = $3 OR cm.destination_wallet = $4
+    WHERE cm.destination_wallet = $3 
+       OR cm.destination_wallet = $4
+       OR cm.destination_wallet = $5
+       OR cm.destination_wallet = $6
     UNION ALL
     SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
-    WHERE fm.source_wallet = $3 OR fm.source_wallet = $4
+    WHERE fm.source_wallet = $3 
+       OR fm.source_wallet = $4
+       OR fm.source_wallet = $5
+       OR fm.source_wallet = $6
     UNION ALL
     SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
-    WHERE gm.source_wallet = $3 OR gm.source_wallet = $4
+    WHERE gm.source_wallet = $3 
+       OR gm.source_wallet = $4
+       OR gm.source_wallet = $5
+       OR gm.source_wallet = $6
     UNION ALL
     SELECT sm.transaction_id FROM public.services_metadata sm
-    WHERE sm.source_wallet = $3 OR sm.source_wallet = $4
+    WHERE sm.source_wallet = $3 
+       OR sm.source_wallet = $4
+       OR sm.source_wallet = $5
+       OR sm.source_wallet = $6
     UNION ALL
     SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
-    WHERE stm.source_wallet = $3 OR stm.source_wallet = $4
-    OR stm.destination_wallet = $3 OR stm.destination_wallet = $4
+    WHERE stm.source_wallet = $3 
+       OR stm.source_wallet = $4
+       OR stm.source_wallet = $5
+       OR stm.source_wallet = $6
+       OR stm.destination_wallet = $3 
+       OR stm.destination_wallet = $4
+       OR stm.destination_wallet = $5
+       OR stm.destination_wallet = $6
+    UNION ALL
+    -- Add vault transactions: match transactions with transaction_flow = 'Vault' 
+    -- that have corresponding vault_transactions with matching wallet IDs
+    SELECT t.id as transaction_id FROM public.transactions t
+    INNER JOIN public.vault_transactions vt ON (
+        t.transaction_flow = 'Vault'
+        AND ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5  -- Match within 5 seconds
+        AND (
+            (vt.source_wallet IS NOT NULL AND (
+                vt.source_wallet = $3 
+                OR vt.source_wallet = $4
+                OR vt.source_wallet = $5
+                OR vt.source_wallet = $6
+            ))
+            OR (vt.destination_wallet IS NOT NULL AND (
+                vt.destination_wallet = $3 
+                OR vt.destination_wallet = $4
+                OR vt.destination_wallet = $5
+                OR vt.destination_wallet = $6
+            ))
+        )
+    )
 ),
 total_count AS (
     SELECT COUNT(*) as total FROM matching_transactions
@@ -1095,6 +1135,42 @@ transaction_data AS (
     SELECT
         t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
         CASE
+            WHEN t.transaction_flow = 'Vault' THEN (
+                -- Handle vault transactions
+                SELECT jsonb_build_object(
+                    'vault_id', vt.vault_id,
+                    'transaction_type', vt.transaction_type,
+                    'source_wallet', vt.source_wallet,
+                    'destination_wallet', vt.destination_wallet,
+                    'amount', vt.amount,
+                    'currency', vt.currency,
+                    'balance_before', vt.balance_before,
+                    'balance_after', vt.balance_after,
+                    'reference', vt.reference,
+                    'description', vt.description,
+                    'metadata', vt.metadata,
+                    'status', vt.status,
+                    'requires_2fa', vt.requires_2fa
+                )::jsonb
+                FROM public.vault_transactions vt
+                WHERE ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
+                  AND (
+                      (vt.source_wallet IS NOT NULL AND (
+                          vt.source_wallet = $3 
+                          OR vt.source_wallet = $4
+                          OR vt.source_wallet = $5
+                          OR vt.source_wallet = $6
+                      ))
+                      OR (vt.destination_wallet IS NOT NULL AND (
+                          vt.destination_wallet = $3 
+                          OR vt.destination_wallet = $4
+                          OR vt.destination_wallet = $5
+                          OR vt.destination_wallet = $6
+                      ))
+                  )
+                ORDER BY ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at)))
+                LIMIT 1
+            )
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -1189,10 +1265,12 @@ FROM transaction_data
 `
 
 type GetTransactionsForWalletParams struct {
-	Limit       int32         `json:"_limit"`
-	Offset      int32         `json:"_offset"`
-	UsdWalletID uuid.NullUUID `json:"usd_wallet_id"`
-	NgnWalletID uuid.NullUUID `json:"ngn_wallet_id"`
+	Limit        int32         `json:"_limit"`
+	Offset       int32         `json:"_offset"`
+	UsdWalletID  uuid.NullUUID `json:"usd_wallet_id"`
+	NgnWalletID  uuid.NullUUID `json:"ngn_wallet_id"`
+	UsdcWalletID uuid.NullUUID `json:"usdc_wallet_id"`
+	UsdtWalletID uuid.NullUUID `json:"usdt_wallet_id"`
 }
 
 func (q *Queries) GetTransactionsForWallet(ctx context.Context, arg GetTransactionsForWalletParams) (json.RawMessage, error) {
@@ -1201,6 +1279,8 @@ func (q *Queries) GetTransactionsForWallet(ctx context.Context, arg GetTransacti
 		arg.Offset,
 		arg.UsdWalletID,
 		arg.NgnWalletID,
+		arg.UsdcWalletID,
+		arg.UsdtWalletID,
 	)
 	var result json.RawMessage
 	err := row.Scan(&result)
