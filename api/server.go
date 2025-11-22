@@ -149,7 +149,7 @@ func NewServer(envPath string) *Server {
 	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 0)
 
 	// vault scheduler
-	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Minute)
+	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 5*time.Minute)
 
 	// reward service
 	rs := rewards.NewRewardService(q, l, pn, security.NewCache())

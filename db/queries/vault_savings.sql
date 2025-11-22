@@ -60,7 +60,7 @@ UPDATE vault_savings
 SET status = $2,
     updated_at = NOW(),
     completed_at = CASE 
-        WHEN $2 = 'completed' THEN NOW()
+        WHEN $2::text = 'completed' THEN NOW()
         ELSE completed_at
     END
 WHERE id = $1;
