@@ -1,0 +1,25 @@
+meta {
+  name: Get all transactions
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{BaseURl}}/wallets/transactions?page_offset=0&page_limit=100
+  body: none
+  auth: bearer
+}
+
+params:query {
+  page_offset: 0
+  page_limit: 100
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1293,25 +1293,99 @@ WITH pagination AS (
 ),
 matching_transactions AS (
     SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
-    WHERE cm.destination_wallet = $2 OR cm.destination_wallet = $3
+    WHERE cm.destination_wallet = $2 
+       OR cm.destination_wallet = $3
+       OR cm.destination_wallet = $4
+       OR cm.destination_wallet = $5
     UNION ALL
     SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
-    WHERE fm.source_wallet = $2 OR fm.source_wallet = $3
+    WHERE fm.source_wallet = $2 
+       OR fm.source_wallet = $3
+       OR fm.source_wallet = $4
+       OR fm.source_wallet = $5
     UNION ALL
     SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
-    WHERE gm.source_wallet = $2 OR gm.source_wallet = $3
+    WHERE gm.source_wallet = $2 
+       OR gm.source_wallet = $3
+       OR gm.source_wallet = $4
+       OR gm.source_wallet = $5
     UNION ALL
     SELECT sm.transaction_id FROM public.services_metadata sm
-    WHERE sm.source_wallet = $2 OR sm.source_wallet = $3
+    WHERE sm.source_wallet = $2 
+       OR sm.source_wallet = $3
+       OR sm.source_wallet = $4
+       OR sm.source_wallet = $5
     UNION ALL
     SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
-    WHERE stm.source_wallet = $2 OR stm.source_wallet = $3
-    OR stm.destination_wallet = $2 OR stm.destination_wallet = $3
+    WHERE stm.source_wallet = $2 
+       OR stm.source_wallet = $3
+       OR stm.source_wallet = $4
+       OR stm.source_wallet = $5
+       OR stm.destination_wallet = $2 
+       OR stm.destination_wallet = $3
+       OR stm.destination_wallet = $4
+       OR stm.destination_wallet = $5
+    UNION ALL
+    -- Add vault transactions
+    SELECT t.id as transaction_id FROM public.transactions t
+    INNER JOIN public.vault_transactions vt ON (
+        t.transaction_flow = 'Vault'
+        AND ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
+        AND (
+            (vt.source_wallet IS NOT NULL AND (
+                vt.source_wallet = $2 
+                OR vt.source_wallet = $3
+                OR vt.source_wallet = $4
+                OR vt.source_wallet = $5
+            ))
+            OR (vt.destination_wallet IS NOT NULL AND (
+                vt.destination_wallet = $2 
+                OR vt.destination_wallet = $3
+                OR vt.destination_wallet = $4
+                OR vt.destination_wallet = $5
+            ))
+        )
+    )
 ),
 transaction_data AS (
     SELECT
         t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
         CASE
+        WHEN t.transaction_flow = 'Vault' THEN (
+                SELECT jsonb_build_object(
+                    'vault_id', vt.vault_id,
+                    'transaction_type', vt.transaction_type,
+                    'source_wallet', vt.source_wallet,
+                    'destination_wallet', vt.destination_wallet,
+                    'amount', vt.amount,
+                    'currency', vt.currency,
+                    'balance_before', vt.balance_before,
+                    'balance_after', vt.balance_after,
+                    'reference', vt.reference,
+                    'description', vt.description,
+                    'metadata', vt.metadata,
+                    'status', vt.status,
+                    'requires_2fa', vt.requires_2fa
+                )::jsonb
+                FROM public.vault_transactions vt
+                WHERE ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
+                  AND (
+                      (vt.source_wallet IS NOT NULL AND (
+                          vt.source_wallet = $2 
+                          OR vt.source_wallet = $3
+                          OR vt.source_wallet = $4
+                          OR vt.source_wallet = $5
+                      ))
+                      OR (vt.destination_wallet IS NOT NULL AND (
+                          vt.destination_wallet = $2 
+                          OR vt.destination_wallet = $3
+                          OR vt.destination_wallet = $4
+                          OR vt.destination_wallet = $5
+                      ))
+                  )
+                ORDER BY ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at)))
+                LIMIT 1
+            )
             WHEN t.type = 'deposit' THEN (
                 SELECT jsonb_build_object(
                     'destination_wallet', cm.destination_wallet,
@@ -1391,11 +1465,11 @@ transaction_data AS (
     FROM matching_transactions mt
     JOIN public.transactions t ON t.id = mt.transaction_id
     WHERE CASE
-        WHEN $4::timestamptz IS NOT NULL THEN t.created_at < $4::timestamptz
+        WHEN $6::timestamptz IS NOT NULL THEN t.created_at < $6::timestamptz
         ELSE true
     END
     AND CASE
-        WHEN $5::uuid IS NOT NULL THEN t.id < $5::uuid
+        WHEN $7::uuid IS NOT NULL THEN t.id < $7::uuid
         ELSE true
     END
     ORDER BY t.created_at DESC, t.id DESC
@@ -1425,6 +1499,8 @@ type GetTransactionsForWalletCursorParams struct {
 	Limit         int32         `json:"_limit"`
 	UsdWalletID   uuid.NullUUID `json:"usd_wallet_id"`
 	NgnWalletID   uuid.NullUUID `json:"ngn_wallet_id"`
+	UsdcWalletID  uuid.NullUUID `json:"usdc_wallet_id"`
+	UsdtWalletID  uuid.NullUUID `json:"usdt_wallet_id"`
 	CreatedAt     sql.NullTime  `json:"created_at"`
 	TransactionID uuid.NullUUID `json:"transaction_id"`
 }
@@ -1434,6 +1510,8 @@ func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTra
 		arg.Limit,
 		arg.UsdWalletID,
 		arg.NgnWalletID,
+		arg.UsdcWalletID,
+		arg.UsdtWalletID,
 		arg.CreatedAt,
 		arg.TransactionID,
 	)
