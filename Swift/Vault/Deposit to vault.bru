@@ -4,12 +4,24 @@ meta {
   seq: 3
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/vault/goals/59bd9670-f181-4328-9683-be90bc00d182/deposit
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount": "400000",
+    "from_wallet_id": "e38c995d-d6fd-4098-82a5-cb31b9df808d"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
