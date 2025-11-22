@@ -4,12 +4,17 @@ meta {
   seq: 4
 }
 
-get {
-  url: 
+delete {
+  url: {{BaseURl}}/vault/goals/963b14ab-5182-4c82-8fb4-e3065b088218
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

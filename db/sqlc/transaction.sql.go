@@ -668,6 +668,27 @@ SELECT
             'created_at', t.created_at,
             'updated_at', t.updated_at,
             'metadata', CASE
+            WHEN t.transaction_flow IN ('wallet -> savings', 'savings -> wallet') THEN (
+                    SELECT jsonb_build_object(
+                        'vault_id', vt.vault_id,
+                        'transaction_type', vt.transaction_type,
+                        'source_wallet', vt.source_wallet,
+                        'destination_wallet', vt.destination_wallet,
+                        'amount', vt.amount,
+                        'currency', vt.currency,
+                        'balance_before', vt.balance_before,
+                        'balance_after', vt.balance_after,
+                        'reference', vt.reference,
+                        'description', vt.description,
+                        'metadata', vt.metadata,
+                        'status', vt.status,
+                        'requires_2fa', vt.requires_2fa
+                    )::jsonb
+                    FROM public.vault_transactions vt
+                    WHERE ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
+                    ORDER BY ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at)))
+                    LIMIT 1
+                )
                 WHEN t.type = 'deposit' THEN (
                     SELECT jsonb_build_object(
                         'destination_wallet', cm.destination_wallet,
