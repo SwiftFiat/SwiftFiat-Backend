@@ -9,6 +9,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -162,8 +163,8 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 // ============================================================
 
 // ExecuteManualConversion executes a manual conversion
-func (s *ConversionService) ExecuteManualConversion(ctx context.Context, userID int64, req *ManualConversionRequest) (*ManualConversionResponse, error) {
-	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", userID))
+func (s *ConversionService) ExecuteManualConversion(ctx context.Context, user *utils.TokenObject, req *ManualConversionRequest) (*ManualConversionResponse, error) {
+	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.UserID))
 
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
@@ -190,8 +191,8 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, userID 
 	}
 
 	// Execute the conversion in a transaction
-	conversionID, transactionID, err := s.executeConversion(ctx, &conversionExecutionParams{
-		userID:         userID,
+	conversionID, transactionID, err := s.executeConversion(ctx, user, &conversionExecutionParams{
+		userID:         user.UserID,
 		ruleID:         nil,
 		sourceWalletID: req.SourceWalletID,
 		targetWalletID: req.TargetWalletID,
@@ -246,7 +247,7 @@ type conversionExecutionParams struct {
 }
 
 // executeConversion performs the actual conversion in a database transaction
-func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*uuid.UUID, *uuid.UUID, error) {
+func (s *ConversionService) executeConversion(ctx context.Context, user *utils.TokenObject, params *conversionExecutionParams) (*uuid.UUID, *uuid.UUID, error) {
 	var conversionID, transactionID *uuid.UUID
 	// var historyErr error
 
@@ -294,8 +295,20 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		txnID := uuid.New()
 		transactionID = &txnID
 
+		intraTxParams := transaction.IntraTransaction{
+			FromAccountID: params.sourceWalletID,
+			ToAccountID:   params.targetWalletID,
+			SentAmount:    params.netAmount,
+			Rate:          params.executedRate,
+			Type:          transaction.Swap,
+		}
+
 		// TODO: Create transaction using your transaction service
 		// This would involve calling s.transactionService.CreateSwapTransaction(...)
+		_, err = s.transactionService.CreateWalletTransaction(ctx, intraTxParams, user)
+		if err != nil {
+			return fmt.Errorf("failed to create a swap wallet transaction: %w", err)
+		}
 
 		// Create conversion history
 		history, err := q.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
@@ -339,6 +352,190 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 
 	return conversionID, transactionID, nil
 }
+
+// CheckAndExecuteRateBasedRules checks rate-based rules and executes if triggered
+func (s *ConversionService) CheckAndExecuteRateBasedRules(ctx context.Context) error {
+	s.logger.Info("Checking rate-based conversion rules")
+
+	// Get all active rate-based rules
+	// This would be a custom query to get all active rate-based rules across all users
+	// For now, we'll need to add this query to sqlc
+
+	// Implementation would involve:
+	// 1. Fetch all active rate-based rules
+	// 2. For each rule, get current rate
+	// 3. Check if trigger condition is met
+	// 4. Execute conversion if triggered
+
+	return nil
+}
+
+// ExecuteScheduledConversions executes scheduled conversions that are due
+func (s *ConversionService) ExecuteScheduledConversions(ctx context.Context, user *utils.TokenObject) error {
+	s.logger.Info("Executing scheduled smart conversions")
+
+	rules, err := s.store.Queries.GetScheduledRulesDue(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to fetch scheduled rules: %w", err)
+	}
+
+	for _, rule := range rules {
+		s.logger.Info(fmt.Sprintf("Executing scheduled rule %s", rule.ID))
+
+		err := s.executeRuleConversion(ctx, user, &rule)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to execute rule %s: %v", rule.ID, err))
+
+			// Update failure
+			s.store.UpdateRuleFailure(ctx, db.UpdateRuleFailureParams{
+				ID:                rule.ID,
+				LastFailureReason: sql.NullString{String: err.Error(), Valid: true},
+			})
+
+			continue
+		}
+
+		// Calculate next execution time
+		nextExec := s.calculateNextExecutionForRule(&rule)
+
+		// Update rule execution
+		s.store.UpdateRuleExecution(ctx, db.UpdateRuleExecutionParams{
+			ID:              rule.ID,
+			LastTriggerRate: sql.NullString{Valid: false},
+			NextExecutionAt: sql.NullTime{Time: nextExec, Valid: true},
+		})
+	}
+
+	return nil
+}
+
+// executeRuleConversion executes a conversion based on a rule
+func (s *ConversionService) executeRuleConversion(ctx context.Context, user *utils.TokenObject, rule *db.ConversionRule) error {
+	rate, err := s.exchangeRateService.GetExchangeRate(ctx, rule.SourceCurrency, rule.TargetCurrency)
+	if err != nil {
+		return fmt.Errorf("failed to get exchange rate: %w", err)
+	}
+
+	// Get source wallet to check balance
+	sourceWallet, err := s.store.GetWallet(ctx, rule.SourceWalletID.UUID)
+	if err != nil {
+		return fmt.Errorf("failed to get source wallet: %w", err)
+	}
+
+	sourceBalance, _ := decimal.NewFromString(sourceWallet.Balance.String)
+
+	// Calculate source amount based on conversion type
+	var sourceAmount decimal.Decimal
+	switch rule.ConversionType {
+	case "fixed_amount":
+		sourceAmount, _ = decimal.NewFromString(rule.FixedAmount.String)
+	case "percentage":
+		percentage, _ := decimal.NewFromString(rule.Percentage.String)
+		sourceAmount = sourceBalance.Mul(percentage).Div(decimal.NewFromInt(100))
+	case "full_balance":
+		sourceAmount = sourceBalance
+	}
+
+	// Check if sufficient balance
+	if sourceAmount.GreaterThan(sourceBalance) {
+		return ErrInsufficientBalance
+	}
+
+	// Calculate target amounts
+	feePercentage := s.exchangeRateService.GetFeePercentage(rule.SourceCurrency, rule.TargetCurrency)
+	targetAmount, fees, netAmount := s.exchangeRateService.CalculateConversionAmount(sourceAmount, rate.Rate, feePercentage)
+
+	// Execute the conversion
+	triggerType := rule.TriggerType
+	_, _, err = s.executeConversion(ctx, user, &conversionExecutionParams{
+		userID:         rule.UserID,
+		ruleID:         &rule.ID,
+		sourceWalletID: rule.SourceWalletID.UUID,
+		targetWalletID: rule.TargetWalletID.UUID,
+		sourceCurrency: rule.SourceCurrency,
+		targetCurrency: rule.TargetCurrency,
+		sourceAmount:   sourceAmount,
+		targetAmount:   targetAmount,
+		fees:           fees,
+		netAmount:      netAmount,
+		executedRate:   rate.Rate,
+		triggerRate:    s.nullStringToDecimal(rule.TriggerRate),
+		executionType:  "automatic",
+		triggerType:    &triggerType,
+		rateProvider:   rate.Provider,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// ============================================================
+// CONVERSION HISTORY
+// ============================================================
+
+// GetConversionHistory retrieves conversion history for a user
+func (s *ConversionService) GetConversionHistory(ctx context.Context, userID int64, limit, offset int32) ([]*ConversionHistoryResponse, error) {
+	histories, err := s.store.GetConversionHistoryByUser(ctx, db.GetConversionHistoryByUserParams{
+		UserID: userID,
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch history: %w", err)
+	}
+
+	var responses []*ConversionHistoryResponse
+
+	for _, h := range histories {
+		// Get rule label if exists
+		var ruleLabel *string
+		if h.ConversionRuleID.Valid {
+			rule, err := s.store.GetConversionRule(ctx, h.ConversionRuleID.UUID)
+			if err == nil {
+				ruleLabel = s.nullStringToString(rule.Label)
+			}
+		}
+
+		responses = append(responses, &ConversionHistoryResponse{
+			ID:             h.ID,
+			RuleLabel:      ruleLabel,
+			SourceCurrency: h.SourceCurrency,
+			TargetCurrency: h.TargetCurrency,
+			SourceAmount:   s.stringToDecimal(h.SourceAmount),
+			TargetAmount:   s.stringToDecimal(h.TargetAmount),
+			TriggerRate:    s.nullStringToDecimal(h.TriggerRate),
+			ExecutedRate:   s.stringToDecimal(h.ExecutedRate),
+			Fees:           s.stringToDecimal(h.Fees.String),
+			NetAmount:      s.stringToDecimal(h.NetAmount),
+			ExecutionType:  h.ExecutionType,
+			Status:         h.Status,
+			ExecutedAt:     h.ExecutedAt,
+		})
+
+	}
+	return responses, nil
+}
+
+// GetConversionStats retrieves conversion statistics for a user
+// func (s *ConversionService) GetConversionStats(ctx context.Context, userID int64, since time.Time) (*ConversionStats, error) {
+// 	stats, err := s.store.GetConversionHistoryStats(ctx, db.GetConversionHistoryStatsParams{
+// 		UserID:     userID,
+// 		ExecutedAt: since,
+// 	})
+
+// 	if err != nil {
+// 		return nil, fmt.Errorf("failed to fetch stats: %w", err)
+// 	}
+
+// 	return &ConversionStats{
+// 		TotalConversions:      int(stats.TotalConversions),
+// 		SuccessfulConversions: int(stats.SuccessfulConversions),
+// 		FailedConversions:     int(stats.FailedConversions),
+// 		TotalConverted:        s.stringToDecimal(stats.TotalConverted.String),
+// 		TotalFees:             s.stringToDecimal(stats.TotalFees.String),
+// 	}, nil
+// }
 
 // Helper conversion functions
 func (s *ConversionService) dbRuleToModel(rule *db.ConversionRule) *ConversionRule {
