@@ -12,6 +12,7 @@ import (
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -27,6 +28,7 @@ type VaultService struct {
 	pushService        *service.PushNotificationService
 	activityLogService *activitylogs.ActivityLog
 	notifService       *service.Notification
+	txService          *transaction.TransactionService
 }
 
 func NewVaultService(
@@ -37,6 +39,8 @@ func NewVaultService(
 	pushService *service.PushNotificationService,
 	activityLogService *activitylogs.ActivityLog,
 	notifService *service.Notification,
+	txService *transaction.TransactionService,
+
 ) *VaultService {
 	return &VaultService{
 		store:              store,
@@ -46,6 +50,7 @@ func NewVaultService(
 		pushService:        pushService,
 		activityLogService: activityLogService,
 		notifService:       notifService,
+		txService:          txService,
 	}
 }
 
@@ -1161,7 +1166,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		BalanceBefore:   vault.CurrentBalance.String,
 		BalanceAfter:    newVaultBalance.String(),
 		Reference:       sql.NullString{String: reference, Valid: true},
-		Description:     sql.NullString{String: req.Description, Valid: req.Description != ""},
+		Description:     sql.NullString{String: req.Description, Valid: true},
 		Status:          nullString(string(TransactionStatusCompleted)),
 		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
 	}
@@ -1169,6 +1174,17 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// Create main Transaction
+	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:        string(TransactionTypeDeposit),
+		Description: sql.NullString{String: req.Description, Valid: true},
+		Status:      string(TransactionStatusCompleted),
+		TransactionFlow: sql.NullString{String: "Vault", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
 	// Update vault balance
@@ -1368,6 +1384,17 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		if err != nil {
 			return nil, fmt.Errorf("failed to update wallet balance: %w", err)
 		}
+	}
+
+	// Create main Transaction
+	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:        string(TransactionTypeWithdrawal),
+		Description: sql.NullString{String: req.Description, Valid: true},
+		Status:      string(TransactionStatusCompleted),
+		TransactionFlow: sql.NullString{String: "Vault", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
 	// Commit transaction
