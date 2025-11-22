@@ -784,8 +784,8 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 
 	err = v.vaultService.DeleteVault(ctx.Request.Context(), vaultID)
 	if err != nil {
-		v.server.logger.Error(fmt.Sprintf("failed to delete vault goal: %v", err))
-		if err.Error() == "cannot delete vault with balance. Please withdraw funds first" {
+		v.server.logger.Error(fmt.Sprintf("failed to delete vault goal: %v", err.Error()))
+		if err.Error() == "VAULT_HAS_BALANCE_ERROR" {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot delete vault with balance"))
 			return
 		}
@@ -987,7 +987,7 @@ func (v *Vault) getAdminMetrics(ctx *gin.Context) {
 // @Router /api/v1/vault/admin/scheduler/stats [get]
 func (v *Vault) getSchedulerStats(ctx *gin.Context) {
 	activeUser, _ := utils.GetActiveUser(ctx)
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1010,7 +1010,7 @@ func (v *Vault) getSchedulerStats(ctx *gin.Context) {
 // @Router /api/v1/vault/admin/scheduler/trigger [post]
 func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 	activeUser, _ := utils.GetActiveUser(ctx)
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1284,7 +1284,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1345,7 +1345,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1393,7 +1393,7 @@ func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1431,7 +1431,7 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1471,7 +1471,7 @@ func (v *Vault) getYieldSchedulerStats(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != "admin" {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
