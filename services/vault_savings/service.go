@@ -108,7 +108,7 @@ const (
 	TransactionTypeAutoSave          TransactionType = "auto_save"
 	TransactionTypeYieldCredit       TransactionType = "yield_credit"
 	TransactionTypeSavingsDeposit    TransactionType = "savings_deposit"
-	TransactionTypeSavingsWithdrawal TransactionType = "savings_witthdrawal"
+	TransactionTypeSavingsWithdrawal TransactionType = "savings_withdrawal"
 )
 
 type TransactionStatus string
@@ -1168,7 +1168,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	txParams := db.CreateVaultTransactionParams{
 		UserID:          req.UserID,
 		VaultID:         req.VaultID,
-		TransactionType: string(TransactionTypeSavingsDeposit),
+		TransactionType: string(TransactionTypeDeposit),
 		Amount:          req.Amount,
 		Currency:        req.Currency,
 		SourceWallet:    uuid.NullUUID{UUID: req.FromWalletID, Valid: true},
