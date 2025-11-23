@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
     "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "transaction_type" VARCHAR(30) NOT NULL CHECK(transaction_type IN ('deposit', 'withdrawal', 'auto_save', 'yield_credit')),
-    "transaction_id" UUID REFERENCES transactions(id) ON DELETE CASCADE;
+    "transaction_id" UUID REFERENCES transactions(id) ON DELETE CASCADE,
     "amount" DECIMAL(19, 4) NOT NULL,
     "currency" VARCHAR(4) NOT NULL CHECK(currency IN ('USDT', 'USDC', 'NGN', 'USD')),
     
