@@ -4,12 +4,24 @@ meta {
   seq: 5
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/vault/goals/870f618b-c7e1-4482-bd10-be566245a96e/withdraw
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount":"300",
+    "to_wallet_id": "1e77be87-fd4d-4484-8753-e5ee0b41d17f"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

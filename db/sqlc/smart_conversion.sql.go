@@ -849,6 +849,39 @@ func (q *Queries) GetActiveRuleByCurrencyPair(ctx context.Context, arg GetActive
 	return i, err
 }
 
+const getBankAccount = `-- name: GetBankAccount :one
+SELECT id, user_id, account_name, account_number, bank_code, bank_name, account_type, currency, is_verified, verified_at, verification_method, verification_reference, is_default, is_active, status, label, description, created_at, updated_at, deleted_at FROM bank_accounts
+WHERE id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetBankAccount(ctx context.Context, id uuid.UUID) (BankAccount, error) {
+	row := q.db.QueryRowContext(ctx, getBankAccount, id)
+	var i BankAccount
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountName,
+		&i.AccountNumber,
+		&i.BankCode,
+		&i.BankName,
+		&i.AccountType,
+		&i.Currency,
+		&i.IsVerified,
+		&i.VerifiedAt,
+		&i.VerificationMethod,
+		&i.VerificationReference,
+		&i.IsDefault,
+		&i.IsActive,
+		&i.Status,
+		&i.Label,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
 const getBankAccountsByUser = `-- name: GetBankAccountsByUser :many
 SELECT id, user_id, account_name, account_number, bank_code, bank_name, account_type, currency, is_verified, verified_at, verification_method, verification_reference, is_default, is_active, status, label, description, created_at, updated_at, deleted_at FROM bank_accounts
 WHERE user_id = $1 AND deleted_at IS NULL

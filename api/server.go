@@ -18,12 +18,14 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
+	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
+	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -58,6 +60,8 @@ type Server struct {
 	auditLog                 *activitylogs.ActivityLog
 	inAppnotificationService *service.Notification
 	rewardService            *rewards.RewardService
+	bankAccountService       *bankaccounts.BankAccountService
+	userService              *user_service.UserService
 }
 
 func NewServer(envPath string) *Server {
@@ -154,6 +158,12 @@ func NewServer(envPath string) *Server {
 	// reward service
 	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
 
+	// bank account service
+	bas := bankaccounts.NewBankAccountService(q, l, p)
+
+	// user service
+	us := user_service.NewUserService(q, l, ws)
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -194,7 +204,9 @@ func NewServer(envPath string) *Server {
 		yieldService:             ys,
 		yieldScheduler:           yieldScheduler,
 		inAppnotificationService: ns,
-		rewardService:    rs,
+		rewardService:            rs,
+		bankAccountService:       bas,
+		userService:              us,
 	}
 }
 

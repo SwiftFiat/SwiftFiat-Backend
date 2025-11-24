@@ -12,63 +12,65 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type User struct {
-	server        *Server
-	walletService *wallet.WalletService
-	userService   *user_service.UserService
-	notifyr       *service.Notification
+	server             *Server
+	walletService      *wallet.WalletService
+	userService        *user_service.UserService
+	bankAccountService *bankaccounts.BankAccountService
+	notifyr            *service.Notification
 }
 
 func (u User) router(server *Server) {
 	u.server = server
-	u.walletService = wallet.NewWalletService(
-		u.server.queries,
-		u.server.logger,
-	)
-	u.userService = user_service.NewUserService(
-		u.server.queries,
-		u.server.logger,
-		u.walletService,
-	)
-	u.notifyr = service.NewNotificationService(u.server.queries)
+	u.walletService = server.walletService
+	u.userService = server.userService
+	u.notifyr = server.inAppnotificationService
+	u.bankAccountService = server.bankAccountService
 
 	// serverGroupV1 := server.router.Group("/user")
 	serverGroupV1 := server.router.Group("/api/v1/user")
-
-	serverGroupV1.GET("profile", u.server.authMiddleware.AuthenticatedMiddleware(), u.profile)
-	serverGroupV1.POST("usertag", u.server.authMiddleware.AuthenticatedMiddleware(), u.userTag)
-	serverGroupV1.POST("checktag", u.server.authMiddleware.AuthenticatedMiddleware(), u.checkTag)
-	serverGroupV1.POST("push-token", u.server.authMiddleware.AuthenticatedMiddleware(), u.pushToken)
-	serverGroupV1.POST("fresh-chat", u.server.authMiddleware.AuthenticatedMiddleware(), u.freshChatID)
-	serverGroupV1.PUT("phone-number", u.server.authMiddleware.AuthenticatedMiddleware(), u.updatePhoneNumber)
-	serverGroupV1.PUT("update-name", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateName)
+	serverGroupV1.Use(u.server.authMiddleware.AuthenticatedMiddleware())
+	serverGroupV1.GET("profile", u.profile)
+	serverGroupV1.POST("usertag", u.userTag)
+	serverGroupV1.POST("checktag", u.checkTag)
+	serverGroupV1.POST("push-token", u.pushToken)
+	serverGroupV1.POST("fresh-chat", u.freshChatID)
+	serverGroupV1.PUT("phone-number", u.updatePhoneNumber)
+	serverGroupV1.PUT("update-name", u.updateName)
 	serverGroupV1.GET("/:user_id/avatar", u.getAvatar)
-	serverGroupV1.PUT("avatar", u.server.authMiddleware.AuthenticatedMiddleware(), u.updateAvatar)
-	serverGroupV1.GET("referral", u.server.authMiddleware.AuthenticatedMiddleware(), u.referral)
-	serverGroupV1.GET("get-new-users-today", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNewUsersToday)
-	serverGroupV1.GET("list-users", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListUsers)
-	serverGroupV1.GET("list-kyc", u.server.authMiddleware.AuthenticatedMiddleware(), u.ListKYCs)
-	serverGroupV1.GET("notifications", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetNotifications)
-	serverGroupV1.POST("delete-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteUser)
-	serverGroupV1.GET("get-user/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.GetUserByID)
-	serverGroupV1.PUT("/notification/mark-as-read/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkNotificationAsRead)
-	serverGroupV1.DELETE("/notification/delete/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteNotification)
-	serverGroupV1.GET("/notification/mark-all-as-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.MarkAllNotificationsAsRead)
-	serverGroupV1.GET("/notification/count-unread", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountUnreadNotifications)
-	serverGroupV1.GET("/notification/count-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.CountAllNotifications)
-	serverGroupV1.GET("/notification/delete-all", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllNotifications)
-	serverGroupV1.DELETE("/notification/delete-all-read", u.server.authMiddleware.AuthenticatedMiddleware(), u.DeleteAllReadNotifications)
-	serverGroupV1.PUT("update-status/:id", u.server.authMiddleware.AuthenticatedMiddleware(), u.UpdateUserStatus)
+	serverGroupV1.PUT("avatar", u.updateAvatar)
+	serverGroupV1.GET("referral", u.referral)
+	serverGroupV1.GET("get-new-users-today", u.GetNewUsersToday)
+	serverGroupV1.GET("list-users", u.ListUsers)
+	serverGroupV1.GET("list-kyc", u.ListKYCs)
+	serverGroupV1.GET("notifications", u.GetNotifications)
+	serverGroupV1.POST("delete-user/:id", u.DeleteUser)
+	serverGroupV1.GET("get-user/:id", u.GetUserByID)
+	serverGroupV1.PUT("/notification/mark-as-read/:id", u.MarkNotificationAsRead)
+	serverGroupV1.DELETE("/notification/delete/:id", u.DeleteNotification)
+	serverGroupV1.GET("/notification/mark-all-as-read", u.MarkAllNotificationsAsRead)
+	serverGroupV1.GET("/notification/count-unread", u.CountUnreadNotifications)
+	serverGroupV1.GET("/notification/count-all", u.CountAllNotifications)
+	serverGroupV1.GET("/notification/delete-all", u.DeleteAllNotifications)
+	serverGroupV1.DELETE("/notification/delete-all-read", u.DeleteAllReadNotifications)
+	serverGroupV1.PUT("update-status/:id", u.UpdateUserStatus)
+	serverGroupV1.POST("/bank-accounts", u.createBankAccount)
+	serverGroupV1.GET("/bank-accounts", u.GetBankAccounts)
+	serverGroupV1.GET("/bank-accounts/default", u.GetDefaultBankAccount)
+	serverGroupV1.POST("/bank-accounts/:account_id/set-default", u.GetDefaultBankAccount)
+	serverGroupV1.DELETE("bank-accounts/:account_id", u.DeleteBankAccount)
 	/// For test purposes only
-	serverGroupV1.POST("get-push", u.server.authMiddleware.AuthenticatedMiddleware(), u.testPush)
+	serverGroupV1.POST("get-push", u.testPush)
 }
 
 // testPush godoc
@@ -1207,4 +1209,174 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("user successfully %s", status), models.UserResponse{}.ToUserResponse(&updatedUser)))
+}
+
+// ============================================================
+// BANK ACCOUNT ENDPOINTS
+// ============================================================
+
+// CreateBankAccount godoc
+// @Summary Add a new bank account
+// @Description Adds and verifies a new bank account for the user
+// @Tags user
+// @Accept json
+// @Produce json
+// @Param request body bankaccounts.CreateBankAccountRequest true "Bank account details"
+// @Success 201 {object} bankaccounts.BankAccountResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/bank-accounts [post]
+// @Security BearerAuth
+func (u *User) createBankAccount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	var req bankaccounts.CreateBankAccountRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request", "details": err.Error()})
+		return
+	}
+
+	bankAccount, err := u.bankAccountService.CreateBankAccount(c.Request.Context(), activeUser.UserID, &req)
+	if err != nil {
+		u.server.logger.Error("Failed to create bank account", "error", err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to verify bank account"))
+		return
+	}
+
+	c.JSON(http.StatusCreated, basemodels.NewSuccess("Bank account added and verified successfully", bankAccount))
+}
+
+// GetBankAccounts godoc
+// @Summary Get all bank accounts
+// @Description Retrieves all bank accounts for the authenticated user
+// @Tags user
+// @Produce json
+// @Success 200 {object} []bankaccounts.BankAccountResponse
+// @Router /api/v1/user/bank-accounts [get]
+// @Security BearerAuth
+func (u *User) GetBankAccounts(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	accounts, err := u.bankAccountService.GetBankAccounts(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error("Failed to fetch bank accounts", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch bank accounts"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", accounts))
+}
+
+// GetDefaultBankAccount godoc
+// @Summary Get default bank account
+// @Description Retrieves the user's default bank account
+// @Tags user
+// @Produce json
+// @Success 200 {object} bankaccounts.BankAccountResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/bank-accounts/default [get]
+// @Security BearerAuth
+func (u *User) GetDefaultBankAccount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	account, err := u.bankAccountService.GetDefaultBankAccount(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		if err == utils.ErrBankAccountNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError(utils.ErrBankAccountNotFound.Message))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch default bank account"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", account))
+}
+
+// SetDefaultBankAccount godoc
+// @Summary Set default bank account
+// @Description Sets a bank account as the user's default
+// @Tags Bank Accounts
+// @Produce json
+// @Param account_id path string true "Bank Account ID" format(uuid)
+// @Success 200 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/bank-accounts/{account_id}/set-default [post]
+// @Security BearerAuth
+func (u *User) SetDefaultBankAccount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	accountID, err := uuid.Parse(c.Param("account_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid account ID"})
+		return
+	}
+
+	err = u.bankAccountService.SetDefaultBankAccount(c.Request.Context(), accountID, activeUser.UserID)
+	if err != nil {
+		if err == utils.ErrBankAccountNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError(utils.ErrBankAccountNotFound.Message))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to set default bank account"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Default bank account updated successfully", nil))
+}
+
+// DeleteBankAccount godoc
+// @Summary Delete a bank account
+// @Description Soft deletes a bank account
+// @Tags Bank Accounts
+// @Produce json
+// @Param account_id path string true "Bank Account ID" format(uuid)
+// @Success 200 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/bank-accounts/{account_id} [delete]
+// @Security BearerAuth
+func (u *User) DeleteBankAccount(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	accountID, err := uuid.Parse(c.Param("account_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid account ID"))
+		return
+	}
+
+	err = u.bankAccountService.DeleteBankAccount(c.Request.Context(), accountID, activeUser.UserID)
+	if err != nil {
+		if err == utils.ErrBankAccountNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError(utils.ErrBankAccountNotFound.Message))
+			return
+		}
+		u.server.logger.Error("Failed to delete bank account", "error", err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Bank account deleted successfully", nil))
 }

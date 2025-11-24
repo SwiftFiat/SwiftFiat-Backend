@@ -3854,6 +3854,190 @@
                 }
             }
         },
+        "/api/v1/user/bank-accounts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all bank accounts for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get all bank accounts",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/bankaccounts.BankAccountResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Adds and verifies a new bank account for the user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Add a new bank account",
+                "parameters": [
+                    {
+                        "description": "Bank account details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bankaccounts.CreateBankAccountRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/bankaccounts.BankAccountResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/bank-accounts/default": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the user's default bank account",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "user"
+                ],
+                "summary": "Get default bank account",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bankaccounts.BankAccountResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/bank-accounts/{account_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft deletes a bank account",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bank Accounts"
+                ],
+                "summary": "Delete a bank account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Bank Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/user/bank-accounts/{account_id}/set-default": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Sets a bank account as the user's default",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Bank Accounts"
+                ],
+                "summary": "Set default bank account",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Bank Account ID",
+                        "name": "account_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/user/checktag": {
             "post": {
                 "security": [
@@ -7866,6 +8050,82 @@
                 }
             }
         },
+        "bankaccounts.BankAccountResponse": {
+            "type": "object",
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "account_type": {
+                    "type": "string"
+                },
+                "bank_code": {
+                    "type": "string"
+                },
+                "bank_logo": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "is_verified": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bankaccounts.CreateBankAccountRequest": {
+            "type": "object",
+            "required": [
+                "account_name",
+                "account_number",
+                "bank_code",
+                "bank_name"
+            ],
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "account_type": {
+                    "type": "string"
+                },
+                "bank_code": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                }
+            }
+        },
         "cryptocurrency.PaymentInfoRequest": {
             "type": "object",
             "properties": {
@@ -8467,6 +8727,19 @@
                 "phone_number": {
                     "type": "string"
                 },
+                "reward_balance": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "AvatarBlob  []byte    `json:\"avatar_blob\"`",
+                    "type": "string"
+                },
+                "total_reward_earned": {
+                    "type": "string"
+                },
+                "total_reward_redeemed": {
+                    "type": "string"
+                },
                 "twofa_enabled": {
                     "type": "boolean"
                 },
@@ -8480,7 +8753,6 @@
                     "type": "integer"
                 },
                 "user_tag": {
-                    "description": "AvatarBlob  []byte    `json:\"avatar_blob\"`",
                     "type": "string"
                 },
                 "verified": {

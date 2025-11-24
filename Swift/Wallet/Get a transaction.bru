@@ -5,11 +5,16 @@ meta {
 }
 
 get {
-  url: 
+  url: {{BaseURl}}/wallets/transactions/bc3e5bfb-d56c-458c-9d1c-9682e111285b
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
