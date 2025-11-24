@@ -817,6 +817,7 @@ type VaultTransaction struct {
 	UserID            int64                 `json:"user_id"`
 	VaultID           uuid.UUID             `json:"vault_id"`
 	TransactionType   string                `json:"transaction_type"`
+	TransactionID     uuid.NullUUID         `json:"transaction_id"`
 	Amount            string                `json:"amount"`
 	Currency          string                `json:"currency"`
 	SourceWallet      uuid.NullUUID         `json:"source_wallet"`
@@ -831,7 +832,6 @@ type VaultTransaction struct {
 	TwoFaVerifiedAt   sql.NullTime          `json:"two_fa_verified_at"`
 	CompletedAt       sql.NullTime          `json:"completed_at"`
 	CreatedAt         time.Time             `json:"created_at"`
-	TransactionID     uuid.NullUUID         `json:"transaction_id"`
 }
 
 type VaultYield struct {

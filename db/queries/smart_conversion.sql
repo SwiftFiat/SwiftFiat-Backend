@@ -190,6 +190,7 @@ INSERT INTO bank_accounts (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 RETURNING *;
 
+-- name: GetBankAccount :one
 SELECT * FROM bank_accounts
 WHERE id = $1 AND deleted_at IS NULL;
 
@@ -278,6 +279,9 @@ WHERE id = $1 AND deleted_at IS NULL;
 -- name: GetQRCodeByToken :one
 SELECT * FROM qr_codes
 WHERE token = $1 AND deleted_at IS NULL;
+
+-- name: GetQRCodesByBankAccount
+
 
 -- name: GetQRCodesByUser :many
 SELECT * FROM qr_codes
