@@ -598,7 +598,7 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 	}
 
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(userWT.User.UserID),
+		UserID:    int32(userWT.User.ID),
 		Action:    fmt.Sprintf("User %s logged in via 2FA ", user.FirstName.String),
 		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
 		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
@@ -750,7 +750,7 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	}
 
 	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(userWT.User.UserID),
+		UserID:    int32(userWT.User.ID),
 		Action:    fmt.Sprintf("Admin %s logged in ", dbUser.FirstName.String),
 		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
 		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},

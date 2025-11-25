@@ -4,8 +4,7 @@ import db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 
 func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 	return &UserResponse{
-		ID:        ID(user.ID),
-		UserID:    user.ID,
+		ID:        user.ID,
 		FirstName: user.FirstName.String,
 		LastName:  user.LastName.String,
 		Email:     user.Email,
@@ -44,7 +43,7 @@ func (u UserResponse) ToUserResponseList(users []db.User) []*UserResponse {
 	userResponses := make([]*UserResponse, len(users))
 	for i, user := range users {
 		userResponses[i] = &UserResponse{
-			ID:          ID(user.ID),
+			ID:          user.ID,
 			FirstName:   user.FirstName.String,
 			LastName:    user.LastName.String,
 			Email:       user.Email,
