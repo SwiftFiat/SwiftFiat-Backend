@@ -1502,7 +1502,7 @@ func (s *TransactionService) AwardRewardPoints(
 
 	_, err = qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
 		UserID:                int64(userID),
-		PointsAmount:               pointsEarned.String(),
+		PointsAmount:          pointsEarned.String(),
 		TransactionID:         uuid.NullUUID{UUID: transactionID, Valid: true},
 		SourceTransactionType: sql.NullString{String: "bill_payment", Valid: true},
 		TransactionAmount:     sql.NullString{String: paidAmount.String(), Valid: true},
@@ -1522,9 +1522,9 @@ func (s *TransactionService) AwardRewardPoints(
 
 // GetUserRewardBalance is a convenience method to get user's reward balance
 func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID int64) (string, error) {
-    balance, err := s.store.GetUserRewardBalance(ctx, userID)
-    if err != nil {
-        return "", fmt.Errorf("failed to get reward balance: %w", err)
-    }
-    return balance.RewardBalance, nil
+	balance, err := s.store.GetUserRewardBalance(ctx, userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get reward balance: %w", err)
+	}
+	return balance.RewardBalance, nil
 }

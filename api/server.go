@@ -22,6 +22,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
@@ -62,6 +63,7 @@ type Server struct {
 	rewardService            *rewards.RewardService
 	bankAccountService       *bankaccounts.BankAccountService
 	userService              *user_service.UserService
+	qrcodeService            *rapidramp.QRCodeService
 }
 
 func NewServer(envPath string) *Server {
@@ -164,6 +166,9 @@ func NewServer(envPath string) *Server {
 	// user service
 	us := user_service.NewUserService(q, l, ws)
 
+	// qrcode service
+	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -207,6 +212,7 @@ func NewServer(envPath string) *Server {
 		rewardService:            rs,
 		bankAccountService:       bas,
 		userService:              us,
+		qrcodeService:            qr,
 	}
 }
 
@@ -238,6 +244,7 @@ func (s *Server) Start() error {
 	ActivityLog{}.router(s)
 	Vault{}.router(s)
 	Rewards{}.router(s)
+	QRCodeHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
