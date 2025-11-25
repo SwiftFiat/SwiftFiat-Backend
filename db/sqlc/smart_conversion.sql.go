@@ -1508,6 +1508,61 @@ func (q *Queries) GetQRCodeByToken(ctx context.Context, token uuid.UUID) (QrCode
 	return i, err
 }
 
+const getQRCodesByCryptomusAddress = `-- name: GetQRCodesByCryptomusAddress :many
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+WHERE cryptomus_address_id = $1 AND deleted_at IS NULL
+`
+
+func (q *Queries) GetQRCodesByCryptomusAddress(ctx context.Context, cryptomusAddressID uuid.NullUUID) ([]QrCode, error) {
+	rows, err := q.db.QueryContext(ctx, getQRCodesByCryptomusAddress, cryptomusAddressID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []QrCode{}
+	for rows.Next() {
+		var i QrCode
+		if err := rows.Scan(
+			&i.ID,
+			&i.Token,
+			&i.UserID,
+			&i.QrType,
+			&i.CurrencyPreference,
+			&i.ConversionMode,
+			&i.Network,
+			&i.CryptoCurrency,
+			&i.CryptomusAddressID,
+			&i.LinkedWalletID,
+			&i.LinkedBankAccountID,
+			&i.FixedAmount,
+			&i.MinAmount,
+			&i.MaxAmount,
+			&i.QrCodeData,
+			&i.QrCodeImageUrl,
+			&i.Description,
+			&i.Label,
+			&i.Status,
+			&i.UsageLimit,
+			&i.UsageCount,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LastUsedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getQRCodesByUser = `-- name: GetQRCodesByUser :many
 SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE user_id = $1 AND deleted_at IS NULL

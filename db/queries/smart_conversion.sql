@@ -276,12 +276,13 @@ INSERT INTO qr_codes (
 SELECT * FROM qr_codes
 WHERE id = $1 AND deleted_at IS NULL;
 
+-- name: GetQRCodesByCryptomusAddress :many
+SELECT * FROM qr_codes
+WHERE cryptomus_address_id = $1 AND deleted_at IS NULL;
+
 -- name: GetQRCodeByToken :one
 SELECT * FROM qr_codes
 WHERE token = $1 AND deleted_at IS NULL;
-
--- name: GetQRCodesByBankAccount
-
 
 -- name: GetQRCodesByUser :many
 SELECT * FROM qr_codes

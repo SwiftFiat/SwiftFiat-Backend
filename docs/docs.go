@@ -3406,6 +3406,198 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/qr-codes": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all QR codes for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get all QR codes",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/rapidramp.QRCodeResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a new QR code for receiving crypto payments",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Generate a new QR code",
+                "parameters": [
+                    {
+                        "description": "QR code details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/rapidramp.CreateQRCodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/rapidramp.QRCodeResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/public/{token}": {
+            "get": {
+                "description": "Retrieves a specific QR code by its token (public endpoint for payers)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get QR code by token",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "QR Code Token",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rapidramp.QRCodeResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/transactions": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves QR transaction history for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get QR transactions",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/rapidramp.QRTransactionResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/{qr_id}": {
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft deletes a QR code",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Delete a QR code",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "QR Code ID",
+                        "name": "qr_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/referral/earnings": {
             "get": {
                 "description": "Retrieves the referral earnings for the authenticated user",
@@ -8825,6 +9017,280 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "rapidramp.BankAccountInfo": {
+            "type": "object",
+            "properties": {
+                "account_name": {
+                    "type": "string"
+                },
+                "account_number": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "rapidramp.ConversionDetails": {
+            "type": "object",
+            "properties": {
+                "conversion_fees": {
+                    "type": "number"
+                },
+                "fiat_amount": {
+                    "type": "number"
+                },
+                "fiat_currency": {
+                    "type": "string"
+                },
+                "net_amount": {
+                    "type": "number"
+                },
+                "network_fees": {
+                    "type": "number"
+                },
+                "platform_fees": {
+                    "type": "number"
+                },
+                "rate": {
+                    "type": "number"
+                },
+                "total_fees": {
+                    "type": "number"
+                }
+            }
+        },
+        "rapidramp.CreateQRCodeRequest": {
+            "type": "object",
+            "required": [
+                "conversion_mode",
+                "crypto_currency",
+                "currency_preference",
+                "network"
+            ],
+            "properties": {
+                "bank_account_id": {
+                    "description": "Required if auto mode",
+                    "type": "string"
+                },
+                "conversion_mode": {
+                    "type": "string",
+                    "enum": [
+                        "auto",
+                        "manual"
+                    ]
+                },
+                "crypto_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USDT",
+                        "USDC",
+                        "BTC",
+                        "ETH",
+                        "BNB",
+                        "TRX"
+                    ]
+                },
+                "currency_preference": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN"
+                    ]
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "fixed_amount": {
+                    "type": "number"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "linked_wallet_id": {
+                    "description": "Required if manual mode",
+                    "type": "string"
+                },
+                "max_amount": {
+                    "type": "number"
+                },
+                "min_amount": {
+                    "type": "number"
+                },
+                "network": {
+                    "type": "string",
+                    "enum": [
+                        "tron",
+                        "ethereum",
+                        "bsc",
+                        "bitcoin"
+                    ]
+                },
+                "usage_limit": {
+                    "type": "integer"
+                }
+            }
+        },
+        "rapidramp.CryptoDetails": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "amount_usd": {
+                    "type": "number"
+                },
+                "confirmation_blocks": {
+                    "type": "integer"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "network": {
+                    "type": "string"
+                },
+                "required_confirmations": {
+                    "type": "integer"
+                },
+                "transaction_hash": {
+                    "type": "string"
+                }
+            }
+        },
+        "rapidramp.PayoutDetails": {
+            "type": "object",
+            "properties": {
+                "bank_account_name": {
+                    "type": "string"
+                },
+                "bank_account_number": {
+                    "type": "string"
+                },
+                "bank_name": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "reference": {
+                    "type": "string"
+                }
+            }
+        },
+        "rapidramp.QRCodeResponse": {
+            "type": "object",
+            "properties": {
+                "bank_account": {
+                    "$ref": "#/definitions/rapidramp.BankAccountInfo"
+                },
+                "conversion_mode": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "crypto_address": {
+                    "type": "string"
+                },
+                "crypto_currency": {
+                    "type": "string"
+                },
+                "currency_preference": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "last_used_at": {
+                    "type": "string"
+                },
+                "network": {
+                    "type": "string"
+                },
+                "qr_code_data": {
+                    "type": "string"
+                },
+                "qr_code_image_url": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                },
+                "usage_count": {
+                    "type": "integer"
+                },
+                "usage_limit": {
+                    "type": "integer"
+                }
+            }
+        },
+        "rapidramp.QRTransactionResponse": {
+            "type": "object",
+            "properties": {
+                "conversion": {
+                    "$ref": "#/definitions/rapidramp.ConversionDetails"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "crypto": {
+                    "$ref": "#/definitions/rapidramp.CryptoDetails"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "payout": {
+                    "$ref": "#/definitions/rapidramp.PayoutDetails"
+                },
+                "qr_code_label": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "timeline": {
+                    "$ref": "#/definitions/rapidramp.TransactionTimeline"
+                }
+            }
+        },
+        "rapidramp.TransactionTimeline": {
+            "type": "object",
+            "properties": {
+                "conversion_completed_at": {
+                    "type": "string"
+                },
+                "conversion_started_at": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "payment_confirmed_at": {
+                    "type": "string"
+                },
+                "payment_received_at": {
+                    "type": "string"
+                },
+                "payout_completed_at": {
+                    "type": "string"
+                },
+                "payout_initiated_at": {
                     "type": "string"
                 }
             }

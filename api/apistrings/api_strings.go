@@ -10,7 +10,7 @@ const (
 	InvalidPhoneEmailInput    = "please enter a valid email and password"
 	InvalidCodeEmailInput     = "please enter a valid email and passcode"
 	IncorrectEmailPass        = "incorrect email or password"
-	UnauthorizedAccess        = "Only admin can access this resource"
+	UnauthorizedAccess        = "Unathourized access"
 	DeactivatedAccount        = "your account has been deactivated, please contact support"
 
 	/// Core Functionality Error
