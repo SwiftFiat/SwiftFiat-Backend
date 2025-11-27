@@ -4,12 +4,23 @@ meta {
   seq: 2
 }
 
-get {
-  url: 
-  body: none
+post {
+  url: {{BaseURl}}/crypto/test-webhook
+  body: json
   auth: inherit
+}
+
+body:json {
+  {
+    "url_callback": "https://689beac8132a.ngrok-free.app/api/v1/crypto/cryptomus/webhook",
+    "currency": "BTC",
+    "network": "btc",
+    "order_id": "qr_1_btc_BTC_1764197402",
+    "status": "paid"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

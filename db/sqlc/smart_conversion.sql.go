@@ -430,13 +430,14 @@ INSERT INTO qr_transactions (
     crypto_amount,
     crypto_amount_usd,
     transaction_hash,
-    required_confirmations,
     bank_account_id,
-    status
+    transaction_id,
+    status,
+    order_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15
-) RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+    $11, $12, $13, $14, $15, $16
+) RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type CreateQRTransactionParams struct {
@@ -452,9 +453,10 @@ type CreateQRTransactionParams struct {
 	CryptoAmount           string                `json:"crypto_amount"`
 	CryptoAmountUsd        sql.NullString        `json:"crypto_amount_usd"`
 	TransactionHash        sql.NullString        `json:"transaction_hash"`
-	RequiredConfirmations  sql.NullInt32         `json:"required_confirmations"`
 	BankAccountID          uuid.NullUUID         `json:"bank_account_id"`
+	TransactionID          uuid.NullUUID         `json:"transaction_id"`
 	Status                 string                `json:"status"`
+	OrderID                sql.NullString        `json:"order_id"`
 }
 
 func (q *Queries) CreateQRTransaction(ctx context.Context, arg CreateQRTransactionParams) (QrTransaction, error) {
@@ -471,9 +473,10 @@ func (q *Queries) CreateQRTransaction(ctx context.Context, arg CreateQRTransacti
 		arg.CryptoAmount,
 		arg.CryptoAmountUsd,
 		arg.TransactionHash,
-		arg.RequiredConfirmations,
 		arg.BankAccountID,
+		arg.TransactionID,
 		arg.Status,
+		arg.OrderID,
 	)
 	var i QrTransaction
 	err := row.Scan(
@@ -484,17 +487,14 @@ func (q *Queries) CreateQRTransaction(ctx context.Context, arg CreateQRTransacti
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -1272,7 +1272,7 @@ func (q *Queries) GetDefaultBankAccount(ctx context.Context, userID int64) (Bank
 }
 
 const getFailedQRTransactions = `-- name: GetFailedQRTransactions :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
 WHERE status = 'failed'
     AND retry_count < max_retries
     AND (last_retry_at IS NULL OR last_retry_at < NOW() - INTERVAL '5 minutes')
@@ -1297,96 +1297,14 @@ func (q *Queries) GetFailedQRTransactions(ctx context.Context, limit int32) ([]Q
 			&i.CryptomusTransactionID,
 			&i.CryptomusOrderID,
 			&i.CryptomusUuid,
+			&i.OrderID,
 			&i.CryptomusAddressID,
 			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
 			&i.CryptoCurrency,
 			&i.CryptoNetwork,
 			&i.CryptoAmount,
 			&i.CryptoAmountUsd,
 			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
-			&i.ConversionRate,
-			&i.FiatCurrency,
-			&i.FiatAmount,
-			&i.ConversionFees,
-			&i.PlatformFees,
-			&i.NetworkFees,
-			&i.TotalFees,
-			&i.NetAmount,
-			&i.BankAccountID,
-			&i.BankAccountName,
-			&i.BankAccountNumber,
-			&i.BankCode,
-			&i.PayoutReference,
-			&i.PayoutProvider,
-			&i.PayoutProviderResponse,
-			&i.Status,
-			&i.PaymentReceivedAt,
-			&i.PaymentConfirmedAt,
-			&i.ConversionStartedAt,
-			&i.ConversionCompletedAt,
-			&i.PayoutInitiatedAt,
-			&i.PayoutCompletedAt,
-			&i.FailureReason,
-			&i.FailureStage,
-			&i.RetryCount,
-			&i.LastRetryAt,
-			&i.MaxRetries,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getPendingConfirmations = `-- name: GetPendingConfirmations :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
-WHERE status IN ('received', 'confirming')
-    AND confirmation_blocks < required_confirmations
-    AND created_at > NOW() - INTERVAL '24 hours'
-ORDER BY created_at ASC
-`
-
-func (q *Queries) GetPendingConfirmations(ctx context.Context) ([]QrTransaction, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingConfirmations)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []QrTransaction{}
-	for rows.Next() {
-		var i QrTransaction
-		if err := rows.Scan(
-			&i.ID,
-			&i.QrCodeID,
-			&i.TransactionID,
-			&i.UserID,
-			&i.CryptomusTransactionID,
-			&i.CryptomusOrderID,
-			&i.CryptomusUuid,
-			&i.CryptomusAddressID,
-			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
-			&i.CryptoCurrency,
-			&i.CryptoNetwork,
-			&i.CryptoAmount,
-			&i.CryptoAmountUsd,
-			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
 			&i.ConversionRate,
 			&i.FiatCurrency,
 			&i.FiatAmount,
@@ -1620,7 +1538,7 @@ func (q *Queries) GetQRCodesByUser(ctx context.Context, userID int64) ([]QrCode,
 }
 
 const getQRTransaction = `-- name: GetQRTransaction :one
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions WHERE id = $1
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions WHERE id = $1
 `
 
 func (q *Queries) GetQRTransaction(ctx context.Context, id uuid.UUID) (QrTransaction, error) {
@@ -1634,17 +1552,14 @@ func (q *Queries) GetQRTransaction(ctx context.Context, id uuid.UUID) (QrTransac
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -1678,14 +1593,14 @@ func (q *Queries) GetQRTransaction(ctx context.Context, id uuid.UUID) (QrTransac
 	return i, err
 }
 
-const getQRTransactionByCryptomusID = `-- name: GetQRTransactionByCryptomusID :one
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions 
-WHERE cryptomus_transaction_id = $1
+const getQRTransactionByOrderID = `-- name: GetQRTransactionByOrderID :one
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions 
+WHERE order_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetQRTransactionByCryptomusID(ctx context.Context, cryptomusTransactionID sql.NullString) (QrTransaction, error) {
-	row := q.db.QueryRowContext(ctx, getQRTransactionByCryptomusID, cryptomusTransactionID)
+func (q *Queries) GetQRTransactionByOrderID(ctx context.Context, orderID sql.NullString) (QrTransaction, error) {
+	row := q.db.QueryRowContext(ctx, getQRTransactionByOrderID, orderID)
 	var i QrTransaction
 	err := row.Scan(
 		&i.ID,
@@ -1695,17 +1610,14 @@ func (q *Queries) GetQRTransactionByCryptomusID(ctx context.Context, cryptomusTr
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -1778,8 +1690,8 @@ func (q *Queries) GetQRTransactionStats(ctx context.Context, arg GetQRTransactio
 }
 
 const getQRTransactionsByQRCode = `-- name: GetQRTransactionsByQRCode :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
-WHERE qr_code_id = $1
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
+WHERE qr_code_id = $1 
 ORDER BY created_at DESC
 `
 
@@ -1800,17 +1712,14 @@ func (q *Queries) GetQRTransactionsByQRCode(ctx context.Context, qrCodeID uuid.U
 			&i.CryptomusTransactionID,
 			&i.CryptomusOrderID,
 			&i.CryptomusUuid,
+			&i.OrderID,
 			&i.CryptomusAddressID,
 			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
 			&i.CryptoCurrency,
 			&i.CryptoNetwork,
 			&i.CryptoAmount,
 			&i.CryptoAmountUsd,
 			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
 			&i.ConversionRate,
 			&i.FiatCurrency,
 			&i.FiatAmount,
@@ -1855,7 +1764,7 @@ func (q *Queries) GetQRTransactionsByQRCode(ctx context.Context, qrCodeID uuid.U
 }
 
 const getQRTransactionsByUser = `-- name: GetQRTransactionsByUser :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1884,17 +1793,14 @@ func (q *Queries) GetQRTransactionsByUser(ctx context.Context, arg GetQRTransact
 			&i.CryptomusTransactionID,
 			&i.CryptomusOrderID,
 			&i.CryptomusUuid,
+			&i.OrderID,
 			&i.CryptomusAddressID,
 			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
 			&i.CryptoCurrency,
 			&i.CryptoNetwork,
 			&i.CryptoAmount,
 			&i.CryptoAmountUsd,
 			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
 			&i.ConversionRate,
 			&i.FiatCurrency,
 			&i.FiatAmount,
@@ -2075,8 +1981,8 @@ func (q *Queries) GetScheduledRulesDue(ctx context.Context) ([]ConversionRule, e
 }
 
 const getTransactionsReadyForConversion = `-- name: GetTransactionsReadyForConversion :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
-WHERE status = 'confirmed'
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
+WHERE status = 'received'
     AND conversion_started_at IS NULL
 ORDER BY payment_confirmed_at ASC
 LIMIT $1
@@ -2099,17 +2005,14 @@ func (q *Queries) GetTransactionsReadyForConversion(ctx context.Context, limit i
 			&i.CryptomusTransactionID,
 			&i.CryptomusOrderID,
 			&i.CryptomusUuid,
+			&i.OrderID,
 			&i.CryptomusAddressID,
 			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
 			&i.CryptoCurrency,
 			&i.CryptoNetwork,
 			&i.CryptoAmount,
 			&i.CryptoAmountUsd,
 			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
 			&i.ConversionRate,
 			&i.FiatCurrency,
 			&i.FiatAmount,
@@ -2154,8 +2057,8 @@ func (q *Queries) GetTransactionsReadyForConversion(ctx context.Context, limit i
 }
 
 const getTransactionsReadyForPayout = `-- name: GetTransactionsReadyForPayout :many
-SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
-WHERE status = 'converting'
+SELECT id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at FROM qr_transactions
+WHERE status = 'sending_to_bank'
     AND conversion_completed_at IS NOT NULL
     AND payout_initiated_at IS NULL
 ORDER BY conversion_completed_at ASC
@@ -2179,17 +2082,14 @@ func (q *Queries) GetTransactionsReadyForPayout(ctx context.Context, limit int32
 			&i.CryptomusTransactionID,
 			&i.CryptomusOrderID,
 			&i.CryptomusUuid,
+			&i.OrderID,
 			&i.CryptomusAddressID,
 			&i.WebhookData,
-			&i.SenderAddress,
-			&i.SenderName,
 			&i.CryptoCurrency,
 			&i.CryptoNetwork,
 			&i.CryptoAmount,
 			&i.CryptoAmountUsd,
 			&i.TransactionHash,
-			&i.ConfirmationBlocks,
-			&i.RequiredConfirmations,
 			&i.ConversionRate,
 			&i.FiatCurrency,
 			&i.FiatAmount,
@@ -2527,82 +2427,6 @@ func (q *Queries) UpdateQRCodeUsage(ctx context.Context, id uuid.UUID) (QrCode, 
 	return i, err
 }
 
-const updateQRTransactionConfirmation = `-- name: UpdateQRTransactionConfirmation :one
-UPDATE qr_transactions
-SET confirmation_blocks = $2,
-    status = CASE 
-        WHEN $2 >= required_confirmations THEN 'confirmed'
-        ELSE 'confirming'
-    END,
-    payment_confirmed_at = CASE
-        WHEN $2 >= required_confirmations AND payment_confirmed_at IS NULL THEN NOW()
-        ELSE payment_confirmed_at
-    END,
-    updated_at = NOW()
-WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
-`
-
-type UpdateQRTransactionConfirmationParams struct {
-	ID                 uuid.UUID     `json:"id"`
-	ConfirmationBlocks sql.NullInt32 `json:"confirmation_blocks"`
-}
-
-func (q *Queries) UpdateQRTransactionConfirmation(ctx context.Context, arg UpdateQRTransactionConfirmationParams) (QrTransaction, error) {
-	row := q.db.QueryRowContext(ctx, updateQRTransactionConfirmation, arg.ID, arg.ConfirmationBlocks)
-	var i QrTransaction
-	err := row.Scan(
-		&i.ID,
-		&i.QrCodeID,
-		&i.TransactionID,
-		&i.UserID,
-		&i.CryptomusTransactionID,
-		&i.CryptomusOrderID,
-		&i.CryptomusUuid,
-		&i.CryptomusAddressID,
-		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
-		&i.CryptoCurrency,
-		&i.CryptoNetwork,
-		&i.CryptoAmount,
-		&i.CryptoAmountUsd,
-		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
-		&i.ConversionRate,
-		&i.FiatCurrency,
-		&i.FiatAmount,
-		&i.ConversionFees,
-		&i.PlatformFees,
-		&i.NetworkFees,
-		&i.TotalFees,
-		&i.NetAmount,
-		&i.BankAccountID,
-		&i.BankAccountName,
-		&i.BankAccountNumber,
-		&i.BankCode,
-		&i.PayoutReference,
-		&i.PayoutProvider,
-		&i.PayoutProviderResponse,
-		&i.Status,
-		&i.PaymentReceivedAt,
-		&i.PaymentConfirmedAt,
-		&i.ConversionStartedAt,
-		&i.ConversionCompletedAt,
-		&i.PayoutInitiatedAt,
-		&i.PayoutCompletedAt,
-		&i.FailureReason,
-		&i.FailureStage,
-		&i.RetryCount,
-		&i.LastRetryAt,
-		&i.MaxRetries,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
 const updateQRTransactionConversionComplete = `-- name: UpdateQRTransactionConversionComplete :one
 UPDATE qr_transactions
 SET status = 'sending_to_bank',
@@ -2616,7 +2440,7 @@ SET status = 'sending_to_bank',
     net_amount = $8,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type UpdateQRTransactionConversionCompleteParams struct {
@@ -2650,17 +2474,14 @@ func (q *Queries) UpdateQRTransactionConversionComplete(ctx context.Context, arg
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -2703,7 +2524,7 @@ SET status = 'failed',
     last_retry_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type UpdateQRTransactionFailureParams struct {
@@ -2723,17 +2544,14 @@ func (q *Queries) UpdateQRTransactionFailure(ctx context.Context, arg UpdateQRTr
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -2773,7 +2591,7 @@ SET status = 'completed',
     payout_completed_at = NOW(),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 func (q *Queries) UpdateQRTransactionPayoutCompleted(ctx context.Context, id uuid.UUID) (QrTransaction, error) {
@@ -2787,17 +2605,14 @@ func (q *Queries) UpdateQRTransactionPayoutCompleted(ctx context.Context, id uui
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -2839,7 +2654,7 @@ SET payout_initiated_at = NOW(),
     payout_provider_response = $4,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type UpdateQRTransactionPayoutInitiatedParams struct {
@@ -2865,17 +2680,14 @@ func (q *Queries) UpdateQRTransactionPayoutInitiated(ctx context.Context, arg Up
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -2913,7 +2725,7 @@ const updateQRTransactionStatus = `-- name: UpdateQRTransactionStatus :one
 UPDATE qr_transactions
 SET status = $2, updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type UpdateQRTransactionStatusParams struct {
@@ -2932,17 +2744,14 @@ func (q *Queries) UpdateQRTransactionStatus(ctx context.Context, arg UpdateQRTra
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,
@@ -2983,7 +2792,7 @@ SET status = 'converting',
     conversion_rate = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, cryptomus_address_id, webhook_data, sender_address, sender_name, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, confirmation_blocks, required_confirmations, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
+RETURNING id, qr_code_id, transaction_id, user_id, cryptomus_transaction_id, cryptomus_order_id, cryptomus_uuid, order_id, cryptomus_address_id, webhook_data, crypto_currency, crypto_network, crypto_amount, crypto_amount_usd, transaction_hash, conversion_rate, fiat_currency, fiat_amount, conversion_fees, platform_fees, network_fees, total_fees, net_amount, bank_account_id, bank_account_name, bank_account_number, bank_code, payout_reference, payout_provider, payout_provider_response, status, payment_received_at, payment_confirmed_at, conversion_started_at, conversion_completed_at, payout_initiated_at, payout_completed_at, failure_reason, failure_stage, retry_count, last_retry_at, max_retries, created_at, updated_at
 `
 
 type UpdateQRTransactionToConvertingParams struct {
@@ -3002,17 +2811,14 @@ func (q *Queries) UpdateQRTransactionToConverting(ctx context.Context, arg Updat
 		&i.CryptomusTransactionID,
 		&i.CryptomusOrderID,
 		&i.CryptomusUuid,
+		&i.OrderID,
 		&i.CryptomusAddressID,
 		&i.WebhookData,
-		&i.SenderAddress,
-		&i.SenderName,
 		&i.CryptoCurrency,
 		&i.CryptoNetwork,
 		&i.CryptoAmount,
 		&i.CryptoAmountUsd,
 		&i.TransactionHash,
-		&i.ConfirmationBlocks,
-		&i.RequiredConfirmations,
 		&i.ConversionRate,
 		&i.FiatCurrency,
 		&i.FiatAmount,

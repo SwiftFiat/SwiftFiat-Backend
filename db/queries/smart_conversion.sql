@@ -66,7 +66,7 @@ WHERE status = 'active'
     AND trigger_type = 'scheduled'
     AND next_execution_at <= NOW()
 ORDER BY next_execution_at ASC;
-
+ 
 -- name: UpdateConversionRule :one
 UPDATE conversion_rules
 SET trigger_rate = COALESCE(sqlc.narg('trigger_rate'), trigger_rate),
@@ -335,20 +335,21 @@ INSERT INTO qr_transactions (
     crypto_amount,
     crypto_amount_usd,
     transaction_hash,
-    required_confirmations,
     bank_account_id,
-    status
+    transaction_id,
+    status,
+    order_id
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15
+    $11, $12, $13, $14, $15, $16
 ) RETURNING *;
 
 -- name: GetQRTransaction :one
 SELECT * FROM qr_transactions WHERE id = $1;
 
--- name: GetQRTransactionByCryptomusID :one
+-- name: GetQRTransactionByOrderID :one
 SELECT * FROM qr_transactions 
-WHERE cryptomus_transaction_id = $1
+WHERE order_id = $1
 LIMIT 1;
 
 -- name: GetQRTransactionsByUser :many
@@ -359,45 +360,24 @@ LIMIT $2 OFFSET $3;
 
 -- name: GetQRTransactionsByQRCode :many
 SELECT * FROM qr_transactions
-WHERE qr_code_id = $1
+WHERE qr_code_id = $1 
 ORDER BY created_at DESC;
 
--- name: GetPendingConfirmations :many
-SELECT * FROM qr_transactions
-WHERE status IN ('received', 'confirming')
-    AND confirmation_blocks < required_confirmations
-    AND created_at > NOW() - INTERVAL '24 hours'
-ORDER BY created_at ASC;
 
 -- name: GetTransactionsReadyForConversion :many
 SELECT * FROM qr_transactions
-WHERE status = 'confirmed'
+WHERE status = 'received'
     AND conversion_started_at IS NULL
 ORDER BY payment_confirmed_at ASC
 LIMIT $1;
 
 -- name: GetTransactionsReadyForPayout :many
 SELECT * FROM qr_transactions
-WHERE status = 'converting'
+WHERE status = 'sending_to_bank'
     AND conversion_completed_at IS NOT NULL
     AND payout_initiated_at IS NULL
 ORDER BY conversion_completed_at ASC
 LIMIT $1;
-
--- name: UpdateQRTransactionConfirmation :one
-UPDATE qr_transactions
-SET confirmation_blocks = $2,
-    status = CASE 
-        WHEN $2 >= required_confirmations THEN 'confirmed'
-        ELSE 'confirming'
-    END,
-    payment_confirmed_at = CASE
-        WHEN $2 >= required_confirmations AND payment_confirmed_at IS NULL THEN NOW()
-        ELSE payment_confirmed_at
-    END,
-    updated_at = NOW()
-WHERE id = $1
-RETURNING *;
 
 -- name: UpdateQRTransactionToConverting :one
 UPDATE qr_transactions

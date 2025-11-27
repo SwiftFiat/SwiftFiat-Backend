@@ -3991,6 +3991,89 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/smart-convert/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all conversion rules for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversion"
+                ],
+                "summary": "Get all conversion rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/smartconversion.ConversionRuleResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates an automated conversion rule for a user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversion"
+                ],
+                "summary": "Create a new conversion rule",
+                "parameters": [
+                    {
+                        "description": "Conversion rule details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/smartconversion.CreateConversionRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/smartconversion.ConversionRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Rule already exists for currency pair",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/user/avatar": {
             "put": {
                 "security": [
@@ -8947,9 +9030,6 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string"
                 },
-                "user_id": {
-                    "type": "integer"
-                },
                 "user_tag": {
                     "type": "string"
                 },
@@ -9067,40 +9147,17 @@ const docTemplate = `{
         "rapidramp.CreateQRCodeRequest": {
             "type": "object",
             "required": [
-                "conversion_mode",
+                "bank_account_id",
                 "crypto_currency",
-                "currency_preference",
                 "network"
             ],
             "properties": {
                 "bank_account_id": {
-                    "description": "Required if auto mode",
+                    "description": "CurrencyPreference string           ` + "`" + `json:\"currency_preference\" binding:\"required,oneof=USD NGN\"` + "`" + `\nConversionMode     string           ` + "`" + `json:\"conversion_mode\" binding:\"required,oneof=auto manual\"` + "`" + `",
                     "type": "string"
                 },
-                "conversion_mode": {
-                    "type": "string",
-                    "enum": [
-                        "auto",
-                        "manual"
-                    ]
-                },
                 "crypto_currency": {
-                    "type": "string",
-                    "enum": [
-                        "USDT",
-                        "USDC",
-                        "BTC",
-                        "ETH",
-                        "BNB",
-                        "TRX"
-                    ]
-                },
-                "currency_preference": {
-                    "type": "string",
-                    "enum": [
-                        "USD",
-                        "NGN"
-                    ]
+                    "type": "string"
                 },
                 "description": {
                     "type": "string"
@@ -9108,32 +9165,15 @@ const docTemplate = `{
                 "expires_at": {
                     "type": "string"
                 },
-                "fixed_amount": {
-                    "type": "number"
-                },
                 "label": {
+                    "description": "LinkedWalletID     *uuid.UUID       ` + "`" + `json:\"linked_wallet_id\"` + "`" + ` // Required if manual mode",
                     "type": "string"
-                },
-                "linked_wallet_id": {
-                    "description": "Required if manual mode",
-                    "type": "string"
-                },
-                "max_amount": {
-                    "type": "number"
-                },
-                "min_amount": {
-                    "type": "number"
                 },
                 "network": {
-                    "type": "string",
-                    "enum": [
-                        "tron",
-                        "ethereum",
-                        "bsc",
-                        "bitcoin"
-                    ]
+                    "type": "string"
                 },
                 "usage_limit": {
+                    "description": "FixedAmount        *decimal.Decimal ` + "`" + `json:\"fixed_amount\" binding:\"required\"` + "`" + `\nMinAmount          *decimal.Decimal ` + "`" + `json:\"min_amount\"` + "`" + `\nMaxAmount          *decimal.Decimal ` + "`" + `json:\"max_amount\"` + "`" + `",
                     "type": "integer"
                 }
             }
@@ -9566,6 +9606,278 @@ const docTemplate = `{
                 },
                 "valid_until": {
                     "type": "string"
+                }
+            }
+        },
+        "smartconversion.ConversionRule": {
+            "type": "object",
+            "properties": {
+                "conversion_type": {
+                    "description": "fixed_amount, percentage, full_balance",
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "execution_count": {
+                    "type": "integer"
+                },
+                "failure_count": {
+                    "type": "integer"
+                },
+                "fixed_amount": {
+                    "description": "applicable for fixed_amount conversion type",
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "last_failure_reason": {
+                    "type": "string"
+                },
+                "last_trigger_rate": {
+                    "type": "number"
+                },
+                "last_triggered_at": {
+                    "type": "string"
+                },
+                "max_executions": {
+                    "type": "integer"
+                },
+                "next_execution_at": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "description": "applicable for percentage conversion type",
+                    "type": "number"
+                },
+                "schedule_day_of_month": {
+                    "type": "integer"
+                },
+                "schedule_day_of_week": {
+                    "type": "integer"
+                },
+                "schedule_frequency": {
+                    "description": "daily, weekly, monthly",
+                    "type": "string"
+                },
+                "schedule_time": {
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "source_wallet_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "active, paused, triggered, expired, failed",
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                },
+                "target_wallet_id": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "trigger_condition": {
+                    "description": "gte, lte, eq",
+                    "type": "string"
+                },
+                "trigger_rate": {
+                    "description": "applicable for rate_based and percentage triggers",
+                    "type": "number"
+                },
+                "trigger_type": {
+                    "description": "rate_based, scheduled, percentage",
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "smartconversion.ConversionRuleResponse": {
+            "type": "object",
+            "properties": {
+                "conversion_type": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "execution_count": {
+                    "type": "integer"
+                },
+                "fixed_amount": {
+                    "type": "number"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "last_trigger_rate": {
+                    "type": "number"
+                },
+                "last_triggered_at": {
+                    "type": "string"
+                },
+                "next_execution_at": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "schedule_frequency": {
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "source_wallet_balance": {
+                    "type": "number"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                },
+                "target_wallet_balance": {
+                    "type": "number"
+                },
+                "trigger_condition": {
+                    "type": "string"
+                },
+                "trigger_rate": {
+                    "type": "number"
+                },
+                "trigger_type": {
+                    "type": "string"
+                }
+            }
+        },
+        "smartconversion.CreateConversionRuleRequest": {
+            "type": "object",
+            "required": [
+                "conversion_type",
+                "source_currency",
+                "source_wallet_id",
+                "target_currency",
+                "target_wallet_id",
+                "trigger_type"
+            ],
+            "properties": {
+                "conversion_type": {
+                    "type": "string",
+                    "enum": [
+                        "fixed_amount",
+                        "percentage",
+                        "full_balance"
+                    ]
+                },
+                "description": {
+                    "type": "string"
+                },
+                "fixed_amount": {
+                    "type": "number"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "percentage": {
+                    "type": "number"
+                },
+                "schedule_day_of_month": {
+                    "type": "integer"
+                },
+                "schedule_day_of_week": {
+                    "type": "integer"
+                },
+                "schedule_frequency": {
+                    "type": "string",
+                    "enum": [
+                        "daily",
+                        "weekly",
+                        "monthly",
+                        "custom"
+                    ]
+                },
+                "schedule_time": {
+                    "description": "HH:MM format",
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "source_wallet_id": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "target_wallet_id": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "trigger_condition": {
+                    "type": "string",
+                    "enum": [
+                        "gte",
+                        "lte",
+                        "eq"
+                    ]
+                },
+                "trigger_rate": {
+                    "type": "number"
+                },
+                "trigger_type": {
+                    "type": "string",
+                    "enum": [
+                        "rate_based",
+                        "scheduled",
+                        "percentage"
+                    ]
                 }
             }
         },

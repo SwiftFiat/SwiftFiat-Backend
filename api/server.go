@@ -19,6 +19,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
@@ -26,6 +27,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
+	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -64,6 +67,11 @@ type Server struct {
 	bankAccountService       *bankaccounts.BankAccountService
 	userService              *user_service.UserService
 	qrcodeService            *rapidramp.QRCodeService
+	qrcodeScheduler          *rapidramp.RapidRampScheduler
+	transactionService       *transaction.TransactionService
+	currencyService          *currency.CurrencyService
+	scExchangeRateservice    *smartconversion.ExchangeRateService
+	smartConvertService      *smartconversion.ConversionService
 }
 
 func NewServer(envPath string) *Server {
@@ -152,10 +160,10 @@ func NewServer(envPath string) *Server {
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)
 
-	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 0)
+	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 1*time.Hour)
 
 	// vault scheduler
-	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 5*time.Minute)
+	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Hour)
 
 	// reward service
 	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
@@ -168,6 +176,26 @@ func NewServer(envPath string) *Server {
 
 	// qrcode service
 	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
+
+	qrScheduler := rapidramp.NewRapidRampScheduler(
+		t,
+		qr,
+		q,
+		l,
+		1*time.Minute,
+	)
+
+	// currency service
+	cs := currency.NewCurrencyService(q, l)
+
+	// transaction service
+	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns)
+
+	// smart conversion exchange rate service
+	scex := smartconversion.NewExchangeRateService(cryptomus, l)
+
+	// smart conversion service
+	scs := smartconversion.NewConversionService(q, l, scex, txs)
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -213,6 +241,11 @@ func NewServer(envPath string) *Server {
 		bankAccountService:       bas,
 		userService:              us,
 		qrcodeService:            qr,
+		qrcodeScheduler:          qrScheduler,
+		transactionService:       txs,
+		currencyService:          cs,
+		scExchangeRateservice:    scex,
+		smartConvertService:      scs,
 	}
 }
 
@@ -245,6 +278,7 @@ func (s *Server) Start() error {
 	Vault{}.router(s)
 	Rewards{}.router(s)
 	QRCodeHandler{}.router(s)
+	SmartConvertHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
@@ -259,6 +293,13 @@ func (s *Server) Start() error {
 	if s.yieldScheduler != nil {
 		if err := s.yieldScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
+		}
+	}
+
+	// Start rapid ramp scheduler
+	if s.qrcodeScheduler != nil {
+		if err := s.qrcodeScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
 		}
 	}
 
@@ -282,6 +323,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if s.yieldScheduler != nil {
 			if err := s.yieldScheduler.Stop(); err != nil {
 				s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
+			}
+		}
+
+		// Stop rapid ramp scheduler
+		if s.qrcodeScheduler != nil {
+			if err := s.qrcodeScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping rapid ramp scheduler", "error", err)
 			}
 		}
 

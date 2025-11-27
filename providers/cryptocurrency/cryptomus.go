@@ -18,6 +18,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 type CryptomusProvider struct {
@@ -146,16 +148,16 @@ func (p *CryptomusProvider) processRequest(method string, endpoint string, paylo
 	}
 
 	// Log request details
-	logging.NewLogger().Error("request details",
-		"method", resp.Request.Method,
-		"url", resp.Request.URL.String(),
-		"headers", resp.Request.Header)
+	// logging.NewLogger().Error("request details",
+	// 	"method", resp.Request.Method,
+	// 	"url", resp.Request.URL.String(),
+	// 	"headers", resp.Request.Header)
 
 	// Log response details
-	logging.NewLogger().Error("response details",
-		"status_code", resp.StatusCode,
-		"headers", resp.Header,
-		"body", string(bodyBytes))
+	// logging.NewLogger().Error("response details",
+	// 	"status_code", resp.StatusCode,
+	// 	"headers", resp.Header,
+	// 	"body", string(bodyBytes))
 
 	// Reset the response body for further processing
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
@@ -195,24 +197,30 @@ func (p *CryptomusProvider) GenerateQRCode(walletAddressUuid uuid.UUID) (*Genera
 
 // VerifyWebhook verifies the webhook signature
 func (p *CryptomusProvider) VerifySign(apiKey string, reqBody []byte) error {
-	logging.NewLogger().Info("starting VerifyWebhook....")
+	// Extract sign using gjson
+	result := gjson.GetBytes(reqBody, "sign")
+	if !result.Exists() {
+		return errors.New("missing signature field")
+	}
+	reqSign := result.String()
 
-	var jsonBody map[string]any
-	err := json.Unmarshal(reqBody, &jsonBody)
+	// Remove sign field using sjson
+	bodyWithoutSign, err := sjson.DeleteBytes(reqBody, "sign")
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to remove sign field: %w", err)
 	}
 
-	reqSign, ok := jsonBody["sign"].(string)
-	if !ok {
-		return errors.New("missing signature field in request body")
-	}
-	delete(jsonBody, "sign")
+	expectedSign := p.signRequest(apiKey, bodyWithoutSign)
 
-	expectedSign := p.signRequest(apiKey, reqBody)
 	if reqSign != expectedSign {
+		logging.NewLogger().Error("signature verification failed",
+			"expected", expectedSign,
+			"received", reqSign,
+			"body_without_sign", string(bodyWithoutSign))
 		return errors.New("invalid signature")
 	}
+
+	logging.NewLogger().Info("webhook signature verified successfully")
 	return nil
 }
 

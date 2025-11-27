@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS "conversion_rules" (
     "timezone" VARCHAR(50) DEFAULT 'UTC',
 
     -- Rule status
-    "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+    "status" VARCHAR(20) NOT NULL CHECK (status IN ('active', 'inactive')) DEFAULT 'active',
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     "last_triggered_at" TIMESTAMPTZ,
     "last_trigger_rate" DECIMAL(19,4),
@@ -201,8 +201,8 @@ CREATE TABLE IF NOT EXISTS "qr_codes" (
     "linked_bank_account_id" UUID REFERENCES bank_accounts(id) ON DELETE SET NULL,
 
     -- Amount settings
-    "fixed_amount" DECIMAL(19,4),
-    "min_amount" DECIMAL(19,4),
+    "fixed_amount" DECIMAL(19,4), --
+    "min_amount" DECIMAL(19,4), -- 
     "max_amount" DECIMAL(19,4),
 
     -- QR metadata
@@ -243,7 +243,7 @@ CREATE INDEX IF NOT EXISTS "idx_qr_codes_crypto_network" ON qr_codes(network, cr
 
 -- Table: qr_transactions
 -- Complete lifecycle tracking of QR-initiated payments
--- Flow: pending → received → confirming → confirmed → converting → sending_to_bank → completed
+-- Flow: pending → received → converting → sending_to_bank → completed
 CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "qr_code_id" UUID NOT NULL REFERENCES qr_codes(id) ON DELETE RESTRICT,
@@ -254,12 +254,13 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "cryptomus_transaction_id" VARCHAR(100) UNIQUE,
     "cryptomus_order_id" VARCHAR(100),
     "cryptomus_uuid" VARCHAR(100),
+    "order_id" VARCHAR(100),
     "cryptomus_address_id" UUID REFERENCES cryptomus_addresses(id) ON DELETE SET NULL,
     "webhook_data" JSONB,
     
     -- Sender information
-    "sender_address" VARCHAR(200),
-    "sender_name" VARCHAR(100),
+    -- "sender_address" VARCHAR(200),
+    -- "sender_name" VARCHAR(100),
 
     -- Crypto received
     "crypto_currency" VARCHAR(10) NOT NULL,
@@ -267,8 +268,8 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "crypto_amount" DECIMAL(40,20) NOT NULL,
     "crypto_amount_usd" DECIMAL(19,4),
     "transaction_hash" VARCHAR(200),
-    "confirmation_blocks" INTEGER DEFAULT 0,
-    "required_confirmations" INTEGER DEFAULT 1,
+    -- "confirmation_blocks" INTEGER DEFAULT 0,
+    -- "required_confirmations" INTEGER DEFAULT 1,
 
     -- Conversion details
     "conversion_rate" DECIMAL(19,4),
@@ -310,11 +311,11 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
     CONSTRAINT "valid_qr_transaction_status" CHECK (status IN (
-        'pending', 'received', 'confirming', 'confirmed', 'converting', 
+        'pending', 'received', 'converting', 
         'sending_to_bank', 'completed', 'failed', 'cancelled', 'expired'
     )),
-    CONSTRAINT "positive_qr_crypto_amount" CHECK (crypto_amount > 0),
-    CONSTRAINT "valid_confirmations" CHECK (confirmation_blocks >= 0 AND required_confirmations > 0)
+    CONSTRAINT "positive_qr_crypto_amount" CHECK (crypto_amount > 0)
+    -- CONSTRAINT "valid_confirmations" CHECK (confirmation_blocks >= 0 AND required_confirmations > 0)
 );
 
 CREATE INDEX IF NOT EXISTS "idx_qr_transactions_qr_code" ON qr_transactions(qr_code_id);
@@ -328,8 +329,8 @@ CREATE INDEX IF NOT EXISTS "idx_qr_transactions_created_at" ON qr_transactions(c
 CREATE INDEX IF NOT EXISTS "idx_qr_transactions_payout_ref" ON qr_transactions(payout_reference);
 CREATE INDEX IF NOT EXISTS "idx_qr_transactions_bank_account" ON qr_transactions(bank_account_id);
 CREATE INDEX IF NOT EXISTS "idx_qr_transactions_cryptomus_address" ON qr_transactions(cryptomus_address_id);
-CREATE INDEX IF NOT EXISTS "idx_qr_transactions_pending_confirmation" ON qr_transactions(status, confirmation_blocks, required_confirmations) 
-    WHERE status IN ('received', 'confirming');
+-- CREATE INDEX IF NOT EXISTS "idx_qr_transactions_pending_confirmation" ON qr_transactions(status, confirmation_blocks, required_confirmations) 
+--     WHERE status IN ('received', 'confirming');
 
 -- ============================================================
 -- AUTO UPDATE TRIGGERS

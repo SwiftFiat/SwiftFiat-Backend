@@ -32,11 +32,11 @@ func (q QRCodeHandler) router(server *Server) {
 	q.qrCodeService = q.server.qrcodeService
 
 	v1 := server.router.Group("/api/v1/qr-codes")
+	v1.GET("/public/:token", q.GetQRCodeByToken)
 	v1.Use(q.server.authMiddleware.AuthenticatedMiddleware())
 	{
 		v1.POST("", q.CreateQRCode)
 		v1.GET("", q.GetQRCodes)
-		v1.GET("public/:token", q.GetQRCodeByToken)
 		v1.DELETE("/:qr_id", q.DeleteQRCode)
 		v1.GET("/transactions", q.GetQRTransactions)
 		v1.GET("/stats", q.GetQRTransactionStats)
@@ -64,7 +64,8 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 
 	var req rapidramp.CreateQRCodeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidRequestData))
+
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
