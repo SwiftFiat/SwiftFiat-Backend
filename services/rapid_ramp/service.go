@@ -42,6 +42,18 @@ func NewQRCodeService(
 	}
 }
 
+type QrcodeTraansactionStatus string
+
+const (
+	QRTransactionStatusReceived        QrcodeTraansactionStatus = "received"
+	QRTransactionStatusConverting      QrcodeTraansactionStatus = "converting"
+	QRTransactionStatusConversionFail  QrcodeTraansactionStatus = "conversion_failed"
+	QRTransactionStatusReadyForPayout  QrcodeTraansactionStatus = "ready_for_payout"
+	QRTransactionStatusSendingToBank   QrcodeTraansactionStatus = "sending_to_bank"
+	QRTransactionStatusPayoutFailed    QrcodeTraansactionStatus = "failed"
+	QRTransactionStatusPayoutCompleted QrcodeTraansactionStatus = "completed"
+)
+
 // ============================================================
 // QR CODE MANAGEMENT
 // ============================================================
@@ -49,15 +61,6 @@ func NewQRCodeService(
 // CreateQRCode generates a new QR code for receiving crypto payments
 func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *CreateQRCodeRequest) (*QRCodeResponse, error) {
 	s.logger.Info(fmt.Sprintf("Creating QR code for user %d", userID))
-
-	// Validate mode-specific requirements
-	if req.ConversionMode == "auto" && req.BankAccountID == nil {
-		return nil, fmt.Errorf("bank_account_id is required for auto conversion mode")
-	}
-
-	if req.ConversionMode == "manual" && req.LinkedWalletID == nil {
-		return nil, fmt.Errorf("linked_wallet_id is required for manual conversion mode")
-	}
 
 	// Get or create Cryptomus static wallet address
 	cryptomusAddress, err := s.getOrCreateCryptomusAddress(ctx, userID, req.Network, req.CryptoCurrency)
@@ -86,23 +89,21 @@ func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *Cre
 	params := db.CreateQRCodeParams{
 		UserID:              userID,
 		QrType:              "payment",
-		CurrencyPreference:  req.CurrencyPreference,
-		ConversionMode:      req.ConversionMode,
+		CurrencyPreference:  "NGN",
+		ConversionMode:      "auto",
 		Network:             req.Network,
 		CryptoCurrency:      req.CryptoCurrency,
-		CryptomusAddressID:  uuid.NullUUID{UUID: uuid.MustParse(cryptomusAddress.Uuid), Valid: true},
-		LinkedWalletID:      s.uuidPtrToNullUUID(req.LinkedWalletID),
+		CryptomusAddressID:  uuid.NullUUID{UUID: uuid.MustParse(cryptomusAddress.ID.String()), Valid: true},
 		LinkedBankAccountID: s.uuidPtrToNullUUID(req.BankAccountID),
 		QrCodeData:          qrCodeData,
 		QrCodeImageUrl:      s.stringPtrToNullString(imageURL),
 		Label:               s.stringPtrToNullString(req.Label),
 		Description:         s.stringPtrToNullString(req.Description),
-		FixedAmount:         s.decimalPtrToNullString(req.FixedAmount),
-		MinAmount:           s.decimalPtrToNullString(req.MinAmount),
-		MaxAmount:           s.decimalPtrToNullString(req.MaxAmount),
 		UsageLimit:          s.intPtrToNullInt32(req.UsageLimit),
 		ExpiresAt:           s.timePtrToNullTime(req.ExpiresAt),
 	}
+
+	s.logger.Info(params)
 	qrCode, err := s.store.CreateQRCode(ctx, params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create QR code: %w", err)
@@ -218,22 +219,22 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 	s.logger.Info(fmt.Sprintf("Processing Cryptomus webhook for order: %s", payload.OrderID))
 
 	// Check if transaction already exists (idempotency)
-	existingTx, err := s.store.GetQRTransactionByCryptomusID(ctx, sql.NullString{
-		String: payload.UUID,
+	existingTx, err := s.store.GetQRTransactionByOrderID(ctx, sql.NullString{
+		String: payload.OrderID,
 		Valid:  true,
 	})
-	if err == nil && existingTx.ID != uuid.Nil {
+	if err == nil && (existingTx.OrderID.String != "" || existingTx.OrderID.Valid) {
 		s.logger.Info(fmt.Sprintf("Transaction already exists: %s", existingTx.ID))
 		return nil // Already processed
 	}
 
 	// Find QR code by wallet address UUID
-	if payload.WalletAddressUUID == nil {
-		return fmt.Errorf("wallet_address_uuid is missing in webhook")
+	if payload.OrderID == "" {
+		return fmt.Errorf("order_id is missing in webhook")
 	}
 
 	// Get cryptomus address
-	cryptomusAddress, err := s.store.GetCryptomusAddressByUUID(ctx, *payload.WalletAddressUUID)
+	cryptomusAddress, err := s.store.GetCryptomusAddressByOrderID(ctx, payload.OrderID)
 	if err != nil {
 		return fmt.Errorf("cryptomus address not found: %w", err)
 	}
@@ -272,7 +273,27 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 	webhookJSON, _ := json.Marshal(payload)
 
 	// Determine required confirmations based on network
-	requiredConfirmations := s.getRequiredConfirmations(payload.Network)
+	// requiredConfirmations := s.getRequiredConfirmations(payload.Network)
+
+	// Start transaction
+	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	qtx := s.store.WithTx(tx)
+
+	// Create transaction record
+	txRecord, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:            qrCode.QrType,
+		Description:     qrCode.Description,
+		TransactionFlow: sql.NullString{String: "crypto_to_fiat", Valid: true},
+		Status:          string(QRTransactionStatusReceived),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create qr-transaction record: %w", err)
+	}
 
 	txParams := db.CreateQRTransactionParams{
 		QrCodeID:               qrCode.ID,
@@ -287,31 +308,52 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 		CryptoAmount:           cryptoAmount.String(),
 		CryptoAmountUsd:        s.decimalPtrToNullString(cryptoAmountUSD),
 		TransactionHash:        sql.NullString{String: payload.TxID, Valid: true},
-		RequiredConfirmations:  sql.NullInt32{Int32: int32(requiredConfirmations), Valid: true},
 		BankAccountID:          qrCode.LinkedBankAccountID,
-		Status:                 "received",
+		Status:                 string(QRTransactionStatusReceived),
+		TransactionID:          uuid.NullUUID{UUID: txRecord.ID, Valid: true},
 	}
-
-	qrTx, err := s.store.CreateQRTransaction(ctx, txParams)
+	s.logger.Infof("creating qr tx with status as %s", txParams.Status)
+	qrTx, err := qtx.CreateQRTransaction(ctx, txParams)
 	if err != nil {
 		return fmt.Errorf("failed to create QR transaction: %w", err)
 	}
 
 	// Update QR code usage
-	_, err = s.store.UpdateQRCodeUsage(ctx, qrCode.ID)
+	_, err = qtx.UpdateQRCodeUsage(ctx, qrCode.ID)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to update QR code usage: %v", err))
 	}
 
+	_, err = qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
+		TransactionID:        txRecord.ID,
+		Coin:                 payload.Currency,
+		SourceHash:           sql.NullString{String: payload.Sign, Valid: true},
+		ReceivedAmount:       sql.NullString{String: payload.PaymentAmount, Valid: true},
+		Fees:                 sql.NullString{String: "0", Valid: true},
+		SentAmount:           sql.NullString{String: payload.PaymentAmount, Valid: true},
+		ServiceProvider:      "cryptomus",
+		ServiceTransactionID: sql.NullString{String: payload.UUID, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create qrcode crypto metadata: %w", err)
+	}
+
 	s.logger.Info(fmt.Sprintf("QR transaction created: %s, status: received", qrTx.ID))
 
-	// If payment is already final (confirmed by Cryptomus), move to confirmed
-	if payload.IsFinal {
-		err = s.confirmQRTransaction(ctx, qrTx.ID, requiredConfirmations)
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("Failed to confirm transaction: %v", err))
-		}
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
+
+	s.logger.Infof("creating qr tx with status as %v", txParams)
+
+	// If payment is already final (confirmed by Cryptomus), move to confirmed
+	// if payload.IsFinal {
+	// 	err = s.confirmQRTransaction(ctx, qrTx.ID, requiredConfirmations)
+	// 	if err != nil {
+	// 		s.logger.Error(fmt.Sprintf("Failed to confirm transaction: %v", err))
+	// 	}
+	// }
 
 	return nil
 }
@@ -321,39 +363,41 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 // ============================================================
 
 // ProcessPendingConfirmations checks and updates confirmation status
-func (s *QRCodeService) ProcessPendingConfirmations(ctx context.Context) error {
-	s.logger.Info("Processing pending confirmations")
+// func (s *QRCodeService) ProcessPendingConfirmations(ctx context.Context) error {
+// 	s.logger.Info("Processing pending confirmations")
 
-	transactions, err := s.store.GetPendingConfirmations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to fetch pending confirmations: %w", err)
-	}
+// 	transactions, err := s.store.GetPendingConfirmations(ctx)
+// 	if err != nil {
+// 		return fmt.Errorf("failed to fetch pending confirmations: %w", err)
+// 	}
 
-	for _, tx := range transactions {
-		// Get payment info from Cryptomus
-		if !tx.CryptomusUuid.Valid {
-			continue
-		}
+// 	s.logger.Infof("pending confirmations txs: %d", len(transactions))
 
-		paymentInfo, err := s.cryptomusProvider.GetPaymentInfo(&cryptocurrency.PaymentInfoRequest{
-			PaymentUUID: tx.CryptomusUuid.String,
-		})
+// 	for _, tx := range transactions {
+// 		// Get payment info from Cryptomus
+// 		if !tx.CryptomusUuid.Valid {
+// 			continue
+// 		}
 
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("Failed to get payment info for %s: %v", tx.ID, err))
-			continue
-		}
+// 		paymentInfo, err := s.cryptomusProvider.GetPaymentInfo(&cryptocurrency.PaymentInfoRequest{
+// 			PaymentUUID: tx.CryptomusUuid.String,
+// 		})
 
-		// Update confirmation status
-		if paymentInfo.Result.IsFinal {
-			err = s.confirmQRTransaction(ctx, tx.ID, int(tx.RequiredConfirmations.Int32))
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("Failed to confirm transaction %s: %v", tx.ID, err))
-			}
-		}
-	}
-	return nil
-}
+// 		if err != nil {
+// 			s.logger.Error(fmt.Sprintf("Failed to get payment info for %s: %v", tx.ID, err))
+// 			continue
+// 		}
+
+// 		// Update confirmation status
+// 		if paymentInfo.Result.IsFinal {
+// 			err = s.confirmQRTransaction(ctx, tx.ID, int(tx.RequiredConfirmations.Int32))
+// 			if err != nil {
+// 				s.logger.Error(fmt.Sprintf("Failed to confirm transaction %s: %v", tx.ID, err))
+// 			}
+// 		}
+// 	}
+// 	return nil
+// }
 
 // ProcessReadyForConversion processes transactions ready for conversion
 func (s *QRCodeService) ProcessReadyForConversion(ctx context.Context, limit int32) error {
@@ -364,18 +408,30 @@ func (s *QRCodeService) ProcessReadyForConversion(ctx context.Context, limit int
 		return fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 
+	s.logger.Infof("pending qr-txs ready for conversion: %d", len(transactions))
+
 	for _, tx := range transactions {
 		err := s.convertQRTransaction(ctx, &tx)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to convert transaction %s: %v", tx.ID, err))
-
+			// Todo: use db transaction
 			// Update failure
 			s.store.UpdateQRTransactionFailure(ctx, db.UpdateQRTransactionFailureParams{
 				ID:            tx.ID,
 				FailureReason: sql.NullString{String: err.Error(), Valid: true},
 				FailureStage:  sql.NullString{String: "conversion", Valid: true},
 			})
+
+			s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+				ID:     tx.TransactionID.UUID,
+				Status: string(QRTransactionStatusReadyForPayout),
+			})
 		}
+
+		s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     tx.TransactionID.UUID,
+			Status: string(QRTransactionStatusReadyForPayout),
+		})
 	}
 
 	return nil
@@ -390,6 +446,8 @@ func (s *QRCodeService) ProcessReadyForPayout(ctx context.Context, limit int32) 
 		return fmt.Errorf("failed to fetch transactions: %w", err)
 	}
 
+	s.logger.Infof("pending qr txs ready for payout: %d", len(transactions))
+
 	for _, tx := range transactions {
 		err := s.payoutQRTransaction(ctx, &tx)
 		if err != nil {
@@ -400,6 +458,11 @@ func (s *QRCodeService) ProcessReadyForPayout(ctx context.Context, limit int32) 
 				ID:            tx.ID,
 				FailureReason: sql.NullString{String: err.Error(), Valid: true},
 				FailureStage:  sql.NullString{String: "payout", Valid: true},
+			})
+
+			s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+				ID:     tx.TransactionID.UUID,
+				Status: string(QRTransactionStatusPayoutFailed),
 			})
 		}
 	}
@@ -520,6 +583,11 @@ func (s *QRCodeService) payoutQRTransaction(ctx context.Context, tx *db.QrTransa
 		} else {
 			s.logger.Info(fmt.Sprintf("Payout completed for transaction %s", tx.ID))
 		}
+
+		s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     tx.TransactionID.UUID,
+			Status: string(QRTransactionStatusPayoutCompleted),
+		})
 	}
 
 	return nil
@@ -553,20 +621,11 @@ func (s *QRCodeService) convertQRTransaction(ctx context.Context, tx *db.QrTrans
 
 	// Calculate fees
 	// TODO: change fees to vip rates
-	conversionFee := fiatAmount.Mul(decimal.NewFromFloat(0.01)) // 1% conversion fee
-	platformFee := fiatAmount.Mul(decimal.NewFromFloat(0.005))  // 0.5% platform fee
-	networkFee := decimal.NewFromFloat(100)                     // Fixed NGN 100 network fee
+	conversionFee := fiatAmount.Mul(decimal.NewFromFloat(0.00)) // 1% conversion fee
+	platformFee := fiatAmount.Mul(decimal.NewFromFloat(0.000))  // 0.5% platform fee
+	networkFee := decimal.NewFromFloat(0)                       // Fixed NGN 100 network fee
 	totalFees := conversionFee.Add(platformFee).Add(networkFee)
 	netAmount := fiatAmount.Sub(totalFees)
-
-	// Update transaction with conversion details
-	_, err = s.store.UpdateQRTransactionToConverting(ctx, db.UpdateQRTransactionToConvertingParams{
-		ID:             tx.ID,
-		ConversionRate: sql.NullString{String: rate.String(), Valid: true},
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update to converting: %w", err)
-	}
 
 	// Update transaction with conversion details
 	_, err = s.store.UpdateQRTransactionToConverting(ctx, db.UpdateQRTransactionToConvertingParams{
@@ -625,36 +684,36 @@ func (s *QRCodeService) getConversionRate(cryptoCurrency, fiatCurrency string) (
 }
 
 // confirmQRTransaction confirms a QR transaction after blockchain confirmations
-func (s *QRCodeService) confirmQRTransaction(ctx context.Context, txID uuid.UUID, confirmations int) error {
-	_, err := s.store.UpdateQRTransactionConfirmation(ctx, db.UpdateQRTransactionConfirmationParams{
-		ID:                 txID,
-		ConfirmationBlocks: sql.NullInt32{Int32: int32(confirmations), Valid: true},
-	})
+// func (s *QRCodeService) confirmQRTransaction(ctx context.Context, txID uuid.UUID, confirmations int) error {
+// 	_, err := s.store.UpdateQRTransactionConfirmation(ctx, db.UpdateQRTransactionConfirmationParams{
+// 		ID:                 txID,
+// 		ConfirmationBlocks: sql.NullInt32{Int32: int32(confirmations), Valid: true},
+// 	})
 
-	if err != nil {
-		return fmt.Errorf("failed to update confirmation: %w", err)
-	}
+// 	if err != nil {
+// 		return fmt.Errorf("failed to update confirmation: %w", err)
+// 	}
 
-	s.logger.Info(fmt.Sprintf("Transaction %s confirmed", txID))
-	return nil
-}
+// 	s.logger.Info(fmt.Sprintf("Transaction %s confirmed", txID))
+// 	return nil
+// }
 
 // getRequiredConfirmations returns required confirmations based on network
-func (s *QRCodeService) getRequiredConfirmations(network string) int {
-	confirmations := map[string]int{
-		"tron":     1,
-		"ethereum": 12,
-		"bsc":      12,
-		"bitcoin":  3,
-		// add others
-	}
+// func (s *QRCodeService) getRequiredConfirmations(network string) int {
+// 	confirmations := map[string]int{
+// 		"tron":     1,
+// 		"ethereum": 1,
+// 		"bsc":      1,
+// 		"bitcoin":  1,
+// 		// add others
+// 	}
 
-	if conf, exists := confirmations[network]; exists {
-		return conf
-	}
+// 	if conf, exists := confirmations[network]; exists {
+// 		return conf
+// 	}
 
-	return 1
-}
+// 	return 1
+// }
 
 // findActiveQRCodeByAddress finds an active QR code for a given address
 func (s *QRCodeService) findActiveQRCodeByAddress(ctx context.Context, addressID uuid.UUID) (*db.QrCode, error) {
@@ -685,7 +744,7 @@ func (s *QRCodeService) getOrCreateCryptomusAddress(ctx context.Context, userID 
 
 	// Create new address via Cryptomus
 	orderID := fmt.Sprintf("qr_%d_%s_%s_%d", userID, network, currency, time.Now().Unix())
-	callbackURL := fmt.Sprintf("%s/%s", s.config.SwiftBaseUrl, "webhook")
+	callbackURL := fmt.Sprintf("%s/%s", s.config.SwiftBaseUrl, "crypto/cryptomus/webhook")
 	staticWallet, err := s.cryptomusProvider.CreateStaticWallet(&cryptocurrency.StaticWalletRequest{
 		Currency:    currency,
 		Network:     network,

@@ -638,8 +638,6 @@ definitions:
         type: string
       updated_at:
         type: string
-      user_id:
-        type: integer
       user_tag:
         type: string
       verified:
@@ -717,55 +715,31 @@ definitions:
   rapidramp.CreateQRCodeRequest:
     properties:
       bank_account_id:
-        description: Required if auto mode
-        type: string
-      conversion_mode:
-        enum:
-        - auto
-        - manual
+        description: |-
+          CurrencyPreference string           `json:"currency_preference" binding:"required,oneof=USD NGN"`
+          ConversionMode     string           `json:"conversion_mode" binding:"required,oneof=auto manual"`
         type: string
       crypto_currency:
-        enum:
-        - USDT
-        - USDC
-        - BTC
-        - ETH
-        - BNB
-        - TRX
-        type: string
-      currency_preference:
-        enum:
-        - USD
-        - NGN
         type: string
       description:
         type: string
       expires_at:
         type: string
-      fixed_amount:
-        type: number
       label:
+        description: LinkedWalletID     *uuid.UUID       `json:"linked_wallet_id"`
+          // Required if manual mode
         type: string
-      linked_wallet_id:
-        description: Required if manual mode
-        type: string
-      max_amount:
-        type: number
-      min_amount:
-        type: number
       network:
-        enum:
-        - tron
-        - ethereum
-        - bsc
-        - bitcoin
         type: string
       usage_limit:
+        description: |-
+          FixedAmount        *decimal.Decimal `json:"fixed_amount" binding:"required"`
+          MinAmount          *decimal.Decimal `json:"min_amount"`
+          MaxAmount          *decimal.Decimal `json:"max_amount"`
         type: integer
     required:
-    - conversion_mode
+    - bank_account_id
     - crypto_currency
-    - currency_preference
     - network
     type: object
   rapidramp.CryptoDetails:
@@ -1053,6 +1027,196 @@ definitions:
         type: string
       valid_until:
         type: string
+    type: object
+  smartconversion.ConversionRule:
+    properties:
+      conversion_type:
+        description: fixed_amount, percentage, full_balance
+        type: string
+      created_at:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      execution_count:
+        type: integer
+      failure_count:
+        type: integer
+      fixed_amount:
+        description: applicable for fixed_amount conversion type
+        type: number
+      id:
+        type: string
+      is_active:
+        type: boolean
+      label:
+        type: string
+      last_failure_reason:
+        type: string
+      last_trigger_rate:
+        type: number
+      last_triggered_at:
+        type: string
+      max_executions:
+        type: integer
+      next_execution_at:
+        type: string
+      percentage:
+        description: applicable for percentage conversion type
+        type: number
+      schedule_day_of_month:
+        type: integer
+      schedule_day_of_week:
+        type: integer
+      schedule_frequency:
+        description: daily, weekly, monthly
+        type: string
+      schedule_time:
+        type: string
+      source_currency:
+        type: string
+      source_wallet_id:
+        type: string
+      status:
+        description: active, paused, triggered, expired, failed
+        type: string
+      target_currency:
+        type: string
+      target_wallet_id:
+        type: string
+      timezone:
+        type: string
+      trigger_condition:
+        description: gte, lte, eq
+        type: string
+      trigger_rate:
+        description: applicable for rate_based and percentage triggers
+        type: number
+      trigger_type:
+        description: rate_based, scheduled, percentage
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  smartconversion.ConversionRuleResponse:
+    properties:
+      conversion_type:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      execution_count:
+        type: integer
+      fixed_amount:
+        type: number
+      id:
+        type: string
+      is_active:
+        type: boolean
+      label:
+        type: string
+      last_trigger_rate:
+        type: number
+      last_triggered_at:
+        type: string
+      next_execution_at:
+        type: string
+      percentage:
+        type: number
+      schedule_frequency:
+        type: string
+      source_currency:
+        type: string
+      source_wallet_balance:
+        type: number
+      status:
+        type: string
+      target_currency:
+        type: string
+      target_wallet_balance:
+        type: number
+      trigger_condition:
+        type: string
+      trigger_rate:
+        type: number
+      trigger_type:
+        type: string
+    type: object
+  smartconversion.CreateConversionRuleRequest:
+    properties:
+      conversion_type:
+        enum:
+        - fixed_amount
+        - percentage
+        - full_balance
+        type: string
+      description:
+        type: string
+      fixed_amount:
+        type: number
+      label:
+        type: string
+      percentage:
+        type: number
+      schedule_day_of_month:
+        type: integer
+      schedule_day_of_week:
+        type: integer
+      schedule_frequency:
+        enum:
+        - daily
+        - weekly
+        - monthly
+        - custom
+        type: string
+      schedule_time:
+        description: HH:MM format
+        type: string
+      source_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      source_wallet_id:
+        type: string
+      target_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      target_wallet_id:
+        type: string
+      timezone:
+        type: string
+      trigger_condition:
+        enum:
+        - gte
+        - lte
+        - eq
+        type: string
+      trigger_rate:
+        type: number
+      trigger_type:
+        enum:
+        - rate_based
+        - scheduled
+        - percentage
+        type: string
+    required:
+    - conversion_type
+    - source_currency
+    - source_wallet_id
+    - target_currency
+    - target_wallet_id
+    - trigger_type
     type: object
   transaction.CreateTransactionFeeRequest:
     properties:
@@ -4128,6 +4292,58 @@ paths:
       summary: Get comprehensive reward summary
       tags:
       - rewards
+  /api/v1/smart-convert/rules:
+    get:
+      description: Retrieves all conversion rules for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/smartconversion.ConversionRuleResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all conversion rules
+      tags:
+      - Conversion
+    post:
+      consumes:
+      - application/json
+      description: Creates an automated conversion rule for a user
+      parameters:
+      - description: Conversion rule details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/smartconversion.CreateConversionRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/smartconversion.ConversionRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Rule already exists for currency pair
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new conversion rule
+      tags:
+      - Conversion
   /api/v1/user/{user_id}/avatar:
     get:
       consumes:

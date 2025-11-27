@@ -437,17 +437,14 @@ type QrTransaction struct {
 	CryptomusTransactionID sql.NullString        `json:"cryptomus_transaction_id"`
 	CryptomusOrderID       sql.NullString        `json:"cryptomus_order_id"`
 	CryptomusUuid          sql.NullString        `json:"cryptomus_uuid"`
+	OrderID                sql.NullString        `json:"order_id"`
 	CryptomusAddressID     uuid.NullUUID         `json:"cryptomus_address_id"`
 	WebhookData            pqtype.NullRawMessage `json:"webhook_data"`
-	SenderAddress          sql.NullString        `json:"sender_address"`
-	SenderName             sql.NullString        `json:"sender_name"`
 	CryptoCurrency         string                `json:"crypto_currency"`
 	CryptoNetwork          string                `json:"crypto_network"`
 	CryptoAmount           string                `json:"crypto_amount"`
 	CryptoAmountUsd        sql.NullString        `json:"crypto_amount_usd"`
 	TransactionHash        sql.NullString        `json:"transaction_hash"`
-	ConfirmationBlocks     sql.NullInt32         `json:"confirmation_blocks"`
-	RequiredConfirmations  sql.NullInt32         `json:"required_confirmations"`
 	ConversionRate         sql.NullString        `json:"conversion_rate"`
 	FiatCurrency           sql.NullString        `json:"fiat_currency"`
 	FiatAmount             sql.NullString        `json:"fiat_amount"`

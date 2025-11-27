@@ -40,17 +40,17 @@ type QRCode struct {
 }
 
 type CreateQRCodeRequest struct {
-	Network            string           `json:"network" binding:"required,oneof=tron ethereum bsc bitcoin"`
-	CryptoCurrency     string           `json:"crypto_currency" binding:"required,oneof=USDT USDC BTC ETH BNB TRX"`
-	CurrencyPreference string           `json:"currency_preference" binding:"required,oneof=USD NGN"`
-	ConversionMode     string           `json:"conversion_mode" binding:"required,oneof=auto manual"`
-	BankAccountID      *uuid.UUID       `json:"bank_account_id"`  // Required if auto mode
-	LinkedWalletID     *uuid.UUID       `json:"linked_wallet_id"` // Required if manual mode
+	Network            string           `json:"network" binding:"required"`
+	CryptoCurrency     string           `json:"crypto_currency" binding:"required"`
+	// CurrencyPreference string           `json:"currency_preference" binding:"required,oneof=USD NGN"`
+	// ConversionMode     string           `json:"conversion_mode" binding:"required,oneof=auto manual"`
+	BankAccountID      *uuid.UUID       `json:"bank_account_id" binding:"required"`  // Required if auto mode
+	// LinkedWalletID     *uuid.UUID       `json:"linked_wallet_id"` // Required if manual mode
 	Label              *string          `json:"label"`
 	Description        *string          `json:"description"`
-	FixedAmount        *decimal.Decimal `json:"fixed_amount"`
-	MinAmount          *decimal.Decimal `json:"min_amount"`
-	MaxAmount          *decimal.Decimal `json:"max_amount"`
+	// FixedAmount        *decimal.Decimal `json:"fixed_amount" binding:"required"`
+	// MinAmount          *decimal.Decimal `json:"min_amount"`
+	// MaxAmount          *decimal.Decimal `json:"max_amount"`
 	UsageLimit         *int             `json:"usage_limit"`
 	ExpiresAt          *time.Time       `json:"expires_at"`
 }

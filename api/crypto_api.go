@@ -7,15 +7,16 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -31,42 +32,23 @@ type CryptoAPI struct {
 	walletService      *wallet.WalletService
 	transactionService *transaction.TransactionService
 	notifyr            *service.Notification
+	qrcode             *rapidramp.QRCodeService
 }
 
 func (c CryptoAPI) router(server *Server) {
 	c.server = server
-	c.notifyr = service.NewNotificationService(c.server.queries)
-	c.walletService = wallet.NewWalletService(
-		c.server.queries,
-		c.server.logger,
-	)
-	c.userService = user_service.NewUserService(
-		c.server.queries,
-		c.server.logger,
-		c.walletService,
-	)
-	c.transactionService = transaction.NewTransactionService(
-		c.server.queries,
-		currency.NewCurrencyService(
-			c.server.queries,
-			c.server.logger,
-		),
-		c.walletService,
-		c.server.logger,
-		c.server.config,
-		c.notifyr,
-	)
-	c.notifyr = service.NewNotificationService(
-		c.server.queries,
-	)
+	c.walletService = c.server.walletService
+	c.userService = c.server.userService
+	c.transactionService = c.server.transactionService
+	c.notifyr = c.server.inAppnotificationService
+	c.qrcode = c.server.qrcodeService
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
-	/// Should be managed from the administrative view
 	serverGroupV1.POST("/create-wallet", c.server.authMiddleware.AuthenticatedMiddleware(), c.createStaticWallet)
 	serverGroupV1.POST("/qr-code", c.server.authMiddleware.AuthenticatedMiddleware(), c.GenerateQRCode)
 	serverGroupV1.GET("services", c.fetchServices)
-	serverGroupV1.POST("/webhook", c.HandleCryptomusWebhook)
+	serverGroupV1.POST("/cryptomus/webhook", c.HandleCryptomusWebhook)
 	serverGroupV1.GET("/test", c.testCryptoAPI)
 	serverGroupV1.GET("/coin-data", c.GetCoinData)
 	serverGroupV1.GET("/coin-price-data", c.GetCoinPriceHistory)
@@ -144,7 +126,6 @@ func (c *CryptoAPI) GetCoinData(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Get coin data is successful", coinData))
 }
 
-
 type CreateStaticWalletRequest struct {
 	Currency string `json:"currency" binding:"required"`
 	Network  string `json:"network" binding:"required"`
@@ -195,23 +176,12 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	dbUser, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		c.server.logger.Error("failed to get user by ID", err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to get user by ID Error: %s", err)))
-		return
-	}
-
 	// Generate Order ID
-	orderID := utils.GenerateOrderID(
-		dbUser.FirstName.String,
-		dbUser.LastName.String,
-	)
+	orderID := fmt.Sprintf("wallet_%d_%s_%s_%d", activeUser.UserID, request.Network, request.Currency, time.Now().Unix())
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
-	// callbackURL := "https://8d097378f71e.ngrok-free.app/api/v1/crypto/webhook"
-	callbackURL := fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "webhook")
+	callbackURL := fmt.Sprintf("%s/%s", c.server.config.SwiftBaseUrl, "crypto/cryptomus/webhook")
 
 	walletRequest := &cryptocurrency.StaticWalletRequest{
 		Currency:    request.Currency,
@@ -361,44 +331,25 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	}
 
 	// Process webhook
-	res, err := cryptoProvider.ParseWebhook(rawBody, false)
+	res, err := cryptoProvider.ParseWebhook(rawBody, true)
 	if err != nil {
 		c.server.logger.Error("process webhook error", err)
 		ctx.JSON(400, basemodels.NewError("error parsing webhook"))
 		return
 	}
-	if res.Status == "confirm-check" {
-		c.server.logger.Info("confirm-check status received")
-	}
 
-	if res.Status == "check" {
-		c.server.logger.Info("Waiting for the transaction to appear on the blockchain")
-	}
-
-	if res.Status == "processing" {
-		c.server.logger.Info("payment is processing")
-	}
-	if res.Status == "fail" {
-		c.server.logger.Info("payment error")
-	}
-	if res.Status == "system_fail" {
-		c.server.logger.Info("A system error has occurred")
-	}
-
-	if res.Status == "wrong_amount" {
-		c.server.logger.Info("The client paid less than required")
+	c.server.logger.Debugf("payload: %v", payload)
+	// If webhook from rapidramp qrcode, process differently
+	if strings.HasPrefix(payload.OrderID, "qr_") {
+		c.server.logger.Info("processed as rapid ramp...")
+		err := c.qrcode.ProcessCryptomusWebhook(ctx, &payload)
+		if err != nil {
+			c.server.logger.Errorf("ProcessCryptomusWebhook for qrcode error: %v", err)
+		}
+		return
 	}
 
 	if res.Status == "paid" {
-		// Call the wallet service and credit the user basse
-		// c.server.logger.Info(fmt.Sprintf("sent amount %v", payload.PaymentAmount))
-		// c.server.logger.Info(fmt.Sprintf("received amount %v", payload.MerchantAmount))
-		// c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
-		// c.server.logger.Info(fmt.Sprintf("coin currency %v", payload.Currency))
-		// c.server.logger.Info(fmt.Sprintf("convert to %v", payload.Convert.ToCurrency))
-		// c.server.logger.Info(fmt.Sprintf("rate %v", payload.Convert.Rate))
-		// c.server.logger.Info(fmt.Sprintf("convert amount %v", payload.Convert.Amount))
-
 		// Handle USDT and USDC wallet funding
 		// Handle regular crypto inflow
 		amountDec, err := decimal.NewFromString(payload.MerchantAmount)

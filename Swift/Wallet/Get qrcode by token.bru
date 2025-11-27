@@ -1,0 +1,16 @@
+meta {
+  name: Get qrcode by token
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{BaseURl}}/qr-codes/public/405f91d1-75c8-40eb-8644-cf942c23099b
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

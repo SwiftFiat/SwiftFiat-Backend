@@ -1,0 +1,29 @@
+meta {
+  name: Create qrcode
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/qr-codes
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+      "network": "btc",
+      "crypto_currency": "BTC",
+      "bank_account_id": "551b267d-554e-47e3-ab01-c37976833f05",
+      "label": "My Test Payment QR"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

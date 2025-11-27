@@ -226,17 +226,9 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
 	}
 
-	var coinAmount decimal.Decimal
-	if tx.Coin == "BTC" || tx.Coin == "btc" {
-		// For BTC, webhook might send satoshis, so convert
-		coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, tx.Coin)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
-		}
-	} else {
-		// For all other coins, use the main unit directly
-		coinAmount = tx.AmountInSatoshis // tx.Amount should be the string from webhook
-	}
+	// For all other coins, use the main unit directly
+	coinAmount := tx.AmountInSatoshis // tx.Amount should be the string from webhook
+
 	amount := coinAmount.Mul(rate)
 
 	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID) //Todo: this iis not fetching the cuurate uuid
@@ -371,15 +363,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, order
 	coinSym := strings.ToUpper(tx.Coin)
 
 	// Determine coinAmount in main unit
-	var coinAmount decimal.Decimal
-	if coinSym == "BTC" {
-		coinAmount, err = s.currencyClient.SatoshiToCoin(tx.AmountInSatoshis, coinSym)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert satoshis to coin: %v", err)
-		}
-	} else {
-		coinAmount = tx.AmountInSatoshis
-	}
+	coinAmount := tx.AmountInSatoshis
 
 	var (
 		destCurrency string
@@ -701,7 +685,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	currFlow := func(fromCurrency, toCurrency string) string {
 		if fromCurrency == toCurrency {
 			return fromCurrency + " to " + toCurrency
-		}
+		} 
 		return fromCurrency + " to " + toCurrency
 	}(tx.WalletCurrency, tx.ServiceCurrency) // Default to NGN Transactions
 
@@ -881,7 +865,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 				String: tx.SentAmount.String(),
 				Valid:  true,
 			},
-			ServiceProvider: providers.Bitgo,
+			ServiceProvider: providers.Cryptomus,
 			ServiceTransactionID: sql.NullString{
 				String: "",    // Placeholder for service transaction ID -- TODO: Create function to update CryptoTransactionID
 				Valid:  false, // Assuming service transaction ID is not always available

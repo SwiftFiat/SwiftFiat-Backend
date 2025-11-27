@@ -4,12 +4,24 @@ meta {
   seq: 1
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/crypto/create-wallet
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "network": "bsc",
+    "currency": "USDT"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
