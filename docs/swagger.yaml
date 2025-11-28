@@ -1028,6 +1028,37 @@ definitions:
       valid_until:
         type: string
     type: object
+  smartconversion.ConversionHistoryResponse:
+    properties:
+      executed_at:
+        type: string
+      executed_rate:
+        type: number
+      execution_type:
+        type: string
+      fees:
+        type: number
+      id:
+        type: string
+      net_amount:
+        type: number
+      rate_improvement_percentage:
+        type: number
+      rule_label:
+        type: string
+      source_amount:
+        type: number
+      source_currency:
+        type: string
+      status:
+        type: string
+      target_amount:
+        type: number
+      target_currency:
+        type: string
+      trigger_rate:
+        type: number
+    type: object
   smartconversion.ConversionRule:
     properties:
       conversion_type:
@@ -1146,6 +1177,19 @@ definitions:
       trigger_type:
         type: string
     type: object
+  smartconversion.ConversionStats:
+    properties:
+      failed_conversions:
+        type: integer
+      successful_conversions:
+        type: integer
+      total_conversions:
+        type: integer
+      total_converted:
+        type: number
+      total_fees:
+        type: number
+    type: object
   smartconversion.CreateConversionRuleRequest:
     properties:
       conversion_type:
@@ -1217,6 +1261,77 @@ definitions:
     - target_currency
     - target_wallet_id
     - trigger_type
+    type: object
+  smartconversion.ExchangeRateResponse:
+    properties:
+      last_updated:
+        type: string
+      provider:
+        type: string
+      rate:
+        type: number
+      source_currency:
+        type: string
+      target_currency:
+        type: string
+    type: object
+  smartconversion.ManualConversionRequest:
+    properties:
+      amount:
+        description: Amount to convert
+        type: number
+      amount_type:
+        description: Indicates if the amount is in source or target currency
+        enum:
+        - source
+        - target
+        type: string
+      source_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      source_wallet_id:
+        description: UUID of the source wallet
+        type: string
+      target_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      target_wallet_id:
+        description: UUID of the target wallet
+        type: string
+    required:
+    - amount
+    - amount_type
+    - source_currency
+    - source_wallet_id
+    - target_currency
+    - target_wallet_id
+    type: object
+  smartconversion.ManualConversionResponse:
+    properties:
+      conversion_id:
+        type: string
+      executed_rate:
+        type: number
+      fees:
+        type: number
+      net_amount:
+        type: number
+      source_amount:
+        type: number
+      status:
+        type: string
+      target_amount:
+        type: number
+      transaction_id:
+        type: string
     type: object
   transaction.CreateTransactionFeeRequest:
     properties:
@@ -4292,6 +4407,102 @@ paths:
       summary: Get comprehensive reward summary
       tags:
       - rewards
+  /api/v1/smart-convert/execute:
+    post:
+      consumes:
+      - application/json
+      description: Executes an immediate currency conversion
+      parameters:
+      - description: Conversion details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/smartconversion.ManualConversionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/smartconversion.ManualConversionResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Execute a manual conversion
+      tags:
+      - Conversion
+  /api/v1/smart-convert/history:
+    get:
+      description: Retrieves conversion history for the authenticated user
+      parameters:
+      - default: 20
+        description: Number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/smartconversion.ConversionHistoryResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Get conversion history
+      tags:
+      - Conversion
+  /api/v1/smart-convert/rates:
+    get:
+      description: Retrieves real-time exchange rate between two currencies
+      parameters:
+      - description: Source currency
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Target currency
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        in: query
+        name: to
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/smartconversion.ExchangeRateResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current exchange rate
+      tags:
+      - Conversion
   /api/v1/smart-convert/rules:
     get:
       description: Retrieves all conversion rules for the authenticated user
@@ -4342,6 +4553,111 @@ paths:
       security:
       - BearerAuth: []
       summary: Create a new conversion rule
+      tags:
+      - Conversion
+  /api/v1/smart-convert/rules/{rule_id}:
+    delete:
+      description: Permanently deletes a conversion rule
+      parameters:
+      - description: Rule ID
+        format: uuid
+        in: path
+        name: rule_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a conversion rule
+      tags:
+      - Conversion
+  /api/v1/smart-convert/rules/{rule_id}/pause:
+    post:
+      description: Temporarily pauses an active conversion rule
+      parameters:
+      - description: Rule ID
+        format: uuid
+        in: path
+        name: rule_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pause a conversion rule
+      tags:
+      - Conversion
+  /api/v1/smart-convert/rules/{rule_id}/resume:
+    post:
+      description: Resumes a paused conversion rule
+      parameters:
+      - description: Rule ID
+        format: uuid
+        in: path
+        name: rule_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resume a conversion rule
+      tags:
+      - Conversion
+  /api/v1/smart-convert/stats:
+    get:
+      description: Retrieves conversion statistics for the authenticated user
+      parameters:
+      - default: 30d
+        description: Time period
+        enum:
+        - 7d
+        - 30d
+        - 90d
+        - 1y
+        - all
+        in: query
+        name: period
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/smartconversion.ConversionStats'
+      security:
+      - BearerAuth: []
+      summary: Get conversion statistics
       tags:
       - Conversion
   /api/v1/user/{user_id}/avatar:

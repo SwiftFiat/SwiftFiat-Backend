@@ -163,8 +163,23 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 // ============================================================
 
 // ExecuteManualConversion executes a manual conversion
-func (s *ConversionService) ExecuteManualConversion(ctx context.Context, user *utils.TokenObject, req *ManualConversionRequest) (*ManualConversionResponse, error) {
-	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.UserID))
+func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*ManualConversionResponse, error) {
+	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.ID))
+
+	// Validate wallets
+	sourceWallet, err := s.store.GetWallet(ctx, req.SourceWalletID)
+	if err != nil {
+		return nil, ErrWalletNotFound
+	}
+
+	targetWallet, err := s.store.GetWallet(ctx, req.TargetWalletID)
+	if err != nil {
+		return nil, ErrWalletNotFound
+	}
+
+	if sourceWallet.CustomerID != user.ID || targetWallet.CustomerID != user.ID {
+		return nil, fmt.Errorf("unauthorized")
+	}
 
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
@@ -191,8 +206,8 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, user *u
 	}
 
 	// Execute the conversion in a transaction
-	conversionID, transactionID, err := s.executeConversion(ctx, user, &conversionExecutionParams{
-		userID:         user.UserID,
+	conversionID, transactionID, err := s.executeConversion(ctx, &conversionExecutionParams{
+		userID:         user.ID,
 		ruleID:         nil,
 		sourceWalletID: req.SourceWalletID,
 		targetWalletID: req.TargetWalletID,
@@ -247,7 +262,7 @@ type conversionExecutionParams struct {
 }
 
 // executeConversion performs the actual conversion in a database transaction
-func (s *ConversionService) executeConversion(ctx context.Context, user *utils.TokenObject, params *conversionExecutionParams) (*uuid.UUID, *uuid.UUID, error) {
+func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*uuid.UUID, *uuid.UUID, error) {
 	var conversionID, transactionID *uuid.UUID
 	// var historyErr error
 
@@ -261,6 +276,11 @@ func (s *ConversionService) executeConversion(ctx context.Context, user *utils.T
 		targetWallet, err := q.GetWalletForUpdate(ctx, params.targetWalletID)
 		if err != nil {
 			return fmt.Errorf("failed to get target wallet: %w", err)
+		}
+
+		user, err := s.store.GetUserByID(ctx, params.userID)
+		if err != nil {
+			return fmt.Errorf("failed to get user: %w", err)
 		}
 
 		sourceBalance, _ := decimal.NewFromString(sourceWallet.Balance.String)
@@ -305,7 +325,13 @@ func (s *ConversionService) executeConversion(ctx context.Context, user *utils.T
 
 		// TODO: Create transaction using your transaction service
 		// This would involve calling s.transactionService.CreateSwapTransaction(...)
-		_, err = s.transactionService.CreateWalletTransaction(ctx, intraTxParams, user)
+		// Create token object for transaction service
+		tokenUser := &utils.TokenObject{
+			UserID:   user.ID,
+			Role:     user.Role,
+			Verified: user.Verified,
+		}
+		_, err = s.transactionService.CreateWalletTransaction(ctx, intraTxParams, tokenUser)
 		if err != nil {
 			return fmt.Errorf("failed to create a swap wallet transaction: %w", err)
 		}
@@ -358,20 +384,70 @@ func (s *ConversionService) CheckAndExecuteRateBasedRules(ctx context.Context) e
 	s.logger.Info("Checking rate-based conversion rules")
 
 	// Get all active rate-based rules
-	// This would be a custom query to get all active rate-based rules across all users
-	// For now, we'll need to add this query to sqlc
+	rules, err := s.store.Queries.GetActiveRateBasedRules(ctx)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to fetch rate-based rules: %v", err))
+		return fmt.Errorf("failed to fetch rate-based rules: %w", err)
+	}
+	for _, rule := range rules {
+		// Get current exchange rate
+		rate, err := s.exchangeRateService.GetExchangeRate(ctx, rule.SourceCurrency, rule.TargetCurrency)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to get exchange rate for rule %s: %v", rule.ID, err))
+			continue
+		}
 
-	// Implementation would involve:
-	// 1. Fetch all active rate-based rules
-	// 2. For each rule, get current rate
-	// 3. Check if trigger condition is met
-	// 4. Execute conversion if triggered
+		// Check if trigger condition is met
+		triggerRate := s.nullStringToDecimal(rule.TriggerRate)
+		if triggerRate == nil {
+			s.logger.Warn(fmt.Sprintf("Rule %s has no trigger rate set", rule.ID))
+			continue
+		}
+
+		condition := s.stringOrDefault(&rule.TriggerCondition.String, "gte")
+		isTriggered := false
+
+		if condition == "gte" && rate.Rate.GreaterThanOrEqual(*triggerRate) {
+			isTriggered = true
+		} else if condition == "lte" && rate.Rate.LessThanOrEqual(*triggerRate) {
+			isTriggered = true
+		} else if condition == "eq" && rate.Rate.Equal(*triggerRate) {
+			isTriggered = true
+		}
+
+		if !isTriggered {
+			s.logger.Debug(fmt.Sprintf("Rule %s not triggered. Current rate: %s, Trigger: %s (%s)",
+				rule.ID, rate.Rate.String(), triggerRate.String(), condition))
+			continue
+		}
+
+		s.logger.Info(fmt.Sprintf("Rule %s triggered! Executing conversion", rule.ID))
+
+		// Execute the conversion
+		err = s.executeRuleConversion(ctx, &rule)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to execute rule %s: %v", rule.ID, err))
+
+			// Update failure
+			s.store.UpdateRuleFailure(ctx, db.UpdateRuleFailureParams{
+				ID:                rule.ID,
+				LastFailureReason: sql.NullString{String: err.Error(), Valid: true},
+			})
+			continue
+		}
+
+		// Update successful execution
+		s.store.UpdateRuleExecution(ctx, db.UpdateRuleExecutionParams{
+			ID:              rule.ID,
+			LastTriggerRate: sql.NullString{String: rate.Rate.String(), Valid: true},
+		})
+	}
 
 	return nil
 }
 
 // ExecuteScheduledConversions executes scheduled conversions that are due
-func (s *ConversionService) ExecuteScheduledConversions(ctx context.Context, user *utils.TokenObject) error {
+func (s *ConversionService) ExecuteScheduledConversions(ctx context.Context) error {
 	s.logger.Info("Executing scheduled smart conversions")
 
 	rules, err := s.store.Queries.GetScheduledRulesDue(ctx)
@@ -382,7 +458,7 @@ func (s *ConversionService) ExecuteScheduledConversions(ctx context.Context, use
 	for _, rule := range rules {
 		s.logger.Info(fmt.Sprintf("Executing scheduled rule %s", rule.ID))
 
-		err := s.executeRuleConversion(ctx, user, &rule)
+		err := s.executeRuleConversion(ctx, &rule)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Failed to execute rule %s: %v", rule.ID, err))
 
@@ -410,7 +486,7 @@ func (s *ConversionService) ExecuteScheduledConversions(ctx context.Context, use
 }
 
 // executeRuleConversion executes a conversion based on a rule
-func (s *ConversionService) executeRuleConversion(ctx context.Context, user *utils.TokenObject, rule *db.ConversionRule) error {
+func (s *ConversionService) executeRuleConversion(ctx context.Context, rule *db.ConversionRule) error {
 	rate, err := s.exchangeRateService.GetExchangeRate(ctx, rule.SourceCurrency, rule.TargetCurrency)
 	if err != nil {
 		return fmt.Errorf("failed to get exchange rate: %w", err)
@@ -447,7 +523,7 @@ func (s *ConversionService) executeRuleConversion(ctx context.Context, user *uti
 
 	// Execute the conversion
 	triggerType := rule.TriggerType
-	_, _, err = s.executeConversion(ctx, user, &conversionExecutionParams{
+	_, _, err = s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         rule.UserID,
 		ruleID:         &rule.ID,
 		sourceWalletID: rule.SourceWalletID.UUID,
@@ -518,42 +594,193 @@ func (s *ConversionService) GetConversionHistory(ctx context.Context, userID int
 }
 
 // GetConversionStats retrieves conversion statistics for a user
-// func (s *ConversionService) GetConversionStats(ctx context.Context, userID int64, since time.Time) (*ConversionStats, error) {
-// 	stats, err := s.store.GetConversionHistoryStats(ctx, db.GetConversionHistoryStatsParams{
-// 		UserID:     userID,
-// 		ExecutedAt: since,
-// 	})
+func (s *ConversionService) GetConversionStats(ctx context.Context, userID int64, since time.Time) (*ConversionStats, error) {
+	stats, err := s.store.GetConversionHistoryStats(ctx, db.GetConversionHistoryStatsParams{
+		UserID:     userID,
+		ExecutedAt: since,
+	})
 
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to fetch stats: %w", err)
-// 	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch stats: %w", err)
+	}
 
-// 	return &ConversionStats{
-// 		TotalConversions:      int(stats.TotalConversions),
-// 		SuccessfulConversions: int(stats.SuccessfulConversions),
-// 		FailedConversions:     int(stats.FailedConversions),
-// 		TotalConverted:        s.stringToDecimal(stats.TotalConverted.String),
-// 		TotalFees:             s.stringToDecimal(stats.TotalFees.String),
-// 	}, nil
-// }
+	return &ConversionStats{
+		TotalConversions:      int(stats.TotalConversions),
+		SuccessfulConversions: int(stats.SuccessfulConversions),
+		FailedConversions:     int(stats.FailedConversions),
+		TotalConverted:        s.stringToDecimal(stats.TotalConverted),
+		TotalFees:             s.stringToDecimal(stats.TotalFees),
+	}, nil
+}
 
 // Helper conversion functions
 func (s *ConversionService) dbRuleToModel(rule *db.ConversionRule) *ConversionRule {
-	// Convert db.ConversionRule to ConversionRule model
-	// Implementation details...
-	return &ConversionRule{}
+	return &ConversionRule{
+		ID:                 rule.ID,
+		UserID:             rule.UserID,
+		SourceCurrency:     rule.SourceCurrency,
+		TargetCurrency:     rule.TargetCurrency,
+		SourceWalletID:     rule.SourceWalletID.UUID,
+		TargetWalletID:     rule.TargetWalletID.UUID,
+		TriggerType:        rule.TriggerType,
+		TriggerRate:        s.nullStringToDecimal(rule.TriggerRate),
+		TriggerCondition:   s.nullStringToString(rule.TriggerCondition),
+		ConversionType:     rule.ConversionType,
+		FixedAmount:        s.nullStringToDecimal(rule.FixedAmount),
+		Percentage:         s.nullStringToDecimal(rule.Percentage),
+		ScheduleFrequency:  s.nullStringToString(rule.ScheduleFrequency),
+		ScheduleDayOfWeek:  &rule.ScheduleDayOfWeek.Int32,
+		ScheduleDayOfMonth: &rule.ScheduleDayOfMonth.Int32,
+		ScheduleTime:       s.nullTimeToTime(rule.ScheduleTime),
+		NextExecutionAt:    s.nullTimeToTime(rule.NextExecutionAt),
+		Timezone:           rule.Timezone.String,
+		Description:        s.nullStringToString(rule.Description),
+		Label:              s.nullStringToString(rule.Label),
+		Status:             rule.Status,
+		IsActive:           rule.IsActive,
+		CreatedAt:          rule.CreatedAt,
+		UpdatedAt:          rule.UpdatedAt,
+	}
 }
 
+// ...existing code...
 func (s *ConversionService) calculateNextExecution(frequency *string, dayOfWeek, dayOfMonth *int, scheduleTime *string, timezone *string) time.Time {
-	// Calculate next execution time based on frequency
-	now := time.Now()
-	// Implementation details...
-	return now.Add(24 * time.Hour)
+    // Determine location
+    loc := time.UTC
+    if timezone != nil && *timezone != "" {
+        if l, err := time.LoadLocation(*timezone); err == nil {
+            loc = l
+        }
+    }
+    now := time.Now().In(loc)
+
+    // parse scheduled time (HH:MM) if provided
+    hour, min := 0, 0
+    if scheduleTime != nil && *scheduleTime != "" {
+        if t, err := time.ParseInLocation("15:04", *scheduleTime, loc); err == nil {
+            hour, min = t.Hour(), t.Minute()
+        }
+    }
+
+    // helper to create a time at given date with scheduled hour/min
+    at := func(y int, m time.Month, d int) time.Time {
+        return time.Date(y, m, d, hour, min, 0, 0, loc)
+    }
+
+    // default to next day same time if no frequency
+    if frequency == nil || *frequency == "" {
+        cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
+        if cand.After(now) {
+            return cand
+        }
+        return cand.Add(24 * time.Hour)
+    }
+
+    switch *frequency {
+    case "daily":
+        today := at(now.Year(), now.Month(), now.Day())
+        if today.After(now) {
+            return today
+        }
+        return today.Add(24 * time.Hour)
+
+    case "weekly":
+        // Expect dayOfWeek: 0 = Sunday ... 6 = Saturday (fallback to next day)
+        var targetWeekday time.Weekday
+        if dayOfWeek != nil {
+            targetWeekday = time.Weekday(*dayOfWeek % 7)
+        } else {
+            // default to same weekday next week
+            targetWeekday = now.Weekday()
+        }
+        daysUntil := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
+        candidate := at(now.Year(), now.Month(), now.Day()).AddDate(0, 0, daysUntil)
+        // if same day but time already passed, schedule for next week
+        if daysUntil == 0 && !candidate.After(now) {
+            candidate = candidate.AddDate(0, 0, 7)
+        }
+        if candidate.After(now) {
+            return candidate
+        }
+        return candidate.AddDate(0, 0, 7)
+
+    case "monthly":
+        // Expect dayOfMonth: 1..31
+        var dom int
+        if dayOfMonth != nil && *dayOfMonth > 0 {
+            dom = *dayOfMonth
+        } else {
+            dom = now.Day()
+        }
+
+        // try this month
+        maxDay := daysInMonth(now.Year(), now.Month())
+        day := dom
+        if day > maxDay {
+            day = maxDay
+        }
+        candidate := at(now.Year(), now.Month(), day)
+        if candidate.After(now) {
+            return candidate
+        }
+        // next month
+        nextMonth := now.AddDate(0, 1, 0)
+        maxDayNext := daysInMonth(nextMonth.Year(), nextMonth.Month())
+        day = dom
+        if day > maxDayNext {
+            day = maxDayNext
+        }
+        return at(nextMonth.Year(), nextMonth.Month(), day)
+
+    default:
+        // custom or unknown -> fallback to next day at scheduled time
+        cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
+        if cand.After(now) {
+            return cand
+        }
+        return cand.Add(24 * time.Hour)
+    }
 }
 
 func (s *ConversionService) calculateNextExecutionForRule(rule *db.ConversionRule) time.Time {
-	// Calculate next execution based on rule settings
-	return time.Now().Add(24 * time.Hour)
+    // build parameters from db rule
+    var freqPtr *string
+    if rule.ScheduleFrequency.Valid && rule.ScheduleFrequency.String != "" {
+        f := rule.ScheduleFrequency.String
+        freqPtr = &f
+    }
+
+    var dowPtr *int
+    if rule.ScheduleDayOfWeek.Valid {
+        d := int(rule.ScheduleDayOfWeek.Int32)
+        dowPtr = &d
+    }
+
+    var domPtr *int
+    if rule.ScheduleDayOfMonth.Valid {
+        d := int(rule.ScheduleDayOfMonth.Int32)
+        domPtr = &d
+    }
+
+    var scheduleTimePtr *string
+    if rule.ScheduleTime.Valid {
+        t := rule.ScheduleTime.Time.Format("15:04")
+        scheduleTimePtr = &t
+    }
+
+    var tzPtr *string
+    if rule.Timezone.Valid && rule.Timezone.String != "" {
+        tz := rule.Timezone.String
+        tzPtr = &tz
+    }
+
+    return s.calculateNextExecution(freqPtr, dowPtr, domPtr, scheduleTimePtr, tzPtr)
+}
+
+func daysInMonth(year int, month time.Month) int {
+    // day 0 of next month is last day of current month
+    t := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC)
+    return t.Day()
 }
 
 func (s *ConversionService) parseScheduleTime(timeStr *string) sql.NullTime {

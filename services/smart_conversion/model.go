@@ -21,8 +21,8 @@ type ConversionRule struct {
 	FixedAmount        *decimal.Decimal `json:"fixed_amount,omitempty"` // applicable for fixed_amount conversion type
 	Percentage         *decimal.Decimal `json:"percentage,omitempty"` // applicable for percentage conversion type
 	ScheduleFrequency  *string          `json:"schedule_frequency,omitempty"` // daily, weekly, monthly
-	ScheduleDayOfWeek  *int             `json:"schedule_day_of_week,omitempty"`
-	ScheduleDayOfMonth *int             `json:"schedule_day_of_month,omitempty"`
+	ScheduleDayOfWeek  *int32             `json:"schedule_day_of_week,omitempty"`
+	ScheduleDayOfMonth *int32             `json:"schedule_day_of_month,omitempty"`
 	ScheduleTime       *time.Time       `json:"schedule_time,omitempty"`
 	NextExecutionAt    *time.Time       `json:"next_execution_at,omitempty"`
 	Timezone           string           `json:"timezone"`
@@ -30,9 +30,9 @@ type ConversionRule struct {
 	IsActive           bool             `json:"is_active"`
 	LastTriggeredAt    *time.Time       `json:"last_triggered_at,omitempty"`
 	LastTriggerRate    *decimal.Decimal `json:"last_trigger_rate,omitempty"`
-	ExecutionCount     int              `json:"execution_count"`
-	MaxExecutions      *int             `json:"max_executions,omitempty"`
-	FailureCount       int              `json:"failure_count"`
+	ExecutionCount     int32              `json:"execution_count"`
+	MaxExecutions      *int32            `json:"max_executions,omitempty"`
+	FailureCount       int32              `json:"failure_count"`
 	LastFailureReason  *string          `json:"last_failure_reason,omitempty"`
 	Description        *string          `json:"description,omitempty"`
 	Label              *string          `json:"label,omitempty"`
@@ -209,6 +209,7 @@ var (
 	ErrRuleNotFound        = &ConversionError{Code: "RULE_NOT_FOUND", Message: "Conversion rule not found"}
 	ErrDuplicateRule       = &ConversionError{Code: "DUPLICATE_RULE", Message: "Active rule already exists for this currency pair"}
 	ErrInvalidCurrencyPair = &ConversionError{Code: "INVALID_CURRENCY_PAIR", Message: "Invalid currency pair"}
+	ErrWalletNotFound      = &ConversionError{Code: "WALLET_NOT_FOUND", Message: "Wallet not found"}
 	ErrInsufficientBalance = &ConversionError{Code: "INSUFFICIENT_BALANCE", Message: "Insufficient wallet balance"}
 	ErrRateNotAvailable    = &ConversionError{Code: "RATE_NOT_AVAILABLE", Message: "Exchange rate not available"}
 	ErrConversionFailed    = &ConversionError{Code: "CONVERSION_FAILED", Message: "Conversion execution failed"}

@@ -792,6 +792,73 @@ func (q *Queries) GetActiveQRCodes(ctx context.Context, userID int64) ([]QrCode,
 	return items, nil
 }
 
+const getActiveRateBasedRules = `-- name: GetActiveRateBasedRules :many
+SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
+WHERE status = 'active'
+    AND is_active = TRUE
+    AND deleted_at IS NULL
+    AND trigger_type = 'rate'
+    AND trigger_rate IS NOT NULL
+    AND trigger_condition IS NOT NULL
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetActiveRateBasedRules(ctx context.Context) ([]ConversionRule, error) {
+	rows, err := q.db.QueryContext(ctx, getActiveRateBasedRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ConversionRule{}
+	for rows.Next() {
+		var i ConversionRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.SourceCurrency,
+			&i.TargetCurrency,
+			&i.SourceWalletID,
+			&i.TargetWalletID,
+			&i.TriggerRate,
+			&i.TriggerType,
+			&i.TriggerCondition,
+			&i.PercentageThreshold,
+			&i.ConversionType,
+			&i.FixedAmount,
+			&i.Percentage,
+			&i.ScheduleFrequency,
+			&i.ScheduleDayOfWeek,
+			&i.ScheduleDayOfMonth,
+			&i.ScheduleTime,
+			&i.NextExecutionAt,
+			&i.Timezone,
+			&i.Status,
+			&i.IsActive,
+			&i.LastTriggeredAt,
+			&i.LastTriggerRate,
+			&i.ExecutionCount,
+			&i.MaxExecutions,
+			&i.FailureCount,
+			&i.LastFailureReason,
+			&i.Description,
+			&i.Label,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getActiveRuleByCurrencyPair = `-- name: GetActiveRuleByCurrencyPair :one
 SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
 WHERE user_id = $1
@@ -1094,8 +1161,8 @@ SELECT
     COUNT(*) as total_conversions,
     COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_conversions,
     COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_conversions,
-    COALESCE(SUM(CASE WHEN status = 'success' THEN source_amount ELSE 0 END), 0) as total_converted,
-    COALESCE(SUM(CASE WHEN status = 'success' THEN fees ELSE 0 END), 0) as total_fees
+    COALESCE(SUM(CASE WHEN status = 'success' THEN source_amount ELSE 0 END), 0)::numeric as total_converted,
+    COALESCE(SUM(CASE WHEN status = 'success' THEN fees ELSE 0 END), 0)::numeric as total_fees
 FROM conversion_history
 WHERE user_id = $1 
 AND executed_at >= $2
@@ -1107,11 +1174,11 @@ type GetConversionHistoryStatsParams struct {
 }
 
 type GetConversionHistoryStatsRow struct {
-	TotalConversions      int64       `json:"total_conversions"`
-	SuccessfulConversions int64       `json:"successful_conversions"`
-	FailedConversions     int64       `json:"failed_conversions"`
-	TotalConverted        interface{} `json:"total_converted"`
-	TotalFees             interface{} `json:"total_fees"`
+	TotalConversions      int64  `json:"total_conversions"`
+	SuccessfulConversions int64  `json:"successful_conversions"`
+	FailedConversions     int64  `json:"failed_conversions"`
+	TotalConverted        string `json:"total_converted"`
+	TotalFees             string `json:"total_fees"`
 }
 
 func (q *Queries) GetConversionHistoryStats(ctx context.Context, arg GetConversionHistoryStatsParams) (GetConversionHistoryStatsRow, error) {

@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
@@ -9,6 +11,7 @@ import (
 	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type SmartConvertHandler struct {
@@ -25,10 +28,15 @@ func (s SmartConvertHandler) router(server *Server) {
 	s.conversionSvc = s.server.smartConvertService
 
 	v1 := server.router.Group("/api/v1/smart-convert")
+	v1.GET("/rates", s.GetExchangeRate)
 	v1.Use(s.server.authMiddleware.AuthenticatedMiddleware())
 	{
 		v1.POST("/rules", s.CreateConversionRule)
 		v1.GET("/rules", s.GetConversionRules)
+		v1.POST("/rules/:rule_id/pause", s.PauseConversionRule)
+		v1.POST("/rules/:rule_id/resume", s.ResumeConversionRule)
+		v1.DELETE("/rules/:rule_id", s.DeleteConversionRule)
+		v1.POST("/execute", s.ExecuteManualConversion)
 	}
 }
 
@@ -104,4 +112,292 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", rules))
+}
+
+// PauseConversionRule godoc
+// @Summary Pause a conversion rule
+// @Description Temporarily pauses an active conversion rule
+// @Tags Conversion
+// @Produce json
+// @Param rule_id path string true "Rule ID" format(uuid)
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/rules/{rule_id}/pause [post]
+// @Security BearerAuth
+func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	ruleID, err := uuid.Parse(c.Param("rule_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid rule ID"))
+		return
+	}
+
+	err = s.conversionSvc.PauseConversionRule(c, ruleID, activeUser.UserID)
+	if err != nil {
+		if err == smartconversion.ErrRuleNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError("conversion rule not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to pause conversion rule"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule paused", nil))
+}
+
+// ResumeConversionRule godoc
+// @Summary Resume a conversion rule
+// @Description Resumes a paused conversion rule
+// @Tags Conversion
+// @Produce json
+// @Param rule_id path string true "Rule ID" format(uuid)
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/rules/{rule_id}/resume [post]
+// @Security BearerAuth
+func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	ruleID, err := uuid.Parse(c.Param("rule_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid rule ID"))
+		return
+	}
+
+	err = s.conversionSvc.ResumeConversionRule(c, ruleID, activeUser.UserID)
+	if err != nil {
+		if err == smartconversion.ErrRuleNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError("conversion rule not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to resume conversion rule"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule resumed", nil))
+}
+
+// DeleteConversionRule godoc
+// @Summary Delete a conversion rule
+// @Description Permanently deletes a conversion rule
+// @Tags Conversion
+// @Produce json
+// @Param rule_id path string true "Rule ID" format(uuid)
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/rules/{rule_id} [delete]
+// @Security BearerAuth
+func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	ruleID, err := uuid.Parse(c.Param("rule_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid rule ID"))
+		return
+	}
+
+	err = s.conversionSvc.DeleteConversionRule(c, ruleID, activeUser.UserID)
+	if err != nil {
+		if err == smartconversion.ErrRuleNotFound {
+			c.JSON(http.StatusNotFound, basemodels.NewError("conversion rule not found"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete conversion rule"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule deleted", nil))
+}
+
+// ExecuteManualConversion godoc
+// @Summary Execute a manual conversion
+// @Description Executes an immediate currency conversion
+// @Tags Conversion
+// @Accept json
+// @Produce json
+// @Param request body smartconversion.ManualConversionRequest true "Conversion details"
+// @Success 200 {object} smartconversion.ManualConversionResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/execute [post]
+// @Security BearerAuth
+func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	// make admin check
+	var req smartconversion.ManualConversionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request payload"))
+		return
+	}
+
+	user, err := s.server.queries.GetUserByID(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		s.logger.Error("Failed to fetch user", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch user"))
+		return
+	}
+
+	result, err := s.conversionSvc.ExecuteManualConversion(c.Request.Context(), &req, &user)
+	if err != nil {
+		if err == smartconversion.ErrInsufficientBalance {
+			c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance for conversion"))
+			return
+		}
+		if err == smartconversion.ErrRateNotAvailable {
+			c.JSON(http.StatusServiceUnavailable, basemodels.NewError("exchange rate not available for the requested currency pair"))
+			return
+		}
+		s.logger.Error("Failed to execute conversion", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to execute conversion"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Conversion executed successfully", result))
+}
+
+// GetExchangeRate godoc
+// @Summary Get current exchange rate
+// @Description Retrieves real-time exchange rate between two currencies
+// @Tags Conversion
+// @Produce json
+// @Param from query string true "Source currency" Enums(USD, NGN, USDT, USDC)
+// @Param to query string true "Target currency" Enums(USD, NGN, USDT, USDC)
+// @Success 200 {object} smartconversion.ExchangeRateResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/rates [get]
+// @Security BearerAuth
+func (s *SmartConvertHandler) GetExchangeRate(c *gin.Context) {
+	from := c.Query("from")
+	to := c.Query("to")
+
+	if from == "" || to == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("both 'from' and 'to' currency parameters are required"))
+		return
+	}
+
+	// Validate currencies
+	if err := s.exchangeRateSvc.ValidateCurrencyPair(from, to); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	rate, err := s.exchangeRateSvc.GetExchangeRate(c.Request.Context(), from, to)
+	if err != nil {
+		s.logger.Error("Failed to fetch exchange rate", "error", err)
+		c.JSON(http.StatusServiceUnavailable, basemodels.NewError("failed to fetch exchange rate"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{
+		"from":         from,
+		"to":           to,
+		"exchangeRate": rate,
+		"lastUpdated":  rate.Time,
+	}))
+}
+
+// @Summary Get conversion history
+// @Description Retrieves conversion history for the authenticated user
+// @Tags Conversion
+// @Produce json
+// @Param limit query int false "Number of records" default(20)
+// @Param offset query int false "Offset for pagination" default(0)
+// @Success 200 {object} []smartconversion.ConversionHistoryResponse
+// @Router /api/v1/smart-convert/history [get]
+// @Security BearerAuth
+func (s *SmartConvertHandler) GetConversionHistory(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	history, err := s.conversionSvc.GetConversionHistory(c.Request.Context(), activeUser.UserID, int32(limit), int32(offset))
+	if err != nil {
+		s.logger.Error("Failed to fetch conversion history", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch conversion history"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{
+		"history": history,
+		"limit":   limit,
+		"offset":  offset,
+	}))
+}
+
+// GetConversionStats godoc
+// @Summary Get conversion statistics
+// @Description Retrieves conversion statistics for the authenticated user
+// @Tags Conversion
+// @Produce json
+// @Param period query string false "Time period" default(30d) Enums(7d, 30d, 90d, 1y, all)
+// @Success 200 {object} smartconversion.ConversionStats
+// @Router /api/v1/smart-convert/stats [get]
+// @Security BearerAuth
+func (s *SmartConvertHandler) GetConversionStats(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+	period := c.DefaultQuery("period", "30d")
+	since := s.getPeriodStartTime(period)
+
+	stats, err := s.conversionSvc.GetConversionStats(c.Request.Context(), activeUser.UserID, since)
+	if err != nil {
+		s.logger.Error("Failed to fetch conversion stats", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch conversion stats"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{
+		"data":   stats,
+		"period": period,
+	}))
+}
+
+func (s *SmartConvertHandler) getPeriodStartTime(period string) time.Time {
+	now := time.Now()
+
+	switch period {
+	case "7d":
+		return now.AddDate(0, 0, -7)
+	case "30d":
+		return now.AddDate(0, 0, -30)
+	case "90d":
+		return now.AddDate(0, 0, -90)
+	case "1y":
+		return now.AddDate(-1, 0, 0)
+	case "all":
+		return time.Time{} // Beginning of time
+	default:
+		return now.AddDate(0, 0, -30) // Default to 30 days
+	}
 }

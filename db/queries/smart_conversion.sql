@@ -58,6 +58,16 @@ WHERE user_id = $1
     AND deleted_at IS NULL
 LIMIT 1;
 
+-- name: GetActiveRateBasedRules :many
+SELECT * FROM conversion_rules
+WHERE status = 'active'
+    AND is_active = TRUE
+    AND deleted_at IS NULL
+    AND trigger_type = 'rate'
+    AND trigger_rate IS NOT NULL
+    AND trigger_condition IS NOT NULL
+ORDER BY created_at ASC;
+
 -- name: GetScheduledRulesDue :many
 SELECT * FROM conversion_rules
 WHERE status = 'active'
@@ -159,8 +169,8 @@ SELECT
     COUNT(*) as total_conversions,
     COUNT(CASE WHEN status = 'success' THEN 1 END) as successful_conversions,
     COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_conversions,
-    COALESCE(SUM(CASE WHEN status = 'success' THEN source_amount ELSE 0 END), 0) as total_converted,
-    COALESCE(SUM(CASE WHEN status = 'success' THEN fees ELSE 0 END), 0) as total_fees
+    COALESCE(SUM(CASE WHEN status = 'success' THEN source_amount ELSE 0 END), 0)::numeric as total_converted,
+    COALESCE(SUM(CASE WHEN status = 'success' THEN fees ELSE 0 END), 0)::numeric as total_fees
 FROM conversion_history
 WHERE user_id = $1 
 AND executed_at >= $2;

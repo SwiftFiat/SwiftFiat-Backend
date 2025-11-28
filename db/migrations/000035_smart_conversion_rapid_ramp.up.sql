@@ -84,7 +84,7 @@ CREATE TABLE IF NOT EXISTS "conversion_rules" (
     "timezone" VARCHAR(50) DEFAULT 'UTC',
 
     -- Rule status
-    "status" VARCHAR(20) NOT NULL CHECK (status IN ('active', 'inactive')) DEFAULT 'active',
+    "status" VARCHAR(20) NOT NULL CHECK (status IN ('active', 'paused')) DEFAULT 'active',
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     "last_triggered_at" TIMESTAMPTZ,
     "last_trigger_rate" DECIMAL(19,4),
