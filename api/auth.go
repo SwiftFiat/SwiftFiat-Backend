@@ -944,7 +944,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		bgCtx := context.Background()
 
 		// Send verification email
-		// a.server.emailService.SendVerificationEmail(newUser, user.Email, verificationCode)
+		a.server.emailService.SendVerificationEmail(newUser, user.Email, verificationCode)
 
 		// Create welcome notification
 		title := "Welcome to SwiftFiat"
