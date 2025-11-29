@@ -1333,6 +1333,138 @@ definitions:
       transaction_id:
         type: string
     type: object
+  streaks.BadgeWithStatus:
+    properties:
+      badge_id:
+        type: integer
+      days_remaining:
+        type: integer
+      description:
+        type: string
+      earned_at:
+        type: string
+      icon_url:
+        type: string
+      is_unlocked:
+        type: boolean
+      name:
+        type: string
+      progress:
+        description: Percentage (0-100)
+        type: number
+      required_streak_days:
+        type: integer
+      streak_at_unlock:
+        type: integer
+      tier_level:
+        type: integer
+    type: object
+  streaks.LeaderboardEntry:
+    properties:
+      avatar_url:
+        type: string
+      badges_earned:
+        type: integer
+      best_streak:
+        type: integer
+      current_streak:
+        type: integer
+      first_name:
+        type: string
+      last_name:
+        type: string
+      rank:
+        type: integer
+      total_transaction_days:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  streaks.NextMilestone:
+    properties:
+      badge_id:
+        type: integer
+      days_remaining:
+        type: integer
+      description:
+        type: string
+      name:
+        type: string
+      progress:
+        description: Percentage
+        type: number
+      required_streak_days:
+        type: integer
+    type: object
+  streaks.RecentBadge:
+    properties:
+      badge_name:
+        type: string
+      earned_at:
+        type: string
+      streak_at_unlock:
+        type: integer
+      tier_level:
+        type: integer
+    type: object
+  streaks.StreakDashboard:
+    properties:
+      badges:
+        items:
+          $ref: '#/definitions/streaks.BadgeWithStatus'
+        type: array
+      best_streak:
+        type: integer
+      current_streak:
+        type: integer
+      days_until_reset:
+        type: integer
+      is_active:
+        description: True if transacted today
+        type: boolean
+      last_transaction_at:
+        type: string
+      next_milestone:
+        $ref: '#/definitions/streaks.NextMilestone'
+      recent_achievements:
+        items:
+          $ref: '#/definitions/streaks.RecentBadge'
+        type: array
+      streak_health:
+        $ref: '#/definitions/streaks.StreakHealth'
+      streak_started_at:
+        type: string
+      total_transaction_days:
+        type: integer
+    type: object
+  streaks.StreakHealth:
+    properties:
+      consecutive_days:
+        type: integer
+      daily_goal_achieved:
+        type: boolean
+      motivational_text:
+        type: string
+      rank_percentile:
+        description: Top X% of users
+        type: number
+      status:
+        description: '"on_fire", "active", "at_risk", "broken"'
+        type: string
+    type: object
+  streaks.StreakStatistics:
+    properties:
+      average_current_streak:
+        type: number
+      highest_best_streak:
+        type: integer
+      highest_current_streak:
+        type: integer
+      total_platform_transaction_days:
+        type: integer
+      total_users_with_streaks:
+        type: integer
+    type: object
   transaction.CreateTransactionFeeRequest:
     properties:
       fee_percentage:
@@ -2232,6 +2364,102 @@ paths:
       tags:
       - admin
       - rewards
+  /api/v1/admin/streaks/analytics:
+    get:
+      description: Returns comprehensive analytics about streak engagement
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get streak analytics (Admin)
+      tags:
+      - Streaks/Admin
+  /api/v1/admin/streaks/health:
+    get:
+      description: Returns health metrics for the streaks system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get system health (Admin)
+      tags:
+      - Streaks/Admin
+  /api/v1/admin/streaks/recalculate/{user_id}:
+    post:
+      description: Recalculates streak values from transaction history (for fixing
+        data issues)
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Recalculate user streak (Admin)
+      tags:
+      - Streaks/Admin
+  /api/v1/admin/streaks/reset-broken:
+    post:
+      description: Manually trigger reset of all broken streaks (normally done by
+        cron)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Reset broken streaks (Admin)
+      tags:
+      - Streaks/Admin
   /api/v1/analytics/active-users-today:
     get:
       consumes:
@@ -4660,6 +4888,237 @@ paths:
       summary: Get conversion statistics
       tags:
       - Conversion
+  /api/v1/streaks/badges:
+    get:
+      description: Returns all badges earned by the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user's badges
+      tags:
+      - Streaks/Badges
+  /api/v1/streaks/badges/available:
+    get:
+      description: Returns list of all badges that can be earned
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all available badges
+      tags:
+      - Streaks/Badges
+  /api/v1/streaks/badges/progress:
+    get:
+      description: Returns all badges with lock/unlock status and progress percentage
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/streaks.BadgeWithStatus'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get badge progress
+      tags:
+      - Streaks/Badges
+  /api/v1/streaks/dashboard:
+    get:
+      description: Retrieves complete streak information including current streak,
+        badges, and next milestones
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/streaks.StreakDashboard'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user's streak dashboard
+      tags:
+      - Streaks
+  /api/v1/streaks/history:
+    get:
+      description: Returns paginated history of streak changes and events
+      parameters:
+      - default: 20
+        description: Number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get streak history
+      tags:
+      - Streaks
+  /api/v1/streaks/leaderboard:
+    get:
+      description: Returns ranked list of users with highest current streaks
+      parameters:
+      - default: 50
+        description: Number of users
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/streaks.LeaderboardEntry'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get streak leaderboard
+      tags:
+      - Streaks/Leaderboards
+  /api/v1/streaks/leaderboard/badges:
+    get:
+      description: Returns ranked list of users with most badges earned
+      parameters:
+      - default: 50
+        description: Number of users
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get badge leaderboard
+      tags:
+      - Streaks/Leaderboards
+  /api/v1/streaks/platform-stats:
+    get:
+      description: Returns aggregate statistics about streaks across all users
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/streaks.StreakStatistics'
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get platform statistics
+      tags:
+      - Streaks/Statistics
+  /api/v1/streaks/stats:
+    get:
+      description: Returns simplified streak statistics (current, best, total days)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user's streak stats
+      tags:
+      - Streaks
   /api/v1/user/{user_id}/avatar:
     get:
       consumes:

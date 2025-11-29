@@ -569,6 +569,149 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/streaks/analytics": {
+            "get": {
+                "description": "Returns comprehensive analytics about streak engagement",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Admin"
+                ],
+                "summary": "Get streak analytics (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/streaks/health": {
+            "get": {
+                "description": "Returns health metrics for the streaks system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Admin"
+                ],
+                "summary": "Get system health (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/streaks/recalculate/{user_id}": {
+            "post": {
+                "description": "Recalculates streak values from transaction history (for fixing data issues)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Admin"
+                ],
+                "summary": "Recalculate user streak (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "User ID",
+                        "name": "user_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/admin/streaks/reset-broken": {
+            "post": {
+                "description": "Manually trigger reset of all broken streaks (normally done by cron)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Admin"
+                ],
+                "summary": "Reset broken streaks (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/analytics/active-users-today": {
             "get": {
                 "security": [
@@ -4381,6 +4524,372 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/smartconversion.ConversionStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/badges": {
+            "get": {
+                "description": "Returns all badges earned by the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Badges"
+                ],
+                "summary": "Get user's badges",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/badges/available": {
+            "get": {
+                "description": "Returns list of all badges that can be earned",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Badges"
+                ],
+                "summary": "Get all available badges",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/badges/progress": {
+            "get": {
+                "description": "Returns all badges with lock/unlock status and progress percentage",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Badges"
+                ],
+                "summary": "Get badge progress",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/streaks.BadgeWithStatus"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/dashboard": {
+            "get": {
+                "description": "Retrieves complete streak information including current streak, badges, and next milestones",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks"
+                ],
+                "summary": "Get user's streak dashboard",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/streaks.StreakDashboard"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/history": {
+            "get": {
+                "description": "Returns paginated history of streak changes and events",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks"
+                ],
+                "summary": "Get streak history",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/leaderboard": {
+            "get": {
+                "description": "Returns ranked list of users with highest current streaks",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Leaderboards"
+                ],
+                "summary": "Get streak leaderboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Number of users",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "$ref": "#/definitions/streaks.LeaderboardEntry"
+                                            }
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/leaderboard/badges": {
+            "get": {
+                "description": "Returns ranked list of users with most badges earned",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Leaderboards"
+                ],
+                "summary": "Get badge leaderboard",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Number of users",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/platform-stats": {
+            "get": {
+                "description": "Returns aggregate statistics about streaks across all users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks/Statistics"
+                ],
+                "summary": "Get platform statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/streaks.StreakStatistics"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/streaks/stats": {
+            "get": {
+                "description": "Returns simplified streak statistics (current, best, total days)",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Streaks"
+                ],
+                "summary": "Get user's streak stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     }
                 }
@@ -10357,6 +10866,205 @@ const docTemplate = `{
                 },
                 "transaction_id": {
                     "type": "string"
+                }
+            }
+        },
+        "streaks.BadgeWithStatus": {
+            "type": "object",
+            "properties": {
+                "badge_id": {
+                    "type": "integer"
+                },
+                "days_remaining": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "earned_at": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "is_unlocked": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "progress": {
+                    "description": "Percentage (0-100)",
+                    "type": "number"
+                },
+                "required_streak_days": {
+                    "type": "integer"
+                },
+                "streak_at_unlock": {
+                    "type": "integer"
+                },
+                "tier_level": {
+                    "type": "integer"
+                }
+            }
+        },
+        "streaks.LeaderboardEntry": {
+            "type": "object",
+            "properties": {
+                "avatar_url": {
+                    "type": "string"
+                },
+                "badges_earned": {
+                    "type": "integer"
+                },
+                "best_streak": {
+                    "type": "integer"
+                },
+                "current_streak": {
+                    "type": "integer"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "rank": {
+                    "type": "integer"
+                },
+                "total_transaction_days": {
+                    "type": "integer"
+                },
+                "user_id": {
+                    "type": "integer"
+                }
+            }
+        },
+        "streaks.NextMilestone": {
+            "type": "object",
+            "properties": {
+                "badge_id": {
+                    "type": "integer"
+                },
+                "days_remaining": {
+                    "type": "integer"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "progress": {
+                    "description": "Percentage",
+                    "type": "number"
+                },
+                "required_streak_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "streaks.RecentBadge": {
+            "type": "object",
+            "properties": {
+                "badge_name": {
+                    "type": "string"
+                },
+                "earned_at": {
+                    "type": "string"
+                },
+                "streak_at_unlock": {
+                    "type": "integer"
+                },
+                "tier_level": {
+                    "type": "integer"
+                }
+            }
+        },
+        "streaks.StreakDashboard": {
+            "type": "object",
+            "properties": {
+                "badges": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/streaks.BadgeWithStatus"
+                    }
+                },
+                "best_streak": {
+                    "type": "integer"
+                },
+                "current_streak": {
+                    "type": "integer"
+                },
+                "days_until_reset": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "description": "True if transacted today",
+                    "type": "boolean"
+                },
+                "last_transaction_at": {
+                    "type": "string"
+                },
+                "next_milestone": {
+                    "$ref": "#/definitions/streaks.NextMilestone"
+                },
+                "recent_achievements": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/streaks.RecentBadge"
+                    }
+                },
+                "streak_health": {
+                    "$ref": "#/definitions/streaks.StreakHealth"
+                },
+                "streak_started_at": {
+                    "type": "string"
+                },
+                "total_transaction_days": {
+                    "type": "integer"
+                }
+            }
+        },
+        "streaks.StreakHealth": {
+            "type": "object",
+            "properties": {
+                "consecutive_days": {
+                    "type": "integer"
+                },
+                "daily_goal_achieved": {
+                    "type": "boolean"
+                },
+                "motivational_text": {
+                    "type": "string"
+                },
+                "rank_percentile": {
+                    "description": "Top X% of users",
+                    "type": "number"
+                },
+                "status": {
+                    "description": "\"on_fire\", \"active\", \"at_risk\", \"broken\"",
+                    "type": "string"
+                }
+            }
+        },
+        "streaks.StreakStatistics": {
+            "type": "object",
+            "properties": {
+                "average_current_streak": {
+                    "type": "number"
+                },
+                "highest_best_streak": {
+                    "type": "integer"
+                },
+                "highest_current_streak": {
+                    "type": "integer"
+                },
+                "total_platform_transaction_days": {
+                    "type": "integer"
+                },
+                "total_users_with_streaks": {
+                    "type": "integer"
                 }
             }
         },
