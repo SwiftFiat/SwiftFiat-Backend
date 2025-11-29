@@ -26,7 +26,7 @@ func (r Rewards) router(server *Server) {
 	r.rewardService = server.rewardService
 
 	// User endpoints
-	rewards := server.router.Group("/rewards")
+	rewards := server.router.Group("/api/v1/rewards")
 	rewards.Use(r.server.authMiddleware.AuthenticatedMiddleware())
 	{
 		rewards.GET("/balance", r.getUserRewardBalance)
@@ -36,7 +36,7 @@ func (r Rewards) router(server *Server) {
 	}
 
 	// Admin endpoints
-	admin := server.router.Group("/admin/rewards")
+	admin := server.router.Group("/api/v1/admin/rewards")
 	admin.Use(r.server.authMiddleware.AuthenticatedMiddleware())
 	{
 		// Configuration management
@@ -578,7 +578,6 @@ func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
-
 
 	stats, err := r.server.rewardService.GetRewardStatistics(ctx.Request.Context())
 	if err != nil {
