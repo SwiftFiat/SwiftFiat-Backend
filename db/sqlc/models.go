@@ -56,6 +56,20 @@ type AutoTopupSetting struct {
 	UpdatedAt                sql.NullTime   `json:"updated_at"`
 }
 
+// Defines achievement badges with unlock requirements
+type Badge struct {
+	ID                 int64          `json:"id"`
+	Name               string         `json:"name"`
+	Description        string         `json:"description"`
+	IconUrl            sql.NullString `json:"icon_url"`
+	RequiredStreakDays int32          `json:"required_streak_days"`
+	TierLevel          int32          `json:"tier_level"`
+	IsActive           bool           `json:"is_active"`
+	DisplayOrder       int32          `json:"display_order"`
+	CreatedAt          time.Time      `json:"created_at"`
+	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
 // User bank accounts for withdrawals and QR payments - users can have multiple accounts with one default
 type BankAccount struct {
 	ID                    uuid.UUID      `json:"id"`
@@ -714,6 +728,7 @@ type SwiftWallet struct {
 // Core transaction table storing all financial transactions
 type Transaction struct {
 	ID                   uuid.UUID      `json:"id"`
+	UserID               sql.NullInt64  `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      sql.NullString `json:"transaction_flow"`
@@ -733,6 +748,32 @@ type TransactionFee struct {
 	EffectiveTime   time.Time      `json:"effective_time"`
 	Source          string         `json:"source"`
 	CreatedAt       time.Time      `json:"created_at"`
+}
+
+// Tracks daily transaction streak metrics per user
+type TransactionStreak struct {
+	ID                   int64        `json:"id"`
+	UserID               int64        `json:"user_id"`
+	CurrentStreak        int32        `json:"current_streak"`
+	BestStreak           int32        `json:"best_streak"`
+	TotalTransactionDays int32        `json:"total_transaction_days"`
+	LastTransactionDate  sql.NullTime `json:"last_transaction_date"`
+	StreakStartedAt      sql.NullTime `json:"streak_started_at"`
+	CreatedAt            time.Time    `json:"created_at"`
+	UpdatedAt            time.Time    `json:"updated_at"`
+}
+
+// Audit log of all streak changes
+type TransactionStreakHistory struct {
+	ID              int64                 `json:"id"`
+	UserID          int64                 `json:"user_id"`
+	TransactionID   uuid.NullUUID         `json:"transaction_id"`
+	PreviousStreak  int32                 `json:"previous_streak"`
+	NewStreak       int32                 `json:"new_streak"`
+	TransactionDate time.Time             `json:"transaction_date"`
+	EventType       string                `json:"event_type"`
+	Metadata        pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt       time.Time             `json:"created_at"`
 }
 
 type User struct {
@@ -764,6 +805,15 @@ type User struct {
 	TotalRewardEarned string `json:"total_reward_earned"`
 	// Lifetime total reward points redeemed
 	TotalRewardRedeemed string `json:"total_reward_redeemed"`
+}
+
+// Junction table tracking which badges users have earned
+type UserBadge struct {
+	ID             int64     `json:"id"`
+	UserID         int64     `json:"user_id"`
+	BadgeID        int64     `json:"badge_id"`
+	EarnedAt       time.Time `json:"earned_at"`
+	StreakAtUnlock int32     `json:"streak_at_unlock"`
 }
 
 type UserReferral struct {

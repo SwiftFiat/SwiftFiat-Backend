@@ -1,11 +1,12 @@
 -- name: CreateTransaction :one
 INSERT INTO transactions (
+    user_id,
     type,
     description,
     transaction_flow,
     status
 ) VALUES (
-    $1, $2, $3, $4
+    $1, $2, $3, $4, $5
 ) RETURNING *;
 
 -- name: CreateSwapTransferMetadata :one

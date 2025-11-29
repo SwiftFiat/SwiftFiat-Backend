@@ -284,6 +284,7 @@ func (s *Server) Start() error {
 	Rewards{}.router(s)
 	QRCodeHandler{}.router(s)
 	SmartConvertHandler{}.router(s)
+	Streaks{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
