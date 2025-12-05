@@ -165,7 +165,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 	// Send notification asynchronously
 	go func() {
 		message := FormatRewardMessage(RewardTransactionTypeEarned, pointsEarned, params.ServiceInfo)
-		s.notif.SendRewardNotification(params.UserID, message, RewardTransactionTypeEarned, pointsEarned)
+		s.notif.SendRewardNotification(ctx, params.UserID, message, RewardTransactionTypeEarned, pointsEarned)
 	}()
 
 	return MapRewardTransactionToResponse(&rewardTx), nil
@@ -278,7 +278,7 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 	go func() {
 		serviceInfo := fmt.Sprintf("%s payment", params.ServiceType)
 		message := FormatRewardMessage(RewardTransactionTypeRedeemed, int64(pointsToRedeem), serviceInfo)
-		s.notif.SendRewardNotification(params.UserID, message, RewardTransactionTypeRedeemed, int64(pointsToRedeem))
+		s.notif.SendRewardNotification(ctx, params.UserID, message, RewardTransactionTypeRedeemed, int64(pointsToRedeem))
 	}()
 
 	return MapRewardRedemptionToResponse(&redemption), finalAmount, nil

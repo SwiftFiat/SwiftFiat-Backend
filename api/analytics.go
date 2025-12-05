@@ -5,30 +5,23 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 )
 
 type ActivityLog struct {
-	server  *Server
-	service activitylogs.ActivityLog
+	server *Server
 }
 
 func (h ActivityLog) router(server *Server) {
 	h.server = server
-	h.service = *activitylogs.NewActivityLog(h.server.queries)
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
-	serverGroupV1.GET("/activity-log/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserActivityLogs)
-	serverGroupV1.GET("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRecentActivityLogs)
-	serverGroupV1.GET("/active-users-today", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetActiveUsersCount)
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
 	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
 	serverGroupV1.GET("/total-received", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalReceived)
@@ -37,157 +30,9 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.GET("/crypto-transactions/counts", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetCryptoTransactionCounts)
 	serverGroupV1.GET("/crypto-transactions/amount", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalCryptoTransactionAmount)
 	serverGroupV1.GET("/crypto-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllCryptoTransactions)
-	serverGroupV1.DELETE("/activity-logs", h.server.authMiddleware.AuthenticatedMiddleware(), h.DeleteOldActivityLogs)
 	serverGroupV1.GET("/giftcard-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllGiftCardTransactions)
 	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
-	// serverGroupV1.GET("/disputes", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDisputes)
-}
-
-// GetUserActivityLogs godoc
-// @Summary      Get Activity Logs for a User
-// @Description  Retrieve activity logs for a specific user by their ID. Accessible only by admin, super admin, or customer rep.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Param        id     path      int  true  "User ID"
-// @Param        limit   query     int    false  "Limit number of logs"  default(50)
-// @Param        offset  query     int    false  "Offset for pagination"  default(0)
-// @Success      200  {object}  []activitylogs.AuditLogResponse
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/activity-log/{id} [get]
-func (h *ActivityLog) GetUserActivityLogs(c *gin.Context) {
-	user, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if user.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-
-	userID, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
-		return
-	}
-
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-
-	logs, err := h.service.GetByUser(c.Request.Context(), int32(userID), int32(limit), int32(offset))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get activity logs"})
-		return
-	}
-
-	var formattedLogs []activitylogs.AuditLogResponse
-	for _, log := range logs {
-		formattedLogs = append(formattedLogs, activitylogs.ToAuditLogResponse(log))
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", formattedLogs))
-
-}
-
-// GetRecentActivityLogs godoc
-// @Summary      Get Recent Activity Logs
-// @Description  Retrieve recent activity logs. Accessible only by admin, super admin, or customer rep.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Param        limit   query     int    false  "Limit number of logs"  default(50)
-// @Param        offset  query     int    false  "Offset for pagination"  default(0)
-// @Success      200  {object}  []activitylogs.AuditLogResponse
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/activity-logs [get]
-func (h *ActivityLog) GetRecentActivityLogs(c *gin.Context) {
-	user, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-	if user.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
-
-	logs, err := h.service.GetRecent(c.Request.Context(), int32(limit), int32(offset))
-	if err != nil {
-		h.server.logger.Error(fmt.Sprintf("error fetching recent activity logs: %v", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get recent activity logs"))
-		return
-	}
-	var formattedLogs []activitylogs.AuditLogResponse
-	for _, log := range logs {
-		formattedLogs = append(formattedLogs, activitylogs.ToAuditLogResponse(log))
-	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Activity logs retrieved successfully", formattedLogs))
-}
-
-// GetActiveUsersCount godoc
-// @Summary      Get Active Users Count
-// @Description  Retrieve the count of active users for a specific date. Accessible only by admin, super admin, or customer rep.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Param        date   query     string    false  "Date in YYYY-MM-DD format"  default(today's date)
-// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/active-users-today [get]
-func (h *ActivityLog) GetActiveUsersCount(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-	// Parse date from query params (default to today)
-	dateStr := c.DefaultQuery("date", time.Now().Format("2006-01-02"))
-	date, err := time.Parse("2006-01-02", dateStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid date format, use YYYY-MM-DD"})
-		return
-	}
-
-	// Calculate time range (whole day)
-	start := time.Date(date.Year(), date.Month(), date.Day(), 0, 0, 0, 0, date.Location())
-	end := start.Add(24 * time.Hour)
-
-	count, err := h.service.CountActiveUsers(c, start, end)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to count active users"})
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Active Users count retrieved successfully", gin.H{
-		"count": count,
-		"date":  dateStr,
-	}))
-
 }
 
 // ListAllTransactions godoc
@@ -507,42 +352,6 @@ func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Crypto transactions retrieved successfully", gin.H{
 		"transactions": transactions,
 	}))
-}
-
-// DeleteOldActivityLogs godoc
-// @Summary      Delete Old Activity Logs
-// @Description  Delete activity logs older than a certain threshold. Accessible only by admin.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  basemodels.SuccessResponse
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/activity-logs [delete]
-func (h *ActivityLog) DeleteOldActivityLogs(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-
-	err = h.service.DeleteOldLogs(c.Request.Context())
-	if err != nil {
-		h.server.logger.Error(fmt.Sprintf("error deleting old activity logs: %v", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete old activity logs"))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Old activity logs deleted successfully", nil))
 }
 
 // ListAllGiftCardTransactions godoc

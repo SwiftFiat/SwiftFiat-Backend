@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!-- <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -52,16 +52,7 @@
                 </div>
             </div>
 
-            <!-- <div class="progress-bar-container">
-                <div class="progress-bar" style="width: {{.Progress}}%;">
-                    {{.Progress}}% Complete
-                </div>
-            </div> -->
-
-            <!-- <div class="alert alert-info">
-                <strong>💰 Did you know?</strong> Your vault balance is earning {{.APY}}% APY! 
-                Keep saving and watch your money grow automatically.
-            </div> -->
+    
 
             <p class="message">
                 Keep up the momentum! Every deposit brings you closer to your financial goals.
@@ -88,5 +79,92 @@
             </p>
         </div>
     </div>
+</body>
+</html> -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SwiftFiat</title>
+</head>
+<body>
+    <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
+
+  <!-- Background Wrapper -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" 
+         style="background:#f8f8fb; padding:40px 0;">
+    <tr>
+      <td align="center">
+
+        <!-- Email Card -->
+        <table width="90%" cellpadding="0" cellspacing="0" 
+               style="max-width:600px; background:#fff; border-radius:10px; 
+                      box-shadow:0 4px 14px rgba(0,0,0,0.08); overflow:hidden;">
+
+          <!-- Header -->
+          <tr>
+            <td style="background:#542182; padding:25px 30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:22px; font-weight:600;">
+                💰 Deposit Successful
+              </h1>
+            </td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
+              <p style="margin-top:0;">
+                Hi <strong>{{userName}}</strong>,
+              </p>
+
+              <p>
+                Your recent deposit was processed successfully.  
+                Below are the details of the transaction:
+              </p>
+
+              <!-- Details Box -->
+              <table width="100%" style="background:#f4f0fa; border-left:4px solid #542182; margin:20px 0; padding:15px; border-radius:6px;">
+                <tr>
+                  <td style="padding:10px 15px; color:#542182;">
+                    <strong>Amount Deposited:</strong> {{.Amount}}{{.Currency}} <br>
+                    <strong>Source:</strong> {{.Wallet}} <br>
+                    <strong>Date:</strong> {{.TransactionTime}} <br>
+                    <strong>Reference:</strong> {{reference}}
+                  </td>
+                </tr>
+              </table>
+
+              <p>
+                Your updated balance is now available in your account dashboard.
+              </p>
+
+              <p>
+                If you did not authorize this deposit, please reach out to support immediately.
+              </p>
+
+              <p style="margin-bottom:0;">
+                Best regards, <br>
+                <strong>The SwiftFiat Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#fafafa; padding:20px 30px; text-align:center; color:#888; font-size:12px;">
+              © {{.Year}} SwiftFiat. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+        <!-- End Card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
 </body>
 </html>

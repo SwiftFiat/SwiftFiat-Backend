@@ -1,22 +1,5 @@
 basePath: /api/v1
 definitions:
-  activitylogs.AuditLogResponse:
-    properties:
-      action:
-        type: string
-      createdAt:
-        type: string
-      id:
-        format: int32
-        type: integer
-      ip:
-        type: string
-      userAgent:
-        type: string
-      userID:
-        format: int32
-        type: integer
-    type: object
   api.AdminEditUserRequest:
     properties:
       email:
@@ -169,6 +152,129 @@ definitions:
     - code
     - temp_token
     type: object
+  audit.Action:
+    enum:
+    - create
+    - read
+    - update
+    - delete
+    - execute
+    - view
+    - export
+    type: string
+    x-enum-varnames:
+    - ActionCreate
+    - ActionRead
+    - ActionUpdate
+    - ActionDelete
+    - ActionExecute
+    - ActionView
+    - ActionExport
+  audit.AuditStats:
+    properties:
+      critical_events:
+        type: integer
+      end_date:
+        type: string
+      error_events:
+        type: integer
+      failed_events:
+        type: integer
+      start_date:
+        type: string
+      successful_events:
+        type: integer
+      total_events:
+        type: integer
+      unique_actors:
+        type: integer
+      unique_entities:
+        type: integer
+      warning_events:
+        type: integer
+    type: object
+  audit.EventCategory:
+    enum:
+    - authentication
+    - authorization
+    - account
+    - transaction
+    - kyc
+    - card
+    - security
+    - compliance
+    - system
+    - vault_savings
+    type: string
+    x-enum-varnames:
+    - CategoryAuthentication
+    - CategoryAuthorization
+    - CategoryAccount
+    - CategoryTransaction
+    - CategoryKYC
+    - CategoryCard
+    - CategorySecurity
+    - CategoryCompliance
+    - CategorySystem
+    - CategoryVaultSavings
+  audit.LogResponse:
+    properties:
+      action:
+        $ref: '#/definitions/audit.Action'
+      actor_email:
+        type: string
+      actor_id:
+        type: integer
+      actor_type:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      entity_id:
+        type: string
+      entity_type:
+        type: string
+      error_message:
+        type: string
+      event_category:
+        $ref: '#/definitions/audit.EventCategory'
+      event_type:
+        type: string
+      id:
+        type: integer
+      ip_address:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      new_values:
+        additionalProperties: {}
+        type: object
+      old_values:
+        additionalProperties: {}
+        type: object
+      request_id:
+        type: string
+      severity:
+        $ref: '#/definitions/audit.Severity'
+      success:
+        type: boolean
+      user_agent:
+        type: string
+    type: object
+  audit.Severity:
+    enum:
+    - info
+    - warning
+    - error
+    - critical
+    type: string
+    x-enum-varnames:
+    - SeverityInfo
+    - SeverityWarning
+    - SeverityError
+    - SeverityCritical
   bankaccounts.BankAccountResponse:
     properties:
       account_name:
@@ -2460,184 +2566,6 @@ paths:
       summary: Reset broken streaks (Admin)
       tags:
       - Streaks/Admin
-  /api/v1/analytics/active-users-today:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve the count of active users for a specific date. Accessible
-        only by admin, super admin, or customer rep.
-      parameters:
-      - default: today's date
-        description: Date in YYYY-MM-DD format
-        in: query
-        name: date
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  additionalProperties: true
-                  type: object
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Active Users Count
-      tags:
-      - Analytics
-  /api/v1/analytics/activity-log/{id}:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve activity logs for a specific user by their ID. Accessible
-        only by admin, super admin, or customer rep.
-      parameters:
-      - description: User ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - default: 50
-        description: Limit number of logs
-        in: query
-        name: limit
-        type: integer
-      - default: 0
-        description: Offset for pagination
-        in: query
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/activitylogs.AuditLogResponse'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Activity Logs for a User
-      tags:
-      - Analytics
-  /api/v1/analytics/activity-logs:
-    delete:
-      consumes:
-      - application/json
-      description: Delete activity logs older than a certain threshold. Accessible
-        only by admin.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete Old Activity Logs
-      tags:
-      - Analytics
-    get:
-      consumes:
-      - application/json
-      description: Retrieve recent activity logs. Accessible only by admin, super
-        admin, or customer rep.
-      parameters:
-      - default: 50
-        description: Limit number of logs
-        in: query
-        name: limit
-        type: integer
-      - default: 0
-        description: Offset for pagination
-        in: query
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/activitylogs.AuditLogResponse'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Recent Activity Logs
-      tags:
-      - Analytics
   /api/v1/analytics/crypto-transactions:
     get:
       consumes:
@@ -3075,6 +3003,306 @@ paths:
       summary: Get User Wallets
       tags:
       - Analytics
+  /api/v1/audit/categories:
+    get:
+      description: Retrieves a breakdown of audit logs by category within a specified
+        date range.
+      parameters:
+      - description: Start Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Audit Category Breakdown
+      tags:
+      - Audit
+  /api/v1/audit/compliance/user-data/{userID}:
+    get:
+      description: Exports all audit logs related to a specific user for compliance
+        purposes.
+      parameters:
+      - description: User ID
+        in: path
+        name: userID
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User Data Export
+      tags:
+      - Audit
+  /api/v1/audit/critical:
+    get:
+      description: Retrieves recent critical audit events.
+      parameters:
+      - default: 100
+        description: Limit number of records
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Recent Critical Audit Events
+      tags:
+      - Audit
+  /api/v1/audit/entity/{entityType}/{entityID}/history:
+    get:
+      description: Retrieves the change history for a specific entity type and ID.
+      parameters:
+      - description: Entity Type
+        in: path
+        name: entityType
+        required: true
+        type: string
+      - description: Entity ID
+        in: path
+        name: entityID
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Entity Change History
+      tags:
+      - Audit
+  /api/v1/audit/logs/{id}:
+    get:
+      description: Retrieves a specific audit log entry by its ID.
+      parameters:
+      - description: Audit Log ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/audit.LogResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Audit Log by ID
+      tags:
+      - Audit
+  /api/v1/audit/stats:
+    get:
+      description: Retrieves aggregated audit statistics for a specified date range.
+      parameters:
+      - description: Start Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/audit.AuditStats'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Audit Statistics
+      tags:
+      - Audit
+  /api/v1/audit/suspicious:
+    get:
+      description: Identifies and retrieves potentially suspicious audit activities.
+      parameters:
+      - default: '"24h"'
+        description: Since duration (e.g., '24h', '7d')
+        in: query
+        name: since
+        type: string
+      - default: 5
+        description: Minimum number of events to consider suspicious
+        in: query
+        name: min_events
+        type: integer
+      - default: 100
+        description: Limit number of records
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Suspicious Audit Activities
+      tags:
+      - Audit
+  /api/v1/audit/user/{userID}/activity:
+    get:
+      description: Retrieves the activity timeline for a specific user within a date
+        range.
+      parameters:
+      - description: User ID
+        in: path
+        name: userID
+        required: true
+        type: integer
+      - description: Start Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: end_date
+        type: string
+      - default: 50
+        description: Limit number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User Activity Timeline
+      tags:
+      - Audit
   /api/v1/auth/account:
     delete:
       consumes:

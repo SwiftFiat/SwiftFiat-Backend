@@ -11,7 +11,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -32,7 +32,7 @@ type Vault struct {
 	walletService *wallet.WalletService
 	pushService   *service.PushNotificationService
 	emailService  *service.Plunk
-	auditLogs     *activitylogs.ActivityLog
+	audit         *audit.Service
 }
 
 func (v Vault) router(server *Server) {
@@ -40,7 +40,7 @@ func (v Vault) router(server *Server) {
 	v.walletService = v.server.walletService
 	v.pushService = v.server.pushNotification
 	v.emailService = v.server.emailService
-	v.auditLogs = v.server.auditLog
+	v.audit = v.server.auditService
 	v.vaultService = v.server.vaultService
 	v.yieldService = v.server.yieldService
 
@@ -139,6 +139,23 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create savings goal"))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultCreated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s created by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]interface{}{
+		"id":             goal.ID,
+		"user_id":        goal.UserID,
+		"name":           goal.VaultName,
+		"target_amount":  goal.GoalAmount,
+		"currency":       goal.Currency,	
+		"created_at":     time.Now(),
+		"updated_at":     time.Now(),
+		"status":         goal.Status,
+		"recurring_rule": goal.RecurringRule,
+	}
+	v.audit.Log(auditLog)
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("savings goal created successfully", goal))
 }
 
@@ -423,6 +440,22 @@ func (v *Vault) deposit(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]any{
+		"transaction_id": tx.ID,
+		"from_wallet_id": walletID,
+		"user_id":        activeUser.UserID,
+		"vault_id":       goal.ID,
+		"amount":         amount.String(),
+		"currency":       goal.Currency,
+		"status":         tx.Status,
+		"created_at":     time.Now(),
+	}
+	v.audit.Log(auditLog)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("deposit successful", vaultsavings.MapVaultTxToDepositResponse(tx)))
 }
 
@@ -524,6 +557,22 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 	} else {
 		message = "withdrawal successful"
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]any{
+		"transaction_id": tx.ID,
+		"to_wallet_id":   walletID,
+		"user_id":        activeUser.UserID,
+		"vault_id":       goal.ID,
+		"amount":         amount.String(),
+		"currency":       goal.Currency,
+		"status":         tx.Status,
+		"created_at":     time.Now(),
+	}
+	v.audit.Log(auditLog)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(message, vaultsavings.MapVaultTxToDepositResponse(tx)))
 }
@@ -736,6 +785,27 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultUpdated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s updated by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = map[string]any{
+		"name":        goal.VaultName,
+		"description": goal.Description,
+		"goal_amount": goal.GoalAmount,
+	}
+	newValues := make(map[string]interface{})
+	if req.Name != nil {
+		newValues["name"] = *req.Name
+	}
+	if req.Description != nil {
+		newValues["description"] = *req.Description
+	}
+	if req.GoalAmount != nil {
+		newValues["goal_amount"] = *req.GoalAmount
+	}
+	auditLog.NewValues = newValues
+	v.audit.Log(auditLog)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("savings goal updated successfully", nil))
 }
 
@@ -792,6 +862,23 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete savings goal"))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = map[string]interface{}{
+		"id":             goal.ID,
+		"user_id":        goal.UserID,
+		"name":           goal.VaultName,
+		"target_amount":  goal.GoalAmount,
+		"currency":       goal.Currency,
+		"created_at":     goal.CreatedAt,
+		"updated_at":     goal.UpdatedAt,
+		"status":         goal.Status,
+		"recurring_rule": goal.RecurringRule,
+	}
+	auditLog.NewValues = nil
+	v.audit.Log(auditLog)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("savings goal deleted successfully", nil))
 }
@@ -854,6 +941,17 @@ func (v *Vault) updateRecurringRule(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventRecurringRuleUpdated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Recurring deposit rule for vault %s updated by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = map[string]interface{}{
+		"recurring_rule": goal.RecurringRule,
+	}
+	auditLog.NewValues = map[string]interface{}{
+		"recurring_rule": req,
+	}
+	v.audit.Log(auditLog)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("recurring deposits updated successfully", nil))
 }
 
@@ -874,6 +972,10 @@ func (v *Vault) updateRecurringRule(ctx *gin.Context) {
 func (v *Vault) pauseRecurring(ctx *gin.Context) {
 	enabled := false
 	v.updateRecurringEnabled(ctx, &enabled)
+
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault_savings", ctx.Param("id"), "", nil, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", ctx.Param("id"))
+	v.audit.Log(auditLog)
 }
 
 // resumeRecurring godoc
@@ -893,6 +995,10 @@ func (v *Vault) pauseRecurring(ctx *gin.Context) {
 func (v *Vault) resumeRecurring(ctx *gin.Context) {
 	enabled := true
 	v.updateRecurringEnabled(ctx, &enabled)
+
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault_savings", ctx.Param("id"), "", nil, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", ctx.Param("id"))
+	v.audit.Log(auditLog)
 }
 
 func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
@@ -1019,6 +1125,16 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to trigger"))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventSchedulerTriggered, "vault_savings", "N/A", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Vault scheduler manually triggered by admin user %d", activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]interface{}{
+		"triggered_at": time.Now(),
+		"user_id":      activeUser.UserID,
+	}
+	v.audit.Log(auditLog)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("scheduler triggered", nil))
 }
@@ -1310,6 +1426,23 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigCreated, "vault_yield_configs", config.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Yield config %s created by user %d", config.ID.String(), activeUser.UserID)
+	auditLog.NewValues = map[string]interface{}{
+		"id":                      config.ID,
+		"currency":                config.Currency,
+		"apy_rate":                config.ApyRate,
+		"min_balance_for_yield":   config.MinBalanceForYield,
+		"compound_frequency":      config.CompoundFrequency,
+		"is_active":               config.IsActive,
+		"effective_from":          config.EffectiveFrom,
+		"effective_until":         config.EffectiveUntil,
+		"notes":                   config.Notes,
+		"created_at":              config.CreatedAt,
+	}
+	v.audit.Log(auditLog)
+
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", *vaultsavings.MapVaultYieldConfigToResponse(config)))
 }
 
@@ -1363,11 +1496,41 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
+	// get existing config to compare old values
+	existingConfig, err := v.server.queries.GetYieldConfigByID(ctx.Request.Context(), configID)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to fetch existing yield config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch existing yield config"))
+		return
+	}
+
 	if err := v.yieldService.UpdateYieldConfig(ctx.Request.Context(), configID, req); err != nil {
 		v.server.logger.Error(fmt.Sprintf("Failed to update yield config: %v", err))
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update yield config"))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigUpdated, "vault_yield_configs", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Yield config %s updated by user %d", configID.String(), activeUser.UserID)
+	auditLog.NewValues = map[string]any{
+		"apy_rate":                req.ApyRate,
+		"min_balance_for_yield":   req.MinBalanceForYield,
+		"compound_frequency":      req.CompoundFrequency,
+		"is_active":               req.IsActive,
+		"effective_until":         req.EffectiveUntil,
+		"notes":                   req.Notes,
+	}
+
+	auditLog.OldValues = map[string]any{
+		"apy_rate":                existingConfig.ApyRate,
+		"min_balance_for_yield":   existingConfig.MinBalanceForYield,
+		"compound_frequency":      existingConfig.CompoundFrequency,
+		"is_active":               existingConfig.IsActive,
+		"effective_until":         existingConfig.EffectiveUntil,
+		"notes":                   existingConfig.Notes,
+	}
+	v.audit.Log(auditLog)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config updated", nil))
 }
@@ -1410,6 +1573,11 @@ func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeactivated, "vault_yield_configs", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Yield config %s deactivated by user %d", configID.String(), activeUser.UserID)
+	v.audit.Log(auditLog)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config deactivated", nil))
 }
 
@@ -1443,11 +1611,17 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 		return
 	}
 
-	result := map[string]interface{}{
+	result := map[string]any{
 		"success_count":   successCount,
 		"failure_count":   failureCount,
 		"total_processed": successCount + failureCount,
 	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldsProcessed, "vault_savings", "", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Yields processed by admin user %d: %d success, %d failure", activeUser.UserID, successCount, failureCount)
+	auditLog.NewValues = result
+	v.audit.Log(auditLog)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yields processed", result))
 }

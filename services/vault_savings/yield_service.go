@@ -10,6 +10,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -95,6 +96,7 @@ type YieldCalculationResult struct {
 	EffectiveAPY    string // Actual APY achieved (may differ due to compounding)
 	CalculatedAt    time.Time
 	CompoundingUsed bool
+	Reference 	 string
 }
 
 // ============================================================================
@@ -309,7 +311,7 @@ func (ys *YieldService) creditYieldToVault(
 	}
 
 	// Create vault transaction for yield credit
-	transactionRef := fmt.Sprintf("YIELD_%s_%s", vault.ID.String()[:8], time.Now().Format("20060102"))
+	transactionRef := utils.NewTxRef("yield")
 	balanceBefore := vault.CurrentBalance
 	balanceAfter := newBalance.StringFixed(4)
 
@@ -609,6 +611,7 @@ func (ys *YieldService) sendYieldNotification(vault *db.VaultSaving, result *Yie
 		result.YieldAmount,
 		vault.Currency,
 		result.EndBalance,
+		result.Reference,
 	); err != nil {
 		ys.logger.Error(fmt.Sprintf("Failed to send yield email: %v", err))
 	}

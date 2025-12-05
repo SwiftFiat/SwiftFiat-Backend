@@ -9,81 +9,342 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
-const countActiveUsers = `-- name: CountActiveUsers :one
-SELECT COUNT(DISTINCT user_id) as active_users
+const checkRateLimit = `-- name: CheckRateLimit :one
+SELECT COUNT(*) as request_count
 FROM audit_logs
-WHERE created_at >= $1 AND created_at < $2
-  AND user_id IS NOT NULL
+WHERE event_type = $1
+    AND actor_id = $2
+    AND created_at >= NOW() - $3::INTERVAL
 `
 
-type CountActiveUsersParams struct {
+type CheckRateLimitParams struct {
+	EventType string        `json:"event_type"`
+	ActorID   sql.NullInt64 `json:"actor_id"`
+	Column3   int64         `json:"column_3"`
+}
+
+func (q *Queries) CheckRateLimit(ctx context.Context, arg CheckRateLimitParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, checkRateLimit, arg.EventType, arg.ActorID, arg.Column3)
+	var request_count int64
+	err := row.Scan(&request_count)
+	return request_count, err
+}
+
+const countAuditLogsByActor = `-- name: CountAuditLogsByActor :one
+SELECT COUNT(*) FROM audit_logs
+WHERE actor_id = $1
+    AND created_at >= $2
+    AND created_at <= $3
+`
+
+type CountAuditLogsByActorParams struct {
+	ActorID     sql.NullInt64 `json:"actor_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	CreatedAt_2 time.Time     `json:"created_at_2"`
+}
+
+func (q *Queries) CountAuditLogsByActor(ctx context.Context, arg CountAuditLogsByActorParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogsByActor, arg.ActorID, arg.CreatedAt, arg.CreatedAt_2)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const countAuditLogsByEntity = `-- name: CountAuditLogsByEntity :one
+SELECT COUNT(*) FROM audit_logs
+WHERE entity_type = $1
+    AND entity_id = $2
+    AND created_at >= $3
+    AND created_at <= $4
+`
+
+type CountAuditLogsByEntityParams struct {
+	EntityType  string    `json:"entity_type"`
+	EntityID    string    `json:"entity_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
 }
 
-func (q *Queries) CountActiveUsers(ctx context.Context, arg CountActiveUsersParams) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countActiveUsers, arg.CreatedAt, arg.CreatedAt_2)
-	var active_users int64
-	err := row.Scan(&active_users)
-	return active_users, err
+func (q *Queries) CountAuditLogsByEntity(ctx context.Context, arg CountAuditLogsByEntityParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditLogsByEntity,
+		arg.EntityType,
+		arg.EntityID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+	)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
-const createAuditLog = `-- name: CreateAuditLog :exec
-INSERT INTO audit_logs (user_id, action, ip, user_agent)
-VALUES ($1, $2, $3, $4)
+const countEventsByCategory = `-- name: CountEventsByCategory :many
+SELECT 
+    event_category,
+    COUNT(*) as count
+FROM audit_logs
+WHERE created_at >= $1
+    AND created_at <= $2
+GROUP BY event_category
+ORDER BY count DESC
+`
+
+type CountEventsByCategoryParams struct {
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+}
+
+type CountEventsByCategoryRow struct {
+	EventCategory AuditEventCategory `json:"event_category"`
+	Count         int64              `json:"count"`
+}
+
+func (q *Queries) CountEventsByCategory(ctx context.Context, arg CountEventsByCategoryParams) ([]CountEventsByCategoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, countEventsByCategory, arg.CreatedAt, arg.CreatedAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountEventsByCategoryRow{}
+	for rows.Next() {
+		var i CountEventsByCategoryRow
+		if err := rows.Scan(&i.EventCategory, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countEventsBySeverity = `-- name: CountEventsBySeverity :many
+SELECT 
+    severity,
+    COUNT(*) as count
+FROM audit_logs
+WHERE created_at >= $1
+    AND created_at <= $2
+GROUP BY severity
+ORDER BY 
+    CASE severity
+        WHEN 'critical' THEN 1
+        WHEN 'error' THEN 2
+        WHEN 'warning' THEN 3
+        WHEN 'info' THEN 4
+    END
+`
+
+type CountEventsBySeverityParams struct {
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+}
+
+type CountEventsBySeverityRow struct {
+	Severity AuditSeverity `json:"severity"`
+	Count    int64         `json:"count"`
+}
+
+func (q *Queries) CountEventsBySeverity(ctx context.Context, arg CountEventsBySeverityParams) ([]CountEventsBySeverityRow, error) {
+	rows, err := q.db.QueryContext(ctx, countEventsBySeverity, arg.CreatedAt, arg.CreatedAt_2)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CountEventsBySeverityRow{}
+	for rows.Next() {
+		var i CountEventsBySeverityRow
+		if err := rows.Scan(&i.Severity, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const countFailedLoginAttempts = `-- name: CountFailedLoginAttempts :one
+SELECT COUNT(*) FROM audit_logs
+WHERE event_type LIKE 'user.login.fail%'
+    AND actor_email = $1
+    AND created_at >= $2
+`
+
+type CountFailedLoginAttemptsParams struct {
+	ActorEmail sql.NullString `json:"actor_email"`
+	CreatedAt  time.Time      `json:"created_at"`
+}
+
+func (q *Queries) CountFailedLoginAttempts(ctx context.Context, arg CountFailedLoginAttemptsParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countFailedLoginAttempts, arg.ActorEmail, arg.CreatedAt)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const createAuditLog = `-- name: CreateAuditLog :one
+INSERT INTO audit_logs (
+    event_category,
+    event_type,
+    severity,
+    actor_id,
+    actor_type,
+    actor_email,
+    entity_type,
+    entity_id,
+    ip_address,
+    user_agent,
+    request_id,
+    action,
+    description,
+    old_values,
+    new_values,
+    metadata,
+    success,
+    error_message
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18
+) RETURNING id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at
 `
 
 type CreateAuditLogParams struct {
-	UserID    int32          `json:"user_id"`
-	Action    string         `json:"action"`
-	Ip        sql.NullString `json:"ip"`
-	UserAgent sql.NullString `json:"user_agent"`
+	EventCategory AuditEventCategory    `json:"event_category"`
+	EventType     string                `json:"event_type"`
+	Severity      AuditSeverity         `json:"severity"`
+	ActorID       sql.NullInt64         `json:"actor_id"`
+	ActorType     string                `json:"actor_type"`
+	ActorEmail    sql.NullString        `json:"actor_email"`
+	EntityType    string                `json:"entity_type"`
+	EntityID      string                `json:"entity_id"`
+	IpAddress     pqtype.Inet           `json:"ip_address"`
+	UserAgent     sql.NullString        `json:"user_agent"`
+	RequestID     sql.NullString        `json:"request_id"`
+	Action        string                `json:"action"`
+	Description   string                `json:"description"`
+	OldValues     pqtype.NullRawMessage `json:"old_values"`
+	NewValues     pqtype.NullRawMessage `json:"new_values"`
+	Metadata      pqtype.NullRawMessage `json:"metadata"`
+	Success       bool                  `json:"success"`
+	ErrorMessage  sql.NullString        `json:"error_message"`
 }
 
-func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) error {
-	_, err := q.db.ExecContext(ctx, createAuditLog,
-		arg.UserID,
-		arg.Action,
-		arg.Ip,
+func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) (AuditLog, error) {
+	row := q.db.QueryRowContext(ctx, createAuditLog,
+		arg.EventCategory,
+		arg.EventType,
+		arg.Severity,
+		arg.ActorID,
+		arg.ActorType,
+		arg.ActorEmail,
+		arg.EntityType,
+		arg.EntityID,
+		arg.IpAddress,
 		arg.UserAgent,
+		arg.RequestID,
+		arg.Action,
+		arg.Description,
+		arg.OldValues,
+		arg.NewValues,
+		arg.Metadata,
+		arg.Success,
+		arg.ErrorMessage,
 	)
-	return err
+	var i AuditLog
+	err := row.Scan(
+		&i.ID,
+		&i.EventCategory,
+		&i.EventType,
+		&i.Severity,
+		&i.ActorID,
+		&i.ActorType,
+		&i.ActorEmail,
+		&i.EntityType,
+		&i.EntityID,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.RequestID,
+		&i.Action,
+		&i.Description,
+		&i.OldValues,
+		&i.NewValues,
+		&i.Metadata,
+		&i.Success,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-const deleteAllAuditLogs = `-- name: DeleteAllAuditLogs :exec
-DELETE FROM audit_logs
+const getAuditLogByID = `-- name: GetAuditLogByID :one
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE id = $1
 `
 
-func (q *Queries) DeleteAllAuditLogs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteAllAuditLogs)
-	return err
+func (q *Queries) GetAuditLogByID(ctx context.Context, id int64) (AuditLog, error) {
+	row := q.db.QueryRowContext(ctx, getAuditLogByID, id)
+	var i AuditLog
+	err := row.Scan(
+		&i.ID,
+		&i.EventCategory,
+		&i.EventType,
+		&i.Severity,
+		&i.ActorID,
+		&i.ActorType,
+		&i.ActorEmail,
+		&i.EntityType,
+		&i.EntityID,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.RequestID,
+		&i.Action,
+		&i.Description,
+		&i.OldValues,
+		&i.NewValues,
+		&i.Metadata,
+		&i.Success,
+		&i.ErrorMessage,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-const deleteOldAuditLogs = `-- name: DeleteOldAuditLogs :exec
-DELETE FROM audit_logs
-WHERE created_at < NOW() - INTERVAL '3 days'
-`
-
-func (q *Queries) DeleteOldAuditLogs(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, deleteOldAuditLogs)
-	return err
-}
-
-const getAuditLogs = `-- name: GetAuditLogs :many
-SELECT id, user_id, action, created_at, ip, user_agent FROM audit_logs
+const getAuditLogsByActor = `-- name: GetAuditLogsByActor :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE actor_id = $1
+    AND created_at >= $2
+    AND created_at <= $3
 ORDER BY created_at DESC
-LIMIT $1 OFFSET $2
+LIMIT $4 OFFSET $5
 `
 
-type GetAuditLogsParams struct {
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+type GetAuditLogsByActorParams struct {
+	ActorID     sql.NullInt64 `json:"actor_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	CreatedAt_2 time.Time     `json:"created_at_2"`
+	Limit       int32         `json:"limit"`
+	Offset      int32         `json:"offset"`
 }
 
-func (q *Queries) GetAuditLogs(ctx context.Context, arg GetAuditLogsParams) ([]AuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogs, arg.Limit, arg.Offset)
+func (q *Queries) GetAuditLogsByActor(ctx context.Context, arg GetAuditLogsByActorParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByActor,
+		arg.ActorID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -93,11 +354,25 @@ func (q *Queries) GetAuditLogs(ctx context.Context, arg GetAuditLogsParams) ([]A
 		var i AuditLog
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
-			&i.Action,
-			&i.CreatedAt,
-			&i.Ip,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
 			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -112,21 +387,31 @@ func (q *Queries) GetAuditLogs(ctx context.Context, arg GetAuditLogsParams) ([]A
 	return items, nil
 }
 
-const getAuditLogsByUser = `-- name: GetAuditLogsByUser :many
-SELECT id, user_id, action, created_at, ip, user_agent FROM audit_logs
-WHERE user_id = $1
+const getAuditLogsByCategory = `-- name: GetAuditLogsByCategory :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE event_category = $1
+    AND created_at >= $2
+    AND created_at <= $3
 ORDER BY created_at DESC
-LIMIT $2 OFFSET $3
+LIMIT $4 OFFSET $5
 `
 
-type GetAuditLogsByUserParams struct {
-	UserID int32 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+type GetAuditLogsByCategoryParams struct {
+	EventCategory AuditEventCategory `json:"event_category"`
+	CreatedAt     time.Time          `json:"created_at"`
+	CreatedAt_2   time.Time          `json:"created_at_2"`
+	Limit         int32              `json:"limit"`
+	Offset        int32              `json:"offset"`
 }
 
-func (q *Queries) GetAuditLogsByUser(ctx context.Context, arg GetAuditLogsByUserParams) ([]AuditLog, error) {
-	rows, err := q.db.QueryContext(ctx, getAuditLogsByUser, arg.UserID, arg.Limit, arg.Offset)
+func (q *Queries) GetAuditLogsByCategory(ctx context.Context, arg GetAuditLogsByCategoryParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByCategory,
+		arg.EventCategory,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -136,11 +421,870 @@ func (q *Queries) GetAuditLogsByUser(ctx context.Context, arg GetAuditLogsByUser
 		var i AuditLog
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
-			&i.Action,
-			&i.CreatedAt,
-			&i.Ip,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
 			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditLogsByEntity = `-- name: GetAuditLogsByEntity :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE entity_type = $1
+    AND entity_id = $2
+    AND created_at >= $3
+    AND created_at <= $4
+ORDER BY created_at DESC
+LIMIT $5 OFFSET $6
+`
+
+type GetAuditLogsByEntityParams struct {
+	EntityType  string    `json:"entity_type"`
+	EntityID    string    `json:"entity_id"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+	Limit       int32     `json:"limit"`
+	Offset      int32     `json:"offset"`
+}
+
+func (q *Queries) GetAuditLogsByEntity(ctx context.Context, arg GetAuditLogsByEntityParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByEntity,
+		arg.EntityType,
+		arg.EntityID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditLogsByEventType = `-- name: GetAuditLogsByEventType :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE event_type = $1
+    AND created_at >= $2
+    AND created_at <= $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type GetAuditLogsByEventTypeParams struct {
+	EventType   string    `json:"event_type"`
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+	Limit       int32     `json:"limit"`
+	Offset      int32     `json:"offset"`
+}
+
+func (q *Queries) GetAuditLogsByEventType(ctx context.Context, arg GetAuditLogsByEventTypeParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByEventType,
+		arg.EventType,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditLogsByIPAddress = `-- name: GetAuditLogsByIPAddress :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE ip_address = $1
+    AND created_at >= $2
+    AND created_at <= $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type GetAuditLogsByIPAddressParams struct {
+	IpAddress   pqtype.Inet `json:"ip_address"`
+	CreatedAt   time.Time   `json:"created_at"`
+	CreatedAt_2 time.Time   `json:"created_at_2"`
+	Limit       int32       `json:"limit"`
+	Offset      int32       `json:"offset"`
+}
+
+func (q *Queries) GetAuditLogsByIPAddress(ctx context.Context, arg GetAuditLogsByIPAddressParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByIPAddress,
+		arg.IpAddress,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditLogsByRequestID = `-- name: GetAuditLogsByRequestID :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE request_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) GetAuditLogsByRequestID(ctx context.Context, requestID sql.NullString) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsByRequestID, requestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditLogsBySeverity = `-- name: GetAuditLogsBySeverity :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE severity = $1
+    AND created_at >= $2
+    AND created_at <= $3
+ORDER BY created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type GetAuditLogsBySeverityParams struct {
+	Severity    AuditSeverity `json:"severity"`
+	CreatedAt   time.Time     `json:"created_at"`
+	CreatedAt_2 time.Time     `json:"created_at_2"`
+	Limit       int32         `json:"limit"`
+	Offset      int32         `json:"offset"`
+}
+
+func (q *Queries) GetAuditLogsBySeverity(ctx context.Context, arg GetAuditLogsBySeverityParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAuditLogsBySeverity,
+		arg.Severity,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAuditStatsByDateRange = `-- name: GetAuditStatsByDateRange :one
+SELECT 
+    COUNT(*) as total_events,
+    COUNT(DISTINCT actor_id) as unique_actors,
+    COUNT(DISTINCT entity_id) as unique_entities,
+    COUNT(*) FILTER (WHERE success = true) as successful_events,
+    COUNT(*) FILTER (WHERE success = false) as failed_events,
+    COUNT(*) FILTER (WHERE severity = 'critical') as critical_events,
+    COUNT(*) FILTER (WHERE severity = 'error') as error_events,
+    COUNT(*) FILTER (WHERE severity = 'warning') as warning_events
+FROM audit_logs
+WHERE created_at >= $1
+    AND created_at <= $2
+`
+
+type GetAuditStatsByDateRangeParams struct {
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+}
+
+type GetAuditStatsByDateRangeRow struct {
+	TotalEvents      int64 `json:"total_events"`
+	UniqueActors     int64 `json:"unique_actors"`
+	UniqueEntities   int64 `json:"unique_entities"`
+	SuccessfulEvents int64 `json:"successful_events"`
+	FailedEvents     int64 `json:"failed_events"`
+	CriticalEvents   int64 `json:"critical_events"`
+	ErrorEvents      int64 `json:"error_events"`
+	WarningEvents    int64 `json:"warning_events"`
+}
+
+func (q *Queries) GetAuditStatsByDateRange(ctx context.Context, arg GetAuditStatsByDateRangeParams) (GetAuditStatsByDateRangeRow, error) {
+	row := q.db.QueryRowContext(ctx, getAuditStatsByDateRange, arg.CreatedAt, arg.CreatedAt_2)
+	var i GetAuditStatsByDateRangeRow
+	err := row.Scan(
+		&i.TotalEvents,
+		&i.UniqueActors,
+		&i.UniqueEntities,
+		&i.SuccessfulEvents,
+		&i.FailedEvents,
+		&i.CriticalEvents,
+		&i.ErrorEvents,
+		&i.WarningEvents,
+	)
+	return i, err
+}
+
+const getEntityChangeHistory = `-- name: GetEntityChangeHistory :many
+SELECT 
+    id,
+    event_type,
+    action,
+    actor_id,
+    actor_email,
+    old_values,
+    new_values,
+    description,
+    created_at
+FROM audit_logs
+WHERE entity_type = $1
+    AND entity_id = $2
+    AND action IN ('create', 'update', 'delete')
+ORDER BY created_at ASC
+`
+
+type GetEntityChangeHistoryParams struct {
+	EntityType string `json:"entity_type"`
+	EntityID   string `json:"entity_id"`
+}
+
+type GetEntityChangeHistoryRow struct {
+	ID          int64                 `json:"id"`
+	EventType   string                `json:"event_type"`
+	Action      string                `json:"action"`
+	ActorID     sql.NullInt64         `json:"actor_id"`
+	ActorEmail  sql.NullString        `json:"actor_email"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	Description string                `json:"description"`
+	CreatedAt   time.Time             `json:"created_at"`
+}
+
+func (q *Queries) GetEntityChangeHistory(ctx context.Context, arg GetEntityChangeHistoryParams) ([]GetEntityChangeHistoryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEntityChangeHistory, arg.EntityType, arg.EntityID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetEntityChangeHistoryRow{}
+	for rows.Next() {
+		var i GetEntityChangeHistoryRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventType,
+			&i.Action,
+			&i.ActorID,
+			&i.ActorEmail,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Description,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getIPAddressActivity = `-- name: GetIPAddressActivity :many
+SELECT 
+    ip_address,
+    COUNT(DISTINCT actor_id) as unique_users,
+    COUNT(*) as total_events,
+    COUNT(*) FILTER (WHERE success = false) as failed_events,
+    MIN(created_at) as first_seen,
+    MAX(created_at) as last_seen
+FROM audit_logs
+WHERE created_at >= $1
+    AND ip_address IS NOT NULL
+GROUP BY ip_address
+HAVING COUNT(*) >= $2
+ORDER BY total_events DESC
+LIMIT $3
+`
+
+type GetIPAddressActivityParams struct {
+	CreatedAt time.Time   `json:"created_at"`
+	Column2   interface{} `json:"column_2"`
+	Limit     int32       `json:"limit"`
+}
+
+type GetIPAddressActivityRow struct {
+	IpAddress    pqtype.Inet `json:"ip_address"`
+	UniqueUsers  int64       `json:"unique_users"`
+	TotalEvents  int64       `json:"total_events"`
+	FailedEvents int64       `json:"failed_events"`
+	FirstSeen    interface{} `json:"first_seen"`
+	LastSeen     interface{} `json:"last_seen"`
+}
+
+func (q *Queries) GetIPAddressActivity(ctx context.Context, arg GetIPAddressActivityParams) ([]GetIPAddressActivityRow, error) {
+	rows, err := q.db.QueryContext(ctx, getIPAddressActivity, arg.CreatedAt, arg.Column2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetIPAddressActivityRow{}
+	for rows.Next() {
+		var i GetIPAddressActivityRow
+		if err := rows.Scan(
+			&i.IpAddress,
+			&i.UniqueUsers,
+			&i.TotalEvents,
+			&i.FailedEvents,
+			&i.FirstSeen,
+			&i.LastSeen,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRecentCriticalEvents = `-- name: GetRecentCriticalEvents :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE severity IN ('error', 'critical')
+    AND created_at >= NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC
+LIMIT $1
+`
+
+func (q *Queries) GetRecentCriticalEvents(ctx context.Context, limit int32) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getRecentCriticalEvents, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRecentEntityActivity = `-- name: GetRecentEntityActivity :many
+SELECT 
+    entity_type,
+    entity_id,
+    COUNT(*) as activity_count,
+    MAX(created_at) as last_activity,
+    COUNT(DISTINCT actor_id) as unique_actors
+FROM audit_logs
+WHERE created_at >= $1
+GROUP BY entity_type, entity_id
+ORDER BY activity_count DESC
+LIMIT $2
+`
+
+type GetRecentEntityActivityParams struct {
+	CreatedAt time.Time `json:"created_at"`
+	Limit     int32     `json:"limit"`
+}
+
+type GetRecentEntityActivityRow struct {
+	EntityType    string      `json:"entity_type"`
+	EntityID      string      `json:"entity_id"`
+	ActivityCount int64       `json:"activity_count"`
+	LastActivity  interface{} `json:"last_activity"`
+	UniqueActors  int64       `json:"unique_actors"`
+}
+
+func (q *Queries) GetRecentEntityActivity(ctx context.Context, arg GetRecentEntityActivityParams) ([]GetRecentEntityActivityRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRecentEntityActivity, arg.CreatedAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRecentEntityActivityRow{}
+	for rows.Next() {
+		var i GetRecentEntityActivityRow
+		if err := rows.Scan(
+			&i.EntityType,
+			&i.EntityID,
+			&i.ActivityCount,
+			&i.LastActivity,
+			&i.UniqueActors,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSuspiciousActivities = `-- name: GetSuspiciousActivities :many
+SELECT 
+    actor_id,
+    actor_email,
+    ip_address,
+    COUNT(*) as event_count,
+    MAX(created_at)::timestamptz as last_event
+FROM audit_logs
+WHERE 
+    severity IN ('error', 'critical')
+    AND created_at >= $1
+GROUP BY actor_id, actor_email, ip_address
+HAVING COUNT(*) >= $2
+ORDER BY event_count DESC, last_event DESC
+LIMIT $3
+`
+
+type GetSuspiciousActivitiesParams struct {
+	CreatedAt time.Time   `json:"created_at"`
+	Column2   interface{} `json:"column_2"`
+	Limit     int32       `json:"limit"`
+}
+
+type GetSuspiciousActivitiesRow struct {
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	EventCount int64          `json:"event_count"`
+	LastEvent  time.Time      `json:"last_event"`
+}
+
+func (q *Queries) GetSuspiciousActivities(ctx context.Context, arg GetSuspiciousActivitiesParams) ([]GetSuspiciousActivitiesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getSuspiciousActivities, arg.CreatedAt, arg.Column2, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetSuspiciousActivitiesRow{}
+	for rows.Next() {
+		var i GetSuspiciousActivitiesRow
+		if err := rows.Scan(
+			&i.ActorID,
+			&i.ActorEmail,
+			&i.IpAddress,
+			&i.EventCount,
+			&i.LastEvent,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getUserActivityTimeline = `-- name: GetUserActivityTimeline :many
+SELECT 
+    al.id,
+    al.event_category,
+    al.event_type,
+    al.severity,
+    al.actor_id,
+    al.actor_email,
+    al.entity_type,
+    al.entity_id,
+    al.action,
+    al.description,
+    al.success,
+    al.ip_address,
+    al.user_agent,
+    al.metadata,
+    al.created_at
+FROM audit_logs al
+WHERE al.actor_id = $1
+    AND al.created_at >= $2
+    AND al.created_at <= $3
+ORDER BY al.created_at DESC
+LIMIT $4 OFFSET $5
+`
+
+type GetUserActivityTimelineParams struct {
+	ActorID     sql.NullInt64 `json:"actor_id"`
+	CreatedAt   time.Time     `json:"created_at"`
+	CreatedAt_2 time.Time     `json:"created_at_2"`
+	Limit       int32         `json:"limit"`
+	Offset      int32         `json:"offset"`
+}
+
+type GetUserActivityTimelineRow struct {
+	ID            int64                 `json:"id"`
+	EventCategory AuditEventCategory    `json:"event_category"`
+	EventType     string                `json:"event_type"`
+	Severity      AuditSeverity         `json:"severity"`
+	ActorID       sql.NullInt64         `json:"actor_id"`
+	ActorEmail    sql.NullString        `json:"actor_email"`
+	EntityType    string                `json:"entity_type"`
+	EntityID      string                `json:"entity_id"`
+	Action        string                `json:"action"`
+	Description   string                `json:"description"`
+	Success       bool                  `json:"success"`
+	IpAddress     pqtype.Inet           `json:"ip_address"`
+	UserAgent     sql.NullString        `json:"user_agent"`
+	Metadata      pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt     time.Time             `json:"created_at"`
+}
+
+func (q *Queries) GetUserActivityTimeline(ctx context.Context, arg GetUserActivityTimelineParams) ([]GetUserActivityTimelineRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserActivityTimeline,
+		arg.ActorID,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserActivityTimelineRow{}
+	for rows.Next() {
+		var i GetUserActivityTimelineRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.Action,
+			&i.Description,
+			&i.Success,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchAuditLogs = `-- name: SearchAuditLogs :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE 
+    ($1::audit_event_category IS NULL OR event_category = $1)
+    AND ($2::TEXT IS NULL OR event_type = $2)
+    AND ($3::audit_severity IS NULL OR severity = $3)
+    AND ($4::BIGINT IS NULL OR actor_id = $4)
+    AND ($5::TEXT IS NULL OR entity_type = $5)
+    AND ($6::TEXT IS NULL OR entity_id = $6)
+    AND created_at >= $7
+    AND created_at <= $8
+ORDER BY created_at DESC
+LIMIT $9 OFFSET $10
+`
+
+type SearchAuditLogsParams struct {
+	Column1     AuditEventCategory `json:"column_1"`
+	Column2     string             `json:"column_2"`
+	Column3     AuditSeverity      `json:"column_3"`
+	Column4     int64              `json:"column_4"`
+	Column5     string             `json:"column_5"`
+	Column6     string             `json:"column_6"`
+	CreatedAt   time.Time          `json:"created_at"`
+	CreatedAt_2 time.Time          `json:"created_at_2"`
+	Limit       int32              `json:"limit"`
+	Offset      int32              `json:"offset"`
+}
+
+func (q *Queries) SearchAuditLogs(ctx context.Context, arg SearchAuditLogsParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, searchAuditLogs,
+		arg.Column1,
+		arg.Column2,
+		arg.Column3,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

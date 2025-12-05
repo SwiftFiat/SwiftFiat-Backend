@@ -3,81 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat - Vault Withdrawal 2FA Required</title>
-    <link rel="stylesheet" href="style.css">
+    <title>SwiftFiat</title>
 </head>
+    <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
 
-<body>
-    <div class="email-wrapper">
-        <div class="email-header">
-            <div class="logo">SwiftFiat</div>
-            <div class="header-subtitle">Smart Savings, Secure Future</div>
-        </div>
-        
-        <div class="email-body">
-            <div class="icon">🔐</div>
+  <!-- Background Wrapper -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" 
+         style="background:#f8f8fb; padding:40px 0;">
+    <tr>
+      <td align="center">
 
-            <h2 class="greeting">Security Check Required, {{.FirstName}}</h2>
+        <!-- Email Card -->
+        <table width="90%" cellpadding="0" cellspacing="0" 
+               style="max-width:600px; background:#fff; border-radius:10px; 
+                      box-shadow:0 4px 14px rgba(0,0,0,0.08); overflow:hidden;">
 
-            <p class="message">
-                You've initiated a withdrawal from your vault. For your security, 
-                we need to verify this transaction using two-factor authentication (2FA).
-            </p>
+          <!-- Header -->
+          <tr>
+            <td style="background:#542182; padding:25px 30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:22px; font-weight:600;">
+                🔐 Withdrawal Verification Required
+              </h1>
+            </td>
+          </tr>
 
-            <div class="alert alert-warning">
-                <strong>⚠️ Action Required</strong><br>
-                This withdrawal requires 2FA verification within the next 15 minutes.
-            </div>
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
 
-            <div class="card">
-                <div class="card-title">Withdrawal Details</div>
-                <div class="detail-row">
-                    <span class="detail-label">Transaction ID</span>
-                    <span class="detail-value">{{.TransactionID}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Amount</span>
-                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Initiated At</span>
-                    <span class="detail-value">{{.InitiatedTime}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Status</span>
-                    <span class="detail-value">Pending 2FA Verification</span>
-                </div>
-            </div>
+              <p style="margin-top:0;">
+                Hi <strong>{{.FirstName}}</strong>,
+              </p>
 
-            <div class="alert alert-info">
-                <strong>🛡️ Security Notice:</strong><br>
-                • If you didn't request this withdrawal, please contact support immediately<br>
-                • Never share your 2FA code with anyone<br>
-            </div>
+              <p>
+                A withdrawal attempt was made on your account, and for your security,  
+                <strong>Two-Factor Authentication (2FA)</strong> is required to continue.
+              </p>
 
-            <p class="message">
-                This extra security step helps protect your funds. Thank you for your patience!
-            </p>
-        
-        <div class="email-footer">
-            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
-            <div class="footer-links">
-                <a href="https://swiftfiat.com">Home</a>
-                <a href="https://swiftfiat.com/support">Support</a>
-                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
-            </div>
-            <div class="social-links">
-                <a href="#">📘</a>
-                <a href="#">🐦</a>
-                <a href="#">📷</a>
-            </div>
-            <p style="margin-top: 20px; color: #999;">
-                This is an automated message from SwiftFiat. Please do not reply to this email.
-            </p>
-            <p style="margin-top: 10px; font-size: 11px; color: #999;">
-                © {{.Year}} SwiftFiat. All rights reserved.
-            </p>
-        </div>
-    </div>
+              <!-- Details Box -->
+              <table width="100%" style="background:#f4f0fa; border-left:4px solid #542182; margin:20px 0; padding:15px; border-radius:6px;">
+                <tr>
+                  <td style="padding:10px 15px; color:#542182;">
+                    <strong>Amount:</strong> {{.Amount}}{{.Currency}} <br>
+                    <strong>Destination:</strong> {{.Destination}} <br>
+                    <strong>Transaction ID:</strong> {{.TransactionID}} <br>
+                    <strong>Date:</strong> {{.InitiatedTime}} <br>
+                    <strong>Reference:</strong> {{.Reference}}
+                  </td>
+                </tr>
+              </table>
+
+              <p>
+                To complete this withdrawal, please verify the request using your 2FA code.
+              </p>
+
+              <!-- Button -->
+              <p style="text-align:center; margin:30px 0;">
+                <a href="{{verificationUrl}}"
+                   style="background:#542182; color:#fff; padding:12px 22px; 
+                          text-decoration:none; font-size:15px; border-radius:6px; 
+                          display:inline-block;">
+                  Verify Withdrawal
+                </a>
+              </p>
+
+              <p>
+                If you did <strong>not</strong> initiate this withdrawal request, please secure your account immediately and contact support.
+              </p>
+
+              <p style="margin-bottom:0;">
+                Stay secure, <br>
+                <strong>The SwiftFiat Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#fafafa; padding:20px 30px; text-align:center; color:#888; font-size:12px;">
+              © {{year}} SwiftFiat. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+        <!-- End Email Card -->
+
+      </td>
+    </tr>
+  </table>
+
 </body>
 </html>

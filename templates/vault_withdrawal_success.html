@@ -3,92 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat - Vault Withdrawal Success</title>
-    <link rel="stylesheet" href="style.css">
+    <title>SwiftFiat</title>
 </head>
-
 <body>
-    <div class="email-wrapper">
-        <div class="email-header">
-            <div class="logo">SwiftFiat</div>
-            <div class="header-subtitle">Smart Savings, Secure Future</div>
-        </div>
-        
-        <div class="email-body">
-            <div class="icon">✅</div>
+    <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
 
-            <h2 class="greeting">Withdrawal Completed, {{.FirstName}}! 💸</h2>
+  <!-- Background Wrapper -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" 
+         style="background:#f8f8fb; padding:40px 0;">
+    <tr>
+      <td align="center">
 
-            <p class="message">
-                Your withdrawal from "<strong>{{.VaultName}}</strong>" has been processed successfully. 
-                The funds have been transferred to your wallet.
-            </p>
+        <!-- Email Card -->
+        <table width="90%" cellpadding="0" cellspacing="0" 
+               style="max-width:600px; background:#fff; border-radius:10px; 
+                      box-shadow:0 4px 14px rgba(0,0,0,0.08); overflow:hidden;">
 
-            <div class="amount-highlight">
-                -{{.Amount}} <span class="currency">{{.Currency}}</span>
-            </div>
+          <!-- Header -->
+          <tr>
+            <td style="background:#542182; padding:25px 30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:22px; font-weight:600;">
+                💸 Withdrawal Successful
+              </h1>
+            </td>
+          </tr>
 
-            <div class="card">
-                <div class="card-title">Withdrawal Details</div>
-                <div class="detail-row">
-                    <span class="detail-label">Vault Name</span>
-                    <span class="detail-value">{{.VaultName}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Amount Withdrawn</span>
-                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Remaining Balance</span>
-                    <span class="detail-value">{{.RemainingBalance}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Destination</span>
-                    <span class="detail-value">{{.WalletType}} Wallet</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Completed At</span>
-                    <span class="detail-value">{{.CompletedTime}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Transaction ID</span>
-                    <span class="detail-value">{{.TransactionID}}</span>
-                </div>
-            </div>
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
+              <p style="margin-top:0;">
+                Hi <strong>{{.FirstName}}</strong>,
+              </p>
 
-            <!-- <div style="text-align: center;">
-                <a href="{{.WalletURL}}" class="button">View Wallet 👛</a>
-            </div> -->
+              <p>
+                Your withdrawal request has been processed successfully.  
+                The funds have been sent to your selected destination.
+              </p>
 
-            <div class="alert alert-success">
-                <strong>✅ Transaction Confirmed</strong><br>
-                Your funds are now available in your {{.Currency}} wallet and ready to use.
-            </div>
+              <!-- Details Box -->
+              <table width="100%" style="background:#f4f0fa; border-left:4px solid #542182; margin:20px 0; padding:15px; border-radius:6px;">
+                <tr>
+                  <td style="padding:10px 15px; color:#542182;">
+                    <strong>Name: {{.VaultName}}</strong> <br>
+                    <strong>Amount:</strong> {{.Amount}}{{.Currency}} <br>
+                    <strong>Destination:</strong> {{destination}} <br>
+                    <strong>Date:</strong> {{.CompletedTime}} <br>
+                    <strong>Reference:</strong> {{.Reference}}
+                  </td>
+                </tr>
+              </table>
 
-            <p class="message">
-                Keep building your savings! Your vault is still active and ready for more deposits.
-            </p>
-        </div>
-        
-        <div class="email-footer">
-            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
-            <div class="footer-links">
-                <a href="https://swiftfiat.com">Home</a>
-                <a href="https://swiftfiat.com/support">Support</a>
-                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
-            </div>
-            <div class="social-links">
-                <a href="#">📘</a>
-                <a href="#">🐦</a>
-                <a href="#">📷</a>
-            </div>
-            <p style="margin-top: 20px; color: #999;">
-                This is an automated message from SwiftFiat. Please do not reply to this email.
-            </p>
-            <p style="margin-top: 10px; font-size: 11px; color: #999;">
-                © {{.Date}} SwiftFiat. All rights reserved.
-            </p>
-        </div>
-    </div>
+              <p>
+                You can track this transaction and view your updated balance in your dashboard.
+              </p>
+
+              <p>
+                If you did not authorize this withdrawal, please contact support immediately.
+              </p>
+
+              <p style="margin-bottom:0;">
+                Warm regards, <br>
+                <strong>The SwiftFiat Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#fafafa; padding:20px 30px; text-align:center; color:#888; font-size:12px;">
+              © {{.Year}} SwiftFiat. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+        <!-- End Card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
 </body>
 </html>

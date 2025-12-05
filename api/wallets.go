@@ -11,6 +11,7 @@ package api
 import (
 	"database/sql"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -22,6 +23,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
@@ -38,6 +40,8 @@ type Wallet struct {
 	currencyService    *currency.CurrencyService
 	transactionService *transaction.TransactionService
 	notifr             *service.Notification
+	audit              *audit.Service
+	pushService        *service.PushNotificationService
 }
 
 func (w Wallet) router(server *Server) {
@@ -53,6 +57,8 @@ func (w Wallet) router(server *Server) {
 		w.server.config,
 		w.notifr,
 	)
+	w.audit = w.server.auditService
+	w.pushService = server.pushNotification
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
@@ -261,16 +267,15 @@ func (w *Wallet) getTransactions(ctx *gin.Context) {
 	// 	},
 	// 	NgnWalletID: uuid.NullUUID{
 	// 		UUID:  wallet[1].ID,
-	// 		Valid: true, 
+	// 		Valid: true,
 	// 	},
 	// 	Limit:  int32(pageLimitInt),
 	// 	Offset: int32(pageOffsetInt),
 	// })
 
-
 	// Find wallets by currency
 	var usdWalletID, ngnWalletID, usdcWalletID, usdtWalletID uuid.NullUUID
-	
+
 	for _, w := range wallet {
 		switch w.Currency {
 		case "USD":
@@ -560,7 +565,24 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %.2f was successful", request.Amount))
+	// Audit Log
+	entry := audit.NewTransactionLog(ctx, audit.EventWalletTransferCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
+	entry.Metadata = map[string]any{
+		"from_account":        request.FromAccountID,
+		"to_account":          request.ToAccountID,
+		"destination_usertag": request.DestinationUserTag,
+		"description":         request.Description,
+		"type":                tObj.Type,
+		"status":              tObj.Status,
+	}
+
+	go func() {
+		w.audit.Log(entry)
+
+		// Notifications
+		w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %.2f was successful", request.Amount))
+		w.pushService.SendWalletTransfer(ctx, activeUser.UserID, request.Amount, "")
+	}()
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
 }
@@ -689,6 +711,17 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		}
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
+	}
+
+
+	// audit log
+	entry := audit.NewTransactionLog(ctx, audit.EventWalletSwapCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
+	entry.Metadata = map[string]any{
+		"from_account": request.FromAccountID,
+		"to_account":   request.ToAccountID,
+		"description":  request.Description,
+		"type":         tObj.Type,
+		"status":       tObj.Status,
 	}
 
 	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Swap Transaction", fmt.Sprintf("Swap transaction of %f was successful", request.Amount))
@@ -1002,6 +1035,18 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 	// 	SavedBeneficiary: savedBeneficiary,
 	// }
 
+	// audit log
+	entry := audit.NewTransactionLog(ctx, audit.EventFiatTransferCreated, transactionInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "", true)
+	entry.Metadata = map[string]any{
+		"wallet_id":        request.WalletID,
+		"account_number":   request.AccountNumber,
+		"bank_code":        request.BankCode,
+		"amount":           request.Amount,
+		"save_beneficiary": request.SaveBeneficiary,
+		"type":             transactionInfo.Type,
+		"status":           transactionInfo.Status,
+	}
+
 	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", FiatTransferResponse{
@@ -1025,7 +1070,20 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 	var request transaction.CreateTransactionFeeRequest
 
-	err := ctx.ShouldBindJSON(&request)
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		w.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		w.server.logger.Error("unauthorized access to create transaction fee")
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
 		w.server.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter valid transaction type, fee percentage and max fee"))
@@ -1048,6 +1106,28 @@ func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	feeinfoId := strconv.Itoa(int(feeInfo.ID))
+
+	auditEntry := audit.LogEntry{
+		EventType:   audit.EventTransactionFeeCreated,
+		ActorType:   activeUser.Role,
+		ActorID:     &activeUser.UserID,
+		Severity:    audit.SeverityInfo,
+		EntityType:  "transaction_fees",
+		EntityID:    feeinfoId,
+		IPAddress:   net.IP(ctx.ClientIP()),
+		UserAgent:   ctx.Request.UserAgent(),
+		Description: "created transaction fee for " + string(request.TransactionType),
+		Action:      audit.ActionCreate,
+		Success:     true,
+		Metadata: map[string]any{
+			"transaction_type": request.TransactionType,
+			"fee_percentage":   request.FeePercentage,
+			"maximum_fee":      request.MaxFee,
+		},
+	}
+	w.audit.Log(&auditEntry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Fee Created Successfully", models.ToTransactioFeeResponse(&feeInfo)))
 }

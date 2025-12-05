@@ -6,19 +6,241 @@ package db
 
 import (
 	"database/sql"
+	"database/sql/driver"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
+type AuditEventCategory string
+
+const (
+	AuditEventCategoryAuthentication AuditEventCategory = "authentication"
+	AuditEventCategoryAuthorization  AuditEventCategory = "authorization"
+	AuditEventCategoryAccount        AuditEventCategory = "account"
+	AuditEventCategoryTransaction    AuditEventCategory = "transaction"
+	AuditEventCategoryKyc            AuditEventCategory = "kyc"
+	AuditEventCategoryCard           AuditEventCategory = "card"
+	AuditEventCategorySecurity       AuditEventCategory = "security"
+	AuditEventCategoryCompliance     AuditEventCategory = "compliance"
+	AuditEventCategorySystem         AuditEventCategory = "system"
+)
+
+func (e *AuditEventCategory) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuditEventCategory(s)
+	case string:
+		*e = AuditEventCategory(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuditEventCategory: %T", src)
+	}
+	return nil
+}
+
+type NullAuditEventCategory struct {
+	AuditEventCategory AuditEventCategory `json:"audit_event_category"`
+	Valid              bool               `json:"valid"` // Valid is true if AuditEventCategory is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuditEventCategory) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuditEventCategory, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuditEventCategory.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuditEventCategory) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuditEventCategory), nil
+}
+
+type AuditSeverity string
+
+const (
+	AuditSeverityInfo     AuditSeverity = "info"
+	AuditSeverityWarning  AuditSeverity = "warning"
+	AuditSeverityError    AuditSeverity = "error"
+	AuditSeverityCritical AuditSeverity = "critical"
+)
+
+func (e *AuditSeverity) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AuditSeverity(s)
+	case string:
+		*e = AuditSeverity(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AuditSeverity: %T", src)
+	}
+	return nil
+}
+
+type NullAuditSeverity struct {
+	AuditSeverity AuditSeverity `json:"audit_severity"`
+	Valid         bool          `json:"valid"` // Valid is true if AuditSeverity is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAuditSeverity) Scan(value interface{}) error {
+	if value == nil {
+		ns.AuditSeverity, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AuditSeverity.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAuditSeverity) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AuditSeverity), nil
+}
+
+// Immutable audit trail for all critical system operations
 type AuditLog struct {
-	ID        int32          `json:"id"`
-	UserID    int32          `json:"user_id"`
-	Action    string         `json:"action"`
-	CreatedAt time.Time      `json:"created_at"`
-	Ip        sql.NullString `json:"ip"`
-	UserAgent sql.NullString `json:"user_agent"`
+	ID int64 `json:"id"`
+	// High-level categorization for filtering
+	EventCategory AuditEventCategory `json:"event_category"`
+	// Specific event identifier (e.g., user.login.success)
+	EventType  string         `json:"event_type"`
+	Severity   AuditSeverity  `json:"severity"`
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorType  string         `json:"actor_type"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	UserAgent  sql.NullString `json:"user_agent"`
+	// Trace ID for correlating logs across microservices
+	RequestID   sql.NullString        `json:"request_id"`
+	Action      string                `json:"action"`
+	Description string                `json:"description"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	// Flexible JSON storage for event-specific context
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	Success      bool                  `json:"success"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	CreatedAt    time.Time             `json:"created_at"`
+}
+
+type AuditLogs202412 struct {
+	ID int64 `json:"id"`
+	// High-level categorization for filtering
+	EventCategory AuditEventCategory `json:"event_category"`
+	// Specific event identifier (e.g., user.login.success)
+	EventType  string         `json:"event_type"`
+	Severity   AuditSeverity  `json:"severity"`
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorType  string         `json:"actor_type"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	UserAgent  sql.NullString `json:"user_agent"`
+	// Trace ID for correlating logs across microservices
+	RequestID   sql.NullString        `json:"request_id"`
+	Action      string                `json:"action"`
+	Description string                `json:"description"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	// Flexible JSON storage for event-specific context
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	Success      bool                  `json:"success"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	CreatedAt    time.Time             `json:"created_at"`
+}
+
+type AuditLogs202501 struct {
+	ID int64 `json:"id"`
+	// High-level categorization for filtering
+	EventCategory AuditEventCategory `json:"event_category"`
+	// Specific event identifier (e.g., user.login.success)
+	EventType  string         `json:"event_type"`
+	Severity   AuditSeverity  `json:"severity"`
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorType  string         `json:"actor_type"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	UserAgent  sql.NullString `json:"user_agent"`
+	// Trace ID for correlating logs across microservices
+	RequestID   sql.NullString        `json:"request_id"`
+	Action      string                `json:"action"`
+	Description string                `json:"description"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	// Flexible JSON storage for event-specific context
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	Success      bool                  `json:"success"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	CreatedAt    time.Time             `json:"created_at"`
+}
+
+type AuditLogs202502 struct {
+	ID int64 `json:"id"`
+	// High-level categorization for filtering
+	EventCategory AuditEventCategory `json:"event_category"`
+	// Specific event identifier (e.g., user.login.success)
+	EventType  string         `json:"event_type"`
+	Severity   AuditSeverity  `json:"severity"`
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorType  string         `json:"actor_type"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	UserAgent  sql.NullString `json:"user_agent"`
+	// Trace ID for correlating logs across microservices
+	RequestID   sql.NullString        `json:"request_id"`
+	Action      string                `json:"action"`
+	Description string                `json:"description"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	// Flexible JSON storage for event-specific context
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	Success      bool                  `json:"success"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	CreatedAt    time.Time             `json:"created_at"`
+}
+
+type AuditLogsDefault struct {
+	ID int64 `json:"id"`
+	// High-level categorization for filtering
+	EventCategory AuditEventCategory `json:"event_category"`
+	// Specific event identifier (e.g., user.login.success)
+	EventType  string         `json:"event_type"`
+	Severity   AuditSeverity  `json:"severity"`
+	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorType  string         `json:"actor_type"`
+	ActorEmail sql.NullString `json:"actor_email"`
+	EntityType string         `json:"entity_type"`
+	EntityID   string         `json:"entity_id"`
+	IpAddress  pqtype.Inet    `json:"ip_address"`
+	UserAgent  sql.NullString `json:"user_agent"`
+	// Trace ID for correlating logs across microservices
+	RequestID   sql.NullString        `json:"request_id"`
+	Action      string                `json:"action"`
+	Description string                `json:"description"`
+	OldValues   pqtype.NullRawMessage `json:"old_values"`
+	NewValues   pqtype.NullRawMessage `json:"new_values"`
+	// Flexible JSON storage for event-specific context
+	Metadata     pqtype.NullRawMessage `json:"metadata"`
+	Success      bool                  `json:"success"`
+	ErrorMessage sql.NullString        `json:"error_message"`
+	CreatedAt    time.Time             `json:"created_at"`
 }
 
 type AutoTopupLog struct {
@@ -490,6 +712,19 @@ type QrTransaction struct {
 	UpdatedAt              time.Time             `json:"updated_at"`
 }
 
+type RecentCriticalEvent struct {
+	ID            int64              `json:"id"`
+	EventCategory AuditEventCategory `json:"event_category"`
+	EventType     string             `json:"event_type"`
+	Severity      AuditSeverity      `json:"severity"`
+	ActorEmail    sql.NullString     `json:"actor_email"`
+	EntityType    string             `json:"entity_type"`
+	EntityID      string             `json:"entity_id"`
+	Description   string             `json:"description"`
+	IpAddress     pqtype.Inet        `json:"ip_address"`
+	CreatedAt     time.Time          `json:"created_at"`
+}
+
 type RedeemInstruction struct {
 	ID                  int32          `json:"id"`
 	GiftCardID          sql.NullInt64  `json:"gift_card_id"`
@@ -805,6 +1040,19 @@ type User struct {
 	TotalRewardEarned string `json:"total_reward_earned"`
 	// Lifetime total reward points redeemed
 	TotalRewardRedeemed string `json:"total_reward_redeemed"`
+}
+
+type UserActivityTimeline struct {
+	UserID      sql.NullInt64  `json:"user_id"`
+	Email       sql.NullString `json:"email"`
+	EventType   string         `json:"event_type"`
+	EntityType  string         `json:"entity_type"`
+	EntityID    string         `json:"entity_id"`
+	Action      string         `json:"action"`
+	Description string         `json:"description"`
+	Success     bool           `json:"success"`
+	IpAddress   pqtype.Inet    `json:"ip_address"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 // Junction table tracking which badges users have earned

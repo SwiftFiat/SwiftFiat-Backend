@@ -3,92 +3,85 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat - Vault Recurring Deposit Failed</title>
-    <link rel="stylesheet" href="style.css">
+    <title>SwiftFiat</title>
 </head>
+    <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
 
-<body>
-    <div class="email-wrapper">
-        <div class="email-header">
-            <div class="logo">SwiftFiat</div>
-            <div class="header-subtitle">Smart Savings, Secure Future</div>
-        </div>
-        
-        <div class="email-body">
-            <div class="icon">⚠️</div>
+  <!-- Background Wrapper -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" 
+         style="background:#f8f8fb; padding:40px 0;">
+    <tr>
+      <td align="center">
 
-            <h2 class="greeting">Recurring Deposit Failed, {{.FirstName}}</h2>
+        <!-- Email Card -->
+        <table width="90%" cellpadding="0" cellspacing="0" 
+               style="max-width:600px; background:#fff; border-radius:10px; 
+                      box-shadow:0 4px 14px rgba(0,0,0,0.08); overflow:hidden;">
 
-            <p class="message">
-                We attempted to process your recurring deposit to "<strong>{{.VaultName}}</strong>" 
-                but it was unsuccessful. Don't worry - your vault and savings are safe.
-            </p>
+          <!-- Header -->
+          <tr>
+            <td style="background:#542182; padding:25px 30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:22px; font-weight:600;">
+                ⚠️ Recurring Deposit Failed
+              </h1>
+            </td>
+          </tr>
 
-            <div class="card">
-                <div class="card-title">Failed Deposit Details</div>
-                <div class="detail-row">
-                    <span class="detail-label">Vault Name</span>
-                    <span class="detail-value">{{.VaultName}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Attempted Amount</span>
-                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Failure Reason</span>
-                    <span class="detail-value">{{.Reason}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Attempted At</span>
-                    <span class="detail-value">{{.AttemptedTime}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Next Attempt</span>
-                    <span class="detail-value">{{.NextAttemptDate}}</span>
-                </div>
-            </div>
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
 
-            <div class="alert alert-warning">
-                <strong>⚠️ Action Required:</strong><br>
-                {{.ActionMessage}}
-            </div>
+              <p style="margin-top:0;">
+                Hi <strong>{{.FirstName}}</strong>,
+              </p>
 
-            <div style="text-align: center;">
-                <a href="{{.WalletURL}}" class="button">Add Funds to Wallet 💳</a>
-            </div>
+              <p>
+                We attempted to process your scheduled recurring deposit,  
+                but the transaction was not successful.
+              </p>
 
-            <div class="alert alert-info">
-                <strong>💡 Common Solutions:</strong><br>
-                • <strong>Insufficient balance:</strong> Add funds to your {{.Currency}} wallet<br>
-                • <strong>Wallet locked:</strong> Contact support to unlock your account<br>
-                • <strong>System error:</strong> We'll automatically retry in 1 hour
-            </div>
+              <!-- Details Box -->
+              <table width="100%" style="background:#f4f0fa; border-left:4px solid #542182; margin:20px 0; padding:15px; border-radius:6px;">
+                <tr>
+                  <td style="padding:10px 15px; color:#542182;">
+                    <strong>Name:</strong> {{.VaultName}} <br>
+                    <strong>Amount:</strong> {{amount}} <br>
+                    <strong>Scheduled Date:</strong> {{.ScheduledDate}} <br>
+                    <strong>Reason:</strong> {{.Reason}} <br>
+                    <!-- <strong>Reference:</strong> {{reference}} -->
+                  </td>
+                </tr>
+              </table>
 
-            <p class="message">
-                Your recurring deposit is still active and will be attempted again on the next scheduled time. 
-                No action needed if this was temporary!
-            </p>
-        </div>
-        
-        <div class="email-footer">
-            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
-            <div class="footer-links">
-                <a href="https://swiftfiat.com">Home</a>
-                <a href="https://swiftfiat.com/support">Support</a>
-                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
-            </div>
-            <div class="social-links">
-                <a href="#">📘</a>
-                <a href="#">🐦</a>
-                <a href="#">📷</a>
-            </div>
-            <p style="margin-top: 20px; color: #999;">
-                This is an automated message from SwiftFiat. Please do not reply to this email.
-            </p>
-            <p style="margin-top: 10px; font-size: 11px; color: #999;">
-                © {{.Year}} SwiftFiat. All rights reserved.
-            </p>
-        </div>
-    </div>
+              <p>
+                To avoid future failures, please review your payment method or make sure your available balance is sufficient.
+              </p>
+
+              <p>
+                If you believe this was an error, kindly try again or contact support for assistance.
+              </p>
+
+              <p style="margin-bottom:0;">
+                Warm regards, <br>
+                <strong>The SwiftFiat Team</strong>
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#fafafa; padding:20px 30px; text-align:center; color:#888; font-size:12px;">
+              © {{.Year}} SwiftFiat. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+        <!-- End Card -->
+
+      </td>
+    </tr>
+  </table>
+
 </body>
 </html>

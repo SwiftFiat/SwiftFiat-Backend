@@ -17,7 +17,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
@@ -61,7 +61,6 @@ type Server struct {
 	authMiddleware           *AuthMiddleware
 	emailService             *service.Plunk
 	walletService            *wallet.WalletService
-	auditLog                 *activitylogs.ActivityLog
 	inAppnotificationService *service.Notification
 	rewardService            *rewards.RewardService
 	bankAccountService       *bankaccounts.BankAccountService
@@ -73,6 +72,7 @@ type Server struct {
 	scExchangeRateservice    *smartconversion.ExchangeRateService
 	smartConvertService      *smartconversion.ConversionService
 	smartConversionScheduler *smartconversion.Scheduler
+	auditService             *audit.Service
 }
 
 func NewServer(envPath string) *Server {
@@ -146,17 +146,17 @@ func NewServer(envPath string) *Server {
 	TokenController = utils.NewJWTToken(c)
 	t := tasks.NewTaskScheduler(l)
 
+	// audit service
+	ads := audit.NewService(q, 0)
+
 	// wallet
 	ws := wallet.NewWalletService(q, l)
-
-	// auditlogs
-	al := activitylogs.NewActivityLog(q)
 
 	// in app notification service
 	ns := service.NewNotificationService(q)
 
 	// vault service
-	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, al, ns)
+	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, ns)
 
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)
@@ -236,7 +236,6 @@ func NewServer(envPath string) *Server {
 		emailService:             email,
 		vaultScheduler:           vaultScheduler,
 		walletService:            ws,
-		auditLog:                 al,
 		vaultService:             vs,
 		yieldService:             ys,
 		yieldScheduler:           yieldScheduler,
@@ -251,6 +250,7 @@ func NewServer(envPath string) *Server {
 		scExchangeRateservice:    scex,
 		smartConvertService:      scs,
 		smartConversionScheduler: scsScheduler,
+		auditService:             ads,
 	}
 }
 
@@ -285,6 +285,7 @@ func (s *Server) Start() error {
 	QRCodeHandler{}.router(s)
 	SmartConvertHandler{}.router(s)
 	Streaks{}.router(s)
+	AuditHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
