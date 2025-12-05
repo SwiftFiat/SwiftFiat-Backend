@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	expo "github.com/oliveroneill/exponent-server-sdk-golang/sdk"
 	"google.golang.org/api/option"
@@ -37,9 +38,10 @@ type PushNotificationInfo struct {
 }
 
 type PushNotificationService struct {
-	client *expo.PushClient
-	app    *firebase.App
-	logger *logging.Logger
+	client      *expo.PushClient
+	app         *firebase.App
+	logger      *logging.Logger
+	userService *user_service.UserService
 }
 
 func NewPushNotificationService(logger *logging.Logger) *PushNotificationService {
@@ -140,7 +142,7 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 			Body:     info.Message,
 			Data:     map[string]string{"withSome": "data"},
 			Sound:    "default",
-			Title:   info.Title,
+			Title:    info.Title,
 			Priority: expo.DefaultPriority,
 		},
 	)
@@ -159,35 +161,409 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 
 }
 
+func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID int64) (*struct {
+	FCMToken  string
+	ExpoToken string
+}, error) {
+	tokens, err := p.userService.GetUserPushTokens(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	var fcmToken, expoToken string
+	for _, token := range tokens {
+		switch token.Provider {
+		case "fcm":
+			fcmToken = token.Token
+		case "expo":
+			expoToken = token.Token
+		}
+	}
+	return &struct {
+		FCMToken  string
+		ExpoToken string
+	}{
+		FCMToken:  fcmToken,
+		ExpoToken: expoToken,
+	}, nil
+}
+
 // ======================================
 // Vault Savings
 // ======================================
 func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID int64, name string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Vault Goal Created"
+	Message := fmt.Sprintf("Your vault goal '%s' as been created", name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, userID int64, name string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Vault Goal Completed"
+	Message := fmt.Sprintf("Congratulations! Your vault goal '%s' has been completed.", name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Deposit Successful"
+	Message := fmt.Sprintf("Your vault deposit of %s %s to '%s' was successful.", amount, currency, name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Withdrawal Successful"
+	Message := fmt.Sprintf("Your vault withdrawal of %s %s from '%s' was successful.", amount, currency, name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Recurring Deposit Successful"
+	Message := fmt.Sprintf("Your vault recurring deposit of %s %s to '%s' was successful.", amount, currency, name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Context, userID int64, name, reason string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Recurring Deposit Failed"
+	Message := fmt.Sprintf("Your vault recurring deposit to '%s' has failed. Reason: %s", name, reason)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
 func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID int64, name, amount, currency string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Yield Credited"
+	Message := fmt.Sprintf("Your vault '%s' has been credited with %s %s as yield.", name, amount, currency)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
 	return nil
 }
 
-func (p *PushNotificationService) SendRewardNotification(userID int64, message, txType string, pointEarned int64) error { return  nil}
+func (p *PushNotificationService) SendRewardNotification(ctx context.Context, userID int64, message, txType string, pointEarned int64) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Reward Earned"
+	Message := fmt.Sprintf("%s You have earned %d points from %s.", message, pointEarned, txType)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID int64, amount float64, message string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Wallet Transfer"
+	Message := fmt.Sprintf("Your wallet transfer of %.2f was successful. %s", amount, message)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}

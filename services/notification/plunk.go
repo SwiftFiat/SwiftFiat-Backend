@@ -285,13 +285,13 @@ func (s *Plunk) SendGoalCreatedEmail(ctx context.Context, user *db.User, vaultNa
 
 func (s *Plunk) SendGoalCompletedEmail(ctx context.Context, user *db.User, name, goalAmount, currency, daysToComplete string) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"GoalAmount":   goalAmount,
-		"CompletedDate": time.Now().Format("02 Jan 2006 15:04 MST"),
+		"FirstName":      user.FirstName.String,
+		"VaultName":      name,
+		"Currency":       currency,
+		"GoalAmount":     goalAmount,
+		"CompletedDate":  time.Now().Format("02 Jan 2006 15:04 MST"),
 		"DaysToComplete": daysToComplete,
-		"Year":         time.Now().Year(),
+		"Year":           time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/goal_completed.html", tplData)
@@ -312,16 +312,17 @@ func (s *Plunk) SendGoalCompletedEmail(ctx context.Context, user *db.User, name,
 	return nil
 }
 
-func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency, newBalance, progress string) error {
+func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency, newBalance, reference string) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"Amount":   amount,
-		"NewBalance":   newBalance,
-		"Progress":     progress,
+		"FirstName":       user.FirstName.String,
+		"VaultName":       name,
+		"Currency":        currency,
+		"Amount":          amount,
+		"NewBalance":      newBalance,
+		"Reference":       reference,
 		"TransactionTime": time.Now().Format("02 Jan 2006 15:04 MST"),
-		"Year":         time.Now().Year(),
+		"Year":            time.Now().Year(),
+		"Source":          "Wallet",
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/goal_deposit_success.html", tplData)
@@ -342,14 +343,16 @@ func (s *Plunk) SendDepositSuccessEmail(ctx context.Context, user *db.User, name
 	return nil
 }
 
-func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.User, txID, amount, currency, initiatedTime string) error {
+func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.User, txID, reference, amount, currency, initiatedTime, destination string) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
+		"FirstName":     user.FirstName.String,
 		"TransactionID": txID,
 		"Amount":        amount,
 		"Currency":      currency,
 		"InitiatedTime": initiatedTime,
-		"Year":         time.Now().Year(),
+		"Reference":     reference,
+		"Destination":   destination,
+		"Year":          time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/vault_withdrawal_2fa_required.html", tplData)
@@ -370,14 +373,15 @@ func (s *Plunk) SendWithdrawal2FARequiredEmail(ctx context.Context, user *db.Use
 	return nil
 }
 
-func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, name, amount, currency, reference string) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"Amount":       amount,
+		"FirstName":     user.FirstName.String,
+		"VaultName":     name,
+		"Currency":      currency,
+		"Amount":        amount,
+		"Reference":     reference,
 		"CompletedTime": time.Now().Format("02 Jan 2006 15:04 MST"),
-		"Year":         time.Now().Year(),
+		"Year":          time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/vault_withdrawal_success.html", tplData)
@@ -398,14 +402,15 @@ func (s *Plunk) SendWithdrawalSuccessEmail(ctx context.Context, user *db.User, n
 	return nil
 }
 
-func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, amount, currency, reason string) error {
+func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.User, name, amount, currency, reason string, scheduledDate time.Time) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"Amount":       amount,
-		"Reason":       reason,
-		"Year":         time.Now().Year(),
+		"FirstName":     user.FirstName.String,
+		"VaultName":     name,
+		"Currency":      currency,
+		"Amount":        amount,
+		"Reason":        reason,
+		"ScheduledDate": scheduledDate.Format("02 Jan 2006 15:04 MST"),
+		"Year":          time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/vault_recurring_deposit_failed.html", tplData)
@@ -426,14 +431,16 @@ func (s *Plunk) SendRecurringDepositFailedEmail(ctx context.Context, user *db.Us
 	return nil
 }
 
-func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency string) error {
+func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.User, name, amount, currency, reference string, date time.Time) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"Amount":       amount,
+		"FirstName":     user.FirstName.String,
+		"VaultName":     name,
+		"Currency":      currency,
+		"Amount":        amount,
+		"Reference":     reference,
+		"DepositDate":   date.Format("02 Jan 2006 15:04 MST"),
 		"CompletedTime": time.Now().Format("02 Jan 2006 15:04 MST"),
-		"Year":         time.Now().Year(),
+		"Year":          time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/vault_recurring_deposit_success.html", tplData)
@@ -454,14 +461,16 @@ func (s *Plunk) SendRecurringDepositSuccessEmail(ctx context.Context, user *db.U
 	return nil
 }
 
-func (s *Plunk) SendYieldCredited(ctx context.Context, user *db.User, name, amount, currency, balance string) error {
+func (s *Plunk) SendYieldCredited(ctx context.Context, user *db.User, name, amount, currency, balance, reference string) error {
 	tplData := map[string]any{
-		"FirstName":    user.FirstName.String,
-		"VaultName":    name,
-		"Currency":     currency,
-		"Amount":       amount,
-		"Balance":      balance,
-		"Year":         time.Now().Year(),
+		"FirstName": user.FirstName.String,
+		"VaultName": name,
+		"Currency":  currency,
+		"Amount":    amount,
+		"Balance":   balance,
+		"Reference": reference,
+		"Date":      time.Now().Format("02 Jan 2006 15:04 MST"),
+		"Year":      time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/vault_yield_credited.html", tplData)

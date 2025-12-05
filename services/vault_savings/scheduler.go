@@ -458,6 +458,8 @@ func (vs *VaultScheduler) sendSuccessNotification(
 		vault.VaultName,
 		rule.Amount,
 		vault.Currency,
+		tx.Reference.String,
+		time.Now(),
 	); err != nil {
 		vs.logger.Error(fmt.Sprintf("Failed to send success email: %v", err))
 	}
@@ -495,6 +497,7 @@ func (vs *VaultScheduler) sendFailureNotification(
 		rule.Amount,
 		vault.Currency,
 		depositErr.Error(),
+		time.Now(),
 	); err != nil {
 		vs.logger.Error(fmt.Sprintf("Failed to send failure email: %v", err))
 	}

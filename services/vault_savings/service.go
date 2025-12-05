@@ -9,7 +9,6 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -25,7 +24,6 @@ type VaultService struct {
 	walletService      *wallet.WalletService
 	emailService       *service.Plunk
 	pushService        *service.PushNotificationService
-	activityLogService *activitylogs.ActivityLog
 	notifService       *service.Notification
 }
 
@@ -35,7 +33,6 @@ func NewVaultService(
 	walletService *wallet.WalletService,
 	emailService *service.Plunk,
 	pushService *service.PushNotificationService,
-	activityLogService *activitylogs.ActivityLog,
 	notifService *service.Notification,
 
 ) *VaultService {
@@ -45,7 +42,6 @@ func NewVaultService(
 		walletService:      walletService,
 		emailService:       emailService,
 		pushService:        pushService,
-		activityLogService: activityLogService,
 		notifService:       notifService,
 	}
 }
@@ -1008,15 +1004,6 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		return nil, fmt.Errorf("failed to create vault goal: %w", err)
 	}
 
-	action := fmt.Sprintf("Created vault savings goal: %s (%s %s)", req.Name, req.TargetAmount, req.Currency)
-	auditParams := db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    action,
-		Ip:        nullString(ip),
-		UserAgent: nullString(ua),
-	}
-	_ = s.activityLogService.Create(ctx, auditParams)
-
 	// Send notifications (async, don't block on errors)
 	go func() {
 		bgCtx := context.Background()
@@ -1150,7 +1137,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	// Generate reference
 	reference := req.Reference
 	if reference == "" {
-		reference = fmt.Sprintf("vault_deposit_%s_%d", uuid.New().String()[:8], time.Now().Unix())
+		reference = utils.NewTxRef("vault_deposit")
 	}
 
 	// Create main Transaction record
@@ -1223,14 +1210,6 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Log activity
-	action := fmt.Sprintf("Deposited %s %s to vault: %s", req.Amount, req.Currency, vault.VaultName)
-	auditParams := db.CreateAuditLogParams{
-		UserID: int32(req.UserID),
-		Action: action,
-	}
-	_ = s.activityLogService.Create(ctx, auditParams)
-
 	progress := newVaultBalance.Div(goalAmount).Mul(decimal.NewFromInt(100)).String()
 
 	if progress == "" {
@@ -1261,7 +1240,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 				}
 			} else {
 				if s.emailService != nil {
-					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), fmt.Sprintf("%s%%", progress))
+					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), reference)
 				}
 				if s.pushService != nil {
 					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
@@ -1327,7 +1306,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	// Generate reference
 	reference := req.Reference
 	if reference == "" {
-		reference = fmt.Sprintf("withdrawal_%s_%d", uuid.New().String()[:8], time.Now().Unix())
+		reference = utils.NewTxRef("vault_withdrawal")
 	}
 
 	// Determine status
@@ -1361,7 +1340,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		Description:       sql.NullString{String: req.Description, Valid: req.Description != ""},
 		Status:            nullString(status),
 		Requires2fa:       nullBool(requires2FA),
-		TransactionID: uuid.NullUUID{UUID: maintx.ID, Valid: true},
+		TransactionID:     uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
 
 	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
@@ -1402,13 +1381,6 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	// Log activity
-	action := fmt.Sprintf("Withdrew %s %s from vault: %s", req.Amount, vault.Currency, vault.VaultName)
-	_ = s.activityLogService.Create(ctx, db.CreateAuditLogParams{
-		UserID: int32(req.UserID),
-		Action: action,
-	})
-
 	// Get user for notifications
 	user, err := s.store.GetUserByID(ctx, req.UserID)
 	if err != nil {
@@ -1419,10 +1391,10 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 			bgCtx := context.Background()
 
 			if requires2FA && s.emailService != nil {
-				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, transaction.ID.String(), req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"))
+				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, transaction.ID.String(), reference, req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"), req.ToWalletID.String())
 			} else {
 				if s.emailService != nil {
-					_ = s.emailService.SendWithdrawalSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, vault.Currency)
+					_ = s.emailService.SendWithdrawalSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, vault.Currency, reference)
 				}
 				if s.pushService != nil {
 					_ = s.pushService.SendWithdrawalSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
@@ -1519,7 +1491,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 		if rule.NotifyOnFailure {
 			user, _ := s.store.GetUserByID(ctx, vault.UserID)
 			if s.emailService != nil {
-				_ = s.emailService.SendRecurringDepositFailedEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency, "Insufficient balance")
+				_ = s.emailService.SendRecurringDepositFailedEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency, "Insufficient balance", *rule.LastExecutionAt)
 			}
 		}
 		return nil
@@ -1533,6 +1505,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 		Amount:       rule.Amount,
 		Currency:     vault.Currency,
 		Description:  "Recurring deposit",
+		Reference: utils.NewTxRef("vault_auto_deposit"),
 	}
 
 	_, err = s.Deposit(ctx, depositReq)
@@ -1564,11 +1537,13 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 		return fmt.Errorf("failed to update recurring rule: %w", err)
 	}
 
+	depositDate := time.Now()
+
 	// Send success notification
 	if rule.NotifyOnSuccess {
 		user, _ := s.store.GetUserByID(ctx, vault.UserID)
 		if s.emailService != nil {
-			_ = s.emailService.SendRecurringDepositSuccessEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency)
+			_ = s.emailService.SendRecurringDepositSuccessEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency, depositReq.Reference, depositDate)
 		}
 		if s.pushService != nil {
 			_ = s.pushService.SendRecurringDepositSuccessPush(ctx, vault.UserID, vault.VaultName, rule.Amount, vault.Currency)

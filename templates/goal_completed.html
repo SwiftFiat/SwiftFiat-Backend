@@ -1,95 +1,97 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat - Goal Completed</title>
-    <link rel="stylesheet" href="style.css">
+    <title>SwiftFiat</title>
 </head>
-
 <body>
-    <div class="email-wrapper">
-        <div class="email-header">
-            <div class="logo">SwiftFiat</div>
-            <div class="header-subtitle">Smart Savings, Secure Future</div>
-        </div>
-        
-        <div class="email-body">
-            <div class="icon">🎊</div>
+    <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
 
-            <h2 class="greeting">Amazing Achievement, {{.FirstName}}! 🏆</h2>
+  <!-- Container -->
+  <table width="100%" border="0" cellspacing="0" cellpadding="0" 
+         style="background:#f8f8fb; padding:40px 0;">
+    <tr>
+      <td align="center">
 
-            <p class="message">
-                Congratulations! You've successfully completed your savings goal 
-                "<strong>{{.VaultName}}</strong>"! This is a huge milestone and proof of 
-                your financial discipline and commitment.
-            </p>
+        <!-- Email Card -->
+        <table width="90%" cellpadding="0" cellspacing="0" 
+               style="max-width:600px; background:#fff; border-radius:10px; 
+                      box-shadow:0 4px 14px rgba(0,0,0,0.08); overflow:hidden;">
 
-            <div class="amount-highlight">
-                {{.GoalAmount}} <span class="currency">{{.Currency}}</span>
-            </div>
+          <!-- Header -->
+          <tr>
+            <td style="background:#542182; padding:25px 30px; text-align:center;">
+              <h1 style="color:#fff; margin:0; font-size:22px; font-weight:600;">
+                🎉 Congratulations! Goal Achieved!
+              </h1>
+            </td>
+          </tr>
 
-            <div class="card">
-                <div class="card-title">Achievement Summary</div>
-                <div class="detail-row">
-                    <span class="detail-label">Goal Name</span>
-                    <span class="detail-value">{{.VaultName}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Amount Saved</span>
-                    <span class="detail-value">{{.GoalAmount}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Time Taken</span>
-                    <span class="detail-value">{{.DaysToComplete}} days</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Completed On</span>
-                    <span class="detail-value">{{.CompletedDate}}</span>
-                </div>
-            </div>
+          <!-- Body -->
+          <tr>
+            <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
+              <p style="margin-top:0;">
+                Hi <strong>{{.FirstName}}</strong>,
+              </p>
 
-            <div class="progress-bar-container">
-                <div class="progress-bar" style="width: 100%;">
-                    100% Complete! 🎯
-                </div>
-            </div>
-<!-- 
-            <div style="text-align: center;">
-                <a href="{{.VaultURL}}" class="button">View Achievement 🏅</a>
-            </div> -->
+              <p>
+                Amazing job! You've successfully completed your vault savings goal.  
+                This is a huge milestone, and we’re excited to celebrate with you.
+              </p>
 
-            <div class="alert alert-success">
-                <strong>🎁 What's Next?</strong><br>
-                • Withdraw your funds whenever you're ready<br>
-                • Keep saving and earn more yield<br>
-                • Create a new goal to keep the momentum going
-            </div>
+              <!-- Goal Summary Box -->
+              <table width="100%" style="background:#f4f0fa; border-left:4px solid #542182; margin:20px 0; padding:15px; border-radius:6px;">
+                <tr>
+                  <td style="padding:10px 15px; color:#542182;">
+                    <strong>Goal Name:</strong> {{.VaultName}} <br>
+                    <strong>Target Amount:</strong> {{.TargetAmount}} <br>
+                    <strong>Completion Date:</strong> {{.CompletedDate}}
+                  </td>
+                </tr>
+              </table>
 
-            <p class="message">
-                We're proud of what you've accomplished. Keep up the great work! 💪
-            </p>
-        </div>
-        
-        <div class="email-footer">
-            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
-            <div class="footer-links">
-                <a href="https://swiftfiat.com">Home</a>
-                <a href="https://swiftfiat.com/support">Support</a>
-                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
-            </div>
-            <div class="social-links">
-                <a href="#">📘</a>
-                <a href="#">🐦</a>
-                <a href="#">📷</a>
-            </div>
-            <p style="margin-top: 20px; color: #999;">
-                This is an automated message from SwiftFiat. Please do not reply to this email.
-            </p>
-            <p style="margin-top: 10px; font-size: 11px; color: #999;">
-                © {{.Year}} SwiftFiat. All rights reserved.
-            </p>
-        </div>
-    </div>
+              <p>
+                You can now withdraw your savings or roll them into a new goal to keep your momentum going.
+              </p>
+
+              <!-- Button -->
+              <p style="text-align:center; margin:30px 0;">
+                <a href="{{vaultUrl}}"
+                   style="background:#542182; color:#fff; padding:12px 22px; 
+                          text-decoration:none; font-size:15px; border-radius:6px; 
+                          display:inline-block;">
+                  View Your Vault
+                </a>
+              </p>
+
+              <p>
+                We're proud of your consistency and discipline.  
+                Here’s to more goals—and more wins!
+              </p>
+
+              <p style="margin-bottom:0;">
+                Warm regards, <br>
+                <strong>The SwiftFiat Team</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background:#fafafa; padding:20px 30px; text-align:center; color:#888; font-size:12px;">
+              © {{.Year}} SwiftFiat. All rights reserved.
+            </td>
+          </tr>
+
+        </table>
+        <!-- End Email Card -->
+
+      </td>
+    </tr>
+  </table>
+
+</body>
 </body>
 </html>

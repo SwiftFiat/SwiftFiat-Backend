@@ -2,7 +2,10 @@ package utils
 
 import (
 	"encoding/json"
+	"fmt"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -35,4 +38,8 @@ func UnmarshalMetadata(raw pqtype.NullRawMessage) map[string]any {
 	}
 
 	return meta
+}
+
+func NewTxRef(prefix string) string {
+	return fmt.Sprintf("%s-%s-%d", prefix, uuid.New().String()[:8], time.Now().Unix())
 }

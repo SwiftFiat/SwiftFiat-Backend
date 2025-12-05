@@ -13,7 +13,7 @@ import (
 	"strconv"
 	"time"
 
-	activitylogs "github.com/SwiftFiat/SwiftFiat-Backend/services/activity_logs"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/pquerna/otp/totp"
 
@@ -23,7 +23,6 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
@@ -37,21 +36,17 @@ type Auth struct {
 	userService     *user_service.UserService
 	referralService *referral.Service
 	refRepo         *referral.Repo
-	activityTracker *activitylogs.ActivityLog
+	audit           *audit.Service
 	notifr          *service.Notification
 }
 
 func (a Auth) router(server *Server) {
 	a.server = server
-	a.userService = user_service.NewUserService(
-		a.server.queries,
-		a.server.logger,
-		wallet.NewWalletService(a.server.queries, a.server.logger),
-	)
+	a.userService = a.server.userService
 	a.refRepo = referral.NewReferralRepository(server.queries)
-	a.notifr = service.NewNotificationService(server.queries)
+	a.notifr = a.server.inAppnotificationService
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr)
-	a.activityTracker = activitylogs.NewActivityLog(a.server.queries)
+	a.audit = a.server.auditService
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
@@ -231,6 +226,12 @@ func (a *Auth) login(ctx *gin.Context) {
 				}
 			}(dbUser, failedCount, ctx.ClientIP())
 		}
+
+		// Log audit
+		errMsg := apistrings.IncorrectEmailPass
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
 		return
 	}
@@ -357,17 +358,11 @@ func (a *Auth) login(ctx *gin.Context) {
 				a.server.logger.Error(fmt.Sprintf("failed to create wallets: %v", err))
 			}
 		}
-
-		// Log activity
-		if err := a.activityTracker.Create(context.Background(), db.CreateAuditLogParams{
-			UserID:    int32(dbUser.ID),
-			Action:    fmt.Sprintf("User %s logged in", dbUser.FirstName.String),
-			Ip:        sql.NullString{String: currentDevice.IP, Valid: true},
-			UserAgent: sql.NullString{String: currentDevice.UserAgent, Valid: true},
-		}); err != nil {
-			a.server.logger.Error(fmt.Sprintf("error logging activity: %v", err))
-		}
 	}()
+
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
@@ -450,20 +445,20 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		})
 		if err != nil {
 			a.server.logger.Error(err.Error())
+
+			// Log audit
+			errMsg := err.Error()
+			entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, false, &errMsg)
+			a.audit.Log(entry)
+
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred enabling 2FA"))
 			return
 		}
 
 		// Log 2FA setup attempt
-		err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-			UserID:    int32(user.ID),
-			Action:    "2FA enabled",
-			Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-			UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-		})
-		if err != nil {
-			a.server.logger.Error(fmt.Sprintf("error logging 2FA setup: %v", err))
-		}
+		// Log audit
+		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, true, nil)
+		a.audit.Log(entry)
 
 		img, err := key.Image(200, 200)
 		if err != nil {
@@ -494,19 +489,19 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	})
 	if err != nil {
 		a.server.logger.Error(err.Error())
+
+		// Log audit
+		errMsg := err.Error()
+		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred disabling 2FA"))
 		return
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(updatedUser.ID),
-		Action:    "2FA disabled",
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - SetTwoFA: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.Event2FADisabled, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA disabled successfully", models.UserResponse{}.ToUserResponse(&updatedUser)))
 }
@@ -597,15 +592,9 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 		Token: token,
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(userWT.User.ID),
-		Action:    fmt.Sprintf("User %s logged in via 2FA ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - login: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.Event2FAVerified, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
@@ -632,19 +621,19 @@ func (a *Auth) logout(ctx *gin.Context) {
 	tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
 	if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
+
+		// Log audit
+		errMsg := err.Error()
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(activeUser.UserID),
-		Action:    "User logged out",
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - logout: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged out successfully", nil))
 }
@@ -678,19 +667,19 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 
 	if _, err := pipe.Exec(ctx); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis pipeline error during logout all: %v", err))
+
+		// Log audit
+		errMsg := err.Error()
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(activeUser.UserID),
-		Action:    "User logged out from all devices",
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - logout all: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, &activeUser.UserID, nil, activeUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("logged out from all devices successfully", nil))
 }
@@ -749,15 +738,9 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 		Token: token,
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(userWT.User.ID),
-		Action:    fmt.Sprintf("Admin %s logged in ", dbUser.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - admin login: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	a.server.redis.Delete(ctx, redisKey)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin logged in successfully", userWT))
@@ -795,7 +778,13 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	}
 
 	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPasscode.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("incorrect email or passcode"))
+
+		// Log audit
+		errMsg := "incorrect email or passcode"
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		a.audit.Log(entry)
+
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(errMsg))
 		return
 	}
 
@@ -817,12 +806,9 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		Token: token,
 	}
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(dbUser.ID),
-		Action:    fmt.Sprintf("User %s logged in with passcode ", dbUser.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
 }
@@ -935,10 +921,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		Token: token,
 	}
 
-	// Get device info for logging
-	clientIP := ctx.ClientIP()
-	userAgent := ctx.Request.UserAgent()
-
 	// Handle all post-registration tasks asynchronously
 	go func() {
 		bgCtx := context.Background()
@@ -952,18 +934,11 @@ func (a *Auth) register(ctx *gin.Context) {
 		if _, err := a.notifr.Create(bgCtx, int32(newUser.ID), title, message); err != nil {
 			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %d: %v", newUser.ID, err))
 		}
-
-		// Log registration activity
-		logParams := db.CreateAuditLogParams{
-			UserID:    int32(newUser.ID),
-			Action:    fmt.Sprintf("User registered with email %s", newUser.Email),
-			Ip:        sql.NullString{String: clientIP, Valid: true},
-			UserAgent: sql.NullString{String: userAgent, Valid: true},
-		}
-		if err := a.activityTracker.Create(bgCtx, logParams); err != nil {
-			a.server.logger.Error(fmt.Sprintf("failed to log registration activity for user %d: %v", newUser.ID, err))
-		}
 	}()
+
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, &newUser.ID, &newUser.Email, newUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
 }
@@ -1011,19 +986,19 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 		ID:        user.ID,
 	})
 	if err != nil {
+
+		// Log audit
+		errMsg := err.Error()
+		entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, &user.ID, &user.Email, user.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Could not verify user"))
 		return
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s verified their email ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - verify email: %v", err))
-	}
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	a.server.redis.Delete(ctx, redisKey)
 
@@ -1262,10 +1237,6 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		// Continue - Redis is cache, not source of truth
 	}
 
-	// Get device info for logging
-	clientIP := ctx.ClientIP()
-	userAgent := ctx.Request.UserAgent()
-
 	// Generate totpKey QRcode
 	img, err := totpKey.Image(200, 200)
 	if err != nil {
@@ -1275,26 +1246,19 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	}
 
 	var buf bytes.Buffer
-		png.Encode(&buf, img)
-		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
-		qrcode := "data:image/png;base64," + encoded
+	png.Encode(&buf, img)
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+	qrcode := "data:image/png;base64," + encoded
 
 	// Log activity asynchronously
 	go func() {
-		bgCtx := context.Background()
-		logParams := db.CreateAuditLogParams{
-			UserID:    int32(newUser.ID),
-			Action:    fmt.Sprintf("Admin user %s registered with role %s", newUser.FirstName.String, role),
-			Ip:        sql.NullString{String: clientIP, Valid: true},
-			UserAgent: sql.NullString{String: userAgent, Valid: true},
-		}
-		if err := a.activityTracker.Create(bgCtx, logParams); err != nil {
-			a.server.logger.Error(fmt.Sprintf("failed to log admin registration activity: %v", err))
-		}
-
 		// Send notification email to admin about successful registration
 		a.server.emailService.SendAdminRegistrationEmail(&newUser, totpKey.Secret(), qrcode, totpKey.URL())
 	}()
+
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, &newUser.ID, &newUser.Email, newUser.Role, true, nil)
+	a.audit.Log(entry)
 
 	// Prepare response with 2FA setup information
 	response := AdminRegistrationResponse{
@@ -1367,9 +1331,20 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 	err = em.SendOTP(resp.Otp)
 	if err != nil {
 		log.Default().Output(6, err.Error())
+
+		// Log audit
+		errMsg := err.Error()
+		entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, &user.ID, &user.Email, user.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error sending OTP please try again later"))
 		return
 	}
+
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
 }
 
@@ -1427,6 +1402,12 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 
 	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
 	if err != nil {
+		errMsg := err.Error()
+		
+		// Log audit
+		entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		a.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
@@ -1436,12 +1417,9 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	/// Delete user token from redis
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(dbUser.ID),
-		Action:    fmt.Sprintf("User %s reset password ", dbUser.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
 }
@@ -1516,12 +1494,9 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s changed password ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
+	// audit log
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
 }
@@ -1577,13 +1552,9 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s created passcode ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeCreated, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
+	
 	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
@@ -1708,12 +1679,8 @@ func (a *Auth) createPin(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s created pin ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPinCreated, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
 }
@@ -1732,35 +1699,35 @@ func (a *Auth) createPin(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/auth/verify-pin [post]
 func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
-    req := struct {
-        Pin string `json:"pin" binding:"required"`
-    }{}
+	req := struct {
+		Pin string `json:"pin" binding:"required"`
+	}{}
 
-    if err := ctx.ShouldBindJSON(&req); err != nil {
-        ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
-        return
-    }
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'pin'"))
+		return
 
-    activeUser, err := utils.GetActiveUser(ctx)
-    if err != nil {
-        ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-        return
-    }
+	}
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
 
-    dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
-    if err != nil {
-        ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-        return
-    }
+	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
 
-    // Verify provided pin against stored hashed pin
-    if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
-        a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
-        ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid pin"))
-        return
-    }
+	// Verify provided pin against stored hashed pin
+	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
+		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid pin"))
+		return
+	}
 
-    ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin verified successfully", struct{}{}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin verified successfully", struct{}{}))
 }
 
 // updateTransactionPin godoc
@@ -1822,12 +1789,8 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s updated transaction pin ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPinChanged, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
 }
@@ -1895,15 +1858,9 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 		return
 	}
 
-	err = a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(user.ID),
-		Action:    fmt.Sprintf("User %s reset password ", user.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-	if err != nil {
-		a.server.logger.Error(fmt.Sprintf("error logging activity - reset password: %v", err))
-	}
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, &user.ID, &user.Email, user.Role, true, nil)
+	a.audit.Log(entry)
+
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 	/// Delete user token from redis
@@ -1956,13 +1913,6 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(ctx, db.CreateAuditLogParams{
-		UserID:    int32(dbUser.ID),
-		Action:    fmt.Sprintf("User %s deleted account ", dbUser.FirstName.String),
-		Ip:        sql.NullString{String: ctx.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: ctx.Request.UserAgent(), Valid: true},
-	})
-
 	_, err = a.server.queries.DeleteUser(context.Background(), db.DeleteUserParams{
 		ID:          activeUser.UserID,
 		PhoneNumber: dbUser.PhoneNumber + "DELETED",
@@ -1978,6 +1928,10 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 	}
 
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
+
+	entry := audit.NewAuthenticationLog(ctx, audit.EventAccountDeleted, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	a.audit.Log(entry)
+
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", nil))
 }
@@ -2068,12 +2022,6 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 		return
 	}
 
-	a.activityTracker.Create(c, db.CreateAuditLogParams{
-		UserID:    int32(newUser.ID),
-		Action:    fmt.Sprintf("User %s verified OTP ", newUser.FirstName.String),
-		Ip:        sql.NullString{String: c.ClientIP(), Valid: true},
-		UserAgent: sql.NullString{String: c.Request.UserAgent(), Valid: true},
-	})
 	a.notifr.Create(c, int32(newUser.ID), "Account", "Your account is verified successfully")
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
 }
