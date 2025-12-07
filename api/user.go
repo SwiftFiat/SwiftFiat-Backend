@@ -12,6 +12,7 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
@@ -28,6 +29,7 @@ type User struct {
 	userService        *user_service.UserService
 	bankAccountService *bankaccounts.BankAccountService
 	notifyr            *service.Notification
+	audit              *audit.Service
 }
 
 func (u User) router(server *Server) {
@@ -36,6 +38,7 @@ func (u User) router(server *Server) {
 	u.userService = server.userService
 	u.notifyr = server.inAppnotificationService
 	u.bankAccountService = server.bankAccountService
+	u.audit = server.auditService
 
 	// serverGroupV1 := server.router.Group("/user")
 	serverGroupV1 := server.router.Group("/api/v1/user")
@@ -264,6 +267,20 @@ func (u *User) userTag(ctx *gin.Context) {
 		return
 	}
 
+	// Audit log
+	logentry := audit.NewUserLog(
+		ctx,
+		audit.EventUserTagUpdated,
+		string(userInfo.ID),
+		activeUser.Role,
+		fmt.Sprintf("User %d updated their user tag", activeUser.UserID),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionCreate,
+		true,
+	)
+
+	u.audit.Log(logentry)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user tag set successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
@@ -365,6 +382,21 @@ func (u *User) pushToken(ctx *gin.Context) {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
 			return
 		}
+
+		// Audit log
+		logentry := audit.NewUserLog(
+			ctx,
+			audit.EventUserPushTokenUpdated,
+			string(tokenValue.ID),
+			activeUser.Role,
+			fmt.Sprintf("User %d updated their Expo push notification token", activeUser.UserID),
+			&activeUser.UserID,
+			audit.SeverityInfo,
+			audit.ActionCreate,
+			true,
+		)
+		u.audit.Log(logentry)
+
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
 		return
 	}
@@ -440,6 +472,20 @@ func (u *User) updatePhoneNumber(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	logentry := audit.NewUserLog(
+		ctx,
+		audit.EventUserPhoneNumberUpdated,
+		strconv.Itoa(int(userInfo.ID)),
+		activeUser.Role,
+		fmt.Sprintf("User %d updated their phone number", activeUser.UserID),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+	u.audit.Log(logentry)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user phone number upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
 
@@ -480,6 +526,20 @@ func (u *User) updateName(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting first name %v", err.Error())))
 		return
 	}
+
+	// audit log
+	logentry := audit.NewUserLog(
+		ctx,
+		audit.EventUserNameUpdated,
+		strconv.Itoa(int(userInfo.ID)),
+		activeUser.Role,
+		fmt.Sprintf("User %d updated their first and last name", activeUser.UserID),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+	u.audit.Log(logentry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user name upserted successfully", models.UserResponse{}.ToUserResponse(userInfo)))
 }
@@ -1048,6 +1108,20 @@ func (u *User) DeleteUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred deleting the user %v", err.Error())))
 		return
 	}
+
+	// Audit log
+	logentry := audit.NewUserLog(
+		c,
+		audit.EventUserDeleted,
+		strconv.Itoa(userID),
+		activeUser.Role,
+		fmt.Sprintf("User %d deleted user %d", activeUser.UserID, userID),
+		&activeUser.UserID,
+		audit.SeverityCritical,
+		audit.ActionDelete,
+		true,
+	)
+	u.audit.Log(logentry)
 	c.JSON(http.StatusOK, basemodels.NewSuccess("user deleted successfully", nil))
 }
 
@@ -1208,6 +1282,20 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 		status = "deactivated"
 	}
 
+	// Audit log
+	logentry := audit.NewUserLog(
+		ctx,
+		audit.EventUserStatusUpdated,
+		strconv.Itoa(userID),
+		activeUser.Role,
+		fmt.Sprintf("User %d %s user %d", activeUser.UserID, status, userID),
+		&activeUser.UserID,
+		audit.SeverityWarning,
+		audit.ActionUpdate,
+		true,
+	)
+	u.audit.Log(logentry)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("user successfully %s", status), models.UserResponse{}.ToUserResponse(&updatedUser)))
 }
 
@@ -1246,6 +1334,20 @@ func (u *User) createBankAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to verify bank account"))
 		return
 	}
+
+	// audit log
+	logentry := audit.NewUserLog(
+		c,
+		audit.EventBankAccountAdded,
+		bankAccount.ID.String(),
+		activeUser.Role,
+		fmt.Sprintf("User %d added a new bank account %s", activeUser.UserID, bankAccount.AccountNumber),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionCreate,
+		true,
+	)
+	u.audit.Log(logentry)
 
 	c.JSON(http.StatusCreated, basemodels.NewSuccess("Bank account added and verified successfully", bankAccount))
 }
@@ -1340,6 +1442,20 @@ func (u *User) SetDefaultBankAccount(c *gin.Context) {
 		return
 	}
 
+	// audit log
+	logentry := audit.NewUserLog(
+		c,
+		audit.EventDefaultBankAccountUpdated,
+		accountID.String(),
+		activeUser.Role,
+		fmt.Sprintf("User %d set bank account %s as default", activeUser.UserID, accountID.String()),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+	u.audit.Log(logentry)
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Default bank account updated successfully", nil))
 }
 
@@ -1377,6 +1493,20 @@ func (u *User) DeleteBankAccount(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// audit log
+	logentry := audit.NewUserLog(
+		c,
+		audit.EventBankAccountDeleted,
+		accountID.String(),
+		activeUser.Role,
+		fmt.Sprintf("User %d deleted bank account %s", activeUser.UserID, accountID.String()),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionDelete,
+		true,
+	)
+	u.audit.Log(logentry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Bank account deleted successfully", nil))
 }

@@ -24,6 +24,9 @@ const (
 	CategoryCompliance     EventCategory = "compliance"
 	CategorySystem         EventCategory = "system"
 	CategoryVaultSavings   EventCategory = "vault_savings"
+	CategoryUserManagement EventCategory = "user_management"
+	CategoryCrypto         EventCategory = "crypto"
+	CategoryRateManager    EventCategory = "rate_manager"
 )
 
 // Severity represents the importance level of an audit event
@@ -51,6 +54,19 @@ const (
 
 // Common event types as constants for type safety
 const (
+	// User management events
+	EventUserTagUpdated            = "user.tag.updated"
+	EventUserPushTokenUpdated      = "user.push_token.updated"
+	EventUserPhoneNumberUpdated    = "user.phone_number.updated"
+	EventUserNameUpdated           = "user.name.updated"
+	EventUserDeleted               = "user.deleted"
+	EventUserStatusUpdated         = "user.status.updated"
+	EventBankAccountAdded          = "user.bank_account.added"
+	EventDefaultBankAccountUpdated = "user.bank_account.default_updated"
+	EventBankAccountDeleted        = "user.bank_account.deleted"
+	EventReferralTracked           = "user.referral.tracked"
+	EventReferralWithdrawalRequest = "user.referral.withdrawal_requested"
+
 	// Authentication events
 	EventUserLogin              = "user.login"
 	EventUserLogout             = "user.logout"
@@ -79,13 +95,17 @@ const (
 	EventPhoneVerified      = "account.phone.verified"
 
 	// Transaction events
-	EventTransactionCreated   = "transaction.created"
-	EventTransactionCompleted = "transaction.completed"
-	EventTransactionFailed    = "transaction.failed"
-	EventTransactionRefunded  = "transaction.refunded"
-	EventTransactionCancelled = "transaction.cancelled"
-	EventTransactionFeeCreated = "transaction.fee.created"
-	EventWalletSwapCreated	= "wallet.swap.created"
+	EventTransactionCreated     = "transaction.created"
+	EventTransactionCompleted   = "transaction.completed"
+	EventTransactionFailed      = "transaction.failed"
+	EventTransactionRefunded    = "transaction.refunded"
+	EventTransactionCancelled   = "transaction.cancelled"
+	EventTransactionFeeCreated  = "transaction.fee.created"
+	EventWalletSwapCreated      = "wallet.swap.created"
+	EventAirtimePurchase        = "airtime.purchase"
+	EventDataPurchase           = "data.purchase"
+	EventTVSubscriptionPurchase = "tv.subscription.purchase"
+	EventElectricityPurchase    = "electiricity.purchase"
 
 	// KYC events
 	EventKYCSubmitted   = "kyc.submitted"
@@ -110,32 +130,48 @@ const (
 	EventMultipleFailedLogins = "security.multiple_failed_logins"
 
 	// vault savings events
-	EventVaultCreated           = "vault.created"
-	EventVaultUpdated           = "vault.updated"
-	EventVaultDeleted           = "vault.deleted"
-	EventSavingsDeposited       = "savings.deposited"
-	EventRecurringRuleUpdated   = "savings.recurring_rule.updated"
-	EventSavingsWithdrawn       = "savings.withdrawn"
-	EventYieldGenerated         = "yield.generated"
-	EventYieldsProcessed        = "yields.processed"
-	EventYieldConfigCreated     = "yield.config.created"
-	EventYieldConfigUpdated     = "yield.config.updated"
-	EventYieldConfigDeleted     = "yield.config.deleted"
-	EventYieldConfigDeactivated = "yield.config.deactivated"
-	EventYieldConfigActivated   = "yield.config.activated"
-	EventInterestPaid           = "interest.paid"
-	EventVaultSuspended         = "vault.suspended"
-	EventVaultReactivated       = "vault.reactivated"
-	EventVaultTransferIn        = "vault.transfer_in"
-	EventVaultTransferOut       = "vault.transfer_out"
-	EventVaultAutoInvestSet     = "vault.auto_invest.set"
-	EventVaultRecurringRulePaused = "vault.recurring_rule.paused"
+	EventVaultCreated              = "vault.created"
+	EventVaultUpdated              = "vault.updated"
+	EventVaultDeleted              = "vault.deleted"
+	EventSavingsDeposited          = "savings.deposited"
+	EventRecurringRuleUpdated      = "savings.recurring_rule.updated"
+	EventSavingsWithdrawn          = "savings.withdrawn"
+	EventYieldGenerated            = "yield.generated"
+	EventYieldsProcessed           = "yields.processed"
+	EventYieldConfigCreated        = "yield.config.created"
+	EventYieldConfigUpdated        = "yield.config.updated"
+	EventYieldConfigDeleted        = "yield.config.deleted"
+	EventYieldConfigDeactivated    = "yield.config.deactivated"
+	EventYieldConfigActivated      = "yield.config.activated"
+	EventInterestPaid              = "interest.paid"
+	EventVaultSuspended            = "vault.suspended"
+	EventVaultReactivated          = "vault.reactivated"
+	EventVaultTransferIn           = "vault.transfer_in"
+	EventVaultTransferOut          = "vault.transfer_out"
+	EventVaultAutoInvestSet        = "vault.auto_invest.set"
+	EventVaultRecurringRulePaused  = "vault.recurring_rule.paused"
 	EventVaultRecurringRuleResumed = "vault.recurring_rule.resumed"
 
 	// Transfer events
-
 	EventWalletTransferCreated = "wallet.transfer.created"
 	EventFiatTransferCreated   = "fiat.transfer.created"
+
+	// Crypto events
+	EventCreateStaticWallet = "cryptomus.wallet.created"
+	EventCreateQrCode       = "qrcode.created"
+	EventDeleteQrCode       = "qrcode.deleted"
+	EventCreateConversionRule = "smart-convert.rule.created"
+	EventPauseConversionRule = "smart-convert.rule.paused"
+	EventResumeConversionRule = "smart-convert.rule.resumed"
+	EventDeleteConversionRule = "smart-convert.rule.deleted"
+	EventManualConversion = "smart-convert.manual"
+
+	// Reward events
+	EventCreateRewardConfig = "rewards.config.created"
+	EventUpdateRewardConfig = "rewards.config.updated"
+	EventDeleteRewardConfig = "rewards.config.deleted"
+	EventActivateRewardConfig = "rewards.config.activated"
+	EventDeactivateRewardConfig = "rewards.config.deactivated"
 )
 
 // LogEntry represents the input for creating an audit log
@@ -177,26 +213,26 @@ type SearchFilters struct {
 
 // LogResponse represents an audit log entry returned from queries
 type LogResponse struct {
-	ID            int64           `json:"id"`
-	EventCategory EventCategory   `json:"event_category"`
-	EventType     string          `json:"event_type"`
-	Severity      Severity        `json:"severity"`
-	ActorID       *int64          `json:"actor_id,omitempty"`
-	ActorType     string          `json:"actor_type"`
-	ActorEmail    *string         `json:"actor_email,omitempty"`
-	EntityType    string          `json:"entity_type"`
-	EntityID      string          `json:"entity_id"`
-	IPAddress     *string         `json:"ip_address,omitempty"`
-	UserAgent     *string         `json:"user_agent,omitempty"`
-	RequestID     *string         `json:"request_id,omitempty"`
-	Action        Action          `json:"action"`
-	Description   string          `json:"description"`
+	ID            int64          `json:"id"`
+	EventCategory EventCategory  `json:"event_category"`
+	EventType     string         `json:"event_type"`
+	Severity      Severity       `json:"severity"`
+	ActorID       *int64         `json:"actor_id,omitempty"`
+	ActorType     string         `json:"actor_type"`
+	ActorEmail    *string        `json:"actor_email,omitempty"`
+	EntityType    string         `json:"entity_type"`
+	EntityID      string         `json:"entity_id"`
+	IPAddress     *string        `json:"ip_address,omitempty"`
+	UserAgent     *string        `json:"user_agent,omitempty"`
+	RequestID     *string        `json:"request_id,omitempty"`
+	Action        Action         `json:"action"`
+	Description   string         `json:"description"`
 	OldValues     map[string]any `json:"old_values,omitempty"`
 	NewValues     map[string]any `json:"new_values,omitempty"`
 	Metadata      map[string]any `json:"metadata,omitempty"`
-	Success       bool            `json:"success"`
-	ErrorMessage  *string         `json:"error_message,omitempty"`
-	CreatedAt     time.Time       `json:"created_at"`
+	Success       bool           `json:"success"`
+	ErrorMessage  *string        `json:"error_message,omitempty"`
+	CreatedAt     time.Time      `json:"created_at"`
 }
 
 // AuditStats represents aggregated statistics
@@ -277,6 +313,30 @@ func NewAuthenticationLog(c *gin.Context, eventType string, actorID *int64, emai
 	}
 }
 
+func NewLog(c *gin.Context, eventType, entityID, entityType, desc string, actorID *int64, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
+	severity := SeverityInfo
+	if !success {
+		severity = SeverityWarning
+	}
+
+	return &LogEntry{
+		EventCategory: CategoryCrypto,
+		EventType:     eventType,
+		Severity:      severity,
+		ActorID:       actorID,
+		ActorType:     ActorTypeUser,
+		ActorEmail:    email,
+		EntityType:    entityType,
+		EntityID:      entityID,
+		Action:        ActionCreate,
+		Success:       success,
+		ErrorMessage:  errMsg,
+		Description:   desc,
+		IPAddress:     net.ParseIP(c.ClientIP()),
+		UserAgent:     c.Request.UserAgent(),
+	}
+}
+
 // NewTransactionLog creates a log entry for transaction events
 func NewTransactionLog(c *gin.Context, eventType, transactionID, userRole string, actorID int64, amount float64, currency string, success bool) *LogEntry {
 	return &LogEntry{
@@ -314,6 +374,23 @@ func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole strin
 	}
 }
 
+func NewUserLog(c *gin.Context, eventType, entityID, userRole, desc string, actorID *int64, severity Severity, action Action, success bool) *LogEntry {
+	return &LogEntry{
+		EventCategory: CategoryUserManagement,
+		EventType:     eventType,
+		Severity:      severity,
+		ActorID:       actorID,
+		ActorType:     userRole,
+		EntityType:    "user",
+		EntityID:      entityID,
+		Action:        action,
+		Success:       success,
+		Description:   desc,
+		IPAddress:     net.ParseIP(c.ClientIP()),
+		UserAgent:     c.Request.UserAgent(),
+	}
+}
+
 // NewSecurityLog creates a log entry for security events
 func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, actorID *int64, severity Severity) *LogEntry {
 	return &LogEntry{
@@ -326,6 +403,22 @@ func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, acto
 		EntityID:      entityID,
 		Action:        ActionExecute,
 		Success:       false,
+		IPAddress:     net.ParseIP(c.ClientIP()),
+		UserAgent:     c.Request.UserAgent(),
+	}
+}
+
+func NewReferralLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *int64, severity Severity) *LogEntry {
+	return &LogEntry{
+		EventCategory: CategoryUserManagement,
+		EventType:     eventType,
+		Severity:      severity,
+		ActorID:       actorID,
+		ActorType:     userRole,
+		EntityType:    entityType,
+		EntityID:      entityID,
+		Action:        ActionExecute,
+		Success:       true,
 		IPAddress:     net.ParseIP(c.ClientIP()),
 		UserAgent:     c.Request.UserAgent(),
 	}

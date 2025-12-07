@@ -845,7 +845,7 @@ type GetCategoryPerformanceRow struct {
 	MonthlyVolume         int64   `json:"monthly_volume"`
 	AvgSubscriptionAmount float64 `json:"avg_subscription_amount"`
 	TotalFailures         int64   `json:"total_failures"`
-	AvgConfidenceScore    string  `json:"avg_confidence_score"`
+	AvgConfidenceScore    float64 `json:"avg_confidence_score"`
 }
 
 func (q *Queries) GetCategoryPerformance(ctx context.Context) ([]GetCategoryPerformanceRow, error) {
@@ -1163,11 +1163,11 @@ type GetSubscriptionRenewalSuccessRateParams struct {
 }
 
 type GetSubscriptionRenewalSuccessRateRow struct {
-	Date               int64  `json:"date"`
-	SuccessfulRenewals int64  `json:"successful_renewals"`
-	FailedRenewals     int64  `json:"failed_renewals"`
-	TotalRenewals      int64  `json:"total_renewals"`
-	SuccessRate        string `json:"success_rate"`
+	Date               int64   `json:"date"`
+	SuccessfulRenewals int64   `json:"successful_renewals"`
+	FailedRenewals     int64   `json:"failed_renewals"`
+	TotalRenewals      int64   `json:"total_renewals"`
+	SuccessRate        float64 `json:"success_rate"`
 }
 
 func (q *Queries) GetSubscriptionRenewalSuccessRate(ctx context.Context, arg GetSubscriptionRenewalSuccessRateParams) ([]GetSubscriptionRenewalSuccessRateRow, error) {
@@ -1290,13 +1290,13 @@ type GetSubscriptionSpendTrendsParams struct {
 }
 
 type GetSubscriptionSpendTrendsRow struct {
-	Month                 int64  `json:"month"`
-	TotalSpent            int64  `json:"total_spent"`
-	SuccessfulPayments    int64  `json:"successful_payments"`
-	FailedPayments        int64  `json:"failed_payments"`
-	ActiveSubscriptions   int64  `json:"active_subscriptions"`
-	SpendChange           int32  `json:"spend_change"`
-	SpendChangePercentage string `json:"spend_change_percentage"`
+	Month                 int64   `json:"month"`
+	TotalSpent            int64   `json:"total_spent"`
+	SuccessfulPayments    int64   `json:"successful_payments"`
+	FailedPayments        int64   `json:"failed_payments"`
+	ActiveSubscriptions   int64   `json:"active_subscriptions"`
+	SpendChange           int32   `json:"spend_change"`
+	SpendChangePercentage float64 `json:"spend_change_percentage"`
 }
 
 func (q *Queries) GetSubscriptionSpendTrends(ctx context.Context, arg GetSubscriptionSpendTrendsParams) ([]GetSubscriptionSpendTrendsRow, error) {
@@ -1672,7 +1672,7 @@ type GetTopMerchantsGlobalRow struct {
 	MonthlyVolume        int64          `json:"monthly_volume"`
 	LifetimeVolume       int64          `json:"lifetime_volume"`
 	AvgAmount            float64        `json:"avg_amount"`
-	ActiveRatePercentage string         `json:"active_rate_percentage"`
+	ActiveRatePercentage float64        `json:"active_rate_percentage"`
 }
 
 func (q *Queries) GetTopMerchantsGlobal(ctx context.Context, limit int32) ([]GetTopMerchantsGlobalRow, error) {

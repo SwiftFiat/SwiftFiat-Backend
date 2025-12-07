@@ -7,7 +7,9 @@ import (
 	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
@@ -25,6 +27,7 @@ type Referral struct {
 	logger                  *logging.Logger
 	AmountEarnedPerReferral decimal.Decimal
 	notifyr                 *service.Notification
+	audit                   *audit.Service
 }
 
 func (r Referral) router(server *Server) {
@@ -34,6 +37,7 @@ func (r Referral) router(server *Server) {
 	r.logger = r.server.logger
 	r.notifyr = service.NewNotificationService(r.server.queries)
 	r.service = referral.NewReferralService(r.repo, r.logger, r.notifyr)
+	r.audit = r.server.auditService
 
 	serverGroupV1 := server.router.Group("/api/v1/referral")
 	serverGroupV1.GET("/test", r.testReferral)
@@ -95,6 +99,11 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewReferralLog(c, audit.EventReferralTracked, "referral", fmt.Sprintf("Referral tracked for user %d", activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("User %d tracked referral with code %s", activeUser.UserID, request.ReferralCode)
+	r.audit.Log(auditLog)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Referral tracked successfully", ref))
 }
@@ -183,7 +192,7 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 // @Description  Retrieves the referral earnings for the authenticated user
 // @Tags         Referral
 // @Accept       json
-// @Produce      json 
+// @Produce      json
 // @Success      200  {object}  map[string]any
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/request-withdrawal [get]
@@ -216,6 +225,11 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create withdrawal request"))
 	}
 
+	// audit log
+	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawalRequest, "referral", fmt.Sprintf("Withdrawal requested by user %d", activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("User %d requested withdrawal of amount %s", activeUser.UserID, req.Amount.String())
+	r.audit.Log(auditLog)
+
 	c.JSON(http.StatusCreated, basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "withdrawal request created successfully",
@@ -241,8 +255,8 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	}
 
 	//	check if active user is admin
-	if activeUser.Role != "admin" {
-		r.logger.Error(fmt.Errorf("unauthorized access: only admin can process withdrawal request"))
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
@@ -277,6 +291,11 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
 		return
 	}
+
+	// audit log
+	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawalRequest, "referral", fmt.Sprintf("Withdrawal request %d updated by admin %d", req.ID, activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Admin %d updated withdrawal request %d to status %s", activeUser.UserID, req.ID, req.Status)
+	r.audit.Log(auditLog)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wr))
 }

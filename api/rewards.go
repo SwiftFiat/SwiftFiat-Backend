@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -19,11 +20,13 @@ import (
 type Rewards struct {
 	server        *Server
 	rewardService *rewards.RewardService
+	audit         *audit.Service
 }
 
 func (r Rewards) router(server *Server) {
 	r.server = server
 	r.rewardService = server.rewardService
+	r.audit = server.auditService	
 
 	// User endpoints
 	rewards := server.router.Group("/api/v1/rewards")
@@ -264,6 +267,28 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	entry := audit.NewLog(
+		ctx,
+		audit.EventCreateRewardConfig,
+		string(config.ID),
+		"rewards",
+		"Reward configuration created successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": config.ConfigName,
+		"reward_rate": config.RewardRate,
+		"transaction_type": config.TransactionType,
+		"is_active": config.IsActive,
+	}
+	r.audit.Log(entry)
+
 	ctx.JSON(http.StatusCreated, config)
 }
 
@@ -405,6 +430,12 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
+	oldConfig, err := r.server.queries.GetRewardConfigurationByID(ctx.Request.Context(), configID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
 	var req rewards.UpdateRewardConfigRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
@@ -428,6 +459,44 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		ctx,
+		audit.EventUpdateRewardConfig,
+		string(config.ID),
+		"rewards",
+		"Reward configuration updated successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": config.ConfigName,
+		"reward_rate": config.RewardRate,
+		"transaction_type": config.TransactionType,
+		"is_active": config.IsActive,
+	}
+
+	entry.OldValues = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": oldConfig.ConfigName,
+		"reward_rate": oldConfig.RewardRate,
+		"transaction_type": oldConfig.TransactionType,
+		"is_active": oldConfig.IsActive,
+	}
+
+	entry.NewValues = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": config.ConfigName,
+		"reward_rate": config.RewardRate,
+		"transaction_type": config.TransactionType,
+		"is_active": config.IsActive,
+	}
+	r.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("", config))
 }
@@ -471,6 +540,28 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
+	// audit log
+	entry := audit.NewLog(
+		ctx,
+		audit.EventActivateRewardConfig,
+		string(config.ID),
+		"rewards",
+		"Reward configuration activated successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": config.ConfigName,
+		"reward_rate": config.RewardRate,
+		"transaction_type": config.TransactionType,
+		"is_active": config.IsActive,
+	}
+	r.audit.Log(entry)
+
 	ctx.JSON(http.StatusOK, rewards.MapRewardConfigToResponse(&config))
 }
 
@@ -512,6 +603,28 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		ctx,
+		audit.EventDeactivateRewardConfig,
+		string(config.ID),
+		"rewards",
+		"Reward configuration deactivated successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"config_name": config.ConfigName,
+		"reward_rate": config.RewardRate,
+		"transaction_type": config.TransactionType,
+		"is_active": config.IsActive,
+	}
+	r.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, rewards.MapRewardConfigToResponse(&config))
 }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -19,6 +20,7 @@ type SmartConvertHandler struct {
 	logger          *logging.Logger
 	exchangeRateSvc *smartconversion.ExchangeRateService
 	conversionSvc   *smartconversion.ConversionService
+	audit           *audit.Service
 }
 
 func (s SmartConvertHandler) router(server *Server) {
@@ -26,6 +28,7 @@ func (s SmartConvertHandler) router(server *Server) {
 	s.logger = s.server.logger
 	s.exchangeRateSvc = s.server.scExchangeRateservice
 	s.conversionSvc = s.server.smartConvertService
+	s.audit = s.server.auditService
 
 	v1 := server.router.Group("/api/v1/smart-convert")
 	v1.GET("/rates", s.GetExchangeRate)
@@ -80,9 +83,48 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 			return
 		}
 		s.logger.Error("Failed to create conversion rule", "error", err)
+
+		// audit log
+		errMsg := err.Error()
+		entry := audit.NewLog(
+			c,
+			audit.EventCreateConversionRule,
+			rule.ID.String(),
+			"smart-convert",
+			"Failed to create conversion rule",
+			&activeUser.UserID,
+			nil,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		s.audit.Log(entry)
+
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventCreateConversionRule,
+		rule.ID.String(),
+		"smart-convert",
+		"Conversion rule created successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"CreatedAt":      rule.CreatedAt,
+		"UpdatedAt":      rule.UpdatedAt,
+		"FixedAmount":    rule.FixedAmount,
+		"SourceCurrency": rule.SourceCurrency,
+		"TargetCurrency": rule.TargetCurrency,
+	}
+	s.audit.Log(entry)
 
 	c.JSON(http.StatusCreated, basemodels.NewSuccess("Conversion rule created successfully", rule))
 }
@@ -148,6 +190,24 @@ func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
 		return
 	}
 
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventPauseConversionRule,
+		ruleID.String(),
+		"smart-convert",
+		"Conversion rule paused successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+	}
+	s.audit.Log(entry)
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule paused", nil))
 }
 
@@ -185,6 +245,24 @@ func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
 		return
 	}
 
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventResumeConversionRule,
+		ruleID.String(),
+		"smart-convert",
+		"Conversion rule resumed successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+	}
+	s.audit.Log(entry)
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule resumed", nil))
 }
 
@@ -221,6 +299,24 @@ func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete conversion rule"))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventDeleteConversionRule,
+		ruleID.String(),
+		"smart-convert",
+		"Conversion rule deleted successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+	}
+	s.audit.Log(entry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("conversion rule deleted", nil))
 }
@@ -272,6 +368,30 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to execute conversion"))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventManualConversion,
+		result.ConversionID.String(),
+		"smart-convert",
+		"Manual conversion executed successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"time": time.Now().Format(time.RFC3339),
+		"transaction_id": result.TransactionID.String(),
+		"executed_rate": result.ExecutedRate,
+		"net_amount": result.NetAmount,
+		"source_amount": result.SourceAmount,
+		"target_amount": result.TargetAmount,
+		"status": result.Status,
+	}
+	s.audit.Log(entry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Conversion executed successfully", result))
 }

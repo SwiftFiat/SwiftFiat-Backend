@@ -9,6 +9,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
@@ -23,6 +24,7 @@ type QRCodeHandler struct {
 	qrCodeService      *rapidramp.QRCodeService
 	bankAccountService *bankaccounts.BankAccountService
 	logger             *logging.Logger
+	audit              *audit.Service
 }
 
 func (q QRCodeHandler) router(server *Server) {
@@ -30,6 +32,7 @@ func (q QRCodeHandler) router(server *Server) {
 	q.bankAccountService = q.server.bankAccountService
 	q.logger = q.server.logger
 	q.qrCodeService = q.server.qrcodeService
+	q.audit = server.auditService
 
 	v1 := server.router.Group("/api/v1/qr-codes")
 	v1.GET("/public/:token", q.GetQRCodeByToken)
@@ -72,9 +75,40 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 	qrCode, err := q.qrCodeService.CreateQRCode(c.Request.Context(), activeUser.UserID, &req)
 	if err != nil {
 		q.server.logger.Error("Failed to create QR code", "error", err)
+
+		errMsg := err.Error()
+		e := audit.NewLog(
+			c,
+			audit.EventCreateQrCode,
+			"",
+			"",
+			"Failed to create QR code",
+			&activeUser.UserID,
+			nil,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		q.audit.Log(e)
+
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
+
+	// audit log
+	e := audit.NewLog(
+		c,
+		audit.EventCreateQrCode,
+		qrCode.ID.String(),
+		"Qrcodes",
+		"Failed to create QR code",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	q.audit.Log(e)
 
 	c.JSON(http.StatusCreated, basemodels.NewSuccess("QR code generated successfully", qrCode))
 }
@@ -166,6 +200,21 @@ func (q *QRCodeHandler) DeleteQRCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete QR code"))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.EventDeleteQrCode,
+		qrID.String(),
+		"Qrcodes",
+		"QR code deleted successfully",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	q.audit.Log(entry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("QR code deleted successfully", nil))
 }

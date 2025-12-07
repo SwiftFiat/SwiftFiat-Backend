@@ -712,6 +712,67 @@ type QrTransaction struct {
 	UpdatedAt              time.Time             `json:"updated_at"`
 }
 
+// Automatic rate mark-up rules for different VIP levels
+type RateAdjustmentRule struct {
+	ID                  uuid.UUID      `json:"id"`
+	RuleName            string         `json:"rule_name"`
+	RuleDescription     sql.NullString `json:"rule_description"`
+	VipLevelID          uuid.NullUUID  `json:"vip_level_id"`
+	IsGlobalRule        bool           `json:"is_global_rule"`
+	SourceCurrency      string         `json:"source_currency"`
+	TargetCurrency      string         `json:"target_currency"`
+	AdjustmentType      string         `json:"adjustment_type"`
+	AdjustmentValue     string         `json:"adjustment_value"`
+	AdjustmentDirection string         `json:"adjustment_direction"`
+	Priority            int32          `json:"priority"`
+	MinConversionAmount sql.NullString `json:"min_conversion_amount"`
+	MaxConversionAmount sql.NullString `json:"max_conversion_amount"`
+	ValidFrom           sql.NullTime   `json:"valid_from"`
+	ValidUntil          sql.NullTime   `json:"valid_until"`
+	IsActive            bool           `json:"is_active"`
+	CreatedBy           sql.NullInt64  `json:"created_by"`
+	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
+}
+
+// Admin notifications for rate-related events
+type RateAdminNotification struct {
+	ID                uuid.UUID             `json:"id"`
+	NotificationType  string                `json:"notification_type"`
+	Severity          string                `json:"severity"`
+	Title             string                `json:"title"`
+	Message           string                `json:"message"`
+	RelatedEntityType sql.NullString        `json:"related_entity_type"`
+	RelatedEntityID   sql.NullString        `json:"related_entity_id"`
+	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	IsRead            bool                  `json:"is_read"`
+	ReadAt            sql.NullTime          `json:"read_at"`
+	ReadBy            sql.NullInt64         `json:"read_by"`
+	CreatedAt         time.Time             `json:"created_at"`
+}
+
+// Audit trail for all rate adjustments and applications
+type RateChangeHistory struct {
+	ID               uuid.UUID      `json:"id"`
+	SourceCurrency   string         `json:"source_currency"`
+	TargetCurrency   string         `json:"target_currency"`
+	BaseRate         string         `json:"base_rate"`
+	AdjustedRate     string         `json:"adjusted_rate"`
+	AdjustmentAmount string         `json:"adjustment_amount"`
+	RuleID           uuid.NullUUID  `json:"rule_id"`
+	RuleName         sql.NullString `json:"rule_name"`
+	VipLevelID       uuid.NullUUID  `json:"vip_level_id"`
+	VipLevelName     sql.NullString `json:"vip_level_name"`
+	RateProvider     sql.NullString `json:"rate_provider"`
+	AppliedToUserID  sql.NullInt64  `json:"applied_to_user_id"`
+	ConversionID     uuid.NullUUID  `json:"conversion_id"`
+	ChangeReason     sql.NullString `json:"change_reason"`
+	ChangedBy        sql.NullInt64  `json:"changed_by"`
+	CreatedAt        time.Time      `json:"created_at"`
+}
+
 type RecentCriticalEvent struct {
 	ID            int64              `json:"id"`
 	EventCategory AuditEventCategory `json:"event_category"`
@@ -1083,6 +1144,22 @@ type UserToken struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+// User VIP level assignments and tier progression tracking
+type UserVipAssignment struct {
+	ID                     uuid.UUID     `json:"id"`
+	UserID                 int64         `json:"user_id"`
+	VipLevelID             uuid.UUID     `json:"vip_level_id"`
+	AssignedAt             time.Time     `json:"assigned_at"`
+	AssignedBy             sql.NullInt64 `json:"assigned_by"`
+	AssignmentType         string        `json:"assignment_type"`
+	TotalTransactionVolume string        `json:"total_transaction_volume"`
+	TotalConversionCount   int32         `json:"total_conversion_count"`
+	IsActive               bool          `json:"is_active"`
+	ExpiresAt              sql.NullTime  `json:"expires_at"`
+	CreatedAt              time.Time     `json:"created_at"`
+	UpdatedAt              time.Time     `json:"updated_at"`
+}
+
 type VaultSaving struct {
 	ID                   uuid.UUID             `json:"id"`
 	UserID               int64                 `json:"user_id"`
@@ -1155,6 +1232,28 @@ type VaultYieldConfig struct {
 	Notes              sql.NullString `json:"notes"`
 	CreatedAt          time.Time      `json:"created_at"`
 	UpdatedAt          time.Time      `json:"updated_at"`
+}
+
+// VIP tier definitions with transaction volume thresholds
+type VipLevel struct {
+	ID                   uuid.UUID      `json:"id"`
+	LevelName            string         `json:"level_name"`
+	LevelCode            string         `json:"level_code"`
+	LevelRank            int32          `json:"level_rank"`
+	MinTransactionVolume string         `json:"min_transaction_volume"`
+	MinMonthlyVolume     sql.NullString `json:"min_monthly_volume"`
+	MinConversionCount   sql.NullInt32  `json:"min_conversion_count"`
+	Description          sql.NullString `json:"description"`
+	BenefitsDescription  sql.NullString `json:"benefits_description"`
+	BadgeColor           sql.NullString `json:"badge_color"`
+	IconUrl              sql.NullString `json:"icon_url"`
+	IsActive             bool           `json:"is_active"`
+	IsDefault            bool           `json:"is_default"`
+	CreatedBy            sql.NullInt64  `json:"created_by"`
+	UpdatedBy            sql.NullInt64  `json:"updated_by"`
+	CreatedAt            time.Time      `json:"created_at"`
+	UpdatedAt            time.Time      `json:"updated_at"`
+	DeletedAt            sql.NullTime   `json:"deleted_at"`
 }
 
 type VirtualCard struct {

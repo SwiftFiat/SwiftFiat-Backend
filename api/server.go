@@ -24,6 +24,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
+	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
@@ -73,6 +74,7 @@ type Server struct {
 	smartConvertService      *smartconversion.ConversionService
 	smartConversionScheduler *smartconversion.Scheduler
 	auditService             *audit.Service
+	rateManager              *ratemanager.Service
 }
 
 func NewServer(envPath string) *Server {
@@ -201,6 +203,9 @@ func NewServer(envPath string) *Server {
 	// smart conversion scheduler
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)
 
+	// Rates manager
+	rm := ratemanager.NewService(q, scex, ads, l)
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -251,6 +256,7 @@ func NewServer(envPath string) *Server {
 		smartConvertService:      scs,
 		smartConversionScheduler: scsScheduler,
 		auditService:             ads,
+		rateManager:              rm,
 	}
 }
 
@@ -286,6 +292,7 @@ func (s *Server) Start() error {
 	SmartConvertHandler{}.router(s)
 	Streaks{}.router(s)
 	AuditHandler{}.router(s)
+	RateManagerHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
