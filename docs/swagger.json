@@ -18,6 +18,616 @@
     "host": "localhost:8080",
     "basePath": "/api/v1",
     "paths": {
+        "/admin/rate-manager/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all rate adjustment rules with pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "List rate adjustment rules",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Page size",
+                        "name": "page_size",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Filter active rules only",
+                        "name": "active_only",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.PaginatedResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new rate adjustment rule for VIP levels or global",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "Create rate adjustment rule",
+                "parameters": [
+                    {
+                        "description": "Rule creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.CreateRateAdjustmentRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateAdjustmentRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/rules/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get rate adjustment rule details by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "Get rate adjustment rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateAdjustmentRuleResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update rate adjustment rule details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "Update rate adjustment rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rule update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.UpdateRateAdjustmentRuleRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateAdjustmentRule"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft delete a rate adjustment rule",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "Delete rate adjustment rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/rules/{id}/toggle": {
+            "patch": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Enable or disable a rate adjustment rule",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "Toggle rate adjustment rule",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Rule ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enable/disable rule",
+                        "name": "enabled",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/simulate": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Preview rate adjustment before applying",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Simulation"
+                ],
+                "summary": "Simulate rate adjustment",
+                "parameters": [
+                    {
+                        "description": "Simulation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateSimulationRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateSimulationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/vip-assignments": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually assign a user to a VIP level",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Assignments"
+                ],
+                "summary": "Assign user to VIP level",
+                "parameters": [
+                    {
+                        "description": "Assignment request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.AssignVIPLevelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.UserVIPAssignmentResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/vip-levels": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all VIP levels with optional filtering",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Levels"
+                ],
+                "summary": "List VIP levels",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Filter active levels only",
+                        "name": "active_only",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/ratemanager.VIPLevelResponse"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new VIP level with transaction thresholds",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Levels"
+                ],
+                "summary": "Create VIP level",
+                "parameters": [
+                    {
+                        "description": "VIP Level creation request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.CreateVIPLevelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.VIPLevel"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "409": {
+                        "description": "Conflict",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/rate-manager/vip-levels/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get VIP level details by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Levels"
+                ],
+                "summary": "Get VIP level",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VIP Level ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.VIPLevelResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update VIP level details",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Levels"
+                ],
+                "summary": "Update VIP level",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VIP Level ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "VIP Level update request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.UpdateVIPLevelRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.VIPLevel"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft delete a VIP level",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Levels"
+                ],
+                "summary": "Delete VIP level",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "VIP Level ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/admin/v1/wallets/add-to-wallet-balance": {
             "post": {
                 "security": [
@@ -9094,6 +9704,91 @@
                     }
                 }
             }
+        },
+        "/rate-manager/current-rate": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get current exchange rate with VIP adjustment applied",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rates"
+                ],
+                "summary": "Get current rate with adjustment",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Source currency",
+                        "name": "from",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Target currency",
+                        "name": "to",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Amount to convert",
+                        "name": "amount",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.RateSimulationResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/rate-manager/my-vip-status": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get current VIP level and benefits for a user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - VIP Assignments"
+                ],
+                "summary": "Get user VIP status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.UserVIPAssignmentResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -9397,7 +10092,10 @@
                 "security",
                 "compliance",
                 "system",
-                "vault_savings"
+                "vault_savings",
+                "user_management",
+                "crypto",
+                "rate_manager"
             ],
             "x-enum-varnames": [
                 "CategoryAuthentication",
@@ -9409,7 +10107,10 @@
                 "CategorySecurity",
                 "CategoryCompliance",
                 "CategorySystem",
-                "CategoryVaultSavings"
+                "CategoryVaultSavings",
+                "CategoryUserManagement",
+                "CategoryCrypto",
+                "CategoryRateManager"
             ]
         },
         "audit.LogResponse": {
@@ -10496,6 +11197,726 @@
                 },
                 "payout_initiated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "ratemanager.AdjustmentDirection": {
+            "type": "string",
+            "enum": [
+                "add",
+                "subtract"
+            ],
+            "x-enum-varnames": [
+                "AdjustmentDirectionAdd",
+                "AdjustmentDirectionSubtract"
+            ]
+        },
+        "ratemanager.AdjustmentType": {
+            "type": "string",
+            "enum": [
+                "fixed",
+                "percentage"
+            ],
+            "x-enum-varnames": [
+                "AdjustmentTypeFixed",
+                "AdjustmentTypePercentage"
+            ]
+        },
+        "ratemanager.AssignVIPLevelRequest": {
+            "type": "object",
+            "required": [
+                "user_id",
+                "vip_level_id"
+            ],
+            "properties": {
+                "expires_at": {
+                    "type": "string"
+                },
+                "reason": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "vip_level_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.AssignmentType": {
+            "type": "string",
+            "enum": [
+                "automatic",
+                "manual",
+                "promotional"
+            ],
+            "x-enum-varnames": [
+                "AssignmentTypeAutomatic",
+                "AssignmentTypeManual",
+                "AssignmentTypePromotional"
+            ]
+        },
+        "ratemanager.CreateRateAdjustmentRuleRequest": {
+            "type": "object",
+            "required": [
+                "adjustment_direction",
+                "adjustment_type",
+                "adjustment_value",
+                "rule_name",
+                "source_currency",
+                "target_currency"
+            ],
+            "properties": {
+                "adjustment_direction": {
+                    "enum": [
+                        "add",
+                        "subtract"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentDirection"
+                        }
+                    ]
+                },
+                "adjustment_type": {
+                    "enum": [
+                        "fixed",
+                        "percentage"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentType"
+                        }
+                    ]
+                },
+                "adjustment_value": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_global_rule": {
+                    "type": "boolean"
+                },
+                "max_conversion_amount": {
+                    "type": "string",
+                    "minLength": 0
+                },
+                "min_conversion_amount": {
+                    "type": "string",
+                    "minLength": 0
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "rule_description": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 3
+                },
+                "source_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "target_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "valid_from": {
+                    "type": "string"
+                },
+                "valid_until": {
+                    "type": "string"
+                },
+                "vip_level_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.CreateVIPLevelRequest": {
+            "type": "object",
+            "required": [
+                "level_code",
+                "level_name",
+                "level_rank",
+                "min_transaction_volume"
+            ],
+            "properties": {
+                "badge_color": {
+                    "type": "string"
+                },
+                "benefits_description": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "level_code": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 2
+                },
+                "level_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "level_rank": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "min_conversion_count": {
+                    "type": "integer"
+                },
+                "min_monthly_volume": {
+                    "type": "string"
+                },
+                "min_transaction_volume": {
+                    "type": "string",
+                    "minLength": 0
+                }
+            }
+        },
+        "ratemanager.PaginatedResponse": {
+            "type": "object",
+            "properties": {
+                "data": {},
+                "page": {
+                    "type": "integer"
+                },
+                "page_size": {
+                    "type": "integer"
+                },
+                "total_count": {
+                    "type": "integer"
+                },
+                "total_pages": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ratemanager.RateAdjustmentRule": {
+            "type": "object",
+            "properties": {
+                "adjustment_direction": {
+                    "$ref": "#/definitions/ratemanager.AdjustmentDirection"
+                },
+                "adjustment_type": {
+                    "$ref": "#/definitions/ratemanager.AdjustmentType"
+                },
+                "adjustment_value": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_global_rule": {
+                    "type": "boolean"
+                },
+                "max_conversion_amount": {
+                    "type": "string"
+                },
+                "min_conversion_amount": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "rule_description": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                },
+                "valid_from": {
+                    "type": "string"
+                },
+                "valid_until": {
+                    "type": "string"
+                },
+                "vip_level_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.RateAdjustmentRuleResponse": {
+            "type": "object",
+            "properties": {
+                "adjustment_direction": {
+                    "$ref": "#/definitions/ratemanager.AdjustmentDirection"
+                },
+                "adjustment_type": {
+                    "$ref": "#/definitions/ratemanager.AdjustmentType"
+                },
+                "adjustment_value": {
+                    "type": "string"
+                },
+                "application_count": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_global_rule": {
+                    "type": "boolean"
+                },
+                "max_conversion_amount": {
+                    "type": "string"
+                },
+                "min_conversion_amount": {
+                    "type": "string"
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "rule_description": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                },
+                "total_impact": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "valid_from": {
+                    "type": "string"
+                },
+                "valid_until": {
+                    "type": "string"
+                },
+                "vip_level_code": {
+                    "type": "string"
+                },
+                "vip_level_id": {
+                    "type": "string"
+                },
+                "vip_level_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.RateSimulationRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "source_currency",
+                "target_currency"
+            ],
+            "properties": {
+                "adjustment_direction": {
+                    "enum": [
+                        "add",
+                        "subtract"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentDirection"
+                        }
+                    ]
+                },
+                "adjustment_type": {
+                    "enum": [
+                        "fixed",
+                        "percentage"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentType"
+                        }
+                    ]
+                },
+                "adjustment_value": {
+                    "type": "number"
+                },
+                "amount": {
+                    "type": "string"
+                },
+                "source_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "target_currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD",
+                        "NGN",
+                        "USDT",
+                        "USDC"
+                    ]
+                },
+                "vip_level_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.RateSimulationResponse": {
+            "type": "object",
+            "properties": {
+                "adjusted_rate": {
+                    "type": "string"
+                },
+                "adjustment_amount": {
+                    "type": "string"
+                },
+                "base_rate": {
+                    "type": "string"
+                },
+                "fees": {
+                    "type": "string"
+                },
+                "net_amount": {
+                    "type": "string"
+                },
+                "rate_provider": {
+                    "type": "string"
+                },
+                "rule_applied": {
+                    "type": "string"
+                },
+                "simulation_timestamp": {
+                    "type": "string"
+                },
+                "source_amount": {
+                    "type": "string"
+                },
+                "target_amount": {
+                    "type": "string"
+                },
+                "vip_level_applied": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.UpdateRateAdjustmentRuleRequest": {
+            "type": "object",
+            "properties": {
+                "adjustment_direction": {
+                    "enum": [
+                        "add",
+                        "subtract"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentDirection"
+                        }
+                    ]
+                },
+                "adjustment_type": {
+                    "enum": [
+                        "fixed",
+                        "percentage"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/ratemanager.AdjustmentType"
+                        }
+                    ]
+                },
+                "adjustment_value": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "max_conversion_amount": {
+                    "type": "string",
+                    "minLength": 0
+                },
+                "min_conversion_amount": {
+                    "type": "string",
+                    "minLength": 0
+                },
+                "priority": {
+                    "type": "integer"
+                },
+                "rule_description": {
+                    "type": "string"
+                },
+                "rule_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "minLength": 3
+                },
+                "valid_from": {
+                    "type": "string"
+                },
+                "valid_until": {
+                    "type": "string"
+                }
+            }
+        },
+        "ratemanager.UpdateVIPLevelRequest": {
+            "type": "object",
+            "properties": {
+                "badge_color": {
+                    "type": "string"
+                },
+                "benefits_description": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "level_code": {
+                    "type": "string",
+                    "maxLength": 20,
+                    "minLength": 2
+                },
+                "level_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "minLength": 2
+                },
+                "level_rank": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "min_conversion_count": {
+                    "type": "integer"
+                },
+                "min_monthly_volume": {
+                    "type": "string"
+                },
+                "min_transaction_volume": {
+                    "type": "string",
+                    "minLength": 0
+                }
+            }
+        },
+        "ratemanager.UserVIPAssignmentResponse": {
+            "type": "object",
+            "properties": {
+                "assigned_at": {
+                    "type": "string"
+                },
+                "assignment_type": {
+                    "$ref": "#/definitions/ratemanager.AssignmentType"
+                },
+                "badge_color": {
+                    "type": "string"
+                },
+                "benefits_description": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "total_conversion_count": {
+                    "type": "integer"
+                },
+                "total_transaction_volume": {
+                    "type": "string"
+                },
+                "user_email": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
+                },
+                "user_name": {
+                    "type": "string"
+                },
+                "vip_level_code": {
+                    "type": "string"
+                },
+                "vip_level_id": {
+                    "type": "string"
+                },
+                "vip_level_name": {
+                    "type": "string"
+                },
+                "vip_level_rank": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ratemanager.VIPLevel": {
+            "type": "object",
+            "properties": {
+                "badge_color": {
+                    "type": "string"
+                },
+                "benefits_description": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "created_by": {
+                    "type": "integer"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "level_code": {
+                    "type": "string"
+                },
+                "level_name": {
+                    "type": "string"
+                },
+                "level_rank": {
+                    "type": "integer"
+                },
+                "min_conversion_count": {
+                    "type": "integer"
+                },
+                "min_monthly_volume": {
+                    "type": "string"
+                },
+                "min_transaction_volume": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "updated_by": {
+                    "type": "integer"
+                }
+            }
+        },
+        "ratemanager.VIPLevelResponse": {
+            "type": "object",
+            "properties": {
+                "active_rules_count": {
+                    "type": "integer"
+                },
+                "badge_color": {
+                    "type": "string"
+                },
+                "benefits_description": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "icon_url": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "is_default": {
+                    "type": "boolean"
+                },
+                "level_code": {
+                    "type": "string"
+                },
+                "level_name": {
+                    "type": "string"
+                },
+                "level_rank": {
+                    "type": "integer"
+                },
+                "min_conversion_count": {
+                    "type": "integer"
+                },
+                "min_monthly_volume": {
+                    "type": "string"
+                },
+                "min_transaction_volume": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_count": {
+                    "type": "integer"
                 }
             }
         },

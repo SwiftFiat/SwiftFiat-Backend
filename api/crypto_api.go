@@ -14,6 +14,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
@@ -33,6 +34,7 @@ type CryptoAPI struct {
 	transactionService *transaction.TransactionService
 	notifyr            *service.Notification
 	qrcode             *rapidramp.QRCodeService
+	audit              *audit.Service
 }
 
 func (c CryptoAPI) router(server *Server) {
@@ -42,6 +44,7 @@ func (c CryptoAPI) router(server *Server) {
 	c.transactionService = c.server.transactionService
 	c.notifyr = c.server.inAppnotificationService
 	c.qrcode = c.server.qrcodeService
+	c.audit = server.auditService
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
@@ -194,6 +197,24 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	staticWallet, err := cryptoProvider.CreateStaticWallet(walletRequest)
 	if err != nil {
 		c.server.logger.Error("failed to create static wallet", err)
+
+		// log audit
+		errMsg := err.Error()
+		entry := audit.NewLog(
+			ctx,
+			audit.EventCreateStaticWallet,
+			staticWallet.UUID,
+			"crypto",
+			"static wallet creation failed",
+			&activeUser.UserID,
+			nil,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+
+		c.audit.Log(entry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to connect to Crypto Provider Error: %s", err)))
 		return
 	}
@@ -204,6 +225,30 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to assign wallet to User Error: %s", err)))
 		return
 	}
+
+	// audit log
+	entry := audit.NewLog(
+		ctx,
+		audit.EventCreateStaticWallet,
+		staticWallet.UUID,
+		"crypto",
+		"static wallet created.",
+		&activeUser.UserID,
+		nil,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.Metadata = map[string]any{
+		"Address":    staticWallet.Address,
+		"Currency":   staticWallet.Currency,
+		"Network":    staticWallet.Network,
+		"UUID":       staticWallet.UUID,
+		"Url":        staticWallet.Url,
+		"WalletUUID": staticWallet.WalletUUID,
+	}
+
+	c.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet Created", staticWallet))
 }

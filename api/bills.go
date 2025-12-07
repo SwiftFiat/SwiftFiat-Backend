@@ -12,6 +12,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
@@ -26,21 +27,18 @@ type Bills struct {
 	server             *Server
 	transactionService *transaction.TransactionService
 	notifr             *service.Notification
+	walletService      *wallet.WalletService
+	currencyService    *currency.CurrencyService
+	audit              *audit.Service
 }
 
 func (b Bills) router(server *Server) {
 	b.server = server
-	b.notifr = service.NewNotificationService(b.server.queries)
-	walletService := wallet.NewWalletServiceWithCache(b.server.queries, b.server.logger, b.server.redis)
-	currencyService := currency.NewCurrencyService(b.server.queries, b.server.logger)
-	b.transactionService = transaction.NewTransactionService(
-		b.server.queries,
-		currencyService,
-		walletService,
-		b.server.logger,
-		b.server.config,
-		b.notifr,
-	)
+	b.notifr = server.inAppnotificationService
+	b.walletService = server.walletService
+	b.currencyService = server.currencyService
+	b.transactionService = server.transactionService
+	b.audit = server.auditService
 
 	serverGroupV1 := server.router.Group("/api/v1/bills")
 	serverGroupV1.GET("categories", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCategories)
@@ -360,9 +358,21 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	// ========================================================================
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
+		// audit log
+		logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", false)
+		logEntry.Metadata = map[string]any{
+			"Reason": err.Error(),
+		} // TODO:
+		b.audit.Log(logEntry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	// audit log
+	logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", true)
+	logEntry.Metadata = map[string]any{} // TODO:
+	b.audit.Log(logEntry)
 
 	// ========================================================================
 	// SEND NOTIFICATION
@@ -376,6 +386,8 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	}
 
 	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", notificationMsg)
+
+	// TODO: add push notofication
 
 	b.server.logger.Info("transaction (airtime purchase) completed successfully", map[string]interface{}{
 		"transaction_id":   tInfo.ID,
@@ -688,10 +700,22 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
+		// audit log
+		logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", false)
+		logEntry.Metadata = map[string]any{
+			"Reason": err.Error(),
+		}
+		b.audit.Log(logEntry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
+	// audit log
+	logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
+	b.audit.Log(logEntry)
+
+	// TODO: push notif
 	b.notifr.Create(ctx, int32(userInfo.ID), "Data Purchase", fmt.Sprintf("You have received data of %s to %s", selectedVariation.VariationAmount, request.Phone))
 
 	b.server.logger.Info("transaction (data purchase) completed successfully", tInfo)
@@ -916,9 +940,22 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
+
+		// audit log
+		logEntry := audit.NewTransactionLog(ctx, audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", false)
+		logEntry.Metadata = map[string]any{
+			"Reason": err.Error(),
+		} // TODO:
+		b.audit.Log(logEntry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	// audit log
+	logEntry := audit.NewTransactionLog(ctx, audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
+	logEntry.Metadata = map[string]any{} // TODO:
+	b.audit.Log(logEntry)
 
 	b.notifr.Create(ctx, int32(userInfo.ID), "Successful TV subscription", fmt.Sprintf("TV subscription of %s is successful", amount))
 
@@ -1175,10 +1212,23 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
+
+		logEntry := audit.NewTransactionLog(ctx, audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", false)
+		logEntry.Metadata = map[string]any{
+			"Reason": err.Error(),
+		} // TODO:
+		b.audit.Log(logEntry)
+
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
+	// audit log
+	logEntry := audit.NewTransactionLog(ctx, audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", true)
+	logEntry.Metadata = map[string]any{} // TODO:
+	b.audit.Log(logEntry)
+
+	// TTODO: push notifications
 	b.notifr.Create(ctx, int32(userInfo.ID), "Successful Electricity Subscription", fmt.Sprintf("Electricity subscription of %f is successful", request.Amount))
 
 	b.server.logger.Info("transaction (electricity purchase) completed successfully", tInfo)

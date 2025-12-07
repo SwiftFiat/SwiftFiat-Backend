@@ -205,6 +205,9 @@ definitions:
     - compliance
     - system
     - vault_savings
+    - user_management
+    - crypto
+    - rate_manager
     type: string
     x-enum-varnames:
     - CategoryAuthentication
@@ -217,6 +220,9 @@ definitions:
     - CategoryCompliance
     - CategorySystem
     - CategoryVaultSavings
+    - CategoryUserManagement
+    - CategoryCrypto
+    - CategoryRateManager
   audit.LogResponse:
     properties:
       action:
@@ -950,6 +956,491 @@ definitions:
         type: string
       payout_initiated_at:
         type: string
+    type: object
+  ratemanager.AdjustmentDirection:
+    enum:
+    - add
+    - subtract
+    type: string
+    x-enum-varnames:
+    - AdjustmentDirectionAdd
+    - AdjustmentDirectionSubtract
+  ratemanager.AdjustmentType:
+    enum:
+    - fixed
+    - percentage
+    type: string
+    x-enum-varnames:
+    - AdjustmentTypeFixed
+    - AdjustmentTypePercentage
+  ratemanager.AssignVIPLevelRequest:
+    properties:
+      expires_at:
+        type: string
+      reason:
+        type: string
+      user_id:
+        type: integer
+      vip_level_id:
+        type: string
+    required:
+    - user_id
+    - vip_level_id
+    type: object
+  ratemanager.AssignmentType:
+    enum:
+    - automatic
+    - manual
+    - promotional
+    type: string
+    x-enum-varnames:
+    - AssignmentTypeAutomatic
+    - AssignmentTypeManual
+    - AssignmentTypePromotional
+  ratemanager.CreateRateAdjustmentRuleRequest:
+    properties:
+      adjustment_direction:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentDirection'
+        enum:
+        - add
+        - subtract
+      adjustment_type:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentType'
+        enum:
+        - fixed
+        - percentage
+      adjustment_value:
+        type: string
+      is_active:
+        type: boolean
+      is_global_rule:
+        type: boolean
+      max_conversion_amount:
+        minLength: 0
+        type: string
+      min_conversion_amount:
+        minLength: 0
+        type: string
+      priority:
+        type: integer
+      rule_description:
+        type: string
+      rule_name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      source_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      target_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+      vip_level_id:
+        type: string
+    required:
+    - adjustment_direction
+    - adjustment_type
+    - adjustment_value
+    - rule_name
+    - source_currency
+    - target_currency
+    type: object
+  ratemanager.CreateVIPLevelRequest:
+    properties:
+      badge_color:
+        type: string
+      benefits_description:
+        type: string
+      description:
+        type: string
+      icon_url:
+        type: string
+      is_active:
+        type: boolean
+      level_code:
+        maxLength: 20
+        minLength: 2
+        type: string
+      level_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      level_rank:
+        minimum: 1
+        type: integer
+      min_conversion_count:
+        type: integer
+      min_monthly_volume:
+        type: string
+      min_transaction_volume:
+        minLength: 0
+        type: string
+    required:
+    - level_code
+    - level_name
+    - level_rank
+    - min_transaction_volume
+    type: object
+  ratemanager.PaginatedResponse:
+    properties:
+      data: {}
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_count:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  ratemanager.RateAdjustmentRule:
+    properties:
+      adjustment_direction:
+        $ref: '#/definitions/ratemanager.AdjustmentDirection'
+      adjustment_type:
+        $ref: '#/definitions/ratemanager.AdjustmentType'
+      adjustment_value:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      deleted_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_global_rule:
+        type: boolean
+      max_conversion_amount:
+        type: string
+      min_conversion_amount:
+        type: string
+      priority:
+        type: integer
+      rule_description:
+        type: string
+      rule_name:
+        type: string
+      source_currency:
+        type: string
+      target_currency:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+      vip_level_id:
+        type: string
+    type: object
+  ratemanager.RateAdjustmentRuleResponse:
+    properties:
+      adjustment_direction:
+        $ref: '#/definitions/ratemanager.AdjustmentDirection'
+      adjustment_type:
+        $ref: '#/definitions/ratemanager.AdjustmentType'
+      adjustment_value:
+        type: string
+      application_count:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_global_rule:
+        type: boolean
+      max_conversion_amount:
+        type: string
+      min_conversion_amount:
+        type: string
+      priority:
+        type: integer
+      rule_description:
+        type: string
+      rule_name:
+        type: string
+      source_currency:
+        type: string
+      target_currency:
+        type: string
+      total_impact:
+        type: string
+      updated_at:
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+      vip_level_code:
+        type: string
+      vip_level_id:
+        type: string
+      vip_level_name:
+        type: string
+    type: object
+  ratemanager.RateSimulationRequest:
+    properties:
+      adjustment_direction:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentDirection'
+        enum:
+        - add
+        - subtract
+      adjustment_type:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentType'
+        enum:
+        - fixed
+        - percentage
+      adjustment_value:
+        type: number
+      amount:
+        type: string
+      source_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      target_currency:
+        enum:
+        - USD
+        - NGN
+        - USDT
+        - USDC
+        type: string
+      vip_level_id:
+        type: string
+    required:
+    - amount
+    - source_currency
+    - target_currency
+    type: object
+  ratemanager.RateSimulationResponse:
+    properties:
+      adjusted_rate:
+        type: string
+      adjustment_amount:
+        type: string
+      base_rate:
+        type: string
+      fees:
+        type: string
+      net_amount:
+        type: string
+      rate_provider:
+        type: string
+      rule_applied:
+        type: string
+      simulation_timestamp:
+        type: string
+      source_amount:
+        type: string
+      target_amount:
+        type: string
+      vip_level_applied:
+        type: string
+    type: object
+  ratemanager.UpdateRateAdjustmentRuleRequest:
+    properties:
+      adjustment_direction:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentDirection'
+        enum:
+        - add
+        - subtract
+      adjustment_type:
+        allOf:
+        - $ref: '#/definitions/ratemanager.AdjustmentType'
+        enum:
+        - fixed
+        - percentage
+      adjustment_value:
+        type: string
+      is_active:
+        type: boolean
+      max_conversion_amount:
+        minLength: 0
+        type: string
+      min_conversion_amount:
+        minLength: 0
+        type: string
+      priority:
+        type: integer
+      rule_description:
+        type: string
+      rule_name:
+        maxLength: 100
+        minLength: 3
+        type: string
+      valid_from:
+        type: string
+      valid_until:
+        type: string
+    type: object
+  ratemanager.UpdateVIPLevelRequest:
+    properties:
+      badge_color:
+        type: string
+      benefits_description:
+        type: string
+      description:
+        type: string
+      icon_url:
+        type: string
+      is_active:
+        type: boolean
+      level_code:
+        maxLength: 20
+        minLength: 2
+        type: string
+      level_name:
+        maxLength: 50
+        minLength: 2
+        type: string
+      level_rank:
+        minimum: 1
+        type: integer
+      min_conversion_count:
+        type: integer
+      min_monthly_volume:
+        type: string
+      min_transaction_volume:
+        minLength: 0
+        type: string
+    type: object
+  ratemanager.UserVIPAssignmentResponse:
+    properties:
+      assigned_at:
+        type: string
+      assignment_type:
+        $ref: '#/definitions/ratemanager.AssignmentType'
+      badge_color:
+        type: string
+      benefits_description:
+        type: string
+      expires_at:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      total_conversion_count:
+        type: integer
+      total_transaction_volume:
+        type: string
+      user_email:
+        type: string
+      user_id:
+        type: integer
+      user_name:
+        type: string
+      vip_level_code:
+        type: string
+      vip_level_id:
+        type: string
+      vip_level_name:
+        type: string
+      vip_level_rank:
+        type: integer
+    type: object
+  ratemanager.VIPLevel:
+    properties:
+      badge_color:
+        type: string
+      benefits_description:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      deleted_at:
+        type: string
+      description:
+        type: string
+      icon_url:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      level_code:
+        type: string
+      level_name:
+        type: string
+      level_rank:
+        type: integer
+      min_conversion_count:
+        type: integer
+      min_monthly_volume:
+        type: string
+      min_transaction_volume:
+        type: string
+      updated_at:
+        type: string
+      updated_by:
+        type: integer
+    type: object
+  ratemanager.VIPLevelResponse:
+    properties:
+      active_rules_count:
+        type: integer
+      badge_color:
+        type: string
+      benefits_description:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      icon_url:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      is_default:
+        type: boolean
+      level_code:
+        type: string
+      level_name:
+        type: string
+      level_rank:
+        type: integer
+      min_conversion_count:
+        type: integer
+      min_monthly_volume:
+        type: string
+      min_transaction_volume:
+        type: string
+      updated_at:
+        type: string
+      user_count:
+        type: integer
     type: object
   referral.Referral:
     properties:
@@ -2118,6 +2609,392 @@ info:
   title: SwiftFiat API
   version: "1.0"
 paths:
+  /admin/rate-manager/rules:
+    get:
+      description: Get all rate adjustment rules with pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      - description: Filter active rules only
+        in: query
+        name: active_only
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.PaginatedResponse'
+      security:
+      - BearerAuth: []
+      summary: List rate adjustment rules
+      tags:
+      - Rate Manager - Rules
+    post:
+      consumes:
+      - application/json
+      description: Create a new rate adjustment rule for VIP levels or global
+      parameters:
+      - description: Rule creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.CreateRateAdjustmentRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/ratemanager.RateAdjustmentRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create rate adjustment rule
+      tags:
+      - Rate Manager - Rules
+  /admin/rate-manager/rules/{id}:
+    delete:
+      description: Soft delete a rate adjustment rule
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete rate adjustment rule
+      tags:
+      - Rate Manager - Rules
+    get:
+      description: Get rate adjustment rule details by ID
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.RateAdjustmentRuleResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get rate adjustment rule
+      tags:
+      - Rate Manager - Rules
+    put:
+      consumes:
+      - application/json
+      description: Update rate adjustment rule details
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Rule update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.UpdateRateAdjustmentRuleRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.RateAdjustmentRule'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update rate adjustment rule
+      tags:
+      - Rate Manager - Rules
+  /admin/rate-manager/rules/{id}/toggle:
+    patch:
+      description: Enable or disable a rate adjustment rule
+      parameters:
+      - description: Rule ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Enable/disable rule
+        in: query
+        name: enabled
+        required: true
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Toggle rate adjustment rule
+      tags:
+      - Rate Manager - Rules
+  /admin/rate-manager/simulate:
+    post:
+      consumes:
+      - application/json
+      description: Preview rate adjustment before applying
+      parameters:
+      - description: Simulation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.RateSimulationRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.RateSimulationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Simulate rate adjustment
+      tags:
+      - Rate Manager - Simulation
+  /admin/rate-manager/vip-assignments:
+    post:
+      consumes:
+      - application/json
+      description: Manually assign a user to a VIP level
+      parameters:
+      - description: Assignment request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.AssignVIPLevelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.UserVIPAssignmentResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign user to VIP level
+      tags:
+      - Rate Manager - VIP Assignments
+  /admin/rate-manager/vip-levels:
+    get:
+      description: Get all VIP levels with optional filtering
+      parameters:
+      - description: Filter active levels only
+        in: query
+        name: active_only
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/ratemanager.VIPLevelResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: List VIP levels
+      tags:
+      - Rate Manager - VIP Levels
+    post:
+      consumes:
+      - application/json
+      description: Create a new VIP level with transaction thresholds
+      parameters:
+      - description: VIP Level creation request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.CreateVIPLevelRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/ratemanager.VIPLevel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create VIP level
+      tags:
+      - Rate Manager - VIP Levels
+  /admin/rate-manager/vip-levels/{id}:
+    delete:
+      description: Soft delete a VIP level
+      parameters:
+      - description: VIP Level ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete VIP level
+      tags:
+      - Rate Manager - VIP Levels
+    get:
+      description: Get VIP level details by ID
+      parameters:
+      - description: VIP Level ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.VIPLevelResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get VIP level
+      tags:
+      - Rate Manager - VIP Levels
+    put:
+      consumes:
+      - application/json
+      description: Update VIP level details
+      parameters:
+      - description: VIP Level ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: VIP Level update request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/ratemanager.UpdateVIPLevelRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.VIPLevel'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update VIP level
+      tags:
+      - Rate Manager - VIP Levels
   /api/admin/v1/wallets/add-to-wallet-balance:
     post:
       consumes:
@@ -7830,6 +8707,60 @@ paths:
       summary: Perform Fiat Transfer
       tags:
       - Wallets
+  /rate-manager/current-rate:
+    get:
+      description: Get current exchange rate with VIP adjustment applied
+      parameters:
+      - description: Source currency
+        in: query
+        name: from
+        required: true
+        type: string
+      - description: Target currency
+        in: query
+        name: to
+        required: true
+        type: string
+      - description: Amount to convert
+        in: query
+        name: amount
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.RateSimulationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get current rate with adjustment
+      tags:
+      - Rate Manager - Rates
+  /rate-manager/my-vip-status:
+    get:
+      description: Get current VIP level and benefits for a user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.UserVIPAssignmentResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user VIP status
+      tags:
+      - Rate Manager - VIP Assignments
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.
