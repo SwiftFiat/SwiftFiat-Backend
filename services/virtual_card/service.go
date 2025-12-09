@@ -89,7 +89,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32) (*bridgeca
 }
 
 // CreateCard creates a new virtual card with BridgeCard and handles all setup
-func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCardRequest) (*CreateCardResult, error) {
+func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCardRequest) (*bridgecards.CreateCardResponse, error) {
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -102,7 +102,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	// 1. Validate card plan
 	plan, err := qtx.GetCardPlan(ctx, params.CardPlanID)
 	if err != nil {
-		return nil, fmt.Errorf("get card plan: %w", err)
+		return nil, fmt.Errorf("get card plan error: %w", err)
 	}
 
 	if !plan.IsActive || plan.DeletedAt.Valid {
@@ -112,25 +112,22 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	// 2. Check if user has reached plan card limit
 	userCardsCount, err := qtx.GetUserActiveCardsCount(ctx, params.UserID)
 	if err != nil {
-		return nil, fmt.Errorf("count user cards: %w", err)
+		return nil, fmt.Errorf("count user cards error: %w", err)
 	}
+
+	s.logger.Infof("active cards for this user: %d", userCardsCount)
+
+	s.logger.Infof("max card for this plan: %d", plan.MaxCardsPerUser)
 
 	if userCardsCount >= int64(plan.MaxCardsPerUser) {
 		return nil, ErrPlanLimitExceeded
 	}
 
-	// 3. Calculate total initial cost (creation fee + initial funding)
-	initalFundingAmount, err := utils.ToDecimal(params.FundingAmount)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert InitialFundingAmount to decimal")
-	}
-
-	creationFee, err := utils.ToDecimal(plan.CreationFee)
+	creationFeeCents, err := utils.ToDecimal(plan.CreationFee)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert CreationFee to decimal")
 	}
-
-	totalCost := creationFee.Add(initalFundingAmount)
+	creationFee := creationFeeCents.Div(decimal.NewFromInt(100))
 
 	// 4. Verify user has sufficient wallet balance
 	sourceWallet, err := s.walletService.GetWalletForUpdate(ctx, dbTx, params.SourceWalletID)
@@ -138,24 +135,58 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
 
+	// Convert FundingAmount (dollars string) → cents string
+	fundingAmountDecimal, err := utils.ToDecimal(params.FundingAmount)
+	if err != nil {
+		return nil, fmt.Errorf("invalid funding amount: %w", err)
+	}
+
+	fundingCentsStr, err := utils.DollarStringToCentsString(params.FundingAmount)
+	if err != nil {
+		return nil, fmt.Errorf("dollar to cent error: %v", err)
+	}
+
+	s.logger.Infof("funding amount in request %s", params.FundingAmount)
+	s.logger.Infof("creation fee $%s", creationFee.String())
+
+	// enforce minimum depending on card limit
+	var minFundingCents decimal.Decimal
+	switch plan.CardLimit.String {
+	case "5000":
+		minFundingCents = decimal.NewFromInt(300) // $3 → 300 cents
+	case "10000":
+		minFundingCents = decimal.NewFromInt(400) // $4 → 400 cents
+	}
+
+	fundingCentsDecimal := decimal.RequireFromString(fundingCentsStr)
+	if fundingCentsDecimal.LessThan(minFundingCents) {
+		return nil, fmt.Errorf("funding amount must be at least %s cents", minFundingCents.String())
+	}
+
+	totalCost := creationFee.Add(fundingAmountDecimal)
+
+	s.logger.Infof("total cost is $%s", totalCost.String())
+
 	if sourceWallet.Balance.LessThan(totalCost) {
 		return nil, ErrInsufficientFunds
 	}
 
 	// 5. Create card in BridgeCard
 	bridgeCardReq := &bridgecards.CreateCardRequest{
-		CardHolderID:         "",
+		CardHolderID:         "220cf84a33954f81a325f2d5108d8fed", // get from user data
 		CardType:             "virtual",
-		Brand:                params.Brand,
+		Brand:                "Mastercard", //Visa is not supported yet
 		Currency:             "USD",
-		CardLimit:            plan.CardLimit.String,
-		FundingAmount:        params.FundingAmount,
-		TransactionReference: utils.NewTxRef("Swiift_card"),
+		CardLimit:            "500000",        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
+		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
+		TransactionReference: utils.NewTxRef("swiift_card"),
 	}
+
+	s.logger.Infof("bridgeCardReq is : %v", bridgeCardReq)
 
 	bridgeCardDetails, err := s.bridgeCard.CreateCard(ctx, bridgeCardReq)
 	if err != nil {
-		return nil, fmt.Errorf("create card in bridgecard: %w", err)
+		return nil, fmt.Errorf("create card in bridgecard err: %v", err)
 	}
 
 	// 6. Create card record in our database
@@ -174,59 +205,49 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		SpendingMonth:    sql.NullString{String: now.Format("2006-01"), Valid: true},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create card record: %w", err)
+		return nil, fmt.Errorf("create card record in db error: %w", err)
 	}
 
 	// 7. Deduct funds from wallet for creation fee
-	if creationFee.GreaterThan(decimal.Zero) {
-		newBalance := sourceWallet.Balance.Sub(creationFee)
-		_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-			Amount: sql.NullString{String: newBalance.String(), Valid: true},
-			ID:     params.SourceWalletID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("deduct creation fee error: %w", err)
-		}
-
-		// Log creation fee billing
-		_, err = qtx.CreateCardBilling(ctx, db.CreateCardBillingParams{
-			CardID:             dbCard.ID,
-			UserID:             params.UserID,
-			CardPlanID:         params.CardPlanID,
-			BillingType:        "card_creation_fee",
-			Amount:             plan.CreationFee,
-			Currency:           "USD",
-			BillingPeriodStart: now,
-			BillingPeriodEnd:   now,
-			SourceWalletID:     params.SourceWalletID,
-			Status:             "completed",
-		})
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("failed to log creation fee: %v", err))
-		}
-	}
-
-	// 8. Deduct funds from wallet for initial funding
-	newBalance := sourceWallet.Balance.Sub(initalFundingAmount)
+	totalDeduction := creationFee.Add(fundingAmountDecimal)
+	s.logger.Infof("total dudection is %s$", totalDeduction.String())
+	newBalance := sourceWallet.Balance.Sub(totalDeduction)
 	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
 		Amount: sql.NullString{String: newBalance.String(), Valid: true},
 		ID:     params.SourceWalletID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("deduct initial funding error: %w", err)
+		return nil, fmt.Errorf("deduct funds from wallet error: %w", err)
+	}
+
+	// Log creation fee billing
+	_, err = qtx.CreateCardBilling(ctx, db.CreateCardBillingParams{
+		CardID:             dbCard.ID,
+		UserID:             params.UserID,
+		CardPlanID:         params.CardPlanID,
+		BillingType:        "card_creation_fee",
+		Amount:             plan.CreationFee,
+		Currency:           "USD",
+		BillingPeriodStart: now,
+		BillingPeriodEnd:   now,
+		SourceWalletID:     params.SourceWalletID,
+		Status:             "successful",
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to log creation fee: %v", err))
 	}
 
 	// 9. Log funding record
-	fundingRecord, err := qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
+	_, err = qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
 		CardID:         dbCard.ID,
 		UserID:         params.UserID,
 		SourceWalletID: params.SourceWalletID,
-		Amount:         initalFundingAmount.String(),
+		Amount:         fundingAmountDecimal.String(),
 		Currency:       "USD",
 		SourceCurrency: sourceWallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
-		Status:         "completed",
+		Status:         "successful",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create funding record: %w", err)
@@ -235,9 +256,9 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	// create generic tx record
 	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:      sql.NullInt64{Int64: params.UserID, Valid: true},
-		Type:        "card_creation",
+		Type:        "card",
 		Description: sql.NullString{String: "Card creation fee", Valid: true},
-		Status:      "completed",
+		Status:      "successful",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create transaction: %w", err)
@@ -250,14 +271,27 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 
 	// TODO: Send notification to user about card creation
 
-	s.logger.Info(fmt.Sprintf("Created virtual card %s for user %d", dbCard.ID, params.UserID))
+	s.logger.Info(fmt.Sprintf("Created virtual card %s for user %d", bridgeCardDetails.Data.CardID, params.UserID))
 
-	return &CreateCardResult{
-		Card:              &dbCard,
-		FundingRecord:     &fundingRecord,
-		BridgeCardDetails: bridgeCardDetails,
+	s.logger.Infof("create card result in service is ====: %v", bridgeCardDetails)
+	return &bridgecards.CreateCardResponse{
+		Status:  bridgeCardDetails.Status,
+		Message: bridgeCardDetails.Message,
+		Data:    bridgeCardDetails.Data,
 	}, nil
 
+}
+
+func (s *Service) GetCardBalance(ctx context.Context, cardID string) (*bridgecards.GetCardBalanceResponse, error) {
+	return s.bridgeCard.GetCardBalance(ctx, cardID)
+}
+
+func (s *Service) FundIssuingWallet(ctx context.Context, req bridgecards.FundIssuingWalletRequest) string {
+	message, err := s.bridgeCard.FundIssuingWallet(ctx, req)
+	if err != nil {
+		return err.Error()
+	}
+	return *message
 }
 
 // VerifyWebhookSignature verifies BridgeCard webhook signatures
@@ -283,6 +317,9 @@ func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, e
 	case strings.HasPrefix(event.Event, "cardholder_verification."):
 		return s.processCardholderVerification(ctx, payload)
 
+	case strings.HasPrefix(event.Event, "card_credit."):
+		return s.processCardCredit(ctx, payload)
+
 	// case strings.HasPrefix(event.Event, "card.transaction."):
 	// 	return s.processTransactionWebhook(ctx, payload)
 
@@ -292,6 +329,65 @@ func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, e
 	default:
 		s.logger.Warn(fmt.Sprintf("Unhandled webhook event type: %s", event.Event))
 		return event.Event, nil // Return event type but don't error for unknown events
+	}
+}
+
+func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest, userID int64) (*bridgecards.FundCardResponse, error) {
+	// get user usd wallet
+	wallet, err := s.store.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+		CustomerID: userID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get user usd wallet error: %w", err)
+	}
+
+	walletBalance, err := utils.ToDecimal(wallet.Balance.String)
+	if err != nil {
+		return nil, fmt.Errorf("convert wallet balance to decimal error: %w", err)
+	}
+
+	fundingAmount, err := utils.ToDecimal(req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("convert funding amount to decimal error: %w", err)
+	}
+
+	// check insufficient fund
+	if walletBalance.LessThan(fundingAmount) {
+		return nil, fmt.Errorf("insufficient funds")
+	}
+
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, req.CardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+
+	_, err = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		ID:     card.ID,
+		Status: "pending",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card funding status error: %w", err)
+	}
+
+	return s.bridgeCard.FundCard(ctx, req)
+}
+
+func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string, error) {
+	credit, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card credit: %w", err)
+	}
+
+	switch c := credit.(type) {
+	case *bridgecards.CardCreditSuccess:
+		return s.handleCardCreditSuccess(ctx, c)
+
+	case *bridgecards.CardCreditFailed:
+		return s.handleCardCreditFailed(ctx, c)
+
+	default:
+		return "", fmt.Errorf("unknown credit type")
 	}
 }
 
@@ -366,7 +462,7 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 		s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
 	}
 
-	s.logger.Info(fmt.Sprintf("Found user %d for cardholder %s",foundUID, success.CardholderID))
+	s.logger.Info(fmt.Sprintf("Found user %d for cardholder %s", foundUID, success.CardholderID))
 
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
@@ -442,6 +538,113 @@ func (s *Service) handleCardholderVerificationFailed(ctx context.Context, failed
 		failed.CardholderID, user.ID, failed.ErrorDescription))
 
 	return "cardholder_verification.failed", nil
+}
+
+func (s Service) handleCardCreditFailed(ctx context.Context, failed *bridgecards.CardCreditFailed) (string, error) {
+	// TODO: send notifications
+	return "card_credit.failed", nil
+}
+
+func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecards.CardCreditSuccess) (string, error) {
+	user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{
+		String: success.CardholderID,
+		Valid:  true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("get user by bridgecard cardholder id error: %w", err)
+	}
+
+	usdWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return "", fmt.Errorf("get wallet by user id and currency error: %w", err)
+	}
+
+	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	if err != nil {
+		return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
+	}
+
+	amount, err := utils.ToDecimal(success.Amount)
+	if err != nil {
+		return "", fmt.Errorf("convert amount to decimal error: %w", err)
+	}
+
+	if walletBalance.LessThan(amount) {
+		return "", fmt.Errorf("insufficient balance")
+	}
+
+	newBalance := walletBalance.Sub(amount)
+
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID: usdWallet.ID,
+		Amount: sql.NullString{
+			String: newBalance.String(),
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("update wallet balance error: %w", err)
+	}
+
+	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.CardID)
+	if err != nil {
+		return "", fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+
+	_, err = qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
+		CardID:         card.ID,
+		Amount:         success.Amount,
+		Currency:       success.Currency,
+		SourceWalletID: usdWallet.ID,
+		UserID:         user.ID,
+		SourceCurrency: usdWallet.Currency,
+		FundingType:    "manual",
+		InitiatedBy:    "user",
+		Status:         "successful",
+	})
+	if err != nil {
+		return "", fmt.Errorf("create card funding error: %w", err)
+	}
+
+	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: sql.NullInt64{
+			Int64: user.ID,
+			Valid: true,
+		},
+		Type:        "card",
+		Description: sql.NullString{String: "Card credit", Valid: true},
+		Status:      "successful",
+	})
+	if err != nil {
+		return "", fmt.Errorf("create transaction error: %w", err)
+	}
+
+	_, err = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		ID:     card.ID,
+		Status: "successful",
+	})
+	if err != nil {
+		return "", fmt.Errorf("update card funding status error: %w", err)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
+	}
+
+	// TODO: notification
+	return "card_credit.success", nil
 }
 
 // processCardWebhook handles card-related webhooks (status changes, etc.)

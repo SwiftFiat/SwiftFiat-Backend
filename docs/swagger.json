@@ -3897,6 +3897,236 @@
                 }
             }
         },
+        "/api/v1/cards": {
+            "post": {
+                "description": "Create a new USD virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Create virtual card",
+                "parameters": [
+                    {
+                        "description": "Card creation parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateCardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/virtualcard.CreateCardResult"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/fund-card": {
+            "post": {
+                "description": "Fund a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Fund virtual card",
+                "parameters": [
+                    {
+                        "description": "Card funding parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FundCardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FundCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/get-card-balance": {
+            "get": {
+                "description": "Get the balance of a virtual card",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get card balance",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.GetCardBalanceResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/register-cardholder": {
+            "post": {
+                "description": "Register a new cardholder with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Register cardholder",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.CreateCardHolderResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/webhook": {
+            "post": {
+                "description": "Process webhook events from BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Webhooks"
+                ],
+                "summary": "Handle BridgeCard webhooks",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "BridgeCard webhook signature",
+                        "name": "X-Webhook-Signature",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "description": "Webhook payload",
+                        "name": "payload",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.WebhookEvent"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/crypto/coin-data": {
             "get": {
                 "description": "Retrieves detailed information about a specific cryptocurrency coin using the CoinRanking provider.",
@@ -5082,7 +5312,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/smartconversion.ExchangeRateResponse"
+                            "$ref": "#/definitions/exchangerate.ExchangeRateResponse"
                         }
                     },
                     "400": {
@@ -9812,6 +10042,37 @@
                 }
             }
         },
+        "api.CreateCardRequest": {
+            "type": "object",
+            "required": [
+                "card_name",
+                "card_plan_id",
+                "funding_amount",
+                "source_wallet_id"
+            ],
+            "properties": {
+                "card_brand": {
+                    "description": "\"visa\" or \"mastercard\"",
+                    "type": "string"
+                },
+                "card_name": {
+                    "type": "string"
+                },
+                "card_plan_id": {
+                    "type": "integer"
+                },
+                "color": {
+                    "type": "string"
+                },
+                "funding_amount": {
+                    "description": "Initial funding amount",
+                    "type": "string"
+                },
+                "source_wallet_id": {
+                    "type": "string"
+                }
+            }
+        },
         "api.CreateStaticWalletRequest": {
             "type": "object",
             "required": [
@@ -10272,6 +10533,123 @@
                 }
             }
         },
+        "bridgecards.CreateCardHolderResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "cardholder_id": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.CreateCardResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "currency": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.FundCardRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "card_id",
+                "currency"
+            ],
+            "properties": {
+                "amount": {
+                    "description": "Amount in cents",
+                    "type": "string"
+                },
+                "card_id": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "transaction_reference": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.FundCardResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "transaction_reference": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.GetCardBalanceResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "balance": {
+                            "type": "integer"
+                        },
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "settled_available_balance": {
+                            "type": "integer"
+                        },
+                        "settled_book_balance": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.WebhookEvent": {
+            "type": "object"
+        },
         "cryptocurrency.PaymentInfoRequest": {
             "type": "object",
             "properties": {
@@ -10382,6 +10760,26 @@
         },
         "db.UpdateYieldConfigParams": {
             "type": "object"
+        },
+        "exchangerate.ExchangeRateResponse": {
+            "type": "object",
+            "properties": {
+                "last_updated": {
+                    "type": "string"
+                },
+                "provider": {
+                    "type": "string"
+                },
+                "rate": {
+                    "type": "number"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                }
+            }
         },
         "models.AccountInfoResponse": {
             "type": "object",
@@ -12533,26 +12931,6 @@
                 }
             }
         },
-        "smartconversion.ExchangeRateResponse": {
-            "type": "object",
-            "properties": {
-                "last_updated": {
-                    "type": "string"
-                },
-                "provider": {
-                    "type": "string"
-                },
-                "rate": {
-                    "type": "number"
-                },
-                "source_currency": {
-                    "type": "string"
-                },
-                "target_currency": {
-                    "type": "string"
-                }
-            }
-        },
         "smartconversion.ManualConversionRequest": {
             "type": "object",
             "required": [
@@ -13489,6 +13867,14 @@
                 },
                 "yearly_yield": {
                     "type": "string"
+                }
+            }
+        },
+        "virtualcard.CreateCardResult": {
+            "type": "object",
+            "properties": {
+                "bridgeCardDetails": {
+                    "$ref": "#/definitions/bridgecards.CreateCardResponse"
                 }
             }
         }

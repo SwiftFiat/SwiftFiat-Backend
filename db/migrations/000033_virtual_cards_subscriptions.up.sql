@@ -140,7 +140,7 @@ CREATE INDEX idx_virtual_cards_autotopup ON virtual_cards(auto_topup_enabled) WH
     "initiated_by" VARCHAR(20) NOT NULL, -- 'user', 'system'
     
     -- Status
-    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'successful', 'failed', 'reversed')),
     -- Status: 'pending', 'completed', 'failed', 'reversed'
     "failure_reason" TEXT,
     

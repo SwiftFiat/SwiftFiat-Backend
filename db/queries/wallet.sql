@@ -43,6 +43,6 @@ ORDER BY created_at;
 
 -- name: UpdateWalletBalance :one
 UPDATE swift_wallets
-SET balance = balance + sqlc.arg(amount)
+SET balance = sqlc.arg(amount)
 WHERE id = sqlc.arg(id)
 RETURNING *;

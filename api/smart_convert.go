@@ -404,7 +404,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 // @Produce json
 // @Param from query string true "Source currency" Enums(USD, NGN, USDT, USDC)
 // @Param to query string true "Target currency" Enums(USD, NGN, USDT, USDC)
-// @Success 200 {object} smartconversion.ExchangeRateResponse
+// @Success 200 {object} exchangerate.ExchangeRateResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Router /api/v1/smart-convert/rates [get]
 // @Security BearerAuth

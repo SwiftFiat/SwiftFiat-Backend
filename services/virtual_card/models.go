@@ -3,7 +3,6 @@ package virtualcard
 import (
 	"fmt"
 
-	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 )
 
@@ -22,8 +21,5 @@ var (
 // ============================================================================
 
 type CreateCardResult struct {
-	Card              *db.VirtualCard
-	FundingRecord     *db.CardFundingHistory
-	BillingRecord     *db.CardBillingHistory
 	BridgeCardDetails *bridgecards.CreateCardResponse
 }
