@@ -22,10 +22,10 @@ func (a AuditHandler) router(server *Server) {
 
 	audit := server.router.Group("/api/v1/audit")
 	audit.Use(a.server.authMiddleware.AuthenticatedMiddleware())
-	audit.GET("/logs/{id}", a.GetLogByID)
+	audit.GET("/logs/:id", a.GetLogByID)
 	// audit.GET("/logs", a.SearchLogs)
-	audit.GET("/user/{userID}/activity", a.GetUserActivity)
-	audit.GET("/entity/{entityType}/{entityID}/history", a.GetEntityHistory)
+	audit.GET("/user/:userID/activity", a.GetUserActivity)
+	audit.GET("/entity/:entityType/:entityID/history", a.GetEntityHistory)
 
 	// Analytics endpoints
 	audit.GET("/stats", a.GetStats)
@@ -35,7 +35,7 @@ func (a AuditHandler) router(server *Server) {
 
 	// Compliance endpoints
 	// audit.GET("/compliance/export", a.ExportLogs)
-	audit.GET("/compliance/user-data/{userID}", a.GetUserData)
+	audit.GET("/compliance/user-data/:userID", a.GetUserData)
 
 }
 

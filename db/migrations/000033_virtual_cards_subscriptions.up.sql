@@ -1,282 +1,485 @@
--- Virtual Cards Table
-CREATE TABLE IF NOT EXISTS virtual_cards (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    flutterwave_card_id VARCHAR(255) NOT NULL UNIQUE, -- id of the card in the flutterwave platform
-    card_pan_last4 VARCHAR(4), -- last 4 digits of the card
-    card_brand VARCHAR(50), -- visa, mastercard, etc
-    card_type VARCHAR(50), -- debit, credit, prepaid, etc
-    balance DECIMAL(20, 2) NOT NULL DEFAULT 0,
-    currency VARCHAR(3) NOT NULL DEFAULT 'USD', -- USD, EUR, GBP, NGN, etc
-    name_on_card VARCHAR(255),
-    expiry_month VARCHAR(2), -- 01, 02, 03, etc
-    expiry_year VARCHAR(4), -- 2025, 2026, 2027, etc
-    cvv_encrypted TEXT,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    billing_address JSONB,
-    metadata JSONB,
-    is_frozen BOOLEAN DEFAULT false,
-    freeze_reason TEXT, -- reason for freezing the card
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    deleted_at TIMESTAMP WITH TIME ZONE
-);
+/**
+ * Virtual Cards & Subscriptions System Schema
+ * Provider: BridgeCard (https://docs.bridgecard.co/)
+ * Currency: USD only
+ * 
+ * IMPORTANT: Card details (PAN, CVV, expiry) are stored ONLY in BridgeCard.
+ * We only store references and our business logic metadata.
+ */
 
-CREATE INDEX idx_virtual_cards_user_id ON virtual_cards(user_id) WHERE deleted_at IS NULL;
-CREATE INDEX idx_virtual_cards_status ON virtual_cards(status) WHERE deleted_at IS NULL;
-CREATE INDEX idx_virtual_cards_flutterwave_id ON virtual_cards(flutterwave_card_id);
+-- ============================================================================
+-- CARD PLANS (Admin-Managed)
+-- ============================================================================
 
--- Subscription Categories Table
-CREATE TABLE IF NOT EXISTS subscription_categories (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(100) NOT NULL UNIQUE,
-    description TEXT,
-    icon_url VARCHAR(500),
-    display_order INT DEFAULT 0, -- order of display in the app
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Subscription Merchants Table
-CREATE TABLE IF NOT EXISTS subscription_merchants (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    merchant_name VARCHAR(255) NOT NULL, -- name of the merchant. For example, "Netflix", "Amazon", "Apple", "Google", etc.
-    merchant_identifier VARCHAR(255) NOT NULL UNIQUE, -- normalized name for matching subscriptions (e.g. "netflix", "amazon", "apple", "google", etc)
-    category_id UUID REFERENCES subscription_categories(id),
-    logo_url VARCHAR(500),
-    description TEXT,
-    website_url VARCHAR(500),
-    default_renewal_days INT DEFAULT 30,
-    common_amounts DECIMAL[] DEFAULT ARRAY[]::DECIMAL[], -- common amounts for the merchant
-    is_active BOOLEAN DEFAULT true,
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_subscription_merchants_identifier ON subscription_merchants(merchant_identifier);
-CREATE INDEX idx_subscription_merchants_category ON subscription_merchants(category_id);
-CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_active) WHERE is_active = true;
-
-
--- Subscriptions Table
-CREATE TABLE IF NOT EXISTS subscriptions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    card_id UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    merchant_id UUID REFERENCES subscription_merchants(id),
-    merchant_name VARCHAR(255) NOT NULL,
-    amount DECIMAL(20, 2) NOT NULL,
-    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
-    first_transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    last_transaction_date TIMESTAMP WITH TIME ZONE,
-    next_estimated_renewal_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    renewal_interval_days INT DEFAULT 30,
-    status VARCHAR(50) NOT NULL DEFAULT 'active',
-    confidence_score DECIMAL(3, 2) DEFAULT 1.0, -- how confident we are this is a subscription
-    total_spend DECIMAL(20, 2) DEFAULT 0,
-    transaction_count INT DEFAULT 1,
-    failed_payment_count INT DEFAULT 0,
-    last_failed_payment_date TIMESTAMP WITH TIME ZONE,
-    cancellation_date TIMESTAMP WITH TIME ZONE,
-    cancellation_reason TEXT,
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_subscriptions_user_id ON subscriptions(user_id);
-CREATE INDEX idx_subscriptions_card_id ON subscriptions(card_id);
-CREATE INDEX idx_subscriptions_merchant_id ON subscriptions(merchant_id);
-CREATE INDEX idx_subscriptions_status ON subscriptions(status);
-CREATE INDEX idx_subscriptions_next_renewal ON subscriptions(next_estimated_renewal_date) WHERE status = 'active';
-CREATE INDEX idx_subscriptions_user_status ON subscriptions(user_id, status);
-
-
--- Subscription Transactions Table
-CREATE TABLE IF NOT EXISTS subscription_transactions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    subscription_id UUID NOT NULL REFERENCES subscriptions(id) ON DELETE CASCADE,
-    transaction_id UUID REFERENCES transactions(id),
-    flutterwave_transaction_id VARCHAR(255),
-    amount DECIMAL(20, 2) NOT NULL,
-    currency VARCHAR(3) NOT NULL,
-    transaction_date TIMESTAMP WITH TIME ZONE NOT NULL,
-    status VARCHAR(50) NOT NULL,
-    failure_reason TEXT,
-    merchant_descriptor VARCHAR(500),
-    is_renewal BOOLEAN DEFAULT true,
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_subscription_transactions_subscription ON subscription_transactions(subscription_id);
-CREATE INDEX idx_subscription_transactions_date ON subscription_transactions(transaction_date DESC);
-CREATE INDEX idx_subscription_transactions_status ON subscription_transactions(status);
-
-
--- Auto Top-up Settings Table
-CREATE TABLE IF NOT EXISTS auto_topup_settings (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
-    enabled BOOLEAN DEFAULT false,
-    default_card_id UUID REFERENCES virtual_cards(id),
-    topup_strategy VARCHAR(50) DEFAULT 'subscription_plus_buffer', -- fixed, percentage, subscription_plus_buffer
-    fixed_amount DECIMAL(20, 2),
-    buffer_percentage DECIMAL(5, 2) DEFAULT 10.00,
-    buffer_fixed_amount DECIMAL(20, 2) DEFAULT 10.00,
-    min_wallet_balance_required DECIMAL(20, 2) DEFAULT 0,
-    check_time_hours_before INT DEFAULT 24,
-    max_topup_per_day DECIMAL(20, 2),
-    daily_topup_count INT DEFAULT 0,
-    last_topup_date DATE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_auto_topup_settings_user ON auto_topup_settings(user_id);
-CREATE INDEX idx_auto_topup_settings_enabled ON auto_topup_settings(enabled) WHERE enabled = true;
-
-
--- Auto Top-up Logs Table
-CREATE TABLE IF NOT EXISTS auto_topup_logs (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    card_id UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    subscription_id UUID REFERENCES subscriptions(id),
-    topup_amount DECIMAL(20, 2) NOT NULL,
-    wallet_balance_before DECIMAL(20, 2),
-    wallet_balance_after DECIMAL(20, 2),
-    card_balance_before DECIMAL(20, 2),
-    card_balance_after DECIMAL(20, 2),
-    status VARCHAR(50) NOT NULL,
-    failure_reason TEXT,
-    transaction_id UUID REFERENCES transactions(id),
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_auto_topup_logs_user ON auto_topup_logs(user_id);
-CREATE INDEX idx_auto_topup_logs_card ON auto_topup_logs(card_id);
-CREATE INDEX idx_auto_topup_logs_subscription ON auto_topup_logs(subscription_id);
-CREATE INDEX idx_auto_topup_logs_status ON auto_topup_logs(status);
-CREATE INDEX idx_auto_topup_logs_created ON auto_topup_logs(created_at DESC);
-
-
--- Subscription Notifications Table
-CREATE TABLE IF NOT EXISTS subscription_notifications (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    subscription_id UUID REFERENCES subscriptions(id) ON DELETE CASCADE,
-    notification_type VARCHAR(100) NOT NULL,
-    title VARCHAR(255) NOT NULL,
-    message TEXT NOT NULL,
-    action_url VARCHAR(500),
-    priority VARCHAR(20) DEFAULT 'normal',
-    sent_at TIMESTAMP WITH TIME ZONE,
-    read_at TIMESTAMP WITH TIME ZONE,
-    clicked_at TIMESTAMP WITH TIME ZONE,
-    delivery_status VARCHAR(50) DEFAULT 'pending',
-    delivery_channel VARCHAR(50) DEFAULT 'push', -- push, email, sms, in_app
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_subscription_notifications_user ON subscription_notifications(user_id);
-CREATE INDEX idx_subscription_notifications_subscription ON subscription_notifications(subscription_id);
-CREATE INDEX idx_subscription_notifications_type ON subscription_notifications(notification_type);
-CREATE INDEX idx_subscription_notifications_unread ON subscription_notifications(user_id, read_at) WHERE read_at IS NULL;
-CREATE INDEX idx_subscription_notifications_sent ON subscription_notifications(sent_at) WHERE sent_at IS NOT NULL;
-
--- Card Funding History Table (track funding from USD wallets to card)
-CREATE TABLE IF NOT EXISTS card_funding_history (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    card_id UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    wallet_id UUID NOT NULL REFERENCES swift_wallets(id),
-    amount DECIMAL(20, 2) NOT NULL,
-    currency VARCHAR(3) NOT NULL DEFAULT 'USD',
-    funding_type VARCHAR(50) NOT NULL, -- manual, auto_topup, initial_funding
-    transaction_id UUID REFERENCES transactions(id),
-    ledger_entry_id UUID,
-    status VARCHAR(50) NOT NULL,
-    failure_reason TEXT,
-    metadata JSONB,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX idx_card_funding_history_user ON card_funding_history(user_id);
-CREATE INDEX idx_card_funding_history_card ON card_funding_history(card_id);
-CREATE INDEX idx_card_funding_history_wallet ON card_funding_history(wallet_id);
-CREATE INDEX idx_card_funding_history_created ON card_funding_history(created_at DESC);
-
-
--- Subscription Spending Analytics (Materialized View for Performance)
-CREATE MATERIALIZED VIEW subscription_spending_analytics AS
-SELECT
-    s.user_id,
-    DATE_TRUNC('month', st.transaction_date) AS month,
-    sc.name AS category_name,
-    COUNT(DISTINCT s.id) AS active_subscriptions,
-    COUNT(st.id) AS total_transactions,
-    SUM(CASE WHEN st.status = 'success' THEN st.amount ELSE 0 END) AS total_spent,
-    SUM(CASE WHEN st.status = 'failed' THEN 1 ELSE 0 END) AS failed_transactions,
-    AVG(CASE WHEN st.status = 'success' THEN st.amount ELSE NULL END) AS avg_transaction_amount
-FROM subscriptions s
-JOIN subscription_transactions st ON s.id = st.subscription_id
-LEFT JOIN subscription_merchants sm ON s.merchant_id = sm.id
-LEFT JOIN subscription_categories sc ON sm.category_id = sc.id
-WHERE s.status = 'active'
-GROUP BY s.user_id, DATE_TRUNC('month', st.transaction_date), sc.name;
-
-CREATE UNIQUE INDEX idx_subscription_spending_analytics_unique 
-ON subscription_spending_analytics(user_id, month, COALESCE(category_name, ''));
-
--- Function to update updated_at timestamp
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
--- Triggers for updated_at
-CREATE TRIGGER update_virtual_cards_updated_at BEFORE UPDATE ON virtual_cards
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_subscription_merchants_updated_at BEFORE UPDATE ON subscription_merchants
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_subscriptions_updated_at BEFORE UPDATE ON subscriptions
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_auto_topup_settings_updated_at BEFORE UPDATE ON auto_topup_settings
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Function to calculate next renewal date based on historical pattern
-CREATE OR REPLACE FUNCTION calculate_next_renewal_date(
-    p_subscription_id UUID
-) RETURNS TIMESTAMP WITH TIME ZONE AS $$
-DECLARE
-    v_interval_days INT;
-    v_last_transaction_date TIMESTAMP WITH TIME ZONE;
-BEGIN
-    -- Calculate average interval between transactions
-    SELECT 
-        ROUND(AVG(EXTRACT(EPOCH FROM (transaction_date - LAG(transaction_date) OVER (ORDER BY transaction_date))) / 86400))::INT,
-        MAX(transaction_date)
-    INTO v_interval_days, v_last_transaction_date
-    FROM subscription_transactions
-    WHERE subscription_id = p_subscription_id
-      AND status = 'success';
+/**
+ * Table: card_plans
+ * Purpose: Define card plan tiers with associated fees and limits
+ * Examples: Standard, Platinum, Business
+ */
+ CREATE TABLE IF NOT EXISTS "card_plans" (
+    "id" BIGSERIAL PRIMARY KEY,
     
-    -- If we have historical data, use calculated interval; otherwise use default 30 days
-    RETURN v_last_transaction_date + INTERVAL '1 day' * COALESCE(v_interval_days, 30);
-END;
-$$ LANGUAGE plpgsql;
+    -- Plan identification
+    "name" VARCHAR(100) NOT NULL UNIQUE, -- e.g., "Standard", "Platinum"
+    "description" TEXT,
+    "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- Fees (in USD cents to avoid floating point issues)
+    "creation_fee" DECIMAL(10,2) NOT NULL DEFAULT 0, -- One-time card creation fee
+    "monthly_maintenance_fee" DECIMAL(10,2) NOT NULL DEFAULT 0, -- Recurring monthly fee
+    
+    -- Limits (in USD)
+    "monthly_spending_limit" DECIMAL(20,2) NOT NULL, -- Max spend per month
+    "transaction_limit" DECIMAL(20,2) NOT NULL, -- Max per transaction
+    "daily_spending_limit" DECIMAL(20,2), -- Optional daily limit
+    "card_limit" DECIMAL(20,2), -- max amount a card can have
+    
+    -- Additional features
+    "max_cards_per_user" INT NOT NULL DEFAULT 1,
+    "supports_international" BOOLEAN NOT NULL DEFAULT TRUE,
+    "supports_online" BOOLEAN NOT NULL DEFAULT TRUE,
+    "supports_atm" BOOLEAN NOT NULL DEFAULT FALSE,
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "deleted_at" TIMESTAMPTZ
+);
 
+CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS NULL;
 
+/**
+ * Table: virtual_cards
+ * Purpose: Track user's virtual cards and link to BridgeCard
+ * 
+ * NOTE: NO card details stored here. Use BridgeCard API to:
+ * - Get card details: GET /issuing/cards/{card_id}
+ * - Get secure details: GET /issuing/cards/{card_id}/secure
+ * - Fund card: POST /issuing/cards/{card_id}/fund
+ * - Freeze/Unfreeze: POST /issuing/cards/{card_id}/freeze|unfreeze
+ * - Terminate: POST /issuing/cards/{card_id}/terminate
+ */
+ CREATE TABLE IF NOT EXISTS "virtual_cards" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "card_plan_id" BIGINT NOT NULL REFERENCES card_plans(id),
+    
+    -- BridgeCard Integration (ONLY reference)
+    "bridgecard_card_id" VARCHAR(255) UNIQUE NOT NULL, -- BridgeCard's card ID
+    
+    -- User-defined metadata
+    "card_name" VARCHAR(100) NOT NULL, -- User-friendly name like "Netflix Card"
+    "card_color" VARCHAR(7), -- Hex color for UI display
+    
+    -- Business logic tracking
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    
+    -- Spending tracking (resets monthly, for our limits enforcement)
+    "current_month_spend_cents" BIGINT NOT NULL DEFAULT 0,
+    "current_day_spend_cents" BIGINT NOT NULL DEFAULT 0,
+    "spending_month" VARCHAR(7), -- Format: YYYY-MM
+    "spending_day" DATE, -- For daily limit reset
+    
+    -- Status (mirrors BridgeCard status but cached for quick queries)
+    "status" VARCHAR(20) NOT NULL DEFAULT 'active', 
+    -- Status: 'active', 'frozen', 'terminated'
+    "status_reason" TEXT,
+    
+    -- Auto top-up feature (our business logic)
+    "auto_topup_enabled" BOOLEAN NOT NULL DEFAULT FALSE,
+    "auto_topup_threshold_cents" BIGINT, -- Top up when balance falls below
+    "auto_topup_amount_cents" BIGINT, -- Amount to add
+    "auto_topup_source_wallet_id" UUID, -- Which wallet to pull funds from
+    
+    -- Billing cycle (for monthly maintenance fee)
+    "next_billing_date" TIMESTAMPTZ,
+    "last_billing_date" TIMESTAMPTZ,
+    
+    -- Usage tracking
+    "last_transaction_at" TIMESTAMPTZ,
+    "total_transactions_count" BIGINT NOT NULL DEFAULT 0,
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "terminated_at" TIMESTAMPTZ
+);
 
+CREATE INDEX idx_virtual_cards_user ON virtual_cards(user_id) WHERE terminated_at IS NULL;
+CREATE INDEX idx_virtual_cards_status ON virtual_cards(status) WHERE terminated_at IS NULL;
+CREATE INDEX idx_virtual_cards_bridgecard ON virtual_cards(bridgecard_card_id);
+CREATE INDEX idx_virtual_cards_billing ON virtual_cards(next_billing_date) WHERE status = 'active';
+CREATE INDEX idx_virtual_cards_autotopup ON virtual_cards(auto_topup_enabled) WHERE status = 'active';
 
+/**
+ * Table: card_funding_history
+ * Purpose: Track all card funding operations (top-ups from wallets)
+ */
+ CREATE TABLE IF NOT EXISTS "card_funding_history" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "source_wallet_id" UUID NOT NULL References swift_wallets(id), -- References wallets table
+    
+    -- Funding details
+    "amount" DECIMAL(10,2) NOT NULL,
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    "source_currency" VARCHAR(3) NOT NULL, -- Wallet currency (USD, USDC, USDT)
+    "exchange_rate" DECIMAL(20, 8), -- If conversion happened
+    
+    -- BridgeCard reference
+    "bridgecard_transaction_id" VARCHAR(255),
+    
+    -- Metadata
+    "funding_type" VARCHAR(20) NOT NULL, 
+    -- Types: 'manual', 'auto_topup', 'creation_fee', 'maintenance_fee_refund'
+    "initiated_by" VARCHAR(20) NOT NULL, -- 'user', 'system'
+    
+    -- Status
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    -- Status: 'pending', 'completed', 'failed', 'reversed'
+    "failure_reason" TEXT,
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "completed_at" TIMESTAMPTZ
+);
 
+CREATE INDEX idx_card_funding_card ON card_funding_history(card_id);
+CREATE INDEX idx_card_funding_user ON card_funding_history(user_id);
+CREATE INDEX idx_card_funding_status ON card_funding_history(status);
+CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
 
+-- ============================================================================
+-- CARD TRANSACTIONS
+-- ============================================================================
+
+/**
+ * Table: card_transactions
+ * Purpose: Log all card transactions from BridgeCard webhooks
+ * Source: BridgeCard webhook notifications
+ */
+ CREATE TABLE IF NOT EXISTS "card_transactions" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    
+    -- BridgeCard transaction reference
+    "bridgecard_transaction_id" VARCHAR(255) UNIQUE NOT NULL,
+    "transaction_type" VARCHAR(50) NOT NULL, 
+    -- Types: 'debit', 'credit', 'reversal', 'refund'
+    
+    -- Merchant details (from BridgeCard webhook)
+    "merchant_name" VARCHAR(255),
+    "merchant_category" VARCHAR(100), -- MCC category
+    "merchant_category_code" VARCHAR(10), -- MCC code
+    "merchant_country" VARCHAR(3), -- ISO country code
+    "merchant_city" VARCHAR(100),
+    
+    -- Amounts (in cents)
+    "amount_cents" BIGINT NOT NULL,
+    "fee_cents" BIGINT NOT NULL DEFAULT 0,
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    
+    -- Original amounts (if different currency)
+    "billing_amount_cents" BIGINT,
+    "billing_currency" VARCHAR(3),
+    
+    -- Status
+    "status" VARCHAR(20) NOT NULL,
+    -- Status: 'pending', 'approved', 'declined', 'reversed'
+    "decline_reason" TEXT,
+    
+    -- Classification (for subscription detection)
+    "is_recurring_merchant" BOOLEAN NOT NULL DEFAULT FALSE,
+    "subscription_id" UUID, -- Links to user_subscriptions if detected
+    
+    -- Card balance after transaction (from BridgeCard)
+    "balance_after_cents" BIGINT,
+    
+    -- Webhook metadata
+    "webhook_received_at" TIMESTAMPTZ,
+    "raw_webhook_data" JSONB, -- Store full webhook payload for debugging
+    
+    -- Audit
+    "transaction_date" TIMESTAMPTZ NOT NULL,
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_card_transactions_card ON card_transactions(card_id);
+CREATE INDEX idx_card_transactions_user ON card_transactions(user_id);
+CREATE INDEX idx_card_transactions_bridgecard ON card_transactions(bridgecard_transaction_id);
+CREATE INDEX idx_card_transactions_merchant ON card_transactions(merchant_name) WHERE merchant_name IS NOT NULL;
+CREATE INDEX idx_card_transactions_date ON card_transactions(transaction_date DESC);
+CREATE INDEX idx_card_transactions_recurring ON card_transactions(is_recurring_merchant) WHERE is_recurring_merchant = TRUE;
+CREATE INDEX idx_card_transactions_subscription ON card_transactions(subscription_id) WHERE subscription_id IS NOT NULL;
+
+-- ============================================================================
+-- SUBSCRIPTION MERCHANTS DATABASE
+-- ============================================================================
+
+/**
+ * Table: subscription_merchants
+ * Purpose: Master database of known subscription merchants
+ * Used for automatic subscription detection from transactions
+ */
+ CREATE TABLE IF NOT EXISTS "subscription_merchants" (
+    "id" BIGSERIAL PRIMARY KEY,
+    
+    -- Merchant identification
+    "merchant_name" VARCHAR(255) NOT NULL UNIQUE, -- Normalized name
+    "display_name" VARCHAR(255) NOT NULL, -- User-friendly name
+    "aliases" TEXT[], -- Alternative names for matching
+    
+    -- Classification
+    "category" VARCHAR(100) NOT NULL,
+    -- Categories: 'streaming', 'cloud_storage', 'gaming', 'music', 
+    --             'productivity', 'fitness', 'news', 'utilities', 'other'
+    "subcategory" VARCHAR(100),
+    
+    -- Merchant details
+    "logo_url" TEXT,
+    "website" VARCHAR(255),
+    "description" TEXT,
+    "merchant_country" VARCHAR(3),
+    
+    -- Pattern detection
+    "typical_intervals" INT[], -- Common billing intervals in days [30, 365]
+    "typical_amounts_cents" BIGINT[], -- Common charge amounts
+    "mcc_codes" VARCHAR(10)[], -- Merchant Category Codes
+    
+    -- Confidence scoring
+    "match_confidence" DECIMAL(3, 2) NOT NULL DEFAULT 1.0, -- 0.0 to 1.0
+    
+    -- Admin controls
+    "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+    "auto_detect" BOOLEAN NOT NULL DEFAULT TRUE,
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscription_merchants_name ON subscription_merchants(merchant_name);
+CREATE INDEX idx_subscription_merchants_category ON subscription_merchants(category);
+CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_active, auto_detect);
+
+-- ============================================================================
+-- USER SUBSCRIPTIONS
+-- ============================================================================
+
+/**
+ * Table: user_subscriptions
+ * Purpose: Track detected and confirmed user subscriptions
+ */
+ CREATE TABLE IF NOT EXISTS "user_subscriptions" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
+    "merchant_id" BIGINT REFERENCES subscription_merchants(id),
+    
+    -- Subscription details
+    "merchant_name" VARCHAR(255) NOT NULL,
+    "display_name" VARCHAR(255) NOT NULL,
+    "category" VARCHAR(100),
+    
+    -- Billing information
+    "amount_cents" BIGINT NOT NULL,
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    "billing_interval_days" INT NOT NULL, -- Typically 30, 365, etc.
+    
+    -- Dates
+    "first_charge_date" TIMESTAMPTZ NOT NULL, -- When we first detected it
+    "last_charge_date" TIMESTAMPTZ NOT NULL, -- Most recent charge
+    "next_estimated_charge_date" TIMESTAMPTZ NOT NULL, -- Predicted renewal
+    
+    -- Status
+    "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+    -- Status: 'active', 'cancelled', 'failed', 'paused'
+    "confidence_score" DECIMAL(3, 2) NOT NULL DEFAULT 0.5, -- Detection confidence
+    
+    -- Tracking
+    "total_charges" INT NOT NULL DEFAULT 1, -- Number of successful charges
+    "failed_charges" INT NOT NULL DEFAULT 0,
+    "last_failed_date" TIMESTAMPTZ,
+    "last_failure_reason" TEXT,
+    
+    -- User preferences
+    "reminder_enabled" BOOLEAN NOT NULL DEFAULT TRUE,
+    "reminder_days_before" INT NOT NULL DEFAULT 3,
+    "user_confirmed" BOOLEAN NOT NULL DEFAULT FALSE, -- User acknowledged subscription
+    "custom_name" VARCHAR(255), -- User can override display name
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "cancelled_at" TIMESTAMPTZ
+);
+
+CREATE INDEX idx_user_subscriptions_user ON user_subscriptions(user_id) WHERE status = 'active';
+CREATE INDEX idx_user_subscriptions_card ON user_subscriptions(card_id) WHERE status = 'active';
+CREATE INDEX idx_user_subscriptions_merchant ON user_subscriptions(merchant_id);
+CREATE INDEX idx_user_subscriptions_next_charge ON user_subscriptions(next_estimated_charge_date) 
+    WHERE status = 'active';
+CREATE INDEX idx_user_subscriptions_status ON user_subscriptions(status);
+
+-- ============================================================================
+-- SUBSCRIPTION REMINDERS
+-- ============================================================================
+
+/**
+ * Table: subscription_reminders
+ * Purpose: Track sent reminders to avoid duplicates
+ */
+ CREATE TABLE IF NOT EXISTS "subscription_reminders" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "subscription_id" UUID NOT NULL REFERENCES user_subscriptions(id) ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    
+    -- Reminder details
+    "reminder_type" VARCHAR(50) NOT NULL,
+    -- Types: 'upcoming_renewal', 'payment_failed', 'low_balance', 'cancelled'
+    "scheduled_for" TIMESTAMPTZ NOT NULL,
+    "sent_at" TIMESTAMPTZ,
+    
+    -- Content
+    "title" VARCHAR(255) NOT NULL,
+    "message" TEXT NOT NULL,
+    "action_url" VARCHAR(500),
+    
+    -- Delivery
+    "channels" VARCHAR(50)[], -- ['push', 'email', 'sms']
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    -- Status: 'pending', 'sent', 'failed', 'cancelled'
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscription_reminders_subscription ON subscription_reminders(subscription_id);
+CREATE INDEX idx_subscription_reminders_user ON subscription_reminders(user_id);
+CREATE INDEX idx_subscription_reminders_scheduled ON subscription_reminders(scheduled_for) 
+    WHERE status = 'pending';
+CREATE INDEX idx_subscription_reminders_status ON subscription_reminders(status);
+
+-- ============================================================================
+-- CARD BILLING HISTORY
+-- ============================================================================
+
+/**
+ * Table: card_billing_history
+ * Purpose: Track monthly maintenance fee charges
+ */
+CREATE TABLE IF NOT EXISTS "card_billing_history" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    
+    -- Relationships
+    "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
+    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "card_plan_id" BIGINT NOT NULL REFERENCES card_plans(id),
+    
+    -- Billing details
+    "billing_type" VARCHAR(50) NOT NULL,
+    -- Types: 'creation_fee', 'monthly_maintenance', 'refund'
+    "amount" DECIMAL(10,2) NOT NULL,
+    "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
+    
+    -- Period
+    "billing_period_start" TIMESTAMPTZ NOT NULL,
+    "billing_period_end" TIMESTAMPTZ NOT NULL,
+    
+    -- Payment
+    "source_wallet_id" UUID NOT NULL REFERENCES swift_wallets(id), -- Which wallet was charged
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+    -- Status: 'pending', 'completed', 'failed', 'waived'
+    "failure_reason" TEXT,
+    
+    -- Audit
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "processed_at" TIMESTAMPTZ
+);
+
+CREATE INDEX idx_card_billing_card ON card_billing_history(card_id);
+CREATE INDEX idx_card_billing_user ON card_billing_history(user_id);
+CREATE INDEX idx_card_billing_status ON card_billing_history(status);
+CREATE INDEX idx_card_billing_period ON card_billing_history(billing_period_start DESC);
+
+-- ============================================================================
+-- ANALYTICS VIEWS
+-- ============================================================================
+
+/**
+ * View: user_subscription_summary
+ * Purpose: Quick overview of user's subscription spending
+ */
+CREATE OR REPLACE VIEW user_subscription_summary AS
+SELECT 
+    user_id,
+    COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
+    COUNT(*) FILTER (WHERE status = 'failed') as failed_subscriptions,
+    SUM(amount_cents) FILTER (WHERE status = 'active') as total_monthly_spend_cents,
+    ARRAY_AGG(DISTINCT category) FILTER (WHERE status = 'active') as categories,
+    MIN(next_estimated_charge_date) FILTER (WHERE status = 'active') as next_charge_date
+FROM user_subscriptions
+GROUP BY user_id;
+
+/**
+ * View: card_spending_summary
+ * Purpose: Card spending analytics
+ */
+CREATE OR REPLACE VIEW card_spending_summary AS
+SELECT 
+    c.id as card_id,
+    c.user_id,
+    c.card_name,
+    COUNT(t.id) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as transactions_30d,
+    SUM(t.amount_cents) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as spend_30d_cents,
+    COUNT(DISTINCT t.merchant_name) FILTER (WHERE t.transaction_date >= NOW() - INTERVAL '30 days') as unique_merchants_30d,
+    COUNT(t.id) FILTER (WHERE t.is_recurring_merchant = TRUE) as subscription_transactions
+FROM virtual_cards c
+LEFT JOIN card_transactions t ON c.id = t.card_id
+WHERE c.terminated_at IS NULL
+GROUP BY c.id, c.user_id, c.card_name;
+
+-- ============================================================================
+-- SEED DATA: Default Card Plans
+-- ============================================================================
+
+INSERT INTO card_plans (name, description, creation_fee, monthly_maintenance_fee, 
+                        monthly_spending_limit, transaction_limit, daily_spending_limit,
+                        max_cards_per_user, supports_international, supports_online, supports_atm)
+VALUES 
+    ('Standard', 'Basic virtual card for everyday subscriptions', 
+     500, 100, 500000, 50000, 20000, 2, TRUE, TRUE, FALSE),
+    
+    ('Platinum', 'Premium card with higher limits and no monthly fees', 
+     1000, 0, 2000000, 200000, 100000, 5, TRUE, TRUE, FALSE)
+ON CONFLICT (name) DO NOTHING;
+
+-- ============================================================================
+-- SEED DATA: Common Subscription Merchants
+-- ============================================================================
+
+INSERT INTO subscription_merchants (merchant_name, display_name, aliases, category, subcategory, 
+                                   typical_intervals, typical_amounts_cents, auto_detect)
+VALUES 
+    ('netflix', 'Netflix', ARRAY['netflix.com', 'nflx'], 'streaming', 'video', ARRAY[30], ARRAY[999, 1999, 2499], TRUE),
+    ('spotify', 'Spotify', ARRAY['spotify.com', 'spotifyab'], 'streaming', 'music', ARRAY[30], ARRAY[999, 1999], TRUE),
+    ('apple', 'Apple Services', ARRAY['apple.com', 'itunes', 'icloud'], 'utilities', 'cloud', ARRAY[30], ARRAY[99, 299, 999], TRUE),
+    ('youtube', 'YouTube Premium', ARRAY['youtube.com', 'google youtube'], 'streaming', 'video', ARRAY[30], ARRAY[1199], TRUE),
+    ('amazon', 'Amazon Prime', ARRAY['amazon.com', 'amzn', 'prime'], 'utilities', 'shopping', ARRAY[30, 365], ARRAY[1499, 13900], TRUE),
+    ('chatgpt', 'ChatGPT Plus', ARRAY['openai', 'chat.openai.com'], 'productivity', 'ai', ARRAY[30], ARRAY[2000], TRUE),
+    ('notion', 'Notion', ARRAY['notion.so'], 'productivity', 'workspace', ARRAY[30, 365], ARRAY[1000, 10000], TRUE),
+    ('github', 'GitHub', ARRAY['github.com'], 'productivity', 'developer', ARRAY[30], ARRAY[400, 700, 2100], TRUE),
+    ('microsoft', 'Microsoft 365', ARRAY['microsoft.com', 'office365', 'ms'], 'productivity', 'office', ARRAY[30, 365], ARRAY[699, 9999], TRUE),
+    ('disney', 'Disney+', ARRAY['disneyplus', 'disney+'], 'streaming', 'video', ARRAY[30], ARRAY[799, 1099], TRUE)
+ON CONFLICT (merchant_name) DO NOTHING;

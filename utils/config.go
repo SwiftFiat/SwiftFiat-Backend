@@ -60,6 +60,12 @@ type Config struct {
 	AllowedCurrencies         []string `mapstructure:"ALLOWED_CURRENCIES"`
 	RequireKYCForCard         bool     `mapstructure:"REQUIRED_KYC_FOR_CARD"`
 	CardExpiryMonths          int      `mapstructure:"CARD_EXPIRY_MONTHS"`
+	BridgeCardsTestAuthToken  string   `mapstructure:"BRIDGECARDS_TEST_AUTH_TOKEN"`
+	BridgeCardsTestSecretKey  string   `mapstructure:"BRIDGECARDS_TEST_SECRET_KEY"`
+	BridgeCardsTestWebhookKey string   `mapstructure:"BRIDGECARDS_TEST_WEBHOOK_KEY"`
+	BridgeCardsAuthToken      string   `mapstructure:"BRIDGECARDS_AUTH_TOKEN"`
+	BridgeCardsSecretKey      string   `mapstructure:"BRIDGECARDS_SECRET_KEY"`
+	BridgeCardsWebhookKey     string   `mapstructure:"BRIDGECARDS_WEBHOOK_KEY"`
 }
 
 func LoadConfig(path string) (*Config, error) {

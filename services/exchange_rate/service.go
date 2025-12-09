@@ -1,4 +1,4 @@
-package smartconversion
+package exchangerate
 
 import (
 	"context"

@@ -8,6 +8,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
+	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -18,7 +19,7 @@ import (
 type SmartConvertHandler struct {
 	server          *Server
 	logger          *logging.Logger
-	exchangeRateSvc *smartconversion.ExchangeRateService
+	exchangeRateSvc *exchangerate.ExchangeRateService
 	conversionSvc   *smartconversion.ConversionService
 	audit           *audit.Service
 }
@@ -360,7 +361,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance for conversion"))
 			return
 		}
-		if err == smartconversion.ErrRateNotAvailable {
+		if err == exchangerate.ErrRateNotAvailable {
 			c.JSON(http.StatusServiceUnavailable, basemodels.NewError("exchange rate not available for the requested currency pair"))
 			return
 		}

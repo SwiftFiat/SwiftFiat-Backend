@@ -7,7 +7,9 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -17,19 +19,22 @@ import (
 type ConversionService struct {
 	store               *db.Store
 	logger              *logging.Logger
-	exchangeRateService *ExchangeRateService
+	rateManagerService  *ratemanager.Service
+	exchangeRateService *exchangerate.ExchangeRateService
 	transactionService  *transaction.TransactionService
 }
 
 func NewConversionService(
 	store *db.Store,
 	logger *logging.Logger,
-	exchangeRateService *ExchangeRateService,
+	rateManagerService *ratemanager.Service,
+	exchangeRateService *exchangerate.ExchangeRateService,
 	transactionService *transaction.TransactionService,
 ) *ConversionService {
 	return &ConversionService{
 		store:               store,
 		logger:              logger,
+		rateManagerService:  rateManagerService,
 		exchangeRateService: exchangeRateService,
 		transactionService:  transactionService,
 	}
@@ -41,7 +46,7 @@ func (s *ConversionService) CreateConversionRule(ctx context.Context, userID int
 
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
-		return nil, ErrInvalidCurrencyPair
+		return nil, exchangerate.ErrInvalidCurrencyPair
 	}
 
 	// Check if active rule already exists for this currency pair
@@ -162,7 +167,7 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 // CONVERSION EXECUTION
 // ============================================================
 
-// ExecuteManualConversion executes a manual conversion
+// ExecuteManualConversion executes a manual conversion with vip rate
 func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*ManualConversionResponse, error) {
 	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.ID))
 
@@ -183,26 +188,36 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
-		return nil, ErrInvalidCurrencyPair
+		return nil, exchangerate.ErrInvalidCurrencyPair
 	}
 
-	// Get current exchange rate
-	rate, err := s.exchangeRateService.GetExchangeRate(ctx, req.SourceCurrency, req.TargetCurrency)
+	// Get vip adjusted rate
+	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, req.Amount)
 	if err != nil {
-		return nil, ErrRateNotAvailable
+		s.logger.Error(fmt.Sprintf("Failed to get VIP-adjusted rate: %v", err))
+		// fallback to base rate if vip rate fails
+		return s.executeWithBaseRate(ctx, user.ID, req)
 	}
 
 	// Calculate amounts
-	feePercentage := s.exchangeRateService.GetFeePercentage(req.SourceCurrency, req.TargetCurrency)
+	fees, err := utils.ToDecimal(rate.Fees)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert fees to decimal: %w", err)
+	}
 
-	var sourceAmount, targetAmount, fees, netAmount decimal.Decimal
+	adjustedRate, err := utils.ToDecimal(rate.AdjustedRate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert adjusted rate to decimal: %w", err)
+	}
+
+	var sourceAmount, targetAmount, netAmount decimal.Decimal
 
 	if req.AmountType == "source" {
 		sourceAmount = req.Amount
-		targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(sourceAmount, rate.Rate, feePercentage)
+		targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(sourceAmount, adjustedRate, fees)
 	} else {
 		targetAmount = req.Amount
-		sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(targetAmount, rate.Rate, feePercentage)
+		sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(targetAmount, adjustedRate, fees)
 	}
 
 	// Execute the conversion in a transaction
@@ -217,11 +232,11 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		targetAmount:   targetAmount,
 		fees:           fees,
 		netAmount:      netAmount,
-		executedRate:   rate.Rate,
+		executedRate:   adjustedRate,
 		triggerRate:    nil,
 		executionType:  "manual",
 		triggerType:    nil,
-		rateProvider:   rate.Provider,
+		rateProvider:   rate.RateProvider,
 	})
 	if err != nil {
 		return nil, err
@@ -232,7 +247,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		TransactionID: *transactionID,
 		SourceAmount:  sourceAmount,
 		TargetAmount:  targetAmount,
-		ExecutedRate:  rate.Rate,
+		ExecutedRate:  adjustedRate,
 		Fees:          fees,
 		NetAmount:     netAmount,
 		Status:        "success",
@@ -242,6 +257,71 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
+
+// executeWithBaseRate is a fallback when VIP rate calculation fails
+func (s *ConversionService) executeWithBaseRate(
+	ctx context.Context,
+	userID int64,
+	req *ManualConversionRequest,
+) (*ManualConversionResponse, error) {
+	s.logger.Info("Executing conversion with base rate (VIP adjustment unavailable)")
+
+	// Get base rate
+	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, req.SourceCurrency, req.TargetCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get base rate: %w", err)
+	}
+
+	// Calculate amounts
+	feePercentage := s.exchangeRateService.GetFeePercentage(req.SourceCurrency, req.TargetCurrency)
+
+	var sourceAmount, targetAmount, fees, netAmount decimal.Decimal
+	if req.AmountType == "source" {
+		sourceAmount = req.Amount
+		targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(
+			sourceAmount, baseRate.Rate, feePercentage,
+		)
+	} else {
+		sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(
+			req.Amount, baseRate.Rate, feePercentage,
+		)
+		targetAmount = req.Amount
+	}
+
+	// Continue with regular conversion logic...
+	// (Similar to ExecuteManualConversionWithVIPRate but without VIP adjustment)
+	conversionID, transactionID, err := s.executeConversion(ctx, &conversionExecutionParams{
+		userID:         userID,
+		ruleID:         nil,
+		sourceWalletID: req.SourceWalletID,
+		targetWalletID: req.TargetWalletID,
+		sourceCurrency: req.SourceCurrency,
+		targetCurrency: req.TargetCurrency,
+		sourceAmount:   sourceAmount,
+		targetAmount:   targetAmount,
+		fees:           fees,
+		netAmount:      netAmount,
+		executedRate:   baseRate.Rate,
+		triggerRate:    nil,
+		executionType:  "manual",
+		triggerType:    nil,
+		rateProvider:   baseRate.Provider,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &ManualConversionResponse{
+		ConversionID:  *conversionID,
+		TransactionID: *transactionID,
+		SourceAmount:  sourceAmount,
+		TargetAmount:  targetAmount,
+		ExecutedRate:  baseRate.Rate,
+		Fees:          fees,
+		NetAmount:     netAmount,
+		Status:        "success",
+	}, nil
+}
 
 type conversionExecutionParams struct {
 	userID         int64
@@ -645,142 +725,142 @@ func (s *ConversionService) dbRuleToModel(rule *db.ConversionRule) *ConversionRu
 
 // ...existing code...
 func (s *ConversionService) calculateNextExecution(frequency *string, dayOfWeek, dayOfMonth *int, scheduleTime *string, timezone *string) time.Time {
-    // Determine location
-    loc := time.UTC
-    if timezone != nil && *timezone != "" {
-        if l, err := time.LoadLocation(*timezone); err == nil {
-            loc = l
-        }
-    }
-    now := time.Now().In(loc)
+	// Determine location
+	loc := time.UTC
+	if timezone != nil && *timezone != "" {
+		if l, err := time.LoadLocation(*timezone); err == nil {
+			loc = l
+		}
+	}
+	now := time.Now().In(loc)
 
-    // parse scheduled time (HH:MM) if provided
-    hour, min := 0, 0
-    if scheduleTime != nil && *scheduleTime != "" {
-        if t, err := time.ParseInLocation("15:04", *scheduleTime, loc); err == nil {
-            hour, min = t.Hour(), t.Minute()
-        }
-    }
+	// parse scheduled time (HH:MM) if provided
+	hour, min := 0, 0
+	if scheduleTime != nil && *scheduleTime != "" {
+		if t, err := time.ParseInLocation("15:04", *scheduleTime, loc); err == nil {
+			hour, min = t.Hour(), t.Minute()
+		}
+	}
 
-    // helper to create a time at given date with scheduled hour/min
-    at := func(y int, m time.Month, d int) time.Time {
-        return time.Date(y, m, d, hour, min, 0, 0, loc)
-    }
+	// helper to create a time at given date with scheduled hour/min
+	at := func(y int, m time.Month, d int) time.Time {
+		return time.Date(y, m, d, hour, min, 0, 0, loc)
+	}
 
-    // default to next day same time if no frequency
-    if frequency == nil || *frequency == "" {
-        cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
-        if cand.After(now) {
-            return cand
-        }
-        return cand.Add(24 * time.Hour)
-    }
+	// default to next day same time if no frequency
+	if frequency == nil || *frequency == "" {
+		cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
+		if cand.After(now) {
+			return cand
+		}
+		return cand.Add(24 * time.Hour)
+	}
 
-    switch *frequency {
-    case "daily":
-        today := at(now.Year(), now.Month(), now.Day())
-        if today.After(now) {
-            return today
-        }
-        return today.Add(24 * time.Hour)
+	switch *frequency {
+	case "daily":
+		today := at(now.Year(), now.Month(), now.Day())
+		if today.After(now) {
+			return today
+		}
+		return today.Add(24 * time.Hour)
 
-    case "weekly":
-        // Expect dayOfWeek: 0 = Sunday ... 6 = Saturday (fallback to next day)
-        var targetWeekday time.Weekday
-        if dayOfWeek != nil {
-            targetWeekday = time.Weekday(*dayOfWeek % 7)
-        } else {
-            // default to same weekday next week
-            targetWeekday = now.Weekday()
-        }
-        daysUntil := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
-        candidate := at(now.Year(), now.Month(), now.Day()).AddDate(0, 0, daysUntil)
-        // if same day but time already passed, schedule for next week
-        if daysUntil == 0 && !candidate.After(now) {
-            candidate = candidate.AddDate(0, 0, 7)
-        }
-        if candidate.After(now) {
-            return candidate
-        }
-        return candidate.AddDate(0, 0, 7)
+	case "weekly":
+		// Expect dayOfWeek: 0 = Sunday ... 6 = Saturday (fallback to next day)
+		var targetWeekday time.Weekday
+		if dayOfWeek != nil {
+			targetWeekday = time.Weekday(*dayOfWeek % 7)
+		} else {
+			// default to same weekday next week
+			targetWeekday = now.Weekday()
+		}
+		daysUntil := (int(targetWeekday) - int(now.Weekday()) + 7) % 7
+		candidate := at(now.Year(), now.Month(), now.Day()).AddDate(0, 0, daysUntil)
+		// if same day but time already passed, schedule for next week
+		if daysUntil == 0 && !candidate.After(now) {
+			candidate = candidate.AddDate(0, 0, 7)
+		}
+		if candidate.After(now) {
+			return candidate
+		}
+		return candidate.AddDate(0, 0, 7)
 
-    case "monthly":
-        // Expect dayOfMonth: 1..31
-        var dom int
-        if dayOfMonth != nil && *dayOfMonth > 0 {
-            dom = *dayOfMonth
-        } else {
-            dom = now.Day()
-        }
+	case "monthly":
+		// Expect dayOfMonth: 1..31
+		var dom int
+		if dayOfMonth != nil && *dayOfMonth > 0 {
+			dom = *dayOfMonth
+		} else {
+			dom = now.Day()
+		}
 
-        // try this month
-        maxDay := daysInMonth(now.Year(), now.Month())
-        day := dom
-        if day > maxDay {
-            day = maxDay
-        }
-        candidate := at(now.Year(), now.Month(), day)
-        if candidate.After(now) {
-            return candidate
-        }
-        // next month
-        nextMonth := now.AddDate(0, 1, 0)
-        maxDayNext := daysInMonth(nextMonth.Year(), nextMonth.Month())
-        day = dom
-        if day > maxDayNext {
-            day = maxDayNext
-        }
-        return at(nextMonth.Year(), nextMonth.Month(), day)
+		// try this month
+		maxDay := daysInMonth(now.Year(), now.Month())
+		day := dom
+		if day > maxDay {
+			day = maxDay
+		}
+		candidate := at(now.Year(), now.Month(), day)
+		if candidate.After(now) {
+			return candidate
+		}
+		// next month
+		nextMonth := now.AddDate(0, 1, 0)
+		maxDayNext := daysInMonth(nextMonth.Year(), nextMonth.Month())
+		day = dom
+		if day > maxDayNext {
+			day = maxDayNext
+		}
+		return at(nextMonth.Year(), nextMonth.Month(), day)
 
-    default:
-        // custom or unknown -> fallback to next day at scheduled time
-        cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
-        if cand.After(now) {
-            return cand
-        }
-        return cand.Add(24 * time.Hour)
-    }
+	default:
+		// custom or unknown -> fallback to next day at scheduled time
+		cand := at(now.Year(), now.Month(), now.Day()).Add(24 * time.Hour)
+		if cand.After(now) {
+			return cand
+		}
+		return cand.Add(24 * time.Hour)
+	}
 }
 
 func (s *ConversionService) calculateNextExecutionForRule(rule *db.ConversionRule) time.Time {
-    // build parameters from db rule
-    var freqPtr *string
-    if rule.ScheduleFrequency.Valid && rule.ScheduleFrequency.String != "" {
-        f := rule.ScheduleFrequency.String
-        freqPtr = &f
-    }
+	// build parameters from db rule
+	var freqPtr *string
+	if rule.ScheduleFrequency.Valid && rule.ScheduleFrequency.String != "" {
+		f := rule.ScheduleFrequency.String
+		freqPtr = &f
+	}
 
-    var dowPtr *int
-    if rule.ScheduleDayOfWeek.Valid {
-        d := int(rule.ScheduleDayOfWeek.Int32)
-        dowPtr = &d
-    }
+	var dowPtr *int
+	if rule.ScheduleDayOfWeek.Valid {
+		d := int(rule.ScheduleDayOfWeek.Int32)
+		dowPtr = &d
+	}
 
-    var domPtr *int
-    if rule.ScheduleDayOfMonth.Valid {
-        d := int(rule.ScheduleDayOfMonth.Int32)
-        domPtr = &d
-    }
+	var domPtr *int
+	if rule.ScheduleDayOfMonth.Valid {
+		d := int(rule.ScheduleDayOfMonth.Int32)
+		domPtr = &d
+	}
 
-    var scheduleTimePtr *string
-    if rule.ScheduleTime.Valid {
-        t := rule.ScheduleTime.Time.Format("15:04")
-        scheduleTimePtr = &t
-    }
+	var scheduleTimePtr *string
+	if rule.ScheduleTime.Valid {
+		t := rule.ScheduleTime.Time.Format("15:04")
+		scheduleTimePtr = &t
+	}
 
-    var tzPtr *string
-    if rule.Timezone.Valid && rule.Timezone.String != "" {
-        tz := rule.Timezone.String
-        tzPtr = &tz
-    }
+	var tzPtr *string
+	if rule.Timezone.Valid && rule.Timezone.String != "" {
+		tz := rule.Timezone.String
+		tzPtr = &tz
+	}
 
-    return s.calculateNextExecution(freqPtr, dowPtr, domPtr, scheduleTimePtr, tzPtr)
+	return s.calculateNextExecution(freqPtr, dowPtr, domPtr, scheduleTimePtr, tzPtr)
 }
 
 func daysInMonth(year int, month time.Month) int {
-    // day 0 of next month is last day of current month
-    t := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC)
-    return t.Day()
+	// day 0 of next month is last day of current month
+	t := time.Date(year, month+1, 0, 0, 0, 0, 0, time.UTC)
+	return t.Day()
 }
 
 func (s *ConversionService) parseScheduleTime(timeStr *string) sql.NullTime {

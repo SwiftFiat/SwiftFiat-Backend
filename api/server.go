@@ -13,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
@@ -20,6 +21,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
+	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
@@ -32,6 +34,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
+	virtualcard "github.com/SwiftFiat/SwiftFiat-Backend/services/virtual_card"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -70,11 +73,13 @@ type Server struct {
 	qrcodeScheduler          *rapidramp.RapidRampScheduler
 	transactionService       *transaction.TransactionService
 	currencyService          *currency.CurrencyService
-	scExchangeRateservice    *smartconversion.ExchangeRateService
+	scExchangeRateservice    *exchangerate.ExchangeRateService
 	smartConvertService      *smartconversion.ConversionService
 	smartConversionScheduler *smartconversion.Scheduler
 	auditService             *audit.Service
 	rateManager              *ratemanager.Service
+	virtualcard              *virtualcard.Service
+	bridgecard               *bridgecards.BridgeCardProvider
 }
 
 func NewServer(envPath string) *Server {
@@ -195,16 +200,22 @@ func NewServer(envPath string) *Server {
 	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns)
 
 	// smart conversion exchange rate service
-	scex := smartconversion.NewExchangeRateService(cryptomus, l)
+	scex := exchangerate.NewExchangeRateService(cryptomus, l)
+
+	// Rates manager
+	rm := ratemanager.NewService(q, scex, ads, l)
 
 	// smart conversion service
-	scs := smartconversion.NewConversionService(q, l, scex, txs)
+	scs := smartconversion.NewConversionService(q, l, rm, scex, txs)
 
 	// smart conversion scheduler
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)
 
-	// Rates manager
-	rm := ratemanager.NewService(q, scex, ads, l)
+	// bridgecard service
+	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
+
+	// virtual card service
+	vcs := virtualcard.NewService(q, l, bridgecard, ws)
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -257,6 +268,8 @@ func NewServer(envPath string) *Server {
 		smartConversionScheduler: scsScheduler,
 		auditService:             ads,
 		rateManager:              rm,
+		virtualcard:              vcs,
+		bridgecard:               bridgecard,
 	}
 }
 
@@ -293,36 +306,37 @@ func (s *Server) Start() error {
 	Streaks{}.router(s)
 	AuditHandler{}.router(s)
 	RateManagerHandler{}.router(s)
+	Virtualcard{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
 
 	// Start vault scheduler
-	if s.vaultScheduler != nil {
-		if err := s.vaultScheduler.Start(); err != nil {
-			s.logger.Error("Failed to start vault scheduler", "error", err)
-		}
-	}
+	// if s.vaultScheduler != nil {
+	// 	if err := s.vaultScheduler.Start(); err != nil {
+	// 		s.logger.Error("Failed to start vault scheduler", "error", err)
+	// 	}
+	// }
 
-	if s.yieldScheduler != nil {
-		if err := s.yieldScheduler.Start(); err != nil {
-			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
-		}
-	}
+	// if s.yieldScheduler != nil {
+	// 	if err := s.yieldScheduler.Start(); err != nil {
+	// 		s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
+	// 	}
+	// }
 
-	// Start rapid ramp scheduler
-	if s.qrcodeScheduler != nil {
-		if err := s.qrcodeScheduler.Start(); err != nil {
-			s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
-		}
-	}
+	// // Start rapid ramp scheduler
+	// if s.qrcodeScheduler != nil {
+	// 	if err := s.qrcodeScheduler.Start(); err != nil {
+	// 		s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
+	// 	}
+	// }
 
-	// Start smart conversion scheduler
-	if s.smartConversionScheduler != nil {
-		if err := s.smartConversionScheduler.Start(); err != nil {
-			s.logger.Error("Failed to start smart conversion scheduler", "error", err)
-		}
-	}
+	// // Start smart conversion scheduler
+	// if s.smartConversionScheduler != nil {
+	// 	if err := s.smartConversionScheduler.Start(); err != nil {
+	// 		s.logger.Error("Failed to start smart conversion scheduler", "error", err)
+	// 	}
+	// }
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
@@ -335,31 +349,31 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	go func() {
 		// Stop vault scheduler first
-		if s.vaultScheduler != nil {
-			if err := s.vaultScheduler.Stop(); err != nil {
-				s.logger.Warn("Error stopping vault scheduler", "error", err)
-			}
-		}
+		// if s.vaultScheduler != nil {
+		// 	if err := s.vaultScheduler.Stop(); err != nil {
+		// 		s.logger.Warn("Error stopping vault scheduler", "error", err)
+		// 	}
+		// }
 
-		if s.yieldScheduler != nil {
-			if err := s.yieldScheduler.Stop(); err != nil {
-				s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
-			}
-		}
+		// if s.yieldScheduler != nil {
+		// 	if err := s.yieldScheduler.Stop(); err != nil {
+		// 		s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
+		// 	}
+		// }
 
-		// Stop rapid ramp scheduler
-		if s.qrcodeScheduler != nil {
-			if err := s.qrcodeScheduler.Stop(); err != nil {
-				s.logger.Warn("Error stopping rapid ramp scheduler", "error", err)
-			}
-		}
+		// // Stop rapid ramp scheduler
+		// if s.qrcodeScheduler != nil {
+		// 	if err := s.qrcodeScheduler.Stop(); err != nil {
+		// 		s.logger.Warn("Error stopping rapid ramp scheduler", "error", err)
+		// 	}
+		// }
 
-		// Stop smart conversion scheduler
-		if s.smartConversionScheduler != nil {
-			if err := s.smartConversionScheduler.Stop(); err != nil {
-				s.logger.Warn("Error stopping smart conversion scheduler", "error", err)
-			}
-		}
+		// // Stop smart conversion scheduler
+		// if s.smartConversionScheduler != nil {
+		// 	if err := s.smartConversionScheduler.Stop(); err != nil {
+		// 		s.logger.Warn("Error stopping smart conversion scheduler", "error", err)
+		// 	}
+		// }
 
 		// Close Redis connection with context awareness
 		if err := s.redis.Close(); err != nil {

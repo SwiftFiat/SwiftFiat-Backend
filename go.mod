@@ -116,6 +116,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mervick/aes-bridge-go v0.0.0-20250728011030-7e095cdac2f2
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible

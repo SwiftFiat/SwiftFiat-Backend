@@ -147,26 +147,7 @@ type ConversionStats struct {
 	TotalFees             decimal.Decimal `json:"total_fees"`
 }
 
-type ExchangeRate struct {
-	From     string          `json:"from"`
-	To       string          `json:"to"`
-	Rate     decimal.Decimal `json:"rate"`
-	Provider string          `json:"provider"`
-	Time     time.Time       `json:"time"`
-}
 
-type GetRateRequest struct {
-	From string `json:"from" binding:"required,oneof=USD NGN USDT USDC"`
-	To   string `json:"to" binding:"required,oneof=USD NGN USDT USDC"`
-}
-
-type ExchangeRateResponse struct {
-	SourceCurrency string          `json:"source_currency"`
-	TargetCurrency string          `json:"target_currency"`
-	Rate           decimal.Decimal `json:"rate"`
-	Provider       string          `json:"provider"`
-	LastUpdated    time.Time       `json:"last_updated"`
-}
 
 type ManualConversionRequest struct {
 	SourceWalletID uuid.UUID       `json:"source_wallet_id" binding:"required"` // UUID of the source wallet
@@ -208,9 +189,7 @@ func (e *ConversionError) Error() string {
 var (
 	ErrRuleNotFound        = &ConversionError{Code: "RULE_NOT_FOUND", Message: "Conversion rule not found"}
 	ErrDuplicateRule       = &ConversionError{Code: "DUPLICATE_RULE", Message: "Active rule already exists for this currency pair"}
-	ErrInvalidCurrencyPair = &ConversionError{Code: "INVALID_CURRENCY_PAIR", Message: "Invalid currency pair"}
 	ErrWalletNotFound      = &ConversionError{Code: "WALLET_NOT_FOUND", Message: "Wallet not found"}
 	ErrInsufficientBalance = &ConversionError{Code: "INSUFFICIENT_BALANCE", Message: "Insufficient wallet balance"}
-	ErrRateNotAvailable    = &ConversionError{Code: "RATE_NOT_AVAILABLE", Message: "Exchange rate not available"}
 	ErrConversionFailed    = &ConversionError{Code: "CONVERSION_FAILED", Message: "Conversion execution failed"}
 )
