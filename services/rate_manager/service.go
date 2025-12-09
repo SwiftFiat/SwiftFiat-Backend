@@ -8,8 +8,8 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
+	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
-	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -17,14 +17,14 @@ import (
 
 type Service struct {
 	store               *db.Store
-	exchangeRateService *smartconversion.ExchangeRateService
+	exchangeRateService *exchangerate.ExchangeRateService
 	auditService        *audit.Service
 	logger              *logging.Logger
 }
 
 func NewService(
 	store *db.Store,
-	exchangeRateService *smartconversion.ExchangeRateService,
+	exchangeRateService *exchangerate.ExchangeRateService,
 	// notificationService *notifications.Service,
 	auditService *audit.Service,
 	logger *logging.Logger,
@@ -593,7 +593,7 @@ func (s *Service) applyRateAdjustment(baseRate decimal.Decimal, adjustmentType, 
 }
 
 // recordRateChange records a rate change in history
-func (s *Service) recordRateChange(ctx context.Context, baseRate *smartconversion.ExchangeRate, adjustedRate, adjustmentAmount decimal.Decimal, rule *db.GetApplicableRulesForUserRow, userID *int64, conversionID *uuid.UUID) {
+func (s *Service) recordRateChange(ctx context.Context, baseRate *exchangerate.ExchangeRate, adjustedRate, adjustmentAmount decimal.Decimal, rule *db.GetApplicableRulesForUserRow, userID *int64, conversionID *uuid.UUID) {
 	params := db.RecordRateChangeParams{
 		SourceCurrency:   baseRate.From,
 		TargetCurrency:   baseRate.To,

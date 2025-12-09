@@ -1,0 +1,20 @@
+meta {
+  name: Register card holder
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/cards/register-card-holder
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

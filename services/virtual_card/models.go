@@ -1,15 +1,29 @@
 package virtualcard
 
 import (
-	"errors"
+	"fmt"
+
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 )
 
 var (
-	ErrInsufficientBalance   = errors.New("insufficient wallet balance")
-	ErrCardNotFound          = errors.New("virtual card not found")
-	ErrCardFrozen            = errors.New("card is frozen")
-	ErrUnauthorized          = errors.New("unauthorized access to card")
-	ErrInvalidAmount         = errors.New("invalid amount")
-	ErrExceedsLimit          = errors.New("amount exceeds limit")
-	ErrCardAlreadyTerminated = errors.New("card already terminated")
+	ErrCardNotFound          = fmt.Errorf("card not found")
+	ErrInsufficientFunds     = fmt.Errorf("insufficient funds in wallet")
+	ErrCardLimitExceeded     = fmt.Errorf("card limit exceeded")
+	ErrPlanLimitExceeded     = fmt.Errorf("plan card limit exceeded")
+	ErrInvalidCardPlan       = fmt.Errorf("invalid card plan")
+	ErrCardAlreadyTerminated = fmt.Errorf("card already terminated")
+	ErrSpendingLimitExceeded = fmt.Errorf("spending limit exceeded")
 )
+
+// ============================================================================
+// CARD CREATION
+// ============================================================================
+
+type CreateCardResult struct {
+	Card              *db.VirtualCard
+	FundingRecord     *db.CardFundingHistory
+	BillingRecord     *db.CardBillingHistory
+	BridgeCardDetails *bridgecards.CreateCardResponse
+}

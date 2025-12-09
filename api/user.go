@@ -271,7 +271,7 @@ func (u *User) userTag(ctx *gin.Context) {
 	logentry := audit.NewUserLog(
 		ctx,
 		audit.EventUserTagUpdated,
-		string(userInfo.ID),
+		fmt.Sprint(userInfo.ID),
 		activeUser.Role,
 		fmt.Sprintf("User %d updated their user tag", activeUser.UserID),
 		&activeUser.UserID,

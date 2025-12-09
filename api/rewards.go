@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -271,7 +272,7 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 	entry := audit.NewLog(
 		ctx,
 		audit.EventCreateRewardConfig,
-		string(config.ID),
+		fmt.Sprint(config.ID),
 		"rewards",
 		"Reward configuration created successfully",
 		&activeUser.UserID,
@@ -464,7 +465,7 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 	entry := audit.NewLog(
 		ctx,
 		audit.EventUpdateRewardConfig,
-		string(config.ID),
+		fmt.Sprint(config.ID),
 		"rewards",
 		"Reward configuration updated successfully",
 		&activeUser.UserID,
@@ -544,7 +545,7 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 	entry := audit.NewLog(
 		ctx,
 		audit.EventActivateRewardConfig,
-		string(config.ID),
+		fmt.Sprint(config.ID),
 		"rewards",
 		"Reward configuration activated successfully",
 		&activeUser.UserID,
@@ -608,7 +609,7 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 	entry := audit.NewLog(
 		ctx,
 		audit.EventDeactivateRewardConfig,
-		string(config.ID),
+		fmt.Sprint(config.ID),
 		"rewards",
 		"Reward configuration deactivated successfully",
 		&activeUser.UserID,

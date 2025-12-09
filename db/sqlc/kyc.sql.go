@@ -309,7 +309,7 @@ func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
 
 const getUserAndKYCByID = `-- name: GetUserAndKYCByID :one
 SELECT 
-    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed,
+    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.bridgecard_verification_status, u.bridgecard_cardholder_id, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed,
     k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -317,59 +317,61 @@ WHERE k.id = $1 LIMIT 1
 `
 
 type GetUserAndKYCByIDRow struct {
-	ID                    sql.NullInt64         `json:"id"`
-	AvatarUrl             sql.NullString        `json:"avatar_url"`
-	AvatarBlob            []byte                `json:"avatar_blob"`
-	FirstName             sql.NullString        `json:"first_name"`
-	LastName              sql.NullString        `json:"last_name"`
-	Email                 sql.NullString        `json:"email"`
-	HashedPassword        sql.NullString        `json:"hashed_password"`
-	HashedPasscode        sql.NullString        `json:"hashed_passcode"`
-	HashedPin             sql.NullString        `json:"hashed_pin"`
-	PhoneNumber           sql.NullString        `json:"phone_number"`
-	Role                  sql.NullString        `json:"role"`
-	Verified              sql.NullBool          `json:"verified"`
-	IsKycVerified         sql.NullBool          `json:"is_kyc_verified"`
-	CreatedAt             sql.NullTime          `json:"created_at"`
-	UpdatedAt             sql.NullTime          `json:"updated_at"`
-	DeletedAt             sql.NullTime          `json:"deleted_at"`
-	HasWallets            sql.NullBool          `json:"has_wallets"`
-	UserTag               sql.NullString        `json:"user_tag"`
-	FreshChatID           sql.NullString        `json:"fresh_chat_id"`
-	IsActive              sql.NullBool          `json:"is_active"`
-	TwofaSecret           sql.NullString        `json:"twofa_secret"`
-	TwofaEnabled          sql.NullBool          `json:"twofa_enabled"`
-	RewardBalance         sql.NullString        `json:"reward_balance"`
-	TotalRewardEarned     sql.NullString        `json:"total_reward_earned"`
-	TotalRewardRedeemed   sql.NullString        `json:"total_reward_redeemed"`
-	ID_2                  int64                 `json:"id_2"`
-	UserID                int32                 `json:"user_id"`
-	Tier                  int32                 `json:"tier"`
-	DailyTransferLimitNgn sql.NullString        `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn sql.NullString        `json:"wallet_balance_limit_ngn"`
-	Status                string                `json:"status"`
-	VerificationDate      sql.NullTime          `json:"verification_date"`
-	FullName              sql.NullString        `json:"full_name"`
-	PhoneNumber_2         sql.NullString        `json:"phone_number_2"`
-	Email_2               sql.NullString        `json:"email_2"`
-	Bvn                   sql.NullString        `json:"bvn"`
-	Nin                   sql.NullString        `json:"nin"`
-	Gender                sql.NullString        `json:"gender"`
-	SelfieUrl             sql.NullString        `json:"selfie_url"`
-	IDType                sql.NullString        `json:"id_type"`
-	IDNumber              sql.NullString        `json:"id_number"`
-	IDImageUrl            sql.NullString        `json:"id_image_url"`
-	State                 sql.NullString        `json:"state"`
-	Lga                   sql.NullString        `json:"lga"`
-	HouseNumber           sql.NullString        `json:"house_number"`
-	StreetName            sql.NullString        `json:"street_name"`
-	NearestLandmark       sql.NullString        `json:"nearest_landmark"`
-	ProofOfAddressType    sql.NullString        `json:"proof_of_address_type"`
-	ProofOfAddressUrl     sql.NullString        `json:"proof_of_address_url"`
-	ProofOfAddressDate    sql.NullTime          `json:"proof_of_address_date"`
-	CreatedAt_2           time.Time             `json:"created_at_2"`
-	UpdatedAt_2           time.Time             `json:"updated_at_2"`
-	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
+	ID                           sql.NullInt64         `json:"id"`
+	AvatarUrl                    sql.NullString        `json:"avatar_url"`
+	AvatarBlob                   []byte                `json:"avatar_blob"`
+	FirstName                    sql.NullString        `json:"first_name"`
+	LastName                     sql.NullString        `json:"last_name"`
+	Email                        sql.NullString        `json:"email"`
+	HashedPassword               sql.NullString        `json:"hashed_password"`
+	HashedPasscode               sql.NullString        `json:"hashed_passcode"`
+	HashedPin                    sql.NullString        `json:"hashed_pin"`
+	PhoneNumber                  sql.NullString        `json:"phone_number"`
+	Role                         sql.NullString        `json:"role"`
+	Verified                     sql.NullBool          `json:"verified"`
+	IsKycVerified                sql.NullBool          `json:"is_kyc_verified"`
+	BridgecardVerificationStatus sql.NullString        `json:"bridgecard_verification_status"`
+	BridgecardCardholderID       sql.NullString        `json:"bridgecard_cardholder_id"`
+	CreatedAt                    sql.NullTime          `json:"created_at"`
+	UpdatedAt                    sql.NullTime          `json:"updated_at"`
+	DeletedAt                    sql.NullTime          `json:"deleted_at"`
+	HasWallets                   sql.NullBool          `json:"has_wallets"`
+	UserTag                      sql.NullString        `json:"user_tag"`
+	FreshChatID                  sql.NullString        `json:"fresh_chat_id"`
+	IsActive                     sql.NullBool          `json:"is_active"`
+	TwofaSecret                  sql.NullString        `json:"twofa_secret"`
+	TwofaEnabled                 sql.NullBool          `json:"twofa_enabled"`
+	RewardBalance                sql.NullString        `json:"reward_balance"`
+	TotalRewardEarned            sql.NullString        `json:"total_reward_earned"`
+	TotalRewardRedeemed          sql.NullString        `json:"total_reward_redeemed"`
+	ID_2                         int64                 `json:"id_2"`
+	UserID                       int32                 `json:"user_id"`
+	Tier                         int32                 `json:"tier"`
+	DailyTransferLimitNgn        sql.NullString        `json:"daily_transfer_limit_ngn"`
+	WalletBalanceLimitNgn        sql.NullString        `json:"wallet_balance_limit_ngn"`
+	Status                       string                `json:"status"`
+	VerificationDate             sql.NullTime          `json:"verification_date"`
+	FullName                     sql.NullString        `json:"full_name"`
+	PhoneNumber_2                sql.NullString        `json:"phone_number_2"`
+	Email_2                      sql.NullString        `json:"email_2"`
+	Bvn                          sql.NullString        `json:"bvn"`
+	Nin                          sql.NullString        `json:"nin"`
+	Gender                       sql.NullString        `json:"gender"`
+	SelfieUrl                    sql.NullString        `json:"selfie_url"`
+	IDType                       sql.NullString        `json:"id_type"`
+	IDNumber                     sql.NullString        `json:"id_number"`
+	IDImageUrl                   sql.NullString        `json:"id_image_url"`
+	State                        sql.NullString        `json:"state"`
+	Lga                          sql.NullString        `json:"lga"`
+	HouseNumber                  sql.NullString        `json:"house_number"`
+	StreetName                   sql.NullString        `json:"street_name"`
+	NearestLandmark              sql.NullString        `json:"nearest_landmark"`
+	ProofOfAddressType           sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl            sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate           sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt_2                  time.Time             `json:"created_at_2"`
+	UpdatedAt_2                  time.Time             `json:"updated_at_2"`
+	AdditionalInfo               pqtype.NullRawMessage `json:"additional_info"`
 }
 
 func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKYCByIDRow, error) {
@@ -389,6 +391,8 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 		&i.Role,
 		&i.Verified,
 		&i.IsKycVerified,
+		&i.BridgecardVerificationStatus,
+		&i.BridgecardCardholderID,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,

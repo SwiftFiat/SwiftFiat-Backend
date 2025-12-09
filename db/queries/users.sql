@@ -136,3 +136,34 @@ RETURNING *;
 -- name: SetUserTwoFA :one
 UPDATE users SET twofa_secret = $1, twofa_enabled = $2, updated_at = $3
 WHERE id = $4 RETURNING *;
+
+-- name: SetBridgeCardCardholderID :exec
+UPDATE users SET bridgecard_cardholder_id = $1, updated_at = $2
+WHERE id = $3 RETURNING *;
+
+-- name: UpdateCardholderVerificationStatus :exec
+UPDATE users SET bridgecard_verification_status = $1, updated_at = $2
+WHERE bridgecard_cardholder_id = $3;
+
+-- name: GetUserByBridgeCardCardholderID :one
+-- Get user by their BridgeCard cardholder ID
+-- This is the KEY query that links webhook cardholder_id back to your user
+SELECT * FROM users 
+WHERE bridgecard_cardholder_id = $1
+LIMIT 1;
+
+-- name: GetPendingCardholderVerifications :many
+-- Get all users awaiting cardholder verification
+-- Useful for monitoring and retry logic
+SELECT 
+    id,
+    email,
+    bridgecard_cardholder_id,
+    bridgecard_verification_status,
+    created_at,
+    updated_at
+FROM users
+WHERE 
+    bridgecard_cardholder_id IS NOT NULL
+    AND (bridgecard_verification_status IS NULL OR bridgecard_verification_status = 'pending')
+ORDER BY created_at DESC;
