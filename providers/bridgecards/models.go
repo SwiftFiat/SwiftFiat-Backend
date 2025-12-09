@@ -81,14 +81,14 @@ type Card struct {
 
 // CardHolder represents a cardholder object returned by BridgeCard
 type CardHolder struct {
-    ID        string         `json:"id,omitempty"`
-    FirstName string         `json:"first_name,omitempty"`
-    LastName  string         `json:"last_name,omitempty"`
-    Email     string         `json:"email_address,omitempty"`
-    Phone     string         `json:"phone,omitempty"`
-    Address   Address        `json:"address,omitempty"`
-    Identity  Identity       `json:"identity,omitempty"`
-    Metadata  map[string]any `json:"metadata,omitempty"`
+	ID        string         `json:"id,omitempty"`
+	FirstName string         `json:"first_name,omitempty"`
+	LastName  string         `json:"last_name,omitempty"`
+	Email     string         `json:"email_address,omitempty"`
+	Phone     string         `json:"phone,omitempty"`
+	Address   Address        `json:"address,omitempty"`
+	Identity  Identity       `json:"identity,omitempty"`
+	Metadata  map[string]any `json:"metadata,omitempty"`
 }
 
 type Address struct {
@@ -109,20 +109,19 @@ type SecureCardDetails struct {
 }
 
 type FundCardRequest struct {
-	Amount      int64  `json:"amount"`      // Amount in cents
-	Description string `json:"description"` // Optional
+	CardID               string `json:"card_id" binding:"required"`
+	Amount               string `json:"amount" binding:"required"` // Amount in cents
+	TransactionReference string `json:"transaction_reference" binding:"omitempty"`
+	Currency             string `json:"currency" binding:"required"`
 }
 
 type FundCardResponse struct {
-	ID             string    `json:"id"` // Transaction ID
-	CardID         string    `json:"card_id"`
-	Amount         int64     `json:"amount"`
-	BalanceBefore  int64     `json:"balance_before"`
-	BalanceAfter   int64     `json:"balance_after"`
-	Status         string    `json:"status"` // "success", "failed"
-	Message        string    `json:"message"`
-	TransactionRef string    `json:"transaction_ref"`
-	CreatedAt      time.Time `json:"created_at"`
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		CardID               string `json:"card_id"`
+		TransactionReference string `json:"transaction_reference"`
+	} `json:"data"`
 }
 
 type WithdrawCardRequest struct {
@@ -192,4 +191,47 @@ type CardholderVerificationFailed struct {
 	Livemode         bool   `json:"livemode"`
 	IssuingAppID     string `json:"issuing_app_id"`
 	ErrorDescription string `json:"error_description"`
+}
+
+type CardCreditSuccess struct {
+	CardID                  string    `json:"card_id"`
+	CardholderID            string    `json:"cardholder_id"`
+	Amount                  string     `json:"amount"`
+	Currency                string    `json:"currency"`
+	TransactionReference    string    `json:"transaction_reference"`
+	Livemode                bool      `json:"livemode"`
+	IssuingAppID            string    `json:"issuing_app_id"`
+	CardTransactionType     string    `json:"card_transaction_type"`
+	TransactionDate         time.Time `json:"transaction_date"`
+	TransactionTimestamp    int64     `json:"transaction_timestamp"`
+	SettledAvailableBalance int64     `json:"settled_available_balance"`
+	SettledBookBalance      int64     `json:"settled_book_balance"`
+}
+
+type CardCreditFailed struct {
+	CardID                  string    `json:"card_id"`
+	CardholderID            string    `json:"cardholder_id"`
+	Amount                  int64     `json:"amount"`
+	Currency                string    `json:"currency"`
+	TransactionReference    string    `json:"transaction_reference"`
+	Livemode                bool      `json:"livemode"`
+	IssuingAppID            string    `json:"issuing_app_id"`
+	CardTransactionType     string    `json:"card_transaction_type"`
+	TransactionDate         time.Time `json:"transaction_date"`
+	TransactionTimestamp    int64     `json:"transaction_timestamp"`
+}
+
+type FundIssuingWalletRequest struct {
+	Amount int64 `json:"amount"`
+}
+
+type GetCardBalanceResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		CardID                  string `json:"card_id"`
+		Balance                 int64  `json:"balance"`
+		SettledAvailableBalance int64  `json:"settled_available_balance"`
+		SettledBookBalance      int64  `json:"settled_book_balance"`
+	} `json:"data"`
 }

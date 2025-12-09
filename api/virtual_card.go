@@ -27,12 +27,26 @@ func (v Virtualcard) router(server *Server) {
 		v1.POST("/", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)
 		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder)
 		v1.POST("/webhook", v.Webhook)
+		v1.POST("/fund-issuing-wallet", v.FundIssuingWallet)
+		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance)
+		v1.POST("/fund-card", server.authMiddleware.AuthenticatedMiddleware(), v.FundCard)
 	}
 
 }
 
+func (v *Virtualcard) FundIssuingWallet(c *gin.Context) {
+	var req bridgecards.FundIssuingWalletRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	message := v.virtualCardSvc.FundIssuingWallet(c, req)
+	c.JSON(http.StatusOK, basemodels.NewSuccess(message, nil))
+}
+
 type CreateCardRequest struct {
-	Brand          string    `json:"card_brand" binding:"oneof=visa,mastercard"` // "visa" or "mastercard"
+	Brand          string    `json:"card_brand"` // "visa" or "mastercard"
 	FundingAmount  string    `json:"funding_amount" binding:"required"`          // Initial funding amount
 	CardPlanID     int64     `json:"card_plan_id" binding:"required"`
 	CardName       string    `json:"card_name" binding:"required"`
@@ -74,6 +88,8 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		Brand:          req.Brand,
 	})
 
+	v.server.logger.Infof("create card result is ====: %v", result)
+
 	if err != nil {
 		switch err {
 		case virtualcard.ErrInsufficientFunds:
@@ -83,14 +99,23 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		case virtualcard.ErrInvalidCardPlan:
 			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid card plan"))
 		default:
-			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create card"))
+			c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		}
 		return
 	}
 
-	c.JSON(http.StatusCreated, basemodels.NewSuccess("card created", result))
+	c.JSON(http.StatusCreated,  result)
 }
 
+// @Summary Register cardholder
+// @Description Register a new cardholder with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Success 200 {object} bridgecards.CreateCardHolderResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/register-cardholder [post]
 func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -106,6 +131,64 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK,  response)
+}
+
+// @Summary Get card balance
+// @Description Get the balance of a virtual card
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param card_id query string true "Card ID"
+// @Success 200 {object} bridgecards.GetCardBalanceResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/get-card-balance [get]
+func (v *Virtualcard) GetCardBalance(c *gin.Context) {
+	cardID := c.Query("card_id")
+	if cardID == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+
+	response, err := v.virtualCardSvc.GetCardBalance(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK,  response)
+}
+
+// @Summary Fund virtual card
+// @Description Fund a virtual card with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param request body bridgecards.FundCardRequest true "Card funding parameters"
+// @Success 200 {object} bridgecards.FundCardResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/fund-card [post]
+func (v *Virtualcard) FundCard(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}	
+	var req bridgecards.FundCardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+	req.TransactionReference = utils.NewTxRef("fund-card")
+	response, err := v.virtualCardSvc.FundCard(c, req, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	c.JSON(http.StatusOK, response)
 }
 
 // @Summary Handle BridgeCard webhooks
