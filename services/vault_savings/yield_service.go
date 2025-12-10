@@ -325,7 +325,7 @@ func (ys *YieldService) creditYieldToVault(
 		BalanceAfter:    balanceAfter,
 		Reference:       nullString(transactionRef),
 		Description:     nullString((fmt.Sprintf("Yield earned: %s%% APY for %d days", config.ApyRate, result.DaysInPeriod))),
-		Status:          nullString(string(TransactionStatusCompleted)),
+		Status:          nullString(string(TransactionStatusSuccessful)),
 		Requires2fa:     nullBool(false),
 	})
 	if err != nil {

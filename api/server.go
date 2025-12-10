@@ -182,6 +182,9 @@ func NewServer(envPath string) *Server {
 	// user service
 	us := user_service.NewUserService(q, l, ws)
 
+	// give PN the user service so it can resolve tokens
+	pn.SetUserService(us)
+
 	// qrcode service
 	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
 

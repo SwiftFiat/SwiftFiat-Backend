@@ -66,9 +66,9 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 	client := expo.NewPushClient(nil)
 
 	return &PushNotificationService{
-		client: client,
-		app:    app,
-		logger: logger,
+		client:      client,
+		app:         app,
+		logger:      logger,
 	}
 }
 
@@ -161,16 +161,30 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 
 }
 
+// SetUserService wires the user service into the push notification service.
+func (p *PushNotificationService) SetUserService(us *user_service.UserService) {
+	p.userService = us
+}
+
 func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID int64) (*struct {
 	FCMToken  string
 	ExpoToken string
 }, error) {
+	// Guard: userService must be configured
+	if p.userService == nil {
+		// Not fatal for notification flows—log and return empty tokens so caller no-ops.
+		p.logger.Error("userService is nil in PushNotificationService")
+		return &struct {
+			FCMToken  string
+			ExpoToken string
+		}{}, nil
+	}
 	tokens, err := p.userService.GetUserPushTokens(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
 	var fcmToken, expoToken string
-	for _, token := range tokens {
+	for _, token := range *tokens {
 		switch token.Provider {
 		case "fcm":
 			fcmToken = token.Token

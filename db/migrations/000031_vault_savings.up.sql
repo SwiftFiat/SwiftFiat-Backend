@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
     "metadata" JSONB,
     
     -- Status tracking
-    "status" VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending', 'completed', 'failed', 'cancelled')),
+    "status" VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending', 'successful', 'failed', 'cancelled')),
     
     -- Security & approval
     "requires_2fa" BOOLEAN DEFAULT FALSE,

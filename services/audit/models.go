@@ -23,10 +23,13 @@ const (
 	CategorySecurity       EventCategory = "security"
 	CategoryCompliance     EventCategory = "compliance"
 	CategorySystem         EventCategory = "system"
-	CategoryVaultSavings   EventCategory = "vault_savings"
-	CategoryUserManagement EventCategory = "user_management"
+	CategoryVaultSavings   EventCategory = "vault"
 	CategoryCrypto         EventCategory = "crypto"
 	CategoryRateManager    EventCategory = "rate_manager"
+	CategoryGiftcards      EventCategory = "giftcard"
+	CategoryRapidRamp      EventCategory = "rapid_ramp"
+	CategoryStreaks        EventCategory = "streaks"
+	CategoryConversion     EventCategory = "smart_conversion"
 )
 
 // Severity represents the importance level of an audit event
@@ -157,20 +160,20 @@ const (
 	EventFiatTransferCreated   = "fiat.transfer.created"
 
 	// Crypto events
-	EventCreateStaticWallet = "cryptomus.wallet.created"
-	EventCreateQrCode       = "qrcode.created"
-	EventDeleteQrCode       = "qrcode.deleted"
+	EventCreateStaticWallet   = "cryptomus.wallet.created"
+	EventCreateQrCode         = "qrcode.created"
+	EventDeleteQrCode         = "qrcode.deleted"
 	EventCreateConversionRule = "smart-convert.rule.created"
-	EventPauseConversionRule = "smart-convert.rule.paused"
+	EventPauseConversionRule  = "smart-convert.rule.paused"
 	EventResumeConversionRule = "smart-convert.rule.resumed"
 	EventDeleteConversionRule = "smart-convert.rule.deleted"
-	EventManualConversion = "smart-convert.manual"
+	EventManualConversion     = "smart-convert.manual"
 
 	// Reward events
-	EventCreateRewardConfig = "rewards.config.created"
-	EventUpdateRewardConfig = "rewards.config.updated"
-	EventDeleteRewardConfig = "rewards.config.deleted"
-	EventActivateRewardConfig = "rewards.config.activated"
+	EventCreateRewardConfig     = "rewards.config.created"
+	EventUpdateRewardConfig     = "rewards.config.updated"
+	EventDeleteRewardConfig     = "rewards.config.deleted"
+	EventActivateRewardConfig   = "rewards.config.activated"
 	EventDeactivateRewardConfig = "rewards.config.deactivated"
 )
 
@@ -365,7 +368,7 @@ func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole strin
 		Severity:      severity,
 		ActorID:       actorID,
 		ActorType:     userRole,
-		EntityType:    "vault_savings",
+		EntityType:    "vault",
 		EntityID:      entityID,
 		Action:        ActionExecute,
 		Success:       true,
@@ -376,7 +379,7 @@ func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole strin
 
 func NewUserLog(c *gin.Context, eventType, entityID, userRole, desc string, actorID *int64, severity Severity, action Action, success bool) *LogEntry {
 	return &LogEntry{
-		EventCategory: CategoryUserManagement,
+		EventCategory: CategoryAccount,
 		EventType:     eventType,
 		Severity:      severity,
 		ActorID:       actorID,
@@ -410,7 +413,7 @@ func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, acto
 
 func NewReferralLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *int64, severity Severity) *LogEntry {
 	return &LogEntry{
-		EventCategory: CategoryUserManagement,
+		EventCategory: CategoryAccount,
 		EventType:     eventType,
 		Severity:      severity,
 		ActorID:       actorID,

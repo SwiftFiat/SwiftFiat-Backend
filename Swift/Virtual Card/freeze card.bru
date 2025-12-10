@@ -1,11 +1,11 @@
 meta {
-  name: Get a card balance
+  name: freeze card
   type: http
-  seq: 4
+  seq: 6
 }
 
-get {
-  url: {{BaseURl}}/cards/get-card-balance?card_id=718f7d6c7cbb4d17bd6cd0ea94370ff3
+post {
+  url: {{BaseURl}}/cards/freeze-card?card_id=718f7d6c7cbb4d17bd6cd0ea94370ff3
   body: none
   auth: bearer
 }

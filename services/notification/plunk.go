@@ -261,6 +261,7 @@ func (s *Plunk) SendGoalCreatedEmail(ctx context.Context, user *db.User, vaultNa
 		"VaultName":    vaultName,
 		"Currency":     currency,
 		"TargetAmount": target_amount,
+		"DashboardUrl": "",
 		"CreatedDate":  time.Now().Format("02 Jan 2006 15:04 MST"),
 		"Year":         time.Now().Year(),
 	}

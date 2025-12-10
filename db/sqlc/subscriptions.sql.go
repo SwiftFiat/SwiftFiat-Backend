@@ -2821,7 +2821,7 @@ UPDATE card_billing_history
 SET 
     status = $2,
     failure_reason = $3,
-    processed_at = CASE WHEN $2 IN ('completed', 'failed') THEN NOW() ELSE processed_at END
+    processed_at = CASE WHEN $2 IN ('successful', 'failed') THEN NOW() ELSE processed_at END
 WHERE id = $1
 RETURNING id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
 `
@@ -2857,27 +2857,26 @@ func (q *Queries) UpdateCardBillingStatus(ctx context.Context, arg UpdateCardBil
 const updateCardFundingStatus = `-- name: UpdateCardFundingStatus :one
 UPDATE card_funding_history
 SET 
-    status = $2,
-    failure_reason = $3,
-    bridgecard_transaction_id = COALESCE($4, bridgecard_transaction_id),
-    completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE completed_at END
-WHERE id = $1
+    status = $1,
+    failure_reason = $2,
+    bridgecard_transaction_id = COALESCE($3, bridgecard_transaction_id)
+WHERE id = $4
 RETURNING id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at
 `
 
 type UpdateCardFundingStatusParams struct {
-	ID                      uuid.UUID      `json:"id"`
 	Status                  string         `json:"status"`
 	FailureReason           sql.NullString `json:"failure_reason"`
 	BridgecardTransactionID sql.NullString `json:"bridgecard_transaction_id"`
+	ID                      uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateCardFundingStatus(ctx context.Context, arg UpdateCardFundingStatusParams) (CardFundingHistory, error) {
 	row := q.db.QueryRowContext(ctx, updateCardFundingStatus,
-		arg.ID,
 		arg.Status,
 		arg.FailureReason,
 		arg.BridgecardTransactionID,
+		arg.ID,
 	)
 	var i CardFundingHistory
 	err := row.Scan(

@@ -141,7 +141,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultCreated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultCreated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Vault savings goal %s created by user %d", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]interface{}{
@@ -436,12 +436,12 @@ func (v *Vault) deposit(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient wallet balance"))
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to process deposit"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
@@ -559,7 +559,7 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
@@ -786,7 +786,7 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultUpdated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultUpdated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Vault savings goal %s updated by user %d", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]any{
 		"name":        goal.VaultName,
@@ -864,7 +864,7 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]interface{}{
 		"id":             goal.ID,
@@ -942,7 +942,7 @@ func (v *Vault) updateRecurringRule(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventRecurringRuleUpdated, "vault_savings", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventRecurringRuleUpdated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposit rule for vault %s updated by user %d", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]interface{}{
 		"recurring_rule": goal.RecurringRule,
@@ -973,7 +973,7 @@ func (v *Vault) pauseRecurring(ctx *gin.Context) {
 	enabled := false
 	v.updateRecurringEnabled(ctx, &enabled)
 
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault_savings", ctx.Param("id"), "", nil, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", ctx.Param("id"))
 	v.audit.Log(auditLog)
 }
@@ -996,7 +996,7 @@ func (v *Vault) resumeRecurring(ctx *gin.Context) {
 	enabled := true
 	v.updateRecurringEnabled(ctx, &enabled)
 
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault_savings", ctx.Param("id"), "", nil, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", ctx.Param("id"))
 	v.audit.Log(auditLog)
 }
@@ -1127,7 +1127,7 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventSchedulerTriggered, "vault_savings", "N/A", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventSchedulerTriggered, "vault", "N/A", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Vault scheduler manually triggered by admin user %d", activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]interface{}{
@@ -1427,7 +1427,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigCreated, "vault_yield_configs", config.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigCreated, "vault", config.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yield config %s created by user %d", config.ID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]interface{}{
 		"id":                      config.ID,
@@ -1511,7 +1511,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigUpdated, "vault_yield_configs", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigUpdated, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yield config %s updated by user %d", configID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]any{
 		"apy_rate":                req.ApyRate,
@@ -1574,7 +1574,7 @@ func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeactivated, "vault_yield_configs", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeactivated, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yield config %s deactivated by user %d", configID.String(), activeUser.UserID)
 	v.audit.Log(auditLog)
 
@@ -1618,7 +1618,7 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventYieldsProcessed, "vault_savings", "", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldsProcessed, "vault", "", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yields processed by admin user %d: %d success, %d failure", activeUser.UserID, successCount, failureCount)
 	auditLog.NewValues = result
 	v.audit.Log(auditLog)
