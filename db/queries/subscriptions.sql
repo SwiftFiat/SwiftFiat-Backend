@@ -180,11 +180,10 @@ SELECT * FROM card_funding_history WHERE id = $1;
 -- name: UpdateCardFundingStatus :one
 UPDATE card_funding_history
 SET 
-    status = $2,
-    failure_reason = $3,
-    bridgecard_transaction_id = COALESCE(sqlc.narg('bridgecard_transaction_id'), bridgecard_transaction_id),
-    completed_at = CASE WHEN $2 = 'completed' THEN NOW() ELSE completed_at END
-WHERE id = $1
+    status = sqlc.arg('status'),
+    failure_reason = sqlc.narg('failure_reason'),
+    bridgecard_transaction_id = COALESCE(sqlc.narg('bridgecard_transaction_id'), bridgecard_transaction_id)
+WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: GetUserCardFundingHistory :many
@@ -500,7 +499,7 @@ UPDATE card_billing_history
 SET 
     status = $2,
     failure_reason = $3,
-    processed_at = CASE WHEN $2 IN ('completed', 'failed') THEN NOW() ELSE processed_at END
+    processed_at = CASE WHEN $2 IN ('successful', 'failed') THEN NOW() ELSE processed_at END
 WHERE id = $1
 RETURNING *;
 

@@ -24,7 +24,14 @@ CREATE TYPE audit_event_category AS ENUM (
     'card',            -- Virtual card creation, funding, freezing
     'security',        -- Suspicious activities, rate limit hits
     'compliance',      -- Regulatory actions, freezes, reports
-    'system'           -- Background jobs, webhooks, integrations
+    'system',           -- Background jobs, webhooks, integrations
+    'vault', -- vault
+    'giftcard',
+    'rapid_ramp',
+    'rate_manager',
+    'streaks',
+    'crypto',
+    'smart_conversion'
 );
 
 -- Severity levels

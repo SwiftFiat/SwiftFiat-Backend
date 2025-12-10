@@ -111,7 +111,7 @@ type TransactionStatus string
 
 const (
 	TransactionStatusPending   TransactionStatus = "pending"
-	TransactionStatusCompleted TransactionStatus = "completed"
+	TransactionStatusSuccessful TransactionStatus = "successful"
 	TransactionStatusFailed    TransactionStatus = "failed"
 )
 
@@ -1144,7 +1144,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(TransactionTypeSavingsDeposit),
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          string(TransactionStatusCompleted),
+		Status:          "successful",
 		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
 	})
 	if err != nil {
@@ -1163,7 +1163,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		BalanceAfter:    newVaultBalance.String(),
 		Reference:       sql.NullString{String: reference, Valid: true},
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          nullString(string(TransactionStatusCompleted)),
+		Status:          nullString(string(TransactionStatusSuccessful)),
 		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
 		TransactionID:   uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
@@ -1184,9 +1184,11 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	// Update wallet balance (deduct)
 	// Calculate the negative amount to subtract from wallet
 	// negativeAmount := amount.Neg().String()
+
+	newWalletBalance := walletBalance.Sub(amount)
 	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
 		ID:     req.FromWalletID,
-		Amount: sql.NullString{String: amount.String(), Valid: true},
+		Amount: sql.NullString{String: newWalletBalance.String(), Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
@@ -1310,7 +1312,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Determine status
-	status := string(TransactionStatusCompleted)
+	status := string(TransactionStatusSuccessful)
 	if requires2FA {
 		status = string(TransactionStatusPending)
 	}
@@ -1319,7 +1321,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(TransactionTypeSavingsWithdrawal),
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          string(TransactionStatusCompleted),
+		Status:          string(TransactionStatusSuccessful),
 		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
 	})
 	if err != nil {
@@ -1349,7 +1351,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Only update balances if not requiring approval
-	if status == string(TransactionStatusCompleted) {
+	if status == string(TransactionStatusSuccessful) {
 		// Update vault balance
 		if err := qtx.DecrementVaultBalance(ctx, db.DecrementVaultBalanceParams{
 			ID:             req.VaultID,

@@ -39,7 +39,7 @@ func NewService(
 	}
 }
 
-func (s *Service) CreateCardHolder(ctx context.Context, userID int32) (*bridgecards.CreateCardHolderResponse, error) {
+func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridgecards.CreateCardHolderRequest) (*bridgecards.CreateCardHolderResponse, error) {
 	// get user
 	user, err := s.store.GetUserByID(ctx, int64(userID))
 	if err != nil {
@@ -53,29 +53,32 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32) (*bridgeca
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user kyc data")
 	}
-	params := &bridgecards.CreateCardHolderRequest{
-		FirstName: "kyc.FirstName",
-		LastName:  "kyc.Lastname",
-		Email:     "test@email.com",
-		Phone:     "+2348118",
-		Address: bridgecards.Address{
-			Address:     "man",
-			City:        "Bende",
-			State:       "Abia",
-			PostalCode:  "0044221",
-			Country:     "Nigeria",
-			HouseNumber: "67",
-		},
-		Identity: bridgecards.Identity{
-			IDType:      "NIGERIAN_BVN_VERIFICATION",
-			BVN:         "22222222222",
-			SelfieImage: "https://www.catster.com/wp-content/uploads/2024/08/tabby-cats-on-the-road_Ivanova-Ksenia_Shutterstock.jpg.webp",
-		},
-		Metadata: map[string]any{
-			"user_id": userID,
-		},
+	// params := &bridgecards.CreateCardHolderRequest{
+	// FirstName: "kyc.FirstName",
+	// LastName:  "kyc.Lastname",
+	// Email:     "test@email.com",
+	// Phone:     "+2348118",
+	// Address: bridgecards.Address{
+	// 	Address:     "man",
+	// 	City:        "Bende",
+	// 	State:       "Abia",
+	// 	PostalCode:  "0044221",
+	// 	Country:     "Nigeria",
+	// 	HouseNumber: "67",
+	// },
+	// Identity: bridgecards.Identity{
+	// 	IDType:      "NIGERIAN_BVN_VERIFICATION",
+	// 	BVN:         "22222222222",
+	// 	SelfieImage: "https://www.catster.com/wp-content/uploads/2024/08/tabby-cats-on-the-road_Ivanova-Ksenia_Shutterstock.jpg.webp",
+	// },
+	// Metadata: map[string]any{
+	// 		"user_id": userID,
+	// 	},
+	// }
+	req.Metadata = map[string]any{
+		"user_id": userID,
 	}
-	response, err := s.bridgeCard.CreateCardHolder(ctx, params)
+	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -352,25 +355,122 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		return nil, fmt.Errorf("convert funding amount to decimal error: %w", err)
 	}
 
+	fundingAmountCents, err := utils.DollarStringToCentsString(req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("convert funding amount to cents error: %w", err)
+	}
+
 	// check insufficient fund
 	if walletBalance.LessThan(fundingAmount) {
 		return nil, fmt.Errorf("insufficient funds")
 	}
+
+	req.Amount = fundingAmountCents
 
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, req.CardID)
 	if err != nil {
 		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
 	}
 
-	_, err = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
-		ID:     card.ID,
-		Status: "pending",
+	// Create funding record first
+	fundingRecord, err := s.store.CreateCardFunding(ctx, db.CreateCardFundingParams{
+		CardID:         card.ID,
+		UserID:         userID,
+		SourceWalletID: wallet.ID,
+		Amount:         fundingAmount.String(),
+		Currency:       "USD",
+		SourceCurrency: wallet.Currency,
+		FundingType:    "manual",
+		InitiatedBy:    "user",
+		Status:         "pending",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("update card funding status error: %w", err)
+		return nil, fmt.Errorf("create card funding record error: %w", err)
 	}
 
-	return s.bridgeCard.FundCard(ctx, req)
+	// Debit user and refund if card funding fails
+	newBalance := walletBalance.Sub(fundingAmount)
+
+	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID: wallet.ID,
+		Amount: sql.NullString{
+			String: newBalance.String(),
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update wallet balance error: %w", err)
+	}
+
+	bridgeResponse, err := s.bridgeCard.FundCard(ctx, req)
+	if err != nil {
+		// Update funding status to failed if BridgeCard call fails
+		_, updateErr := s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+			ID:            fundingRecord.ID,
+			Status:        "failed",
+			FailureReason: sql.NullString{String: err.Error(), Valid: true},
+		})
+		if updateErr != nil {
+			s.logger.Error(fmt.Sprintf("failed to update funding status: %v", updateErr))
+		}
+		return nil, fmt.Errorf("fund card via bridgecard error: %w", err)
+	}
+
+	return bridgeResponse, nil
+}
+
+func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+	if card.UserID != userID {
+		return nil, fmt.Errorf("card does not belong to user")
+	}
+
+	cardDetails, err := s.bridgeCard.FreezeCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("freeze card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: "frozen",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
+	}
+
+	return cardDetails, nil
+}
+
+func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+	if card.UserID != userID {
+		return nil, fmt.Errorf("card does not belong to user")
+	}
+
+	cardDetails, err := s.bridgeCard.UnfreezeCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("unfreeze card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: "active",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
+	}
+
+	return cardDetails, nil
 }
 
 func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string, error) {
@@ -541,6 +641,77 @@ func (s *Service) handleCardholderVerificationFailed(ctx context.Context, failed
 }
 
 func (s Service) handleCardCreditFailed(ctx context.Context, failed *bridgecards.CardCreditFailed) (string, error) {
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+
+	// refund user
+	user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{String: failed.CardholderID, Valid: true})
+	if err != nil {
+		return "", err
+	}
+
+	// get wallet for refund
+	usdWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return "", err
+	}
+
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, failed.CardID)
+	if err != nil {
+		return "", err
+	}
+
+	// refund
+	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	if err != nil {
+		return "", err
+	}
+
+	// convert cent to dollar
+	failedAmount, err := utils.CentsStringToDollarString(failed.Amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert failed amount cent to dollar:  %v", err)
+	}
+
+	failedAmountDecimal, err := utils.ToDecimal(failedAmount)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert failed amount dollar to decimal:  %v", err)
+	}
+
+	newbalance := walletBalance.Add(failedAmountDecimal)
+
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		Amount: sql.NullString{String: newbalance.String(), Valid: true},
+		ID:     usdWallet.ID,
+	})
+	if err != nil {
+		// return "", fmt.Errorf("failed to refund user balance: %v", err)
+		// save error before returning
+		walletErr := err
+
+		// update card status with failure reason
+		_, _ = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+			ID:            card.ID,
+			Status:        "failed",
+			FailureReason: sql.NullString{String: walletErr.Error(), Valid: true},
+		})
+
+		return "", fmt.Errorf("failed to refund user balance: %v", walletErr)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
+	}
+
 	// TODO: send notifications
 	return "card_credit.failed", nil
 }
@@ -562,21 +733,21 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		return "", fmt.Errorf("get wallet by user id and currency error: %w", err)
 	}
 
-	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
-	if err != nil {
-		return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
-	}
+	// walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	// if err != nil {
+	// 	return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
+	// }
 
-	amount, err := utils.ToDecimal(success.Amount)
-	if err != nil {
-		return "", fmt.Errorf("convert amount to decimal error: %w", err)
-	}
+	// amount, err := utils.ToDecimal(success.Amount)
+	// if err != nil {
+	// 	return "", fmt.Errorf("convert amount to decimal error: %w", err)
+	// }
 
-	if walletBalance.LessThan(amount) {
-		return "", fmt.Errorf("insufficient balance")
-	}
+	// if walletBalance.LessThan(amount) {
+	// 	return "", fmt.Errorf("insufficient balance")
+	// }
 
-	newBalance := walletBalance.Sub(amount)
+	// newBalance := walletBalance.Sub(amount)
 
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -586,16 +757,16 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 
 	qtx := s.store.WithTx(dbTx)
 
-	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		ID: usdWallet.ID,
-		Amount: sql.NullString{
-			String: newBalance.String(),
-			Valid:  true,
-		},
-	})
-	if err != nil {
-		return "", fmt.Errorf("update wallet balance error: %w", err)
-	}
+	// _, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+	// 	ID: usdWallet.ID,
+	// 	Amount: sql.NullString{
+	// 		String: newBalance.String(),
+	// 		Valid:  true,
+	// 	},
+	// })
+	// if err != nil {
+	// 	return "", fmt.Errorf("update wallet balance error: %w", err)
+	// }
 
 	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.CardID)
 	if err != nil {
@@ -622,9 +793,10 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 			Int64: user.ID,
 			Valid: true,
 		},
-		Type:        "card",
-		Description: sql.NullString{String: "Card credit", Valid: true},
-		Status:      "successful",
+		Type:            "card",
+		TransactionFlow: sql.NullString{String: "card_funding", Valid: true},
+		Description:     sql.NullString{String: "Card credit", Valid: true},
+		Status:          "successful",
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)

@@ -17,15 +17,22 @@ import (
 type AuditEventCategory string
 
 const (
-	AuditEventCategoryAuthentication AuditEventCategory = "authentication"
-	AuditEventCategoryAuthorization  AuditEventCategory = "authorization"
-	AuditEventCategoryAccount        AuditEventCategory = "account"
-	AuditEventCategoryTransaction    AuditEventCategory = "transaction"
-	AuditEventCategoryKyc            AuditEventCategory = "kyc"
-	AuditEventCategoryCard           AuditEventCategory = "card"
-	AuditEventCategorySecurity       AuditEventCategory = "security"
-	AuditEventCategoryCompliance     AuditEventCategory = "compliance"
-	AuditEventCategorySystem         AuditEventCategory = "system"
+	AuditEventCategoryAuthentication  AuditEventCategory = "authentication"
+	AuditEventCategoryAuthorization   AuditEventCategory = "authorization"
+	AuditEventCategoryAccount         AuditEventCategory = "account"
+	AuditEventCategoryTransaction     AuditEventCategory = "transaction"
+	AuditEventCategoryKyc             AuditEventCategory = "kyc"
+	AuditEventCategoryCard            AuditEventCategory = "card"
+	AuditEventCategorySecurity        AuditEventCategory = "security"
+	AuditEventCategoryCompliance      AuditEventCategory = "compliance"
+	AuditEventCategorySystem          AuditEventCategory = "system"
+	AuditEventCategoryVault           AuditEventCategory = "vault"
+	AuditEventCategoryGiftcard        AuditEventCategory = "giftcard"
+	AuditEventCategoryRapidRamp       AuditEventCategory = "rapid_ramp"
+	AuditEventCategoryRateManager     AuditEventCategory = "rate_manager"
+	AuditEventCategoryStreaks         AuditEventCategory = "streaks"
+	AuditEventCategoryCrypto          AuditEventCategory = "crypto"
+	AuditEventCategorySmartConversion AuditEventCategory = "smart_conversion"
 )
 
 func (e *AuditEventCategory) Scan(src interface{}) error {

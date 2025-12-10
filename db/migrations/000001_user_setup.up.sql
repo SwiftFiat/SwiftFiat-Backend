@@ -66,3 +66,8 @@ CREATE TABLE IF NOT EXISTS "users" (
     "deleted_at" timestamptz
 );
 
+-- INSERT INTO "users" ("email", "role", "hashed_password", "phone_number") VALUES
+-- ('admin@swiftfiat.com', 'admin', 'admin', 'admin');
+
+-- INSERT INTO "users" ("email", "role", "hashed_password", "phone_number") VALUES
+-- ('user@swiftfiat.com', 'user', 'user', 'user');

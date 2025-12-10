@@ -74,6 +74,7 @@ func (p *BridgeCardProvider) GetCardBalance(ctx context.Context, cardID string) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get card balance: %w", err)
 	}
+	p.logger.Infof("card balance data: %v", response.Data)
 	return &response, nil
 }
 
@@ -140,6 +141,24 @@ func (p *BridgeCardProvider) FundIssuingWallet(ctx context.Context, req FundIssu
 	}
 
 	return &response.Message, nil
+}
+
+func (p *BridgeCardProvider) FreezeCard(ctx context.Context, cardID string) (*FreezeCardResponse, error) {
+	var response FreezeCardResponse
+	err := p.makeRequest(ctx, http.MethodPatch, fmt.Sprintf("/cards/freeze_card?card_id=%s", cardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to freeze card: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) UnfreezeCard(ctx context.Context, cardID string) (*FreezeCardResponse, error) {
+	var response FreezeCardResponse
+	err := p.makeRequest(ctx, http.MethodPatch, fmt.Sprintf("/cards/unfreeze_card?card_id=%s", cardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unfreeze card: %w", err)
+	}
+	return &response, nil
 }
 
 func (p *BridgeCardProvider) FundCard(ctx context.Context, req FundCardRequest) (*FundCardResponse, error) {

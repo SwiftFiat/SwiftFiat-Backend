@@ -211,7 +211,7 @@ type CardCreditSuccess struct {
 type CardCreditFailed struct {
 	CardID                  string    `json:"card_id"`
 	CardholderID            string    `json:"cardholder_id"`
-	Amount                  int64     `json:"amount"`
+	Amount                  string     `json:"amount"`
 	Currency                string    `json:"currency"`
 	TransactionReference    string    `json:"transaction_reference"`
 	Livemode                bool      `json:"livemode"`
@@ -230,8 +230,17 @@ type GetCardBalanceResponse struct {
 	Message string `json:"message"`
 	Data    struct {
 		CardID                  string `json:"card_id"`
-		Balance                 int64  `json:"balance"`
-		SettledAvailableBalance int64  `json:"settled_available_balance"`
-		SettledBookBalance      int64  `json:"settled_book_balance"`
+		Balance                 string  `json:"balance"`
+		SettledAvailableBalance string  `json:"available_balance"`
+		SettledBookBalance      string  `json:"book_balance"`
 	} `json:"data"`
 }
+
+type FreezeCardResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		CardID string `json:"card_id"`
+	} `json:"data"`
+}
+	

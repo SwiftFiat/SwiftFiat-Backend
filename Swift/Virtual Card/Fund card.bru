@@ -4,12 +4,25 @@ meta {
   seq: 5
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/cards/fund-card
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "card_id": "718f7d6c7cbb4d17bd6cd0ea94370ff3",
+    "amount": "1",
+    "currency": "USD"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

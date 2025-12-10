@@ -241,11 +241,11 @@ func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToke
 	return &tokenValue, err
 }
 
-func (u *UserService) GetUserPushTokens(ctx context.Context, userID int64) ([]db.UserToken, error) {
+func (u *UserService) GetUserPushTokens(ctx context.Context, userID int64) (*[]db.UserToken, error) {
 
 	tokens, err := u.store.GetTokens(ctx, userID)
 
-	return tokens, err
+	return &tokens, err
 }
 
 func (u *UserService) AddUserExpoToken(ctx context.Context, userID int64, expoToken string, deviceUUID string) (*db.UserToken, error) {

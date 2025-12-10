@@ -63,3 +63,15 @@ func DollarStringToCentsString(amount string) (string, error) {
 	cents := d.Mul(decimal.NewFromInt(100))
 	return cents.String(), nil
 }
+
+// CentsStringToDollarString converts e.g. "350" → "3.50"
+func CentsStringToDollarString(cents string) (string, error) {
+	d, err := decimal.NewFromString(cents)
+	if err != nil {
+		return "", err
+	}
+
+	dollars := d.Div(decimal.NewFromInt(100))
+	// Ensure fixed 2-decimal format
+	return dollars.StringFixed(2), nil
+}
