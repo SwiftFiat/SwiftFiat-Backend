@@ -312,31 +312,31 @@ func (s *Server) Start() error {
 	// e.g. s.RegisterService({services.wallet, WalletService})
 
 	// Start vault scheduler
-	// if s.vaultScheduler != nil {
-	// 	if err := s.vaultScheduler.Start(); err != nil {
-	// 		s.logger.Error("Failed to start vault scheduler", "error", err)
-	// 	}
-	// }
+	if s.vaultScheduler != nil {
+		if err := s.vaultScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start vault scheduler", "error", err)
+		}
+	}
 
-	// if s.yieldScheduler != nil {
-	// 	if err := s.yieldScheduler.Start(); err != nil {
-	// 		s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
-	// 	}
-	// }
+	if s.yieldScheduler != nil {
+		if err := s.yieldScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
+		}
+	}
 
-	// // Start rapid ramp scheduler
-	// if s.qrcodeScheduler != nil {
-	// 	if err := s.qrcodeScheduler.Start(); err != nil {
-	// 		s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
-	// 	}
-	// }
+	// Start rapid ramp scheduler
+	if s.qrcodeScheduler != nil {
+		if err := s.qrcodeScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
+		}
+	}
 
-	// // Start smart conversion scheduler
-	// if s.smartConversionScheduler != nil {
-	// 	if err := s.smartConversionScheduler.Start(); err != nil {
-	// 		s.logger.Error("Failed to start smart conversion scheduler", "error", err)
-	// 	}
-	// }
+	// Start smart conversion scheduler
+	if s.smartConversionScheduler != nil {
+		if err := s.smartConversionScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start smart conversion scheduler", "error", err)
+		}
+	}
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
@@ -349,31 +349,31 @@ func (s *Server) Shutdown(ctx context.Context) error {
 
 	go func() {
 		// Stop vault scheduler first
-		// if s.vaultScheduler != nil {
-		// 	if err := s.vaultScheduler.Stop(); err != nil {
-		// 		s.logger.Warn("Error stopping vault scheduler", "error", err)
-		// 	}
-		// }
+		if s.vaultScheduler != nil {
+			if err := s.vaultScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping vault scheduler", "error", err)
+			}
+		}
 
-		// if s.yieldScheduler != nil {
-		// 	if err := s.yieldScheduler.Stop(); err != nil {
-		// 		s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
-		// 	}
-		// }
+		if s.yieldScheduler != nil {
+			if err := s.yieldScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping vault savings yield scheduler", "error", err)
+			}
+		}
 
-		// // Stop rapid ramp scheduler
-		// if s.qrcodeScheduler != nil {
-		// 	if err := s.qrcodeScheduler.Stop(); err != nil {
-		// 		s.logger.Warn("Error stopping rapid ramp scheduler", "error", err)
-		// 	}
-		// }
+		// Stop rapid ramp scheduler
+		if s.qrcodeScheduler != nil {
+			if err := s.qrcodeScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping rapid ramp scheduler", "error", err)
+			}
+		}
 
-		// // Stop smart conversion scheduler
-		// if s.smartConversionScheduler != nil {
-		// 	if err := s.smartConversionScheduler.Stop(); err != nil {
-		// 		s.logger.Warn("Error stopping smart conversion scheduler", "error", err)
-		// 	}
-		// }
+		// Stop smart conversion scheduler
+		if s.smartConversionScheduler != nil {
+			if err := s.smartConversionScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping smart conversion scheduler", "error", err)
+			}
+		}
 
 		// Close Redis connection with context awareness
 		if err := s.redis.Close(); err != nil {
