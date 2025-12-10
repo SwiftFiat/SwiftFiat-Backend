@@ -253,7 +253,7 @@ func (v *Virtualcard) FreezeCard(c *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param card_id query string true "Card ID"
-// @Success 200 {object} bridgecards.UnfreezeCardResponse
+// @Success 200 {object} bridgecards.FreezeCardResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/unfreeze-card [post]
