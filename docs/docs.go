@@ -742,6 +742,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/cards/fund-issuing-wallet": {
+            "post": {
+                "description": "Fund the issuing wallet with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Fund issuing wallet [admin]",
+                "parameters": [
+                    {
+                        "description": "Issuing wallet funding parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FundIssuingWalletRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/admin/rewards/config": {
             "get": {
                 "security": [
@@ -3949,6 +3995,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/cards/freeze-card": {
+            "post": {
+                "description": "Freeze a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Freeze virtual card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FreezeCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/fund-card": {
             "post": {
                 "description": "Fund a virtual card with BridgeCard",
@@ -4052,6 +4142,17 @@ const docTemplate = `{
                     "Cards"
                 ],
                 "summary": "Register cardholder",
+                "parameters": [
+                    {
+                        "description": "Cardholder registration parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.CreateCardHolderRequest"
+                        }
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -4074,9 +4175,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/cards/webhook": {
+        "/api/v1/cards/unfreeze-card": {
             "post": {
-                "description": "Process webhook events from BridgeCard",
+                "description": "Unfreeze a virtual card with BridgeCard",
                 "consumes": [
                     "application/json"
                 ],
@@ -4084,42 +4185,27 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Webhooks"
+                    "Cards"
                 ],
-                "summary": "Handle BridgeCard webhooks",
+                "summary": "Unfreeze virtual card",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "BridgeCard webhook signature",
-                        "name": "X-Webhook-Signature",
-                        "in": "header",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
                         "required": true
-                    },
-                    {
-                        "description": "Webhook payload",
-                        "name": "payload",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/bridgecards.WebhookEvent"
-                        }
                     }
                 ],
                 "responses": {
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
+                            "$ref": "#/definitions/bridgecards.FreezeCardResponse"
                         }
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -10359,10 +10445,13 @@ const docTemplate = `{
                 "security",
                 "compliance",
                 "system",
-                "vault_savings",
-                "user_management",
+                "vault",
                 "crypto",
-                "rate_manager"
+                "rate_manager",
+                "giftcard",
+                "rapid_ramp",
+                "streaks",
+                "smart_conversion"
             ],
             "x-enum-varnames": [
                 "CategoryAuthentication",
@@ -10375,9 +10464,12 @@ const docTemplate = `{
                 "CategoryCompliance",
                 "CategorySystem",
                 "CategoryVaultSavings",
-                "CategoryUserManagement",
                 "CategoryCrypto",
-                "CategoryRateManager"
+                "CategoryRateManager",
+                "CategoryGiftcards",
+                "CategoryRapidRamp",
+                "CategoryStreaks",
+                "CategoryConversion"
             ]
         },
         "audit.LogResponse": {
@@ -10539,6 +10631,64 @@ const docTemplate = `{
                 }
             }
         },
+        "bridgecards.Address": {
+            "type": "object",
+            "properties": {
+                "address": {
+                    "type": "string"
+                },
+                "city": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "house_no": {
+                    "type": "string"
+                },
+                "postal_code": {
+                    "type": "string"
+                },
+                "state": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.CreateCardHolderRequest": {
+            "type": "object",
+            "required": [
+                "address",
+                "email_address",
+                "first_name",
+                "identity",
+                "last_name",
+                "phone"
+            ],
+            "properties": {
+                "address": {
+                    "$ref": "#/definitions/bridgecards.Address"
+                },
+                "email_address": {
+                    "type": "string"
+                },
+                "first_name": {
+                    "type": "string"
+                },
+                "identity": {
+                    "$ref": "#/definitions/bridgecards.Identity"
+                },
+                "last_name": {
+                    "type": "string"
+                },
+                "metadata": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "phone": {
+                    "type": "string"
+                }
+            }
+        },
         "bridgecards.CreateCardHolderResponse": {
             "type": "object",
             "properties": {
@@ -10568,6 +10718,25 @@ const docTemplate = `{
                             "type": "string"
                         },
                         "currency": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.FreezeCardResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "card_id": {
                             "type": "string"
                         }
                     }
@@ -10625,23 +10794,31 @@ const docTemplate = `{
                 }
             }
         },
+        "bridgecards.FundIssuingWalletRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "integer"
+                }
+            }
+        },
         "bridgecards.GetCardBalanceResponse": {
             "type": "object",
             "properties": {
                 "data": {
                     "type": "object",
                     "properties": {
+                        "available_balance": {
+                            "type": "string"
+                        },
                         "balance": {
-                            "type": "integer"
+                            "type": "string"
+                        },
+                        "book_balance": {
+                            "type": "string"
                         },
                         "card_id": {
                             "type": "string"
-                        },
-                        "settled_available_balance": {
-                            "type": "integer"
-                        },
-                        "settled_book_balance": {
-                            "type": "integer"
                         }
                     }
                 },
@@ -10653,8 +10830,29 @@ const docTemplate = `{
                 }
             }
         },
-        "bridgecards.WebhookEvent": {
-            "type": "object"
+        "bridgecards.Identity": {
+            "type": "object",
+            "required": [
+                "bvn",
+                "id_type"
+            ],
+            "properties": {
+                "bvn": {
+                    "type": "string"
+                },
+                "id_image": {
+                    "type": "string"
+                },
+                "id_number": {
+                    "type": "string"
+                },
+                "id_type": {
+                    "type": "string"
+                },
+                "selfie_image": {
+                    "type": "string"
+                }
+            }
         },
         "cryptocurrency.PaymentInfoRequest": {
             "type": "object",

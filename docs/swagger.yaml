@@ -226,10 +226,13 @@ definitions:
     - security
     - compliance
     - system
-    - vault_savings
-    - user_management
+    - vault
     - crypto
     - rate_manager
+    - giftcard
+    - rapid_ramp
+    - streaks
+    - smart_conversion
     type: string
     x-enum-varnames:
     - CategoryAuthentication
@@ -242,9 +245,12 @@ definitions:
     - CategoryCompliance
     - CategorySystem
     - CategoryVaultSavings
-    - CategoryUserManagement
     - CategoryCrypto
     - CategoryRateManager
+    - CategoryGiftcards
+    - CategoryRapidRamp
+    - CategoryStreaks
+    - CategoryConversion
   audit.LogResponse:
     properties:
       action:
@@ -354,6 +360,46 @@ definitions:
     - bank_code
     - bank_name
     type: object
+  bridgecards.Address:
+    properties:
+      address:
+        type: string
+      city:
+        type: string
+      country:
+        type: string
+      house_no:
+        type: string
+      postal_code:
+        type: string
+      state:
+        type: string
+    type: object
+  bridgecards.CreateCardHolderRequest:
+    properties:
+      address:
+        $ref: '#/definitions/bridgecards.Address'
+      email_address:
+        type: string
+      first_name:
+        type: string
+      identity:
+        $ref: '#/definitions/bridgecards.Identity'
+      last_name:
+        type: string
+      metadata:
+        additionalProperties: {}
+        type: object
+      phone:
+        type: string
+    required:
+    - address
+    - email_address
+    - first_name
+    - identity
+    - last_name
+    - phone
+    type: object
   bridgecards.CreateCardHolderResponse:
     properties:
       data:
@@ -373,6 +419,18 @@ definitions:
           card_id:
             type: string
           currency:
+            type: string
+        type: object
+      message:
+        type: string
+      status:
+        type: string
+    type: object
+  bridgecards.FreezeCardResponse:
+    properties:
+      data:
+        properties:
+          card_id:
             type: string
         type: object
       message:
@@ -410,25 +468,44 @@ definitions:
       status:
         type: string
     type: object
+  bridgecards.FundIssuingWalletRequest:
+    properties:
+      amount:
+        type: integer
+    type: object
   bridgecards.GetCardBalanceResponse:
     properties:
       data:
         properties:
+          available_balance:
+            type: string
           balance:
-            type: integer
+            type: string
+          book_balance:
+            type: string
           card_id:
             type: string
-          settled_available_balance:
-            type: integer
-          settled_book_balance:
-            type: integer
         type: object
       message:
         type: string
       status:
         type: string
     type: object
-  bridgecards.WebhookEvent:
+  bridgecards.Identity:
+    properties:
+      bvn:
+        type: string
+      id_image:
+        type: string
+      id_number:
+        type: string
+      id_type:
+        type: string
+      selfie_image:
+        type: string
+    required:
+    - bvn
+    - id_type
     type: object
   cryptocurrency.PaymentInfoRequest:
     properties:
@@ -3168,6 +3245,36 @@ paths:
       summary: Create Transaction Fee
       tags:
       - Wallets
+  /api/v1/admin/cards/fund-issuing-wallet:
+    post:
+      consumes:
+      - application/json
+      description: Fund the issuing wallet with BridgeCard
+      parameters:
+      - description: Issuing wallet funding parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/bridgecards.FundIssuingWalletRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Fund issuing wallet [admin]
+      tags:
+      - Cards
   /api/v1/admin/rewards/config:
     get:
       consumes:
@@ -5181,6 +5288,35 @@ paths:
       summary: Create virtual card
       tags:
       - Cards
+  /api/v1/cards/freeze-card:
+    post:
+      consumes:
+      - application/json
+      description: Freeze a virtual card with BridgeCard
+      parameters:
+      - description: Card ID
+        in: query
+        name: card_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bridgecards.FreezeCardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Freeze virtual card
+      tags:
+      - Cards
   /api/v1/cards/fund-card:
     post:
       consumes:
@@ -5245,6 +5381,13 @@ paths:
       consumes:
       - application/json
       description: Register a new cardholder with BridgeCard
+      parameters:
+      - description: Cardholder registration parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/bridgecards.CreateCardHolderRequest'
       produces:
       - application/json
       responses:
@@ -5263,45 +5406,35 @@ paths:
       summary: Register cardholder
       tags:
       - Cards
-  /api/v1/cards/webhook:
+  /api/v1/cards/unfreeze-card:
     post:
       consumes:
       - application/json
-      description: Process webhook events from BridgeCard
+      description: Unfreeze a virtual card with BridgeCard
       parameters:
-      - description: BridgeCard webhook signature
-        in: header
-        name: X-Webhook-Signature
+      - description: Card ID
+        in: query
+        name: card_id
         required: true
         type: string
-      - description: Webhook payload
-        in: body
-        name: payload
-        required: true
-        schema:
-          $ref: '#/definitions/bridgecards.WebhookEvent'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/models.SuccessResponse'
+            $ref: '#/definitions/bridgecards.FreezeCardResponse'
         "400":
           description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
           schema:
             $ref: '#/definitions/models.ErrorResponse'
         "500":
           description: Internal Server Error
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Handle BridgeCard webhooks
+      summary: Unfreeze virtual card
       tags:
-      - Webhooks
+      - Cards
   /api/v1/crypto/coin-data:
     get:
       consumes:
