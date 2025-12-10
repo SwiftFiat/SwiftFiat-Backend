@@ -77,13 +77,13 @@ func (w Wallet) router(server *Server) {
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/wallets")
 	serverGroupV1Admin.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
-	serverGroupV1Admin.POST("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.addToWalletBalance)
+	serverGroupV1Admin.POST("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.updateWalletBalance)
 	serverGroupV1Admin.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
 
 }
 
-// addToWalletBalance godoc
-// @Summary      Add to Wallet Balance (Admin Only)
+// updateWalletBalance godoc
+// @Summary      Update Wallet Balance (Admin Only)
 // @Description  Adds a specified amount to a user's wallet balance. This endpoint is intended for administrative use only.
 // @Tags         Wallets
 // @Accept       json
@@ -94,8 +94,8 @@ func (w Wallet) router(server *Server) {
 // @Failure      400            {object}  basemodels.ErrorResponse
 // @Failure      401            {object}  basemodels.ErrorResponse
 // @Failure      500            {object}  basemodels.ErrorResponse
-// @Router       /api/admin/v1/wallets/add-to-wallet-balance [post]
-func (w *Wallet) addToWalletBalance(ctx *gin.Context) {
+// @Router       /api/admin/v1/wallets/add-to-wallet-balance [put]
+func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 
 	request := struct {
 		WalletID string  `json:"wallet_id" binding:"required"`
