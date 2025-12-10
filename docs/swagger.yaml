@@ -3176,7 +3176,7 @@ paths:
       tags:
       - Rate Manager - VIP Levels
   /api/admin/v1/wallets/add-to-wallet-balance:
-    post:
+    put:
       consumes:
       - application/json
       description: Adds a specified amount to a user's wallet balance. This endpoint
@@ -3209,7 +3209,7 @@ paths:
             $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Add to Wallet Balance (Admin Only)
+      summary: Update Wallet Balance (Admin Only)
       tags:
       - Wallets
   /api/admin/v1/wallets/transaction-fee:

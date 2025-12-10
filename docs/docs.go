@@ -635,7 +635,7 @@ const docTemplate = `{
             }
         },
         "/api/admin/v1/wallets/add-to-wallet-balance": {
-            "post": {
+            "put": {
                 "security": [
                     {
                         "BearerAuth": []
@@ -651,7 +651,7 @@ const docTemplate = `{
                 "tags": [
                     "Wallets"
                 ],
-                "summary": "Add to Wallet Balance (Admin Only)",
+                "summary": "Update Wallet Balance (Admin Only)",
                 "parameters": [
                     {
                         "description": "Request Body",
