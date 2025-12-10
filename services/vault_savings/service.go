@@ -1183,10 +1183,10 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Update wallet balance (deduct)
 	// Calculate the negative amount to subtract from wallet
-	negativeAmount := amount.Neg().String()
+	// negativeAmount := amount.Neg().String()
 	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
 		ID:     req.FromWalletID,
-		Amount: sql.NullString{String: negativeAmount, Valid: true},
+		Amount: sql.NullString{String: amount.String(), Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
