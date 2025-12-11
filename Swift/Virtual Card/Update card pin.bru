@@ -1,0 +1,27 @@
+meta {
+  name: Update card pin
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{BaseURl}}/cards/update-card-pin
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "card_id": "718f7d6c7cbb4d17bd6cd0ea94370ff3",
+    "card_pin": "2345"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

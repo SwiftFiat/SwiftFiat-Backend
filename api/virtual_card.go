@@ -31,6 +31,11 @@ func (v Virtualcard) router(server *Server) {
 		v1.POST("/fund-card", server.authMiddleware.AuthenticatedMiddleware(), v.FundCard) //done
 		v1.POST("/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.FreezeCard) //done
 		v1.POST("/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.UnfreezeCard) //done
+		v1.POST("/update-card-pin", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPin) //done
+		v1.DELETE("/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCard) //done
+		v1.GET("/list-cards", server.authMiddleware.AuthenticatedMiddleware(), v.ListCards) //done
+		v1.GET("/get-card-details", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardDetails) //done
+		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard) //not done
 	}
 	v1admin := server.router.Group("/api/v1/admin/cards")
 	v1admin.Use(server.authMiddleware.AuthenticatedMiddleware())
@@ -252,8 +257,8 @@ func (v *Virtualcard) FreezeCard(c *gin.Context) {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Param card_id query string true "Card ID"
 // @Success 200 {object} bridgecards.FreezeCardResponse
+// @Param card_id query string true "Card ID"
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/unfreeze-card [post]
@@ -272,6 +277,176 @@ func (v *Virtualcard) UnfreezeCard(c *gin.Context) {
 	}
 	
 	response, err := v.virtualCardSvc.UnfreezeCard(c, cardID, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// @Summary Update virtual card pin
+// @Description Update the pin of a virtual card with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param request body bridgecards.UpdateCardPinRequest true "Card pin update parameters"
+// @Success 200 {object} bridgecards.CardResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/update-card-pin [post]
+func (v *Virtualcard) UpdateCardPin(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	var req bridgecards.UpdateCardPinRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	response, err := v.virtualCardSvc.UpdateCardPin(c, req, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// @Summary Delete virtual card
+// @Description Delete a virtual card with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param card_id query string true "Card ID"
+// @Success 200 {object} bridgecards.CardResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/delete-card [post]
+func (v *Virtualcard) DeleteCard(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	cardID := c.Query("card_id")
+	if cardID == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+	
+	response, err := v.virtualCardSvc.DeleteCard(c, cardID, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// @Summary List virtual cards
+// @Description List all virtual cards for a cardholder with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param cardholder_id query string true "Cardholder ID"
+// @Success 200 {object} bridgecards.ListCardsResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/list-cards [get]
+func (v *Virtualcard) ListCards(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	cardholderIDfromUser, err := v.server.queries.GetBridgeCardCardholderByUserID(c, activeUser.UserID)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if cardholderIDfromUser.String == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing cardholder_id query parameter"))
+		return
+	}
+	
+	response, err := v.virtualCardSvc.ListCards(c, cardholderIDfromUser.String, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// @Summary Withdraw virtual card [not done]
+// @Description Withdraw a virtual card with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param request body bridgecards.WithdrawCardRequest true "Card withdrawal parameters"
+// @Success 200 {object} bridgecards.WithdrawCardResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/withdraw-card [post]
+func (v *Virtualcard) WithdrawCard(c *gin.Context) {
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	v.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
+
+	var req bridgecards.WithdrawCardRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	req.TransactionReference = utils.NewTxRef("card_withdrawal")
+	req.Currency = "USD"
+	response, err := v.virtualCardSvc.WithdrawCard(c.Request.Context(), req)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}	
+	
+	c.JSON(http.StatusOK, response)
+}
+
+// @Summary Get virtual card details
+// @Description Get a virtual card details with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param card_id query string true "Card ID"
+// @Success 200 {object} bridgecards.GetCardDetailsResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/get-card-details [get]
+func (v *Virtualcard) GetCardDetails(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	cardID := c.Query("card_id")
+	if cardID == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+	
+	response, err := v.virtualCardSvc.GetCardDetails(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return

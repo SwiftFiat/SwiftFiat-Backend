@@ -167,3 +167,6 @@ WHERE
     bridgecard_cardholder_id IS NOT NULL
     AND (bridgecard_verification_status IS NULL OR bridgecard_verification_status = 'pending')
 ORDER BY created_at DESC;
+
+-- name: GetBridgeCardCardholderByUserID :one
+SELECT bridgecard_cardholder_id FROM users WHERE id = $1;
