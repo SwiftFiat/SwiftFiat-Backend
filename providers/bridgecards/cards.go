@@ -170,6 +170,56 @@ func (p *BridgeCardProvider) FundCard(ctx context.Context, req FundCardRequest) 
 	return &response, nil
 }
 
+func (p *BridgeCardProvider) UpdateCardPin(ctx context.Context, req UpdateCardPinRequest) (*CardResponse, error) {
+	var response CardResponse
+
+	encryptedPin := utils.Encrypt(req.CardPin, p.secreyKey)
+	
+	req.CardPin = encryptedPin
+	err := p.makeRequest(ctx, http.MethodPost, "/cards/set_3d_secure_pin", req, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update card pin: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) DeleteCard(ctx context.Context, cardID string) (*CardResponse, error) {
+	var response CardResponse
+	err := p.makeRequest(ctx, http.MethodDelete, fmt.Sprintf("/cards/delete_card/%s", cardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete card: %w", err)
+	}
+	return &response, nil
+}
+
+func (p BridgeCardProvider) ListCards(ctx context.Context, cardholderID string) (*ListCardsResponse, error) {
+	var response ListCardsResponse
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_all_cardholder_cards?cardholder_id=%s", cardholderID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list cards: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) GetCardDetails(ctx context.Context, cardID string) (*GetCardDetailsResponse, error) {
+	var response GetCardDetailsResponse
+	// url := fmt.Sprintf("https://issuecards-api-bridgecard-co.relay.evervault.com/v1/issuing/sandbox/cards/get_card_details?card_id=%s", cardID)
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_card_details?card_id=%s", cardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get card details: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) WithdrawCard(ctx context.Context, req WithdrawCardRequest) (*WithdrawCardResponse, error) {
+	var response WithdrawCardResponse
+	err := p.makeRequest(ctx, http.MethodPatch, "/cards/unload_card_asynchronously", req, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to withdraw card: %w", err)
+	}
+	return &response, nil
+}
+
 func (p *BridgeCardProvider) makeRequest(ctx context.Context, method, endpoint string, body interface{}, result interface{}) error {
 	var reqBody io.Reader
 

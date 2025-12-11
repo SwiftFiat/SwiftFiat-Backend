@@ -473,6 +473,65 @@ func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64)
 	return cardDetails, nil
 }
 
+func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardPinRequest, userID int64) (*bridgecards.CardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, req.CardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+	if card.UserID != userID {
+		return nil, fmt.Errorf("card does not belong to user")
+	}
+	return s.bridgeCard.UpdateCardPin(ctx, req)
+}
+
+func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (*bridgecards.CardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+	if card.UserID != userID {
+		return nil, fmt.Errorf("card does not belong to user")
+	}
+
+	cardDetails, err := s.bridgeCard.DeleteCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("delete card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.TerminateCard(ctx, db.TerminateCardParams{
+		ID: card.ID,
+		UserID: userID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("terminate card error: %w", err)
+	}
+
+	return cardDetails, nil
+}
+
+func (s *Service) ListCards(ctx context.Context, cardholderID string, userID int64) (*bridgecards.ListCardsResponse, error) {
+	return s.bridgeCard.ListCards(ctx, cardholderID)
+}
+
+func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID int64) (*bridgecards.GetCardDetailsResponse, error) {
+	// check if card belongs to user
+	// card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	// }
+	// if card.UserID != userID {
+	// 	return nil, fmt.Errorf("card does not belong to user")
+	// }
+	return s.bridgeCard.GetCardDetails(ctx, cardID)
+}
+
+func (s *Service) WithdrawCard(ctx context.Context, req bridgecards.WithdrawCardRequest) (*bridgecards.WithdrawCardResponse, error){
+	return s.bridgeCard.WithdrawCard(ctx, req)
+}
+
 func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string, error) {
 	credit, err := s.bridgeCard.ParseCardholderVerification(payload)
 	if err != nil {

@@ -3989,6 +3989,50 @@
                 }
             }
         },
+        "/api/v1/cards/delete-card": {
+            "post": {
+                "description": "Delete a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Delete virtual card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/freeze-card": {
             "post": {
                 "description": "Freeze a virtual card with BridgeCard",
@@ -4123,6 +4167,94 @@
                 }
             }
         },
+        "/api/v1/cards/get-card-details": {
+            "get": {
+                "description": "Get a virtual card details with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get virtual card details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.GetCardDetailsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/list-cards": {
+            "get": {
+                "description": "List all virtual cards for a cardholder with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "List virtual cards",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Cardholder ID",
+                        "name": "cardholder_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.ListCardsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/register-cardholder": {
             "post": {
                 "description": "Register a new cardholder with BridgeCard",
@@ -4196,6 +4328,98 @@
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.FreezeCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/update-card-pin": {
+            "post": {
+                "description": "Update the pin of a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Update virtual card pin",
+                "parameters": [
+                    {
+                        "description": "Card pin update parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.UpdateCardPinRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/withdraw-card": {
+            "post": {
+                "description": "Withdraw a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Withdraw virtual card [not done]",
+                "parameters": [
+                    {
+                        "description": "Card withdrawal parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.WithdrawCardRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.WithdrawCardResponse"
                         }
                     },
                     "400": {
@@ -10648,6 +10872,17 @@
                 }
             }
         },
+        "bridgecards.CardResponse": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "bridgecards.CreateCardHolderRequest": {
             "type": "object",
             "required": [
@@ -10824,6 +11059,119 @@
                 }
             }
         },
+        "bridgecards.GetCardDetailsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "available_balance": {
+                            "type": "string"
+                        },
+                        "balance": {
+                            "type": "string"
+                        },
+                        "billing_address": {
+                            "type": "object",
+                            "properties": {
+                                "billing_address1": {
+                                    "type": "string"
+                                },
+                                "billing_city": {
+                                    "type": "string"
+                                },
+                                "billing_country": {
+                                    "type": "string"
+                                },
+                                "billing_zip_code": {
+                                    "type": "string"
+                                },
+                                "country_code": {
+                                    "type": "string"
+                                },
+                                "state": {
+                                    "type": "string"
+                                },
+                                "state_code": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "blocked_due_to_fraud": {
+                            "type": "boolean"
+                        },
+                        "book_balance": {
+                            "type": "string"
+                        },
+                        "brand": {
+                            "type": "string"
+                        },
+                        "card_currency": {
+                            "type": "string"
+                        },
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "card_name": {
+                            "type": "string"
+                        },
+                        "card_number": {
+                            "type": "string"
+                        },
+                        "card_type": {
+                            "type": "string"
+                        },
+                        "cardholder_id": {
+                            "type": "string"
+                        },
+                        "created_at": {
+                            "type": "integer"
+                        },
+                        "cvv": {
+                            "type": "string"
+                        },
+                        "expiry_month": {
+                            "type": "string"
+                        },
+                        "expiry_year": {
+                            "type": "string"
+                        },
+                        "is_active": {
+                            "type": "boolean"
+                        },
+                        "is_deleted": {
+                            "type": "boolean"
+                        },
+                        "issuing_app_id": {
+                            "type": "string"
+                        },
+                        "last_4": {
+                            "type": "string"
+                        },
+                        "livemode": {
+                            "type": "boolean"
+                        },
+                        "meta_data": {
+                            "type": "object",
+                            "properties": {
+                                "user_id": {
+                                    "type": "string"
+                                }
+                            }
+                        },
+                        "pin_3ds_activated": {
+                            "type": "boolean"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "bridgecards.Identity": {
             "type": "object",
             "required": [
@@ -10844,6 +11192,152 @@
                     "type": "string"
                 },
                 "selfie_image": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.ListCardsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "cards": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "billing_address": {
+                                        "type": "object",
+                                        "properties": {
+                                            "billing_address1": {
+                                                "type": "string"
+                                            },
+                                            "billing_city": {
+                                                "type": "string"
+                                            },
+                                            "billing_country": {
+                                                "type": "string"
+                                            },
+                                            "billing_zip_code": {
+                                                "type": "string"
+                                            },
+                                            "country_code": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "brand": {
+                                        "type": "string"
+                                    },
+                                    "card_currency": {
+                                        "type": "string"
+                                    },
+                                    "card_id": {
+                                        "type": "string"
+                                    },
+                                    "card_name": {
+                                        "type": "string"
+                                    },
+                                    "card_number": {
+                                        "type": "string"
+                                    },
+                                    "card_type": {
+                                        "type": "string"
+                                    },
+                                    "cardholder_id": {
+                                        "type": "string"
+                                    },
+                                    "created_at": {
+                                        "type": "integer"
+                                    },
+                                    "cvv": {
+                                        "type": "string"
+                                    },
+                                    "expiry_month": {
+                                        "type": "string"
+                                    },
+                                    "expiry_year": {
+                                        "type": "string"
+                                    },
+                                    "is_active": {
+                                        "type": "boolean"
+                                    },
+                                    "issuing_app_id": {
+                                        "type": "string"
+                                    },
+                                    "last_4": {
+                                        "type": "string"
+                                    },
+                                    "livemode": {
+                                        "type": "boolean"
+                                    }
+                                }
+                            }
+                        },
+                        "total": {
+                            "type": "integer"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.UpdateCardPinRequest": {
+            "type": "object",
+            "properties": {
+                "card_id": {
+                    "type": "string"
+                },
+                "card_pin": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.WithdrawCardRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "description": "Amount in cents",
+                    "type": "string"
+                },
+                "card_id": {
+                    "description": "Amount in cents",
+                    "type": "string"
+                },
+                "currency": {
+                    "description": "Amount in cents",
+                    "type": "string"
+                },
+                "transaction_reference": {
+                    "description": "Amount in cents",
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.WithdrawCardResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "transaction_reference": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }

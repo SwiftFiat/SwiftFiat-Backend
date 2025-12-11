@@ -125,7 +125,19 @@ type FundCardResponse struct {
 }
 
 type WithdrawCardRequest struct {
-	Amount int64 `json:"amount"` // Amount in cents
+	CardID               string `json:"card_id"`               // Amount in cents
+	Amount               string `json:"amount"`                // Amount in cents
+	TransactionReference string `json:"transaction_reference"` // Amount in cents
+	Currency             string `json:"currency"`              // Amount in cents
+}
+
+type WithdrawCardResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		CardID               string `json:"card_id"`
+		TransactionReference string `json:"transaction_reference"`
+	} `json:"data"`
 }
 
 type Transaction struct {
@@ -196,7 +208,7 @@ type CardholderVerificationFailed struct {
 type CardCreditSuccess struct {
 	CardID                  string    `json:"card_id"`
 	CardholderID            string    `json:"cardholder_id"`
-	Amount                  string     `json:"amount"`
+	Amount                  string    `json:"amount"`
 	Currency                string    `json:"currency"`
 	TransactionReference    string    `json:"transaction_reference"`
 	Livemode                bool      `json:"livemode"`
@@ -209,16 +221,16 @@ type CardCreditSuccess struct {
 }
 
 type CardCreditFailed struct {
-	CardID                  string    `json:"card_id"`
-	CardholderID            string    `json:"cardholder_id"`
-	Amount                  string     `json:"amount"`
-	Currency                string    `json:"currency"`
-	TransactionReference    string    `json:"transaction_reference"`
-	Livemode                bool      `json:"livemode"`
-	IssuingAppID            string    `json:"issuing_app_id"`
-	CardTransactionType     string    `json:"card_transaction_type"`
-	TransactionDate         time.Time `json:"transaction_date"`
-	TransactionTimestamp    int64     `json:"transaction_timestamp"`
+	CardID               string    `json:"card_id"`
+	CardholderID         string    `json:"cardholder_id"`
+	Amount               string    `json:"amount"`
+	Currency             string    `json:"currency"`
+	TransactionReference string    `json:"transaction_reference"`
+	Livemode             bool      `json:"livemode"`
+	IssuingAppID         string    `json:"issuing_app_id"`
+	CardTransactionType  string    `json:"card_transaction_type"`
+	TransactionDate      time.Time `json:"transaction_date"`
+	TransactionTimestamp int64     `json:"transaction_timestamp"`
 }
 
 type FundIssuingWalletRequest struct {
@@ -230,9 +242,9 @@ type GetCardBalanceResponse struct {
 	Message string `json:"message"`
 	Data    struct {
 		CardID                  string `json:"card_id"`
-		Balance                 string  `json:"balance"`
-		SettledAvailableBalance string  `json:"available_balance"`
-		SettledBookBalance      string  `json:"book_balance"`
+		Balance                 string `json:"balance"`
+		SettledAvailableBalance string `json:"available_balance"`
+		SettledBookBalance      string `json:"book_balance"`
 	} `json:"data"`
 }
 
@@ -243,4 +255,123 @@ type FreezeCardResponse struct {
 		CardID string `json:"card_id"`
 	} `json:"data"`
 }
-	
+
+type UpdateCardPinRequest struct {
+	CardID  string `json:"card_id"`
+	CardPin string `json:"card_pin"`
+}
+
+type CardResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type ListCardsResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		Cards []struct {
+			BillingAddress struct {
+				BillingAddress1 string `json:"billing_address1"`
+				BillingCity     string `json:"billing_city"`
+				BillingCountry  string `json:"billing_country"`
+				BillingZipCode  string `json:"billing_zip_code"`
+				CountryCode     string `json:"country_code"`
+			} `json:"billing_address"`
+			Brand        string `json:"brand"`
+			CardCurrency string `json:"card_currency"`
+			CardID       string `json:"card_id"`
+			CardName     string `json:"card_name"`
+			CardNumber   string `json:"card_number"`
+			CardType     string `json:"card_type"`
+			CardholderID string `json:"cardholder_id"`
+			CreatedAt    int64  `json:"created_at"`
+			CVV          string `json:"cvv"`
+			ExpiryMonth  string `json:"expiry_month"`
+			ExpiryYear   string `json:"expiry_year"`
+			IsActive     bool   `json:"is_active"`
+			IssuingAppID string `json:"issuing_app_id"`
+			Last4        string `json:"last_4"`
+			Livemode     bool   `json:"livemode"`
+		} `json:"cards"`
+		Total int `json:"total"`
+	} `json:"data"`
+}
+
+type CardDebitEventSuccessful struct {
+	Event string `json:"event"`
+	Data  struct {
+		CardID                  string    `json:"card_id"`
+		CardholderID            string    `json:"cardholder_id"`
+		Amount                  string    `json:"amount"`
+		Currency                string    `json:"currency"`
+		TransactionReference    string    `json:"transaction_reference"`
+		Livemode                bool      `json:"livemode"`
+		IssuingAppID            string    `json:"issuing_app_id"`
+		CardTransactionType     string    `json:"card_transaction_type"`
+		MerchantCategoryCode    string    `json:"merchant_category_code"`
+		TransactionDate         time.Time `json:"transaction_date"`
+		TransactionTimestamp    int64     `json:"transaction_timestamp"`
+		SettledAvailableBalance int64     `json:"settled_available_balance"`
+		SettledBookBalance      int64     `json:"settled_book_balance"`
+	} `json:"data"`
+}
+
+type CardDebitEventDeclined struct {
+	Event string `json:"event"`
+	Data  struct {
+		CardID                  string    `json:"card_id"`
+		CardholderID            string    `json:"cardholder_id"`
+		Amount                  string    `json:"amount"`
+		Currency                string    `json:"currency"`
+		TransactionReference    string    `json:"transaction_reference"`
+		Livemode                bool      `json:"livemode"`
+		IssuingAppID            string    `json:"issuing_app_id"`
+		CardTransactionType     string    `json:"card_transaction_type"`
+		MerchantCategoryCode    string    `json:"merchant_category_code"`
+		TransactionDate         time.Time `json:"transaction_date"`
+		TransactionTimestamp    int64     `json:"transaction_timestamp"`
+		SettledAvailableBalance int64     `json:"settled_available_balance"`
+		SettledBookBalance      int64     `json:"settled_book_balance"`
+	} `json:"data"`
+}
+
+type GetCardDetailsResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		BillingAddress struct {
+			BillingAddress1 string `json:"billing_address1"`
+			BillingCity     string `json:"billing_city"`
+			BillingCountry  string `json:"billing_country"`
+			BillingZipCode  string `json:"billing_zip_code"`
+			CountryCode     string `json:"country_code"`
+			State           string `json:"state"`
+			StateCode       string `json:"state_code"`
+		} `json:"billing_address"`
+		Brand        string `json:"brand"`
+		CardCurrency string `json:"card_currency"`
+		CardID       string `json:"card_id"`
+		CardName     string `json:"card_name"`
+		CardNumber   string `json:"card_number"`
+		CardType     string `json:"card_type"`
+		CardholderID string `json:"cardholder_id"`
+		CreatedAt    int64  `json:"created_at"`
+		CVV          string `json:"cvv"`
+		ExpiryMonth  string `json:"expiry_month"`
+		ExpiryYear   string `json:"expiry_year"`
+		IsActive     bool   `json:"is_active"`
+		IsDeleted    bool   `json:"is_deleted"`
+		IssuingAppID string `json:"issuing_app_id"`
+		Last4        string `json:"last_4"`
+		Livemode     bool   `json:"livemode"`
+		MetaData     struct {
+			UserID string `json:"user_id"`
+		} `json:"meta_data"`
+		Balance                 string `json:"balance"`
+		AvailableBalance        string `json:"available_balance"`
+		BookBalance             string `json:"book_balance"`
+		BlockedDueToFraud       bool   `json:"blocked_due_to_fraud"`
+		Pin3DSActivated         bool   `json:"pin_3ds_activated"`
+	} `json:"data"`
+}

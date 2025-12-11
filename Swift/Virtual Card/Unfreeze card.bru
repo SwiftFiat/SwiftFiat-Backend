@@ -4,12 +4,21 @@ meta {
   seq: 7
 }
 
-get {
-  url: 
+post {
+  url: {{BaseURl}}/cards/unfreeze-card?card_id=718f7d6c7cbb4d17bd6cd0ea94370ff3
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+params:query {
+  card_id: 718f7d6c7cbb4d17bd6cd0ea94370ff3
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

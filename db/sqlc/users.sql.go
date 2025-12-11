@@ -317,6 +317,17 @@ func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (User, e
 	return i, err
 }
 
+const getBridgeCardCardholderByUserID = `-- name: GetBridgeCardCardholderByUserID :one
+SELECT bridgecard_cardholder_id FROM users WHERE id = $1
+`
+
+func (q *Queries) GetBridgeCardCardholderByUserID(ctx context.Context, id int64) (sql.NullString, error) {
+	row := q.db.QueryRowContext(ctx, getBridgeCardCardholderByUserID, id)
+	var bridgecard_cardholder_id sql.NullString
+	err := row.Scan(&bridgecard_cardholder_id)
+	return bridgecard_cardholder_id, err
+}
+
 const getPendingCardholderVerifications = `-- name: GetPendingCardholderVerifications :many
 SELECT 
     id,

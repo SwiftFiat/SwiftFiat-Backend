@@ -1,0 +1,27 @@
+meta {
+  name: Withdraw from card
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{BaseURl}}/cards/withdraw-card
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "card_id": "67d9e877e85840d5b6d7dd07ef961807",
+    "amount": "300"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
