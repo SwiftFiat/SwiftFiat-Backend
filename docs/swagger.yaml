@@ -128,11 +128,14 @@ definitions:
         type: number
       currency:
         type: string
+      user_id:
+        type: integer
       wallet_id:
         type: string
     required:
     - amount
     - currency
+    - user_id
     - wallet_id
     type: object
   api.UserDetailResponse:

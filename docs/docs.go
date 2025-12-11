@@ -10674,6 +10674,7 @@ const docTemplate = `{
             "required": [
                 "amount",
                 "currency",
+                "user_id",
                 "wallet_id"
             ],
             "properties": {
@@ -10682,6 +10683,9 @@ const docTemplate = `{
                 },
                 "currency": {
                     "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 },
                 "wallet_id": {
                     "type": "string"
