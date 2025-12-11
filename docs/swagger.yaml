@@ -122,6 +122,19 @@ definitions:
         description: Secret is the secret key used for generating TOTP codes
         type: string
     type: object
+  api.UpdateWalletBalanceRequest:
+    properties:
+      amount:
+        type: number
+      currency:
+        type: string
+      wallet_id:
+        type: string
+    required:
+    - amount
+    - currency
+    - wallet_id
+    type: object
   api.UserDetailResponse:
     properties:
       referral:
@@ -3467,7 +3480,7 @@ paths:
         name: request
         required: true
         schema:
-          type: object
+          $ref: '#/definitions/api.UpdateWalletBalanceRequest'
       produces:
       - application/json
       responses:

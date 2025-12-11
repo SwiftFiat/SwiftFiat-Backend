@@ -659,7 +659,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "type": "object"
+                            "$ref": "#/definitions/api.UpdateWalletBalanceRequest"
                         }
                     }
                 ],
@@ -10665,6 +10665,25 @@ const docTemplate = `{
                 },
                 "secret": {
                     "description": "Secret is the secret key used for generating TOTP codes",
+                    "type": "string"
+                }
+            }
+        },
+        "api.UpdateWalletBalanceRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "currency",
+                "wallet_id"
+            ],
+            "properties": {
+                "amount": {
+                    "type": "number"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "wallet_id": {
                     "type": "string"
                 }
             }
