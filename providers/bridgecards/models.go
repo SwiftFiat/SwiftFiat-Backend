@@ -140,34 +140,74 @@ type WithdrawCardResponse struct {
 	} `json:"data"`
 }
 
-type Transaction struct {
-	ID                   string    `json:"id"`
-	CardID               string    `json:"card_id"`
-	Type                 string    `json:"type"` // "debit", "credit", "reversal"
-	Amount               int64     `json:"amount"`
-	Fee                  int64     `json:"fee"`
-	Currency             string    `json:"currency"`
-	Status               string    `json:"status"` // "pending", "approved", "declined"
-	DeclineReason        string    `json:"decline_reason"`
-	MerchantName         string    `json:"merchant_name"`
-	MerchantCategory     string    `json:"merchant_category"`
-	MerchantCategoryCode string    `json:"merchant_category_code"`
-	MerchantCountry      string    `json:"merchant_country"`
-	MerchantCity         string    `json:"merchant_city"`
-	BillingAmount        int64     `json:"billing_amount"` // Original amount in merchant currency
-	BillingCurrency      string    `json:"billing_currency"`
-	BalanceBefore        int64     `json:"balance_before"`
-	BalanceAfter         int64     `json:"balance_after"`
-	TransactionDate      time.Time `json:"transaction_date"`
-	CreatedAt            time.Time `json:"created_at"`
+type ListCardTransactionsRequest struct {
+	CardID    string `json:"card_id" binding:"required"`
+	Page      int    `json:"page"`
+	StartDate time.Time    `json:"start_date"`
+	EndDate   time.Time    `json:"end_date"`
 }
 
-type ListTransactionsParams struct {
-	StartDate string `json:"start_date"` // YYYY-MM-DD
-	EndDate   string `json:"end_date"`   // YYYY-MM-DD
-	Limit     int    `json:"limit"`
-	Page      int    `json:"page"`
+type ListCardTransactionsResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		Transactions []struct {
+			Amount                         string `json:"amount"`
+			BridgecardTransactionReference string `json:"bridgecard_transaction_reference"`
+			CardID                         string `json:"card_id"`
+			CardTransactionType            string `json:"card_transaction_type"`
+			CardholderID                   string `json:"cardholder_id"`
+			ClientTransactionReference     string `json:"client_transaction_reference"`
+			Currency                       string `json:"currency"`
+			Description                    string `json:"description"`
+			IssuingAppID                   string `json:"issuing_app_id"`
+			Livemode                       bool   `json:"livemode"`
+			TransactionDate                string `json:"transaction_date"`
+			TransactionTimestamp           int64  `json:"transaction_timestamp"`
+			EnrichedData                   struct {
+				IsRecurring         bool   `json:"is_recurring"`
+				MerchantCity        string `json:"merchant_city"`
+				MerchantCode        string `json:"merchant_code"`
+				MerchantLogo        string `json:"merchant_logo"`
+				MerchantName        string `json:"merchant_name"`
+				MerchantWebsite     string `json:"merchant_website"`
+				TransactionCategory string `json:"transaction_category"`
+				TransactionGroup    string `json:"transaction_group"`
+			} `json:"enriched_data"`
+			PartnerInterchangeFee       string `json:"partner_interchange_fee"`
+			InterchangeRevenue          string `json:"interchange_revenue"`
+			PartnerInterchangeFeeRefund string `json:"partner_interchange_fee_refund"`
+			InterchangeRevenueRefund    string `json:"interchange_revenue_refund"`
+		} `json:"transactions"`
+		Meta struct {
+			Total    int    `json:"total"`
+			Pages    int    `json:"pages"`
+			Previous string `json:"previous"`
+			Next     string `json:"next"`
+		} `json:"meta"`
+	} `json:"data"`
 }
+
+type GetCardTransactionResponse struct {
+	Status                         string `json:"status"`
+	Message                        string `json:"message"`
+	Data                           struct {
+		Amount                         string `json:"amount"`
+		BridgecardTransactionReference string `json:"bridgecard_transaction_reference"`
+		CardID                         string `json:"card_id"`
+		CardTransactionType            string `json:"card_transaction_type"`
+		CardholderID                   string `json:"cardholder_id"`
+		ClientTransactionReference     string `json:"client_transaction_reference"`
+		Currency                       string `json:"currency"`
+		Description                    string `json:"description"`
+		IssuingAppID                   string `json:"issuing_app_id"`
+		Livemode                       bool   `json:"livemode"`
+		TransactionDate                string `json:"transaction_date"`
+		TransactionTimestamp           int64  `json:"transaction_timestamp"`
+		MerchantCategoryCode           string `json:"merchant_category_code"`
+	} `json:"data"`
+}
+
 
 type APIResponse struct {
 	Success bool            `json:"success"`
@@ -368,10 +408,31 @@ type GetCardDetailsResponse struct {
 		MetaData     struct {
 			UserID string `json:"user_id"`
 		} `json:"meta_data"`
-		Balance                 string `json:"balance"`
-		AvailableBalance        string `json:"available_balance"`
-		BookBalance             string `json:"book_balance"`
-		BlockedDueToFraud       bool   `json:"blocked_due_to_fraud"`
-		Pin3DSActivated         bool   `json:"pin_3ds_activated"`
+		Balance           string `json:"balance"`
+		AvailableBalance  string `json:"available_balance"`
+		BookBalance       string `json:"book_balance"`
+		BlockedDueToFraud bool   `json:"blocked_due_to_fraud"`
+		Pin3DSActivated   bool   `json:"pin_3ds_activated"`
+	} `json:"data"`
+}
+
+type DebitCardResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		CardID               string `json:"card_id"`
+		TransactionReference string `json:"transaction_reference"`
+	} `json:"data"`
+}
+
+type DebitCardRequest struct {
+	CardID string `json:"card_id"`
+}
+
+type GetCardTransactionStatusResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		TransactionStatus string `json:"transaction_status"`
 	} `json:"data"`
 }

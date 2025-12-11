@@ -77,7 +77,7 @@ func (w Wallet) router(server *Server) {
 
 	serverGroupV1Admin := server.router.Group("/api/admin/v1/wallets")
 	serverGroupV1Admin.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
-	serverGroupV1Admin.POST("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.updateWalletBalance)
+	serverGroupV1Admin.PUT("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.updateWalletBalance)
 	serverGroupV1Admin.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
 
 }

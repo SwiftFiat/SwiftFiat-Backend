@@ -53,42 +53,12 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user kyc data")
 	}
-	// params := &bridgecards.CreateCardHolderRequest{
-	// FirstName: "kyc.FirstName",
-	// LastName:  "kyc.Lastname",
-	// Email:     "test@email.com",
-	// Phone:     "+2348118",
-	// Address: bridgecards.Address{
-	// 	Address:     "man",
-	// 	City:        "Bende",
-	// 	State:       "Abia",
-	// 	PostalCode:  "0044221",
-	// 	Country:     "Nigeria",
-	// 	HouseNumber: "67",
-	// },
-	// Identity: bridgecards.Identity{
-	// 	IDType:      "NIGERIAN_BVN_VERIFICATION",
-	// 	BVN:         "22222222222",
-	// 	SelfieImage: "https://www.catster.com/wp-content/uploads/2024/08/tabby-cats-on-the-road_Ivanova-Ksenia_Shutterstock.jpg.webp",
-	// },
-	// Metadata: map[string]any{
-	// 		"user_id": userID,
-	// 	},
-	// }
+
 	req.Metadata = map[string]any{
 		"user_id": userID,
 	}
-	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
-	if err != nil {
-		return nil, err
-	}
+	return s.bridgeCard.CreateCardHolder(ctx, req)
 
-	r := bridgecards.CreateCardHolderResponse{
-		Status:  response.Status,
-		Message: response.Message,
-		Data:    response.Data,
-	}
-	return &r, nil
 }
 
 // CreateCard creates a new virtual card with BridgeCard and handles all setup
@@ -502,7 +472,7 @@ func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (
 
 	// update virtual card status
 	_, err = s.store.TerminateCard(ctx, db.TerminateCardParams{
-		ID: card.ID,
+		ID:     card.ID,
 		UserID: userID,
 	})
 	if err != nil {
@@ -528,7 +498,31 @@ func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID int6
 	return s.bridgeCard.GetCardDetails(ctx, cardID)
 }
 
-func (s *Service) WithdrawCard(ctx context.Context, req bridgecards.WithdrawCardRequest) (*bridgecards.WithdrawCardResponse, error){
+func (s *Service) DebitCard(ctx context.Context, cardID string, userID int64) (*bridgecards.DebitCardResponse, error) {
+	// check if card belongs to user
+	// card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	// if err != nil {
+	// 	return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	// }
+	// if card.UserID != userID {
+	// 	return nil, fmt.Errorf("card does not belong to user")
+	// }
+	return s.bridgeCard.DebitCard(ctx, bridgecards.DebitCardRequest{CardID: cardID})
+}
+
+func (s *Service) GetCardTransaction(ctx context.Context, cardID string, userID int64) (*bridgecards.GetCardTransactionResponse, error) {
+	return s.bridgeCard.GetCardTransaction(ctx, cardID)
+}
+
+func (s *Service) ListCardTransactions(ctx context.Context, req bridgecards.ListCardTransactionsRequest) (*bridgecards.ListCardTransactionsResponse, error) {
+	return s.bridgeCard.ListCardTransactions(ctx, req)
+}
+
+func (s *Service) GetCardTransactionStatus(ctx context.Context, cardID string, clientTransactionReference string, userID int64) (*bridgecards.GetCardTransactionStatusResponse, error) {
+	return s.bridgeCard.GetCardTransactionStatus(ctx, cardID, clientTransactionReference)
+}
+
+func (s *Service) WithdrawCard(ctx context.Context, req bridgecards.WithdrawCardRequest) (*bridgecards.WithdrawCardResponse, error) {
 	return s.bridgeCard.WithdrawCard(ctx, req)
 }
 

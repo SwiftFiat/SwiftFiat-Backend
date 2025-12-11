@@ -220,6 +220,42 @@ func (p *BridgeCardProvider) WithdrawCard(ctx context.Context, req WithdrawCardR
 	return &response, nil
 }
 
+func (p *BridgeCardProvider) DebitCard(ctx context.Context, req DebitCardRequest) (*DebitCardResponse, error) {
+	var response DebitCardResponse
+	err := p.makeRequest(ctx, http.MethodPatch, "/cards/mock_debit_transaction", req, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit card: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) GetCardTransaction(ctx context.Context, cardID string) (*GetCardTransactionResponse, error) {
+	var response GetCardTransactionResponse
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_card_transaction_by_id?card_id=%s", cardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get card transaction: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) GetCardTransactionStatus(ctx context.Context, cardID string, clientTransactionReference string) (*GetCardTransactionStatusResponse, error) {
+	var response GetCardTransactionStatusResponse
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_card_transaction_status?card_id=%s&client_transaction_reference=%s", cardID, clientTransactionReference), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get card transaction status: %w", err)
+	}
+	return &response, nil
+}
+
+func (p *BridgeCardProvider) ListCardTransactions(ctx context.Context, req ListCardTransactionsRequest) (*ListCardTransactionsResponse, error) {
+	var response ListCardTransactionsResponse
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_card_transactions?card_id=%s", req.CardID), nil, &response)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list card transactions: %w", err)
+	}
+	return &response, nil
+}
+
 func (p *BridgeCardProvider) makeRequest(ctx context.Context, method, endpoint string, body interface{}, result interface{}) error {
 	var reqBody io.Reader
 
@@ -415,20 +451,4 @@ func (p *BridgeCardProvider) ParseCardholderVerification(payload []byte) (any, e
 	default:
 		return nil, fmt.Errorf("unsupported webhook event: %s", event.Event)
 	}
-}
-
-// New method to parse transaction webhook events
-func (p *BridgeCardProvider) ParseTransactionWebhook(payload []byte) (*Transaction, error) {
-	var webhook struct {
-		Event string `json:"event"`
-		Data  struct {
-			Transaction Transaction `json:"transaction"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(payload, &webhook); err != nil {
-		return nil, fmt.Errorf("parse transaction webhook: %w", err)
-	}
-
-	return &webhook.Data.Transaction, nil
 }

@@ -3995,6 +3995,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/cards/debit-card": {
+            "patch": {
+                "description": "Debit a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Debit virtual card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.DebitCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/delete-card": {
             "post": {
                 "description": "Delete a virtual card with BridgeCard",
@@ -4200,6 +4244,108 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.GetCardDetailsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/get-card-transaction-status": {
+            "get": {
+                "description": "Get the status of a virtual card transaction with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get virtual card transaction status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Client transaction reference",
+                        "name": "client_transaction_reference",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.GetCardTransactionStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/list-card-transactions": {
+            "get": {
+                "description": "List all virtual card transactions for a cardholder with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "List virtual card transactions",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.ListCardTransactionsResponse"
                         }
                     },
                     "400": {
@@ -10965,6 +11111,28 @@ const docTemplate = `{
                 }
             }
         },
+        "bridgecards.DebitCardResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "card_id": {
+                            "type": "string"
+                        },
+                        "transaction_reference": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "bridgecards.FreezeCardResponse": {
             "type": "object",
             "properties": {
@@ -11178,6 +11346,25 @@ const docTemplate = `{
                 }
             }
         },
+        "bridgecards.GetCardTransactionStatusResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "transaction_status": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "bridgecards.Identity": {
             "type": "object",
             "required": [
@@ -11198,6 +11385,124 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "selfie_image": {
+                    "type": "string"
+                }
+            }
+        },
+        "bridgecards.ListCardTransactionsResponse": {
+            "type": "object",
+            "properties": {
+                "data": {
+                    "type": "object",
+                    "properties": {
+                        "meta": {
+                            "type": "object",
+                            "properties": {
+                                "next": {
+                                    "type": "string"
+                                },
+                                "pages": {
+                                    "type": "integer"
+                                },
+                                "previous": {
+                                    "type": "string"
+                                },
+                                "total": {
+                                    "type": "integer"
+                                }
+                            }
+                        },
+                        "transactions": {
+                            "type": "array",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "amount": {
+                                        "type": "string"
+                                    },
+                                    "bridgecard_transaction_reference": {
+                                        "type": "string"
+                                    },
+                                    "card_id": {
+                                        "type": "string"
+                                    },
+                                    "card_transaction_type": {
+                                        "type": "string"
+                                    },
+                                    "cardholder_id": {
+                                        "type": "string"
+                                    },
+                                    "client_transaction_reference": {
+                                        "type": "string"
+                                    },
+                                    "currency": {
+                                        "type": "string"
+                                    },
+                                    "description": {
+                                        "type": "string"
+                                    },
+                                    "enriched_data": {
+                                        "type": "object",
+                                        "properties": {
+                                            "is_recurring": {
+                                                "type": "boolean"
+                                            },
+                                            "merchant_city": {
+                                                "type": "string"
+                                            },
+                                            "merchant_code": {
+                                                "type": "string"
+                                            },
+                                            "merchant_logo": {
+                                                "type": "string"
+                                            },
+                                            "merchant_name": {
+                                                "type": "string"
+                                            },
+                                            "merchant_website": {
+                                                "type": "string"
+                                            },
+                                            "transaction_category": {
+                                                "type": "string"
+                                            },
+                                            "transaction_group": {
+                                                "type": "string"
+                                            }
+                                        }
+                                    },
+                                    "interchange_revenue": {
+                                        "type": "string"
+                                    },
+                                    "interchange_revenue_refund": {
+                                        "type": "string"
+                                    },
+                                    "issuing_app_id": {
+                                        "type": "string"
+                                    },
+                                    "livemode": {
+                                        "type": "boolean"
+                                    },
+                                    "partner_interchange_fee": {
+                                        "type": "string"
+                                    },
+                                    "partner_interchange_fee_refund": {
+                                        "type": "string"
+                                    },
+                                    "transaction_date": {
+                                        "type": "string"
+                                    },
+                                    "transaction_timestamp": {
+                                        "type": "integer"
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                "message": {
+                    "type": "string"
+                },
+                "status": {
                     "type": "string"
                 }
             }

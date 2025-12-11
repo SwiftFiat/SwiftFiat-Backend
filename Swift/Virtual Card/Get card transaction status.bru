@@ -1,0 +1,25 @@
+meta {
+  name: Get card transaction status
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{BaseURl}}/cards/get-card-transaction-status?card_id=67d9e877e85840d5b6d7dd07ef961807&client_transaction_reference=876b7e7c6e1846cfa21103b0248cf5fb
+  body: none
+  auth: bearer
+}
+
+params:query {
+  card_id: 67d9e877e85840d5b6d7dd07ef961807
+  client_transaction_reference: 876b7e7c6e1846cfa21103b0248cf5fb
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
