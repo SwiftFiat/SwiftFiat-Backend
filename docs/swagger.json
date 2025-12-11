@@ -10668,6 +10668,7 @@
             "required": [
                 "amount",
                 "currency",
+                "user_id",
                 "wallet_id"
             ],
             "properties": {
@@ -10676,6 +10677,9 @@
                 },
                 "currency": {
                     "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 },
                 "wallet_id": {
                     "type": "string"
