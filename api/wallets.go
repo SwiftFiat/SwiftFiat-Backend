@@ -82,13 +82,19 @@ func (w Wallet) router(server *Server) {
 
 }
 
+type UpdateWalletBalanceRequest struct {
+	WalletID string `json:"wallet_id" binding:"required"`
+	Amount   float64 `json:"amount" binding:"required"`
+	Currency string  `json:"currency" binding:"required"`
+}
+
 // updateWalletBalance godoc
 // @Summary      Update Wallet Balance (Admin Only)
 // @Description  Adds a specified amount to a user's wallet balance. This endpoint is intended for administrative use only.
 // @Tags         Wallets
 // @Accept       json
 // @Produce      json
-// @Param        request        body      object  true  "Request Body"  schema(example={"wallet_id": "string", "amount": 100.0, "currency": "USD"})
+// @Param        request        body      UpdateWalletBalanceRequest  true  "Request Body"
 // @Security 	 BearerAuth
 // @Success      200            {object}  models.WalletResponse
 // @Failure      400            {object}  basemodels.ErrorResponse
@@ -97,12 +103,7 @@ func (w Wallet) router(server *Server) {
 // @Router       /api/admin/v1/wallets/add-to-wallet-balance [put]
 func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 
-	request := struct {
-		WalletID string  `json:"wallet_id" binding:"required"`
-		Amount   float64 `json:"amount" binding:"required"`
-		Currency string  `json:"currency" binding:"required"`
-	}{}
-
+	var request UpdateWalletBalanceRequest
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid wallet_id and amount and currency"))
