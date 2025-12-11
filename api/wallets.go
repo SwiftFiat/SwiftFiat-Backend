@@ -88,8 +88,8 @@ func (w Wallet) router(server *Server) {
 // @Tags         Wallets
 // @Accept       json
 // @Produce      json
-// @Security 	 BearerAuth
 // @Param        request        body      object  true  "Request Body"  schema(example={"wallet_id": "string", "amount": 100.0, "currency": "USD"})
+// @Security 	 BearerAuth
 // @Success      200            {object}  models.WalletResponse
 // @Failure      400            {object}  basemodels.ErrorResponse
 // @Failure      401            {object}  basemodels.ErrorResponse
