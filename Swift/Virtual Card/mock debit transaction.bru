@@ -1,0 +1,24 @@
+meta {
+  name: mock debit transaction
+  type: http
+  seq: 13
+}
+
+patch {
+  url: {{BaseURl}}/cards/debit-card?card_id=67d9e877e85840d5b6d7dd07ef961807
+  body: none
+  auth: bearer
+}
+
+params:query {
+  card_id: 67d9e877e85840d5b6d7dd07ef961807
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
