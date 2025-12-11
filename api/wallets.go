@@ -83,9 +83,10 @@ func (w Wallet) router(server *Server) {
 }
 
 type UpdateWalletBalanceRequest struct {
-	WalletID string `json:"wallet_id" binding:"required"`
+	WalletID string  `json:"wallet_id" binding:"required"`
 	Amount   float64 `json:"amount" binding:"required"`
 	Currency string  `json:"currency" binding:"required"`
+	UserID   int64   `json:"user_id" binding:"required"`
 }
 
 // updateWalletBalance godoc
@@ -116,8 +117,19 @@ func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 		return
 	}
 
+	if activeUser.Role == models.USER {
+		ctx.JSON(401, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	user, err := w.server.queries.GetUserByID(ctx, request.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
 	wallet, err := w.server.queries.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: activeUser.UserID,
+		CustomerID: user.ID,
 		Currency:   request.Currency,
 	})
 	if err != nil {
@@ -713,7 +725,6 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
-
 
 	// audit log
 	entry := audit.NewTransactionLog(ctx, audit.EventWalletSwapCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
