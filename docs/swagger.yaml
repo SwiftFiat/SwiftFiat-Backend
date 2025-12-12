@@ -3471,76 +3471,6 @@ paths:
       summary: Update VIP level
       tags:
       - Rate Manager - VIP Levels
-  /api/admin/v1/wallets/add-to-wallet-balance:
-    put:
-      consumes:
-      - application/json
-      description: Adds a specified amount to a user's wallet balance. This endpoint
-        is intended for administrative use only.
-      parameters:
-      - description: Request Body
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.UpdateWalletBalanceRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.WalletResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Update Wallet Balance (Admin Only)
-      tags:
-      - Wallets
-  /api/admin/v1/wallets/transaction-fee:
-    post:
-      consumes:
-      - application/json
-      description: Creates or updates the fee structure for a specific transaction
-        type.
-      parameters:
-      - description: Transaction Fee Details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/transaction.CreateTransactionFeeRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.TransactionFeeResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create Transaction Fee
-      tags:
-      - Wallets
   /api/v1/admin/cards/fund-issuing-wallet:
     post:
       consumes:
@@ -9206,6 +9136,43 @@ paths:
       summary: Get User Wallets
       tags:
       - Wallets
+  /api/v1/wallets/add-to-wallet-balance:
+    put:
+      consumes:
+      - application/json
+      description: Adds a specified amount to a user's wallet balance. This endpoint
+        is intended for administrative use only.
+      parameters:
+      - description: Request Body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateWalletBalanceRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.WalletResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Wallet Balance (Admin Only)
+      tags:
+      - Wallets
   /api/v1/wallets/banks:
     get:
       consumes:
@@ -9422,6 +9389,38 @@ paths:
       security:
       - BearerAuth: []
       summary: Get Transaction Fee
+      tags:
+      - Wallets
+    post:
+      consumes:
+      - application/json
+      description: Creates or updates the fee structure for a specific transaction
+        type.
+      parameters:
+      - description: Transaction Fee Details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/transaction.CreateTransactionFeeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.TransactionFeeResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Transaction Fee
       tags:
       - Wallets
   /api/v1/wallets/transactions:
