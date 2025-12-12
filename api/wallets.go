@@ -74,11 +74,8 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("beneficiaries", w.server.authMiddleware.AuthenticatedMiddleware(), w.getBeneficiaries)
 	serverGroupV1.POST("withdraw", w.server.authMiddleware.AuthenticatedMiddleware(), w.fiatTransfer)
 	serverGroupV1.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
-
-	serverGroupV1Admin := server.router.Group("/api/admin/v1/wallets")
-	serverGroupV1Admin.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
-	serverGroupV1Admin.PUT("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.updateWalletBalance)
-	serverGroupV1Admin.GET("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionFee)
+	serverGroupV1.POST("transaction-fee", w.server.authMiddleware.AuthenticatedMiddleware(), w.createTransactionFee)
+	serverGroupV1.PUT("add-to-wallet-balance", w.server.authMiddleware.AuthenticatedMiddleware(), w.updateWalletBalance)
 
 }
 
@@ -101,13 +98,13 @@ type UpdateWalletBalanceRequest struct {
 // @Failure      400            {object}  basemodels.ErrorResponse
 // @Failure      401            {object}  basemodels.ErrorResponse
 // @Failure      500            {object}  basemodels.ErrorResponse
-// @Router       /api/admin/v1/wallets/add-to-wallet-balance [put]
+// @Router       /api/v1/wallets/add-to-wallet-balance [put]
 func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 
 	var request UpdateWalletBalanceRequest
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid wallet_id and amount and currency"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -1070,7 +1067,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 // createTransactionFee godoc
 // @Summary      Create Transaction Fee
 // @Description  Creates or updates the fee structure for a specific transaction type.
-// @Tags         Wallets
+// @Tags         Wallets						
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth
@@ -1078,7 +1075,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 // @Success      200     {object}  models.TransactionFeeResponse
 // @Failure      400     {object}  basemodels.ErrorResponse
 // @Failure      500     {object}  basemodels.ErrorResponse
-// @Router       /api/admin/v1/wallets/transaction-fee [post]
+// @Router       /api/v1/wallets/transaction-fee [post]
 func (w *Wallet) createTransactionFee(ctx *gin.Context) {
 	var request transaction.CreateTransactionFeeRequest
 

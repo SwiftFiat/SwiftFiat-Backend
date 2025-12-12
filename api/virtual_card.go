@@ -448,12 +448,12 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-card-transactions [get]
 func (v *Virtualcard) ListCardTransactions(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
 	cardID := c.Query("card_id")
 	page, _ := strconv.Atoi(c.Query("page"))
