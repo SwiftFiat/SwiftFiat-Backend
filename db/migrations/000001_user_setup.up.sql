@@ -50,7 +50,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     "verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- KYC verification status
-    -- turn to true when atleast one verification is done.
+    -- now turn true when bridgecard verification is done
     "is_kyc_verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- BridgeCard verified cardolder

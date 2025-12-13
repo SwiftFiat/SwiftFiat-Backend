@@ -6,12 +6,37 @@ meta {
 
 post {
   url: {{BaseURl}}/cards/register-card-holder
-  body: none
+  body: json
   auth: bearer
 }
 
 auth:bearer {
   token: {{token}}
+}
+
+body:json {
+  {
+     "first_name": "John",
+    "last_name": "Doe",
+    "address": {
+      "address": "9 Jibowu Street",
+      "city": "Aba North",
+      "state": "Abia",
+      "country": "Nigeria",
+      "postal_code": "1000242",
+      "house_no": "13"
+    },
+    "phone": "08122277789",
+    "email_address":"testingboy@gmail.com",
+    "identity": {
+      "id_type": "NIGERIAN_BVN_VERIFICATION",
+      "bvn": "12345678901",
+      "selfie_image": "https://image.com",
+    },
+    "metadata": {
+      "user_id": "1"
+    }
+  }
 }
 
 settings {

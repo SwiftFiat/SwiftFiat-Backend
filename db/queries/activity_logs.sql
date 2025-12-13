@@ -59,6 +59,13 @@ WHERE event_category = $1
 ORDER BY created_at DESC
 LIMIT $4 OFFSET $5;
 
+-- name: GetAllAuditLogs :many
+SELECT * FROM audit_logs
+WHERE created_at >= $1
+    AND created_at <= $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4;
+
 -- name: GetAuditLogsBySeverity :many
 SELECT * FROM audit_logs
 WHERE severity = $1

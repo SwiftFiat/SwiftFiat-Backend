@@ -33,6 +33,8 @@ const (
 	AuditEventCategoryStreaks         AuditEventCategory = "streaks"
 	AuditEventCategoryCrypto          AuditEventCategory = "crypto"
 	AuditEventCategorySmartConversion AuditEventCategory = "smart_conversion"
+	AuditEventCategorySupport         AuditEventCategory = "support"
+	AuditEventCategoryRewards         AuditEventCategory = "rewards"
 )
 
 func (e *AuditEventCategory) Scan(src interface{}) error {
@@ -112,6 +114,29 @@ func (ns NullAuditSeverity) Value() (driver.Value, error) {
 		return nil, nil
 	}
 	return string(ns.AuditSeverity), nil
+}
+
+type AgentMetric struct {
+	ID                        int64          `json:"id"`
+	SupportAdminID            int64          `json:"support_admin_id"`
+	TicketsHandled            int32          `json:"tickets_handled"`
+	TicketsResolved           int32          `json:"tickets_resolved"`
+	AverageResolutionTime     sql.NullInt32  `json:"average_resolution_time"`
+	AverageResponseTime       sql.NullInt32  `json:"average_response_time"`
+	CustomerSatisfactionScore sql.NullString `json:"customer_satisfaction_score"`
+	Date                      time.Time      `json:"date"`
+	CreatedAt                 time.Time      `json:"created_at"`
+}
+
+type Attachment struct {
+	ID        int64     `json:"id"`
+	MessageID int64     `json:"message_id"`
+	FileUrl   string    `json:"file_url"`
+	FileName  string    `json:"file_name"`
+	FileSize  int32     `json:"file_size"`
+	MimeType  string    `json:"mime_type"`
+	Type      string    `json:"type"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // Immutable audit trail for all critical system operations
@@ -304,6 +329,19 @@ type Brand struct {
 	BrandName sql.NullString `json:"brand_name"`
 }
 
+type CannedResponse struct {
+	ID         int64          `json:"id"`
+	Title      string         `json:"title"`
+	Content    string         `json:"content"`
+	Shortcut   sql.NullString `json:"shortcut"`
+	Category   sql.NullString `json:"category"`
+	UsageCount int32          `json:"usage_count"`
+	CreatedBy  sql.NullInt64  `json:"created_by"`
+	IsActive   bool           `json:"is_active"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
 type CardBillingHistory struct {
 	ID                 uuid.UUID      `json:"id"`
 	CardID             uuid.UUID      `json:"card_id"`
@@ -400,6 +438,19 @@ type Category struct {
 	ID         int32  `json:"id"`
 	CategoryID int64  `json:"category_id"`
 	Name       string `json:"name"`
+}
+
+type ChatMessage struct {
+	ID                int64                 `json:"id"`
+	TicketID          int64                 `json:"ticket_id"`
+	SenderID          int64                 `json:"sender_id"`
+	SenderType        string                `json:"sender_type"`
+	MessageText       string                `json:"message_text"`
+	AiConfidenceScore sql.NullString        `json:"ai_confidence_score"`
+	Metadata          pqtype.NullRawMessage `json:"metadata"`
+	IsEdited          bool                  `json:"is_edited"`
+	EditedAt          sql.NullTime          `json:"edited_at"`
+	CreatedAt         time.Time             `json:"created_at"`
 }
 
 // Complete audit trail of all conversion executions
@@ -534,6 +585,21 @@ type ExchangeRate struct {
 	EffectiveTime time.Time `json:"effective_time"`
 	Source        string    `json:"source"`
 	CreatedAt     time.Time `json:"created_at"`
+}
+
+type FaqDocument struct {
+	ID           int64          `json:"id"`
+	Title        string         `json:"title"`
+	Content      string         `json:"content"`
+	Category     sql.NullString `json:"category"`
+	Tags         []string       `json:"tags"`
+	EmbeddingID  sql.NullString `json:"embedding_id"`
+	IsActive     bool           `json:"is_active"`
+	ViewCount    int32          `json:"view_count"`
+	HelpfulCount int32          `json:"helpful_count"`
+	CreatedBy    sql.NullInt64  `json:"created_by"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 // Metadata for fiat currency withdrawals
@@ -983,6 +1049,16 @@ type SubscriptionReminder struct {
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
+type SupportAdmin struct {
+	ID                   int64     `json:"id"`
+	UserID               int64     `json:"user_id"`
+	Status               string    `json:"status"`
+	ActiveTicketCount    int32     `json:"active_ticket_count"`
+	MaxConcurrentTickets int32     `json:"max_concurrent_tickets"`
+	CreatedAt            time.Time `json:"created_at"`
+	UpdatedAt            time.Time `json:"updated_at"`
+}
+
 // Metadata for wallet-to-wallet transfers and swaps
 type SwapTransferMetadatum struct {
 	ID                uuid.UUID      `json:"id"`
@@ -1008,6 +1084,31 @@ type SwiftWallet struct {
 	Status     string         `json:"status"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+type Ticket struct {
+	ID                  int64          `json:"id"`
+	UserID              int64          `json:"user_id"`
+	Status              string         `json:"status"`
+	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	EscalationReason    sql.NullString `json:"escalation_reason"`
+	Priority            string         `json:"priority"`
+	Category            sql.NullString `json:"category"`
+	ResolvedAt          sql.NullTime   `json:"resolved_at"`
+	FirstResponseAt     sql.NullTime   `json:"first_response_at"`
+	AverageResponseTime sql.NullInt32  `json:"average_response_time"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+}
+
+type TicketAssignmentHistory struct {
+	ID           int64          `json:"id"`
+	TicketID     int64          `json:"ticket_id"`
+	AssignedFrom sql.NullInt64  `json:"assigned_from"`
+	AssignedTo   sql.NullInt64  `json:"assigned_to"`
+	AssignedBy   int64          `json:"assigned_by"`
+	Reason       sql.NullString `json:"reason"`
+	CreatedAt    time.Time      `json:"created_at"`
 }
 
 // Core transaction table storing all financial transactions

@@ -271,12 +271,11 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		ctx,
+		audit.CategoryRewards,
 		audit.EventCreateRewardConfig,
 		fmt.Sprint(config.ID),
-		"rewards",
 		"Reward configuration created successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -464,12 +463,11 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		ctx,
+		audit.CategoryRewards,
 		audit.EventUpdateRewardConfig,
 		fmt.Sprint(config.ID),
-		"rewards",
 		"Reward configuration updated successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -544,12 +542,11 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		ctx,
+		audit.CategoryRewards,
 		audit.EventActivateRewardConfig,
 		fmt.Sprint(config.ID),
-		"rewards",
 		"Reward configuration activated successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -608,12 +605,11 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		ctx,
+		audit.CategoryRewards,
 		audit.EventDeactivateRewardConfig,
 		fmt.Sprint(config.ID),
-		"rewards",
 		"Reward configuration deactivated successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,

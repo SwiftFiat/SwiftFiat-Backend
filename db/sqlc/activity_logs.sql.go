@@ -287,6 +287,70 @@ func (q *Queries) CreateAuditLog(ctx context.Context, arg CreateAuditLogParams) 
 	return i, err
 }
 
+const getAllAuditLogs = `-- name: GetAllAuditLogs :many
+SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
+WHERE created_at >= $1
+    AND created_at <= $2
+ORDER BY created_at DESC
+LIMIT $3 OFFSET $4
+`
+
+type GetAllAuditLogsParams struct {
+	CreatedAt   time.Time `json:"created_at"`
+	CreatedAt_2 time.Time `json:"created_at_2"`
+	Limit       int32     `json:"limit"`
+	Offset      int32     `json:"offset"`
+}
+
+func (q *Queries) GetAllAuditLogs(ctx context.Context, arg GetAllAuditLogsParams) ([]AuditLog, error) {
+	rows, err := q.db.QueryContext(ctx, getAllAuditLogs,
+		arg.CreatedAt,
+		arg.CreatedAt_2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditLog{}
+	for rows.Next() {
+		var i AuditLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.EventCategory,
+			&i.EventType,
+			&i.Severity,
+			&i.ActorID,
+			&i.ActorType,
+			&i.ActorEmail,
+			&i.EntityType,
+			&i.EntityID,
+			&i.IpAddress,
+			&i.UserAgent,
+			&i.RequestID,
+			&i.Action,
+			&i.Description,
+			&i.OldValues,
+			&i.NewValues,
+			&i.Metadata,
+			&i.Success,
+			&i.ErrorMessage,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAuditLogByID = `-- name: GetAuditLogByID :one
 SELECT id, event_category, event_type, severity, actor_id, actor_type, actor_email, entity_type, entity_id, ip_address, user_agent, request_id, action, description, old_values, new_values, metadata, success, error_message, created_at FROM audit_logs
 WHERE id = $1

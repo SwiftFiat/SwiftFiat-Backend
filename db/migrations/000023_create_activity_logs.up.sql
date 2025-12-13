@@ -31,7 +31,9 @@ CREATE TYPE audit_event_category AS ENUM (
     'rate_manager',
     'streaks',
     'crypto',
-    'smart_conversion'
+    'smart_conversion',
+    'support',
+    'rewards'
 );
 
 -- Severity levels

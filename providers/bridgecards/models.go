@@ -17,7 +17,7 @@ type CreateCardHolderRequest struct {
 	Phone     string         `json:"phone" binding:"required"`
 	Address   Address        `json:"address" binding:"required"`
 	Identity  Identity       `json:"identity" binding:"required"`
-	Metadata  map[string]any `json:"metadata"`
+	Metadata  map[string]any `json:"meta_data"`
 }
 
 type CreateCardHolderResponse struct {
@@ -31,7 +31,7 @@ type CreateCardHolderResponse struct {
 type Identity struct {
 	IDType      string `json:"id_type" binding:"required"`
 	IDNumber    string `json:"id_number" binding:"omitempty"`
-	IDImage     string `json:"id_image" binding:"omitempty"`
+	// IDImage     *string `json:"id_image" binding:"omitempty"`
 	SelfieImage string `json:"selfie_image" binding:"omitempty"`
 	BVN         string `json:"bvn" binding:"required"`
 }
@@ -141,10 +141,10 @@ type WithdrawCardResponse struct {
 }
 
 type ListCardTransactionsRequest struct {
-	CardID    string `json:"card_id" binding:"required"`
-	Page      int    `json:"page"`
-	StartDate time.Time    `json:"start_date"`
-	EndDate   time.Time    `json:"end_date"`
+	CardID    string    `json:"card_id" binding:"required"`
+	Page      int       `json:"page"`
+	StartDate time.Time `json:"start_date"`
+	EndDate   time.Time `json:"end_date"`
 }
 
 type ListCardTransactionsResponse struct {
@@ -189,9 +189,9 @@ type ListCardTransactionsResponse struct {
 }
 
 type GetCardTransactionResponse struct {
-	Status                         string `json:"status"`
-	Message                        string `json:"message"`
-	Data                           struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
 		Amount                         string `json:"amount"`
 		BridgecardTransactionReference string `json:"bridgecard_transaction_reference"`
 		CardID                         string `json:"card_id"`
@@ -207,7 +207,6 @@ type GetCardTransactionResponse struct {
 		MerchantCategoryCode           string `json:"merchant_category_code"`
 	} `json:"data"`
 }
-
 
 type APIResponse struct {
 	Success bool            `json:"success"`
@@ -434,5 +433,39 @@ type GetCardTransactionStatusResponse struct {
 	Message string `json:"message"`
 	Data    struct {
 		TransactionStatus string `json:"transaction_status"`
+	} `json:"data"`
+}
+
+type CardWithDrawEventSuccessful struct {
+	Event string `json:"event"`
+	Data  struct {
+		CardID               string    `json:"card_id"`
+		CardholderID         string    `json:"cardholder_id"`
+		Amount               string    `json:"amount"`
+		Description          string    `json:"description"`
+		Currency             string    `json:"currency"`
+		TransactionReference string    `json:"transaction_reference"`
+		Livemode             bool      `json:"livemode"`
+		IssuingAppID         string    `json:"issuing_app_id"`
+		CardTransactionType  string    `json:"card_transaction_type"`
+		TransactionDate      string    `json:"transaction_date"`
+		TransactionTimestamp time.Time `json:"transaction_timestamp"`
+	} `json:"data"`
+}
+
+type CardWithDrawEventFailed struct {
+	Event string `json:"event"`
+	Data  struct {
+		CardID               string    `json:"card_id"`
+		CardholderID         string    `json:"cardholder_id"`
+		Amount               string    `json:"amount"`
+		Description          string    `json:"description"`
+		Currency             string    `json:"currency"`
+		TransactionReference string    `json:"transaction_reference"`
+		Livemode             bool      `json:"livemode"`
+		IssuingAppID         string    `json:"issuing_app_id"`
+		CardTransactionType  string    `json:"card_transaction_type"`
+		TransactionDate      string    `json:"transaction_date"`
+		TransactionTimestamp time.Time `json:"transaction_timestamp"`
 	} `json:"data"`
 }

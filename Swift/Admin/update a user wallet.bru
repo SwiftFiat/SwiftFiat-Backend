@@ -4,12 +4,26 @@ meta {
   seq: 1
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+put {
+  url: {{BaseURl}}/wallets/add-to-wallet-balance
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "wallet_id": "8759157f-a025-4915-88be-b7248381214d",
+    "amount": 100,
+    "currency": "USDT", 
+    "user_id": 2
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

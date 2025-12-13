@@ -285,7 +285,7 @@ INSERT INTO subscription_merchants (
 -- name: GetSubscriptionMerchant :one
 SELECT * FROM subscription_merchants WHERE id = $1;
 
--- name: GetSubscriptionMerchantByName :one
+-- name: GetSubscriptionMerchantByName :one 
 SELECT * FROM subscription_merchants 
 WHERE LOWER(merchant_name) = LOWER($1) AND is_active = TRUE;
 
@@ -433,8 +433,8 @@ LIMIT $2;
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0) as total_monthly_spend_cents,
-    MIN(next_estimated_charge_date) FILTER (WHERE status = 'active') as next_charge_date
+    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1;
 

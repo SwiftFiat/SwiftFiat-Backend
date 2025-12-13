@@ -2105,17 +2105,17 @@ const getUserSubscriptionSummary = `-- name: GetUserSubscriptionSummary :one
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0) as total_monthly_spend_cents,
-    MIN(next_estimated_charge_date) FILTER (WHERE status = 'active') as next_charge_date
+    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1
 `
 
 type GetUserSubscriptionSummaryRow struct {
-	ActiveCount            int64       `json:"active_count"`
-	FailedCount            int64       `json:"failed_count"`
-	TotalMonthlySpendCents interface{} `json:"total_monthly_spend_cents"`
-	NextChargeDate         interface{} `json:"next_charge_date"`
+	ActiveCount            int64     `json:"active_count"`
+	FailedCount            int64     `json:"failed_count"`
+	TotalMonthlySpendCents string    `json:"total_monthly_spend_cents"`
+	NextChargeDate         time.Time `json:"next_charge_date"`
 }
 
 func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) (GetUserSubscriptionSummaryRow, error) {
