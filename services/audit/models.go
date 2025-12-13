@@ -30,6 +30,8 @@ const (
 	CategoryRapidRamp      EventCategory = "rapid_ramp"
 	CategoryStreaks        EventCategory = "streaks"
 	CategoryConversion     EventCategory = "smart_conversion"
+	CategorySupport        EventCategory = "support"
+	CategoryRewards        EventCategory = "rewards"
 )
 
 // Severity represents the importance level of an audit event
@@ -175,6 +177,17 @@ const (
 	EventDeleteRewardConfig     = "rewards.config.deleted"
 	EventActivateRewardConfig   = "rewards.config.activated"
 	EventDeactivateRewardConfig = "rewards.config.deactivated"
+
+	EventSupportAdminCreated = "support.admin.created"
+	EventAdminStatusUpdated  = "support.agent.status.updated"
+
+	EventTicketClaimed       = "support.ticket.claimed"
+	EventTicketAssigned      = "support.ticket.assigned"
+	EventTicketStatusUpdated = "support.ticket.status.updated"
+	EventTicketResolved      = "support.ticket.resolved"
+	EventFAQCreated          = "support.FAQ.created"
+	EventFAQUpdated          = "support.FAQ.updated"
+	EventFAQDeleted          = "support.FAQ.deleted"
 )
 
 // LogEntry represents the input for creating an audit log
@@ -316,20 +329,18 @@ func NewAuthenticationLog(c *gin.Context, eventType string, actorID *int64, emai
 	}
 }
 
-func NewLog(c *gin.Context, eventType, entityID, entityType, desc string, actorID *int64, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
+func NewLog(c *gin.Context, category EventCategory, eventType, entityID, desc string, actorID *int64, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
 	severity := SeverityInfo
 	if !success {
 		severity = SeverityWarning
 	}
 
 	return &LogEntry{
-		EventCategory: CategoryCrypto,
+		EventCategory: category,
 		EventType:     eventType,
 		Severity:      severity,
 		ActorID:       actorID,
 		ActorType:     ActorTypeUser,
-		ActorEmail:    email,
-		EntityType:    entityType,
 		EntityID:      entityID,
 		Action:        ActionCreate,
 		Success:       success,

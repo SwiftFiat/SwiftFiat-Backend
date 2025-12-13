@@ -202,12 +202,11 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		errMsg := err.Error()
 		entry := audit.NewLog(
 			ctx,
+			audit.CategoryCrypto,
 			audit.EventCreateStaticWallet,
 			staticWallet.UUID,
-			"crypto",
 			"static wallet creation failed",
 			&activeUser.UserID,
-			nil,
 			activeUser.Role,
 			false,
 			&errMsg,
@@ -229,12 +228,11 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		ctx,
+		audit.CategoryCrypto,
 		audit.EventCreateStaticWallet,
 		staticWallet.UUID,
-		"crypto",
 		"static wallet created.",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,

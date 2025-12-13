@@ -138,6 +138,26 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*LogResponse, error) {
 	return ToLogResponse(log), nil
 }
 
+// GetAllAuditLogs retrieves all audit logs
+func (s *Service) GetAllAuditLogs(ctx context.Context, time1, time2 time.Time, limit, offset int32) ([]LogResponse, error) {
+	logs, err := s.store.GetAllAuditLogs(ctx, db.GetAllAuditLogsParams{
+		CreatedAt: time1,
+		CreatedAt_2: time2,
+		Limit:     limit,
+		Offset:    offset,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get all audit logs: %w", err)
+	}
+
+	responses := make([]LogResponse, len(logs))
+	for i, log := range logs {
+		responses[i] = *ToLogResponse(log)
+	}
+
+	return responses, nil
+}
+
 // GetUserActivity retrieves activity timeline for a user
 func (s *Service) GetUserActivity(ctx context.Context, userID int64, startDate, endDate time.Time, limit, offset int32) ([]db.GetUserActivityTimelineRow, error) {
 	params := db.GetUserActivityTimelineParams{
@@ -194,29 +214,6 @@ func (s *Service) GetEntityHistory(ctx context.Context, entityType, entityID str
 
 	return responses, nil
 }
-
-// Search performs a filtered search on audit logs
-// func (s *Service) Search(ctx context.Context, filters SearchFilters) ([]LogResponse, error) {
-// 	params := db.SearchAuditLogsParams{
-// 		Column1:     filters.EventCategory,
-// 		Column2:     filters.EventType,
-// 		Column3:     filters.Severity,
-// 		Column4:     filters.ActorID,
-// 		Column5:     filters.EntityType,
-// 		Column6:     filters.EntityID,
-// 		CreatedAt:   pgtype.Timestamptz{Time: filters.StartDate, Valid: true},
-// 		CreatedAt_2: pgtype.Timestamptz{Time: filters.EndDate, Valid: true},
-// 		Limit:       filters.Limit,
-// 		Offset:      filters.Offset,
-// 	}
-
-// 	logs, err := s.store.SearchAuditLogs(ctx, params)
-// 	if err != nil {
-// 		return nil, fmt.Errorf("failed to search audit logs: %w", err)
-// 	}
-
-// 	return ToLogResponses(logs), nil
-// }
 
 // GetStats retrieves aggregated statistics for a date range
 func (s *Service) GetStats(ctx context.Context, startDate, endDate time.Time) (*AuditStats, error) {

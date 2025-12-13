@@ -23,6 +23,7 @@ type Service struct {
 	bridgeCard    *bridgecards.BridgeCardProvider
 	walletService *wallet.WalletService
 	logger        *logging.Logger
+	
 }
 
 func NewService(
@@ -39,25 +40,25 @@ func NewService(
 	}
 }
 
+// this is now used for app kyc, Todo: deprecate dojah
 func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridgecards.CreateCardHolderRequest) (*bridgecards.CreateCardHolderResponse, error) {
-	// get user
-	user, err := s.store.GetUserByID(ctx, int64(userID))
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user")
-	}
-	if !user.IsKycVerified {
-		return nil, fmt.Errorf("user kyc not done")
-	}
-
-	_, err = s.store.GetKYCByUserID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user kyc data")
-	}
-
 	req.Metadata = map[string]any{
 		"user_id": userID,
 	}
-	return s.bridgeCard.CreateCardHolder(ctx, req)
+	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	err = s.store.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
+		BridgecardVerificationStatus: sql.NullString{String: "pending", Valid: true},
+		UpdatedAt:                    time.Now(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update cardholder verification status error: %w", err)
+	}
+
+	return response, nil
 
 }
 
@@ -293,6 +294,9 @@ func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, e
 	case strings.HasPrefix(event.Event, "card_credit."):
 		return s.processCardCredit(ctx, payload)
 
+	case strings.HasPrefix(event.Event, "card_unload"):
+		return s.processCardUnloadEvent(ctx, payload)
+
 	// case strings.HasPrefix(event.Event, "card.transaction."):
 	// 	return s.processTransactionWebhook(ctx, payload)
 
@@ -413,6 +417,8 @@ func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (
 		return nil, fmt.Errorf("update virtual card status error: %w", err)
 	}
 
+	// TODO: send notifications
+
 	return cardDetails, nil
 }
 
@@ -440,6 +446,8 @@ func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64)
 		return nil, fmt.Errorf("update virtual card status error: %w", err)
 	}
 
+	// TODO: send notifications
+
 	return cardDetails, nil
 }
 
@@ -452,6 +460,7 @@ func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardP
 	if card.UserID != userID {
 		return nil, fmt.Errorf("card does not belong to user")
 	}
+	// TODO: send notifications
 	return s.bridgeCard.UpdateCardPin(ctx, req)
 }
 
@@ -478,6 +487,8 @@ func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (
 	if err != nil {
 		return nil, fmt.Errorf("terminate card error: %w", err)
 	}
+
+	// TODO: send notifications
 
 	return cardDetails, nil
 }
@@ -544,6 +555,24 @@ func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string
 	}
 }
 
+func (s *Service) processCardUnloadEvent(ctx context.Context, payload []byte) (string, error) {
+	unloadEvent, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card unload event: %w", err)
+	}
+
+	switch u := unloadEvent.(type) {
+	case *bridgecards.CardWithDrawEventSuccessful:
+		return s.handleCardUnloadEventSuccess(ctx, u)
+
+	case *bridgecards.CardWithDrawEventFailed:
+		return s.handleCardUnloadEventFailed(ctx, u)
+
+	default:
+		return "", fmt.Errorf("unknown unload event type")
+	}
+}
+
 // processCardholderVerification handles cardholder verification webhooks
 func (s *Service) processCardholderVerification(ctx context.Context, payload []byte) (string, error) {
 	verification, err := s.bridgeCard.ParseCardholderVerification(payload)
@@ -605,8 +634,18 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 	if foundUID == 0 {
 		return "", fmt.Errorf("user not found for cardholder_id %s after fetching cardholder details", success.CardholderID)
 	}
+	s.logger.Info(fmt.Sprintf("Found user %d for cardholder %s", foundUID, success.CardholderID))
 
-	// 4) Persist mapping cardholder_id -> user_id
+	// Start db transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+	
+	// set SetBridgeCardCardholderID to user
 	if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
 		BridgecardCardholderID: sql.NullString{String: success.CardholderID, Valid: true},
 		UpdatedAt:              time.Now(),
@@ -615,16 +654,16 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 		s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
 	}
 
-	s.logger.Info(fmt.Sprintf("Found user %d for cardholder %s", foundUID, success.CardholderID))
+	// update kyc
+	_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		IsKycVerified: true,
+		UpdatedAt: time.Now(),
+		ID: foundUID,
+	})
 
-	// Start transaction
-	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
-		return "", fmt.Errorf("begin transaction: %w", err)
+		return "", fmt.Errorf("updated user kyc error: %v", err)
 	}
-	defer dbTx.Rollback()
-
-	qtx := s.store.WithTx(dbTx)
 
 	// Update cardholder verification status
 	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
@@ -642,7 +681,6 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 	}
 
 	// TODO: Send notification to user about successful verification
-	// TODO: Update user's KYC status if needed
 
 	s.logger.Info(fmt.Sprintf("Cardholder %s (user_id: %d) successfully verified",
 		success.CardholderID, foundUID))
@@ -870,6 +908,86 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 
 	// TODO: notification
 	return "card_credit.success", nil
+}
+
+func (s *Service) handleCardUnloadEventSuccess(ctx context.Context, success *bridgecards.CardWithDrawEventSuccessful) (string, error) {
+	user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{
+		String: success.Data.CardholderID,
+		Valid:  true,
+	})
+	if err != nil {
+		return "", fmt.Errorf("get user by bridgecard cardholder id error: %w", err)
+	}
+
+	usdWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return "", fmt.Errorf("get wallet by user id and currency error: %w", err)
+	}
+
+	withdrawAmountString, err := utils.CentsStringToDollarString(success.Data.Amount)
+	if err != nil {
+		return "", fmt.Errorf("convert cents to dollar error: %w", err)
+	}
+
+	withdrawAmount, err := utils.ToDecimal(withdrawAmountString)
+	if err != nil {
+		return "", fmt.Errorf("convert amount to decimal error: %w", err)
+	}
+
+	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	if err != nil {
+		return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
+	}
+
+	newBalance := walletBalance.Add(withdrawAmount)
+
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return "", fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID: usdWallet.ID,
+		Amount: sql.NullString{
+			String: newBalance.String(),
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("update wallet balance error: %w", err)
+	}
+
+	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: sql.NullInt64{
+			Int64: user.ID,
+			Valid: true,
+		},
+		Type:            "card",
+		TransactionFlow: sql.NullString{String: "card_withdrawal", Valid: true},
+		Description:     sql.NullString{String: "Card withdrawal", Valid: true},
+		Status:          "successful",
+	})
+	if err != nil {
+		return "", fmt.Errorf("create transaction error: %w", err)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return "", fmt.Errorf("commit transaction: %w", err)
+	}
+
+	// TODO: notification
+	return "card_withdraw.success", nil
+}
+
+func (s *Service) handleCardUnloadEventFailed(ctx context.Context, failed *bridgecards.CardWithDrawEventFailed) (string, error) {
+	return "card_withdraw.failed", nil
 }
 
 // processCardWebhook handles card-related webhooks (status changes, etc.)

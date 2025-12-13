@@ -23,7 +23,7 @@ func (a AuditHandler) router(server *Server) {
 	audit := server.router.Group("/api/v1/audit")
 	audit.Use(a.server.authMiddleware.AuthenticatedMiddleware())
 	audit.GET("/logs/:id", a.GetLogByID)
-	// audit.GET("/logs", a.SearchLogs)
+	audit.GET("/logs", a.GetAllAuditLogs)
 	audit.GET("/user/:userID/activity", a.GetUserActivity)
 	audit.GET("/entity/:entityType/:entityID/history", a.GetEntityHistory)
 
@@ -64,6 +64,45 @@ func (h *AuditHandler) GetLogByID(c *gin.Context) {
 	}
 
 	c.JSON(200, basemodels.NewSuccess("", log))
+}
+
+// GetAllAuditLogs godoc
+// @Summary      Get All Audit Logs
+// @Description  Retrieves all audit logs within a specified date range.
+// @Tags         Audit
+// @Produce      json
+// @Param        start_date query     string  false "Start Date (YYYY-MM-DD or RFC3339)"
+// @Param        end_date   query     string  false "End Date (YYYY-MM-DD or RFC3339)"
+// @Param        limit      query     int     false "Limit number of records" default(50)
+// @Param        offset     query     int     false "Offset for pagination" default(0)
+// @Success      200  {object}  basemodels.SuccessResponse{data=[]audit.LogResponse}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/audit/logs [get]
+func (h *AuditHandler) GetAllAuditLogs(c *gin.Context) {
+	query := c.Request.URL.Query()
+	startDate, err := h.parseDate(query.Get("start_date"), time.Now().AddDate(0, -1, 0))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid start_date"))
+		return
+	}
+
+	endDate, err := h.parseDate(query.Get("end_date"), time.Now())
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid end_date"))
+		return
+	}
+
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+
+	logs, err := h.service.GetAllAuditLogs(c, startDate, endDate, int32(limit), int32(offset))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to retrieve audit logs"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", logs))
 }
 
 // GetUserActivity godoc

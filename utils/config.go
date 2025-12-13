@@ -66,6 +66,7 @@ type Config struct {
 	BridgeCardsAuthToken      string   `mapstructure:"BRIDGECARDS_AUTH_TOKEN"`
 	BridgeCardsSecretKey      string   `mapstructure:"BRIDGECARDS_SECRET_KEY"`
 	BridgeCardsWebhookKey     string   `mapstructure:"BRIDGECARDS_WEBHOOK_KEY"`
+	OpenAIAPIKey              string   `mapstructure:"OPENAI_APIKEY"`
 }
 
 func LoadConfig(path string) (*Config, error) {

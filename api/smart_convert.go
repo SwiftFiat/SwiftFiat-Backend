@@ -89,12 +89,11 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 		errMsg := err.Error()
 		entry := audit.NewLog(
 			c,
+			audit.CategoryConversion,
 			audit.EventCreateConversionRule,
 			rule.ID.String(),
-			"smart-convert",
 			"Failed to create conversion rule",
 			&activeUser.UserID,
-			nil,
 			activeUser.Role,
 			false,
 			&errMsg,
@@ -108,12 +107,11 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryConversion,
 		audit.EventCreateConversionRule,
 		rule.ID.String(),
-		"smart-convert",
 		"Conversion rule created successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -194,12 +192,11 @@ func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryConversion,
 		audit.EventPauseConversionRule,
 		ruleID.String(),
-		"smart-convert",
 		"Conversion rule paused successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -249,12 +246,11 @@ func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryConversion,
 		audit.EventResumeConversionRule,
 		ruleID.String(),
-		"smart-convert",
 		"Conversion rule resumed successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -304,12 +300,11 @@ func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryConversion,
 		audit.EventDeleteConversionRule,
 		ruleID.String(),
-		"smart-convert",
 		"Conversion rule deleted successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -373,24 +368,23 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryConversion,
 		audit.EventManualConversion,
 		result.ConversionID.String(),
-		"smart-convert",
 		"Manual conversion executed successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
 	)
 	entry.Metadata = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
+		"time":           time.Now().Format(time.RFC3339),
 		"transaction_id": result.TransactionID.String(),
-		"executed_rate": result.ExecutedRate,
-		"net_amount": result.NetAmount,
-		"source_amount": result.SourceAmount,
-		"target_amount": result.TargetAmount,
-		"status": result.Status,
+		"executed_rate":  result.ExecutedRate,
+		"net_amount":     result.NetAmount,
+		"source_amount":  result.SourceAmount,
+		"target_amount":  result.TargetAmount,
+		"status":         result.Status,
 	}
 	s.audit.Log(entry)
 

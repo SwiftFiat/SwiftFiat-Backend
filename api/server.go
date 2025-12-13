@@ -20,6 +20,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	bankaccounts "github.com/SwiftFiat/SwiftFiat-Backend/services/bank_accounts"
+	chatsupport "github.com/SwiftFiat/SwiftFiat-Backend/services/chat_support"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
@@ -31,6 +32,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/subscriptions"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
@@ -80,6 +82,11 @@ type Server struct {
 	rateManager              *ratemanager.Service
 	virtualcard              *virtualcard.Service
 	bridgecard               *bridgecards.BridgeCardProvider
+	subscriptions            *subscriptions.Service
+	chatService              *chatsupport.ChatService
+	ticketService            *chatsupport.TicketService
+	aiService                *chatsupport.AIService
+	supportService           *chatsupport.SupportAdminService
 }
 
 func NewServer(envPath string) *Server {
@@ -188,6 +195,9 @@ func NewServer(envPath string) *Server {
 	// qrcode service
 	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
 
+	// subscriptons service
+	ss := subscriptions.NewService(q, l)
+
 	qrScheduler := rapidramp.NewRapidRampScheduler(
 		t,
 		qr,
@@ -219,6 +229,18 @@ func NewServer(envPath string) *Server {
 
 	// virtual card service
 	vcs := virtualcard.NewService(q, l, bridgecard, ws)
+
+	// chat AI service
+	ai := chatsupport.NewAIService(q, l, c)
+
+	// chat service
+	chat := chatsupport.NewChatService(q, l, ai)
+
+	// tickets
+	ticket := chatsupport.NewTicketService(q, l, ns, email)
+
+	// admin support
+	support := chatsupport.NewSupportAdminService(q, l)
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -273,6 +295,11 @@ func NewServer(envPath string) *Server {
 		rateManager:              rm,
 		virtualcard:              vcs,
 		bridgecard:               bridgecard,
+		subscriptions:            ss,
+		chatService:              chat,
+		aiService:                ai,
+		ticketService:            ticket,
+		supportService:           support,
 	}
 }
 
@@ -310,6 +337,9 @@ func (s *Server) Start() error {
 	AuditHandler{}.router(s)
 	RateManagerHandler{}.router(s)
 	Virtualcard{}.router(s)
+	Subscriptions{}.router(s)
+	ChatSupport{}.router(s)
+	SupportAdmin{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})

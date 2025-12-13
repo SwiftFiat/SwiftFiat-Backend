@@ -35,6 +35,47 @@ definitions:
     - funding_amount
     - source_wallet_id
     type: object
+  api.CreateMerchantRequest:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      auto_detect:
+        type: boolean
+      category:
+        type: string
+      description:
+        type: string
+      display_name:
+        type: string
+      logo_url:
+        type: string
+      match_confidence:
+        type: string
+      mcc_codes:
+        items:
+          type: string
+        type: array
+      merchant_name:
+        type: string
+      subcategory:
+        type: string
+      typical_amounts_cents:
+        items:
+          type: integer
+        type: array
+      typical_intervals:
+        items:
+          type: integer
+        type: array
+      website:
+        type: string
+    required:
+    - category
+    - display_name
+    - merchant_name
+    type: object
   api.CreateStaticWalletRequest:
     properties:
       currency:
@@ -52,6 +93,35 @@ definitions:
     required:
     - password
     type: object
+  api.FaqDocumentResponse:
+    properties:
+      category:
+        type: string
+      content:
+        type: string
+      created_at:
+        type: string
+      created_by:
+        type: integer
+      embedding_id:
+        type: string
+      helpful_count:
+        type: integer
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      tags:
+        items:
+          type: string
+        type: array
+      title:
+        type: string
+      updated_at:
+        type: string
+      view_count:
+        type: integer
+    type: object
   api.FiatTransferResponse:
     properties:
       saved_beneficiary:
@@ -67,6 +137,72 @@ definitions:
         items:
           $ref: '#/definitions/models.UserKYCInformation'
         type: array
+    type: object
+  api.ListTicketsByStatusRow:
+    properties:
+      assigned_to:
+        type: integer
+      average_response_time:
+        type: integer
+      category:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      escalation_reason:
+        type: string
+      first_name:
+        type: string
+      first_response_at:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      priority:
+        type: string
+      resolved_at:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  api.ListUnassignedTicketsRow:
+    properties:
+      assigned_to:
+        type: integer
+      average_response_time:
+        type: integer
+      category:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      escalation_reason:
+        type: string
+      first_name:
+        type: string
+      first_response_at:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      priority:
+        type: string
+      resolved_at:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
     type: object
   api.NotificationListResponse:
     properties:
@@ -106,6 +242,33 @@ definitions:
     required:
     - email
     type: object
+  api.TicketResponse:
+    properties:
+      assigned_to:
+        type: integer
+      average_response_time:
+        type: integer
+      category:
+        type: string
+      created_at:
+        type: string
+      escalation_reason:
+        type: string
+      first_response_at:
+        type: string
+      id:
+        type: integer
+      priority:
+        type: string
+      resolved_at:
+        type: string
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
   api.TwoFARequest:
     properties:
       enable:
@@ -121,6 +284,54 @@ definitions:
       secret:
         description: Secret is the secret key used for generating TOTP codes
         type: string
+    type: object
+  api.UpdateMerchantRequest:
+    properties:
+      aliases:
+        items:
+          type: string
+        type: array
+      auto_detect:
+        type: boolean
+      category:
+        type: string
+      display_name:
+        type: string
+      logo_url:
+        type: string
+      subcategory:
+        type: string
+      typical_amounts_cents:
+        items:
+          type: integer
+        type: array
+      typical_intervals:
+        items:
+          type: integer
+        type: array
+    type: object
+  api.UpdateStatusRequest:
+    properties:
+      status:
+        enum:
+        - active
+        - cancelled
+        - paused
+        - failed
+        type: string
+    required:
+    - status
+    type: object
+  api.UpdateSubscriptionPreferencesRequest:
+    properties:
+      custom_name:
+        type: string
+      reminder_days_before:
+        type: integer
+      reminder_enabled:
+        type: boolean
+      user_confirmed:
+        type: boolean
     type: object
   api.UpdateWalletBalanceRequest:
     properties:
@@ -249,6 +460,8 @@ definitions:
     - rapid_ramp
     - streaks
     - smart_conversion
+    - support
+    - rewards
     type: string
     x-enum-varnames:
     - CategoryAuthentication
@@ -267,6 +480,8 @@ definitions:
     - CategoryRapidRamp
     - CategoryStreaks
     - CategoryConversion
+    - CategorySupport
+    - CategoryRewards
   audit.LogResponse:
     properties:
       action:
@@ -410,7 +625,7 @@ definitions:
         $ref: '#/definitions/bridgecards.Identity'
       last_name:
         type: string
-      metadata:
+      meta_data:
         additionalProperties: {}
         type: object
       phone:
@@ -618,13 +833,12 @@ definitions:
     properties:
       bvn:
         type: string
-      id_image:
-        type: string
       id_number:
         type: string
       id_type:
         type: string
       selfie_image:
+        description: IDImage     *string `json:"id_image" binding:"omitempty"`
         type: string
     required:
     - bvn
@@ -803,6 +1017,145 @@ definitions:
       status:
         type: string
     type: object
+  chatsupport.AIQueryResponse:
+    properties:
+      answer:
+        type: string
+      confidence_score:
+        type: number
+      escalation_reason:
+        type: string
+      faq_sources:
+        items:
+          $ref: '#/definitions/chatsupport.FAQSource'
+        type: array
+      human_required:
+        type: boolean
+      metadata:
+        additionalProperties: true
+        type: object
+    type: object
+  chatsupport.AgentMetricResponse:
+    properties:
+      average_resolution_time:
+        type: integer
+      average_response_time:
+        type: integer
+      created_at:
+        type: string
+      customer_satisfaction_score:
+        type: string
+      date:
+        type: string
+      id:
+        type: integer
+      support_admin_id:
+        type: integer
+      tickets_handled:
+        type: integer
+      tickets_resolved:
+        type: integer
+    type: object
+  chatsupport.AttachmentResponse:
+    properties:
+      created_at:
+        type: string
+      file_name:
+        type: string
+      file_size:
+        type: integer
+      file_url:
+        type: string
+      id:
+        type: integer
+      mime_type:
+        type: string
+      type:
+        type: string
+    type: object
+  chatsupport.ChatMessageResponse:
+    properties:
+      ai_confidence_score:
+        type: number
+      attachments:
+        items:
+          $ref: '#/definitions/chatsupport.AttachmentResponse'
+        type: array
+      created_at:
+        type: string
+      id:
+        type: integer
+      is_edited:
+        type: boolean
+      message_text:
+        type: string
+      metadata:
+        additionalProperties: true
+        type: object
+      sender_first_name:
+        type: string
+      sender_id:
+        type: integer
+      sender_last_name:
+        type: string
+      sender_type:
+        type: string
+      ticket_id:
+        type: integer
+    type: object
+  chatsupport.FAQSource:
+    properties:
+      category:
+        type: string
+      id:
+        type: integer
+      snippet:
+        type: string
+      title:
+        type: string
+    type: object
+  chatsupport.GetAdminWorkloadRowResponse:
+    properties:
+      active_ticket_count:
+        type: integer
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      status:
+        type: string
+      total_tickets:
+        type: integer
+      user_id:
+        type: integer
+    type: object
+  chatsupport.ListAllSupportAdminsRowResponse:
+    properties:
+      active_ticket_count:
+        type: integer
+      created_at:
+        type: string
+      email:
+        type: string
+      first_name:
+        type: string
+      id:
+        type: integer
+      last_name:
+        type: string
+      max_concurrent_tickets:
+        type: integer
+      status:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
   cryptocurrency.PaymentInfoRequest:
     properties:
       order_id:
@@ -833,6 +1186,21 @@ definitions:
         type: string
     type: object
   db.CreateYieldConfigParams:
+    type: object
+  db.GetTicketStatisticsRow:
+    properties:
+      assigned_tickets:
+        type: integer
+      avg_resolution_time:
+        type: number
+      closed_tickets:
+        type: integer
+      in_progress_tickets:
+        type: integer
+      open_tickets:
+        type: integer
+      resolved_tickets:
+        type: integer
     type: object
   db.GetUserVaultsSummaryRow:
     properties:
@@ -871,6 +1239,23 @@ definitions:
       id:
         type: integer
       referral_key:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  db.SupportAdmin:
+    properties:
+      active_ticket_count:
+        type: integer
+      created_at:
+        type: string
+      id:
+        type: integer
+      max_concurrent_tickets:
+        type: integer
+      status:
         type: string
       updated_at:
         type: string
@@ -3501,6 +3886,249 @@ paths:
       summary: Fund issuing wallet [admin]
       tags:
       - Cards
+  /api/v1/admin/faq:
+    get:
+      description: Retrieve paginated list of FAQ documents
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.FaqDocumentResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List FAQ documents
+      tags:
+      - admin-faq
+    post:
+      consumes:
+      - application/json
+      description: Create a new FAQ document for the knowledge base
+      parameters:
+      - description: FAQ creation request
+        in: body
+        name: faqRequest
+        required: true
+        schema:
+          properties:
+            category:
+              type: string
+            content:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.FaqDocumentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create FAQ document
+      tags:
+      - admin-faq
+  /api/v1/admin/faq/{faqId}:
+    delete:
+      description: Soft delete an FAQ document
+      parameters:
+      - description: FAQ ID
+        in: path
+        name: faqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete FAQ document
+      tags:
+      - admin-faq
+    get:
+      description: Retrieve a specific FAQ document by ID
+      parameters:
+      - description: FAQ ID
+        in: path
+        name: faqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.FaqDocumentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get FAQ document
+      tags:
+      - admin-faq
+    put:
+      consumes:
+      - application/json
+      description: Update an existing FAQ document
+      parameters:
+      - description: FAQ ID
+        in: path
+        name: faqId
+        required: true
+        type: string
+      - description: FAQ update request
+        in: body
+        name: faqRequest
+        required: true
+        schema:
+          properties:
+            category:
+              type: string
+            content:
+              type: string
+            tags:
+              items:
+                type: string
+              type: array
+            title:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.FaqDocumentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update FAQ document
+      tags:
+      - admin-faq
+  /api/v1/admin/faq/{faqId}/helpful:
+    post:
+      description: Increment the helpful counter for an FAQ
+      parameters:
+      - description: FAQ ID
+        in: path
+        name: faqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Mark FAQ as helpful
+      tags:
+      - admin-faq
   /api/v1/admin/rewards/config:
     get:
       consumes:
@@ -3879,6 +4507,233 @@ paths:
       summary: Reset broken streaks (Admin)
       tags:
       - Streaks/Admin
+  /api/v1/admin/subscriptions/alerts:
+    get:
+      consumes:
+      - application/json
+      description: Get system health alerts and failed renewals
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get system alerts (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/all:
+    get:
+      consumes:
+      - application/json
+      description: Get all subscriptions across the platform
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all subscriptions (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/merchants:
+    get:
+      consumes:
+      - application/json
+      description: Get spending analytics per merchant
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get merchant insights (Admin)
+      tags:
+      - Subscriptions
+    post:
+      consumes:
+      - application/json
+      description: Add a new subscription merchant to the database
+      parameters:
+      - description: Merchant details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateMerchantRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create subscription merchant (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/merchants/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update an existing subscription merchant
+      parameters:
+      - description: Merchant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Merchant updates
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateMerchantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update subscription merchant (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/merchants/{merchant_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific merchant
+      parameters:
+      - description: Merchant ID
+        in: path
+        name: merchant_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get merchant details (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/merchants/list:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all subscription merchants
+      parameters:
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List all merchants (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get overall platform subscription statistics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get platform statistics (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/admin/subscriptions/users/{user_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get all subscriptions for a specific user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user subscriptions (Admin)
+      tags:
+      - Subscriptions
   /api/v1/analytics/crypto-transactions:
     get:
       consumes:
@@ -4452,6 +5307,53 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get Entity Change History
+      tags:
+      - Audit
+  /api/v1/audit/logs:
+    get:
+      description: Retrieves all audit logs within a specified date range.
+      parameters:
+      - description: Start Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: start_date
+        type: string
+      - description: End Date (YYYY-MM-DD or RFC3339)
+        in: query
+        name: end_date
+        type: string
+      - default: 50
+        description: Limit number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/audit.LogResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get All Audit Logs
       tags:
       - Audit
   /api/v1/audit/logs/{id}:
@@ -5786,7 +6688,7 @@ paths:
       summary: List virtual cards
       tags:
       - Cards
-  /api/v1/cards/register-cardholder:
+  /api/v1/cards/register-card-holder:
     post:
       consumes:
       - application/json
@@ -5905,6 +6807,584 @@ paths:
       summary: Withdraw virtual card [not done]
       tags:
       - Cards
+  /api/v1/chat/admin/support/my-tickets:
+    get:
+      description: Retrieve all tickets assigned to the authenticated admin
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.ListUnassignedTicketsRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my assigned tickets
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/statistics:
+    get:
+      description: Retrieve support ticket statistics
+      parameters:
+      - default: '"2024-01-01T00:00:00Z"'
+        description: Start date (RFC3339 format)
+        in: query
+        name: since
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.GetTicketStatisticsRow'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get support statistics
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets:
+    get:
+      description: Get paginated list of support tickets (admin only)
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.ListTicketsByStatusRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all tickets
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}:
+    get:
+      description: Retrieve detailed information about a specific ticket
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    messages:
+                      items:
+                        $ref: '#/definitions/chatsupport.ChatMessageResponse'
+                      type: array
+                    ticket:
+                      $ref: '#/definitions/api.ListUnassignedTicketsRow'
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get ticket details
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}/assign:
+    patch:
+      description: Assign a ticket to a specific support agent
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      - description: Assignment request
+        in: body
+        name: assignRequest
+        required: true
+        schema:
+          properties:
+            admin_id:
+              format: int64
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TicketResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Assign a ticket
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}/claim:
+    post:
+      description: Claim an unassigned ticket for yourself
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TicketResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Claim a ticket
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}/message:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Send a message as a support agent
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      - description: Message text
+        in: formData
+        name: text
+        required: true
+        type: string
+      - description: Image attachment (max 500KB)
+        in: formData
+        name: attachment
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/chatsupport.ChatMessageResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send admin message
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}/resolve:
+    post:
+      description: Mark a ticket as resolved
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TicketResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resolve a ticket
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/{ticketId}/status:
+    patch:
+      description: Update the status of a support ticket
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      - description: Status update request
+        in: body
+        name: statusRequest
+        required: true
+        schema:
+          properties:
+            status:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.TicketResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update ticket status
+      tags:
+      - admin-support
+  /api/v1/chat/admin/support/tickets/unassigned:
+    get:
+      description: Retrieve all tickets that haven't been assigned to an agent
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.ListUnassignedTicketsRow'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get unassigned tickets
+      tags:
+      - admin-support
+  /api/v1/chat/escalate/{ticketId}:
+    post:
+      description: Manually request escalation to human support
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Request human support
+      tags:
+      - chat
+  /api/v1/chat/message:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Send a message in a support conversation (AI or human)
+      parameters:
+      - description: Message text
+        in: formData
+        name: text
+        required: true
+        type: string
+      - description: Image attachment (max 500KB)
+        in: formData
+        name: attachment
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    ai_response:
+                      $ref: '#/definitions/chatsupport.AIQueryResponse'
+                    escalated:
+                      type: boolean
+                    message:
+                      $ref: '#/definitions/chatsupport.ChatMessageResponse'
+                    ticket_id:
+                      format: int64
+                      type: integer
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Send a chat message
+      tags:
+      - chat
+  /api/v1/chat/my-tickets:
+    get:
+      description: Retrieve all support tickets for the authenticated user
+      parameters:
+      - default: 50
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/api.TicketResponse'
+                  type: array
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get my support tickets
+      tags:
+      - chat
+  /api/v1/chat/ticket/{ticketId}/messages:
+    get:
+      description: Retrieve all messages for a specific ticket
+      parameters:
+      - description: Ticket ID
+        in: path
+        name: ticketId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/chatsupport.ChatMessageResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get conversation history
+      tags:
+      - chat
   /api/v1/crypto/coin-data:
     get:
       consumes:
@@ -6342,6 +7822,33 @@ paths:
       summary: Get QR transactions
       tags:
       - QR Codes
+  /api/v1/referral/admin/list:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the list of referrals for a specific user
+      parameters:
+      - description: User ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/referral.Referral'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get User Referrals
+      tags:
+      - Referral
   /api/v1/referral/earnings:
     get:
       consumes:
@@ -7081,6 +8588,612 @@ paths:
       summary: Get user's streak stats
       tags:
       - Streaks
+  /api/v1/subscriptions:
+    get:
+      consumes:
+      - application/json
+      description: Get all active subscriptions for the authenticated user
+      parameters:
+      - description: Filter by card ID
+        in: query
+        name: card_id
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user subscriptions
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific subscription
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get subscription details
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/{id}/preferences:
+    patch:
+      consumes:
+      - application/json
+      description: Update reminder settings and custom name for a subscription
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Preferences
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateSubscriptionPreferencesRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update subscription preferences
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Cancel or pause a subscription
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Status update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update subscription status
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/analytics/category:
+    get:
+      consumes:
+      - application/json
+      description: Get subscription spending breakdown by category
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get category breakdown
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/analytics/spending:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed spending analytics for subscriptions
+      parameters:
+      - description: Start date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: End date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get spending analytics
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/reminders:
+    get:
+      consumes:
+      - application/json
+      description: Get subscription reminders for the user
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user reminders
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/summary:
+    get:
+      consumes:
+      - application/json
+      description: Get subscription analytics summary for the user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get subscription summary
+      tags:
+      - Subscriptions
+  /api/v1/support-agent/metrics:
+    get:
+      description: Retrieve performance metrics for the authenticated support agent
+      parameters:
+      - default: '"2024-01-01"'
+        description: Start date (YYYY-MM-DD)
+        in: query
+        name: start_date
+        type: string
+      - default: '"2024-12-31"'
+        description: End date (YYYY-MM-DD)
+        in: query
+        name: end_date
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/chatsupport.AgentMetricResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get My Performance Metrics
+      tags:
+      - support-agent
+  /api/v1/support-agent/profile:
+    get:
+      description: Retrieve the authenticated user's support admin profile
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.SupportAdmin'
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get My Support Agent Profile
+      tags:
+      - support-agent
+  /api/v1/support-agent/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the authenticated support agent's online/offline/busy status
+      parameters:
+      - description: Status update request (online, offline, busy)
+        in: body
+        name: statusRequest
+        required: true
+        schema:
+          properties:
+            status:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.SupportAdmin'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update My Status
+      tags:
+      - support-agent
+  /api/v1/supports:
+    get:
+      description: Retrieve all support admin profiles with user details
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/chatsupport.ListAllSupportAdminsRowResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Support Admins
+      tags:
+      - support
+    post:
+      consumes:
+      - application/json
+      description: Create a support admin profile for a user (admin only)
+      parameters:
+      - description: Support Admin Creation Request
+        in: body
+        name: adminRequest
+        required: true
+        schema:
+          properties:
+            max_concurrent_tickets:
+              format: int32
+              type: integer
+            user_id:
+              format: int64
+              type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.SupportAdmin'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create Support Admin Profile
+      tags:
+      - support
+  /api/v1/supports/{adminId}:
+    get:
+      description: Retrieve detailed information about a specific support admin
+      parameters:
+      - description: Support Admin ID
+        in: path
+        name: adminId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.SupportAdmin'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Support Admin Details
+      tags:
+      - support
+  /api/v1/supports/{adminId}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the online/offline/busy status of a support admin
+      parameters:
+      - description: Support Admin ID
+        in: path
+        name: adminId
+        required: true
+        type: string
+      - description: Status update request (online, offline, busy)
+        in: body
+        name: statusRequest
+        required: true
+        schema:
+          properties:
+            status:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/db.SupportAdmin'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update Support Admin Status
+      tags:
+      - support
+  /api/v1/supports/available:
+    get:
+      description: Retrieve support admins available to take new tickets
+      parameters:
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/db.SupportAdmin'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Available Support Admins
+      tags:
+      - support
+  /api/v1/supports/workload:
+    get:
+      description: Retrieve workload distribution across all support admins
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/chatsupport.GetAdminWorkloadRowResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Admin Workload
+      tags:
+      - support
   /api/v1/user/{user_id}/avatar:
     get:
       consumes:

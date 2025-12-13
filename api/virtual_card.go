@@ -13,7 +13,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
- 
+
 type Virtualcard struct {
 	server         *Server
 	virtualCardSvc *virtualcard.Service
@@ -25,21 +25,21 @@ func (v Virtualcard) router(server *Server) {
 	v1 := server.router.Group("/api/v1/cards")
 	// v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
-		v1.POST("/", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard) //done
-		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder) //done
-		v1.POST("/webhook", v.Webhook) //done
-		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance) // done
-		v1.POST("/fund-card", server.authMiddleware.AuthenticatedMiddleware(), v.FundCard) //done
-		v1.POST("/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.FreezeCard) //done
-		v1.POST("/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.UnfreezeCard) //done
-		v1.POST("/update-card-pin", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPin) //done
-		v1.DELETE("/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCard) //done
-		v1.GET("/list-cards", server.authMiddleware.AuthenticatedMiddleware(), v.ListCards) //done
-		v1.GET("/get-card-details", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardDetails) //done
-		v1.PATCH("/debit-card", server.authMiddleware.AuthenticatedMiddleware(), v.DebitCard) //done
-		v1.GET("/list-card-transactions", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactions) //done
+		v1.POST("/", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)                                         //done
+		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder)             //done
+		v1.POST("/webhook", v.Webhook)                                                                                      //done
+		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance)                      // done
+		v1.POST("/fund-card", server.authMiddleware.AuthenticatedMiddleware(), v.FundCard)                                  //done
+		v1.POST("/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.FreezeCard)                              //done
+		v1.POST("/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.UnfreezeCard)                          //done
+		v1.POST("/update-card-pin", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPin)                       //done
+		v1.DELETE("/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCard)                            //done
+		v1.GET("/list-cards", server.authMiddleware.AuthenticatedMiddleware(), v.ListCards)                                 //done
+		v1.GET("/get-card-details", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardDetails)                      //done
+		v1.PATCH("/debit-card", server.authMiddleware.AuthenticatedMiddleware(), v.DebitCard)                               //done
+		v1.GET("/list-card-transactions", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactions)          //done
 		v1.GET("/get-card-transaction-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardTransactionStatus) //done
-		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard) //not done
+		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard)                          //not done
 	}
 	v1admin := server.router.Group("/api/v1/admin/cards")
 	v1admin.Use(server.authMiddleware.AuthenticatedMiddleware())
@@ -66,14 +66,14 @@ func (v *Virtualcard) FundIssuingWallet(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	message := v.virtualCardSvc.FundIssuingWallet(c, req)
 	c.JSON(http.StatusOK, basemodels.NewSuccess(message, nil))
 }
 
 type CreateCardRequest struct {
-	Brand          string    `json:"card_brand"` // "visa" or "mastercard"
-	FundingAmount  string    `json:"funding_amount" binding:"required"`          // Initial funding amount
+	Brand          string    `json:"card_brand"`                        // "visa" or "mastercard"
+	FundingAmount  string    `json:"funding_amount" binding:"required"` // Initial funding amount
 	CardPlanID     int64     `json:"card_plan_id" binding:"required"`
 	CardName       string    `json:"card_name" binding:"required"`
 	CardColor      string    `json:"color" binding:"omitempty"`
@@ -131,7 +131,7 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated,  result)
+	c.JSON(http.StatusCreated, result)
 }
 
 // RegisterCardHolder godoc [Replace existing KYC with this]
@@ -144,7 +144,7 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 // @Success 200 {object} bridgecards.CreateCardHolderResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/register-cardholder [post]
+// @Router /api/v1/cards/register-card-holder [post]
 func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -165,7 +165,7 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK,  response)
+	c.JSON(http.StatusOK, response)
 }
 
 // GetCardBalance godoc
@@ -192,7 +192,7 @@ func (v *Virtualcard) GetCardBalance(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK,  response)
+	c.JSON(http.StatusOK, response)
 }
 
 // FundCard godoc
@@ -212,19 +212,19 @@ func (v *Virtualcard) FundCard(c *gin.Context) {
 		v.server.logger.Error(err.Error())
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
-	}	
+	}
 	var req bridgecards.FundCardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
-	} 
+	}
 	req.TransactionReference = utils.NewTxRef("fund-card")
 	response, err := v.virtualCardSvc.FundCard(c, req, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -252,13 +252,13 @@ func (v *Virtualcard) FreezeCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.FreezeCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -286,13 +286,13 @@ func (v *Virtualcard) UnfreezeCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.UnfreezeCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -319,13 +319,13 @@ func (v *Virtualcard) UpdateCardPin(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.UpdateCardPin(c, req, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -352,13 +352,13 @@ func (v *Virtualcard) DeleteCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.DeleteCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -385,13 +385,13 @@ func (v *Virtualcard) DebitCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.DebitCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -425,13 +425,13 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing cardholder_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.ListCards(c, cardholderIDfromUser.String, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -448,17 +448,9 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-card-transactions [get]
 func (v *Virtualcard) ListCardTransactions(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
-
 	cardID := c.Query("card_id")
 	page, _ := strconv.Atoi(c.Query("page"))
-	// start := c.Query("start")
-	// end := c.Query("end")
+
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
@@ -467,14 +459,25 @@ func (v *Virtualcard) ListCardTransactions(c *gin.Context) {
 	var req bridgecards.ListCardTransactionsRequest
 	req.CardID = cardID
 	req.Page = page
-	// req.StartDate = start
-	// req.EndDate = end
+
+	// Check if card belongs to user
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if cardID != card.BridgecardCardID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("card_id does not belong to user"))
+		return
+	}
 	response, err := v.virtualCardSvc.ListCardTransactions(c, req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -513,7 +516,7 @@ func (s *Virtualcard) GetCardTransactionStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -548,8 +551,8 @@ func (v *Virtualcard) WithdrawCard(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
-	}	
-	
+	}
+
 	c.JSON(http.StatusOK, response)
 }
 
@@ -576,13 +579,13 @@ func (v *Virtualcard) GetCardDetails(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-	
+
 	response, err := v.virtualCardSvc.GetCardDetails(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-	
+
 	c.JSON(http.StatusOK, response)
 }
 

@@ -46,6 +46,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	serverGroupV1.POST("/track", r.server.authMiddleware.AuthenticatedMiddleware(), r.Trackreferral)
 	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
+	serverGroupV1.GET("/admin/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.AdminGetUserReferrals)
 }
 
 // testReferral godoc
@@ -125,14 +126,13 @@ type ReferralWithUser struct {
 func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		// Todo: add logging
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 	referrals, err := r.service.GetUserReferrals(ctx, activeUser.UserID)
 	if err != nil {
-		//	add logging
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user referrals"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
 	}
 
 	var refsWithUser []ReferralWithUser
@@ -154,6 +154,43 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 		Data:    refsWithUser,
 		Version: utils.REVISION,
 	})
+}
+
+// AdminGetUserReferrals godoc
+// @Summary      Get User Referrals
+// @Description  Retrieves the list of referrals for a specific user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Param        user_id  query  int  true  "User ID"
+// @Success      200  {object}  []referral.Referral
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/list [get]
+func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	referrals, err := r.service.GetUserReferrals(ctx, int64(userID))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("", referrals))
 }
 
 // GetEarnings godoc

@@ -79,12 +79,11 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 		errMsg := err.Error()
 		e := audit.NewLog(
 			c,
+			audit.CategoryRapidRamp,
 			audit.EventCreateQrCode,
-			"",
-			"",
+			qrCode.ID.String(),
 			"Failed to create QR code",
 			&activeUser.UserID,
-			nil,
 			activeUser.Role,
 			false,
 			&errMsg,
@@ -98,12 +97,11 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 	// audit log
 	e := audit.NewLog(
 		c,
+		audit.CategoryRapidRamp,
 		audit.EventCreateQrCode,
 		qrCode.ID.String(),
-		"Qrcodes",
-		"Failed to create QR code",
+		"Qrcode created successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,
@@ -204,12 +202,11 @@ func (q *QRCodeHandler) DeleteQRCode(c *gin.Context) {
 	// audit log
 	entry := audit.NewLog(
 		c,
+		audit.CategoryRapidRamp,
 		audit.EventDeleteQrCode,
 		qrID.String(),
-		"Qrcodes",
 		"QR code deleted successfully",
 		&activeUser.UserID,
-		nil,
 		activeUser.Role,
 		true,
 		nil,

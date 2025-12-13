@@ -60,9 +60,9 @@ func NewBridgeCardProvider(config *utils.Config, useSandbox bool, logger *loggin
 func (p *BridgeCardProvider) CreateCardHolder(ctx context.Context, req *CreateCardHolderRequest) (*CreateCardHolderResponse, error) {
 	var response CreateCardHolderResponse
 
-	err := p.makeRequest(ctx, http.MethodPost, "/cardholder/register_cardholder", req, &response)
+	err := p.makeRequest(ctx, http.MethodPost, "/cardholder/register_cardholder_synchronously", req, &response)
 	if err != nil {
-		return nil, fmt.Errorf("failed to register cardholder: %w", err)
+		return nil, err
 	}
 
 	return &response, nil
