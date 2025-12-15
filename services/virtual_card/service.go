@@ -40,24 +40,69 @@ func NewService(
 }
 
 // this is now used for app kyc, Todo: deprecate dojah
+// i am setting aside async registration because i dont see a way to update user data from webhook
 func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridgecards.CreateCardHolderRequest) (*bridgecards.CreateCardHolderResponse, error) {
 	req.Metadata = map[string]any{
 		"user_id": userID,
 	}
+
+	// err = s.store.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
+	// 	BridgecardVerificationStatus: sql.NullString{String: "pending", Valid: true},
+	// 	UpdatedAt:                    time.Now(),
+	// 	ID:                           int64(userID),
+	// })
+
+	// if err != nil {
+	// 	return nil, fmt.Errorf("update cardholder verification status error: %w", err)
+	// }
 	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
-	err = s.store.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-		BridgecardVerificationStatus: sql.NullString{String: "pending", Valid: true},
-		UpdatedAt:                    time.Now(),
+	// Start db transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+
+	// set SetBridgeCardCardholderID to user
+	if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
+		BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
+		UpdatedAt:              time.Now(),
+		ID:                     int64(userID),
+	}); setErr != nil {
+		s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
+	}
+
+	// update kyc
+	_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		IsKycVerified: true,
+		UpdatedAt:     time.Now(),
+		ID:            int64(userID),
 	})
 
+	if err != nil {
+		return nil, fmt.Errorf("updated user kyc error: %v", err)
+	}
+
+	// Update cardholder verification status
+	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
+		ID:                           int64(userID),
+		BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
+		UpdatedAt:                    time.Now(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("update cardholder verification status error: %w", err)
 	}
 
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
 	return response, nil
 
 }
@@ -676,7 +721,7 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 
 	// Update cardholder verification status
 	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-		BridgecardCardholderID:       sql.NullString{String: success.CardholderID, Valid: true},
+		ID:                           foundUID,
 		BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
 		UpdatedAt:                    time.Now(),
 	})
@@ -721,7 +766,7 @@ func (s *Service) handleCardholderVerificationFailed(ctx context.Context, failed
 	qtx := s.store.WithTx(dbTx)
 
 	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-		BridgecardCardholderID:       sql.NullString{String: failed.CardholderID, Valid: true},
+		ID:                           1, // Todo:
 		BridgecardVerificationStatus: sql.NullString{String: "failed", Valid: true},
 		UpdatedAt:                    time.Now(),
 	})

@@ -143,7 +143,7 @@ WHERE id = $3 RETURNING *;
 
 -- name: UpdateCardholderVerificationStatus :exec
 UPDATE users SET bridgecard_verification_status = $1, updated_at = $2
-WHERE bridgecard_cardholder_id = $3;
+WHERE id = $3;
 
 -- name: GetUserByBridgeCardCardholderID :one
 -- Get user by their BridgeCard cardholder ID
