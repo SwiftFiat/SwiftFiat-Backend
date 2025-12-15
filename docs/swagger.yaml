@@ -11746,6 +11746,34 @@ paths:
       summary: Perform Fiat Transfer
       tags:
       - Wallets
+  /api/v1/ws/admin/support:
+    get:
+      description: Establish WebSocket connection for admin notifications and ticket
+        updates
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: Admin WebSocket Connection
+      tags:
+      - websocket
+  /api/v1/ws/chat:
+    get:
+      description: Establish WebSocket connection for real-time chat updates
+      parameters:
+      - description: Ticket ID to subscribe to
+        in: query
+        name: ticket_id
+        type: string
+      produces:
+      - application/json
+      responses: {}
+      security:
+      - BearerAuth: []
+      summary: User WebSocket Connection
+      tags:
+      - websocket
   /rate-manager/current-rate:
     get:
       description: Get current exchange rate with VIP adjustment applied

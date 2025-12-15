@@ -33,18 +33,15 @@ var (
 type ChatService struct {
 	store  *db.Store
 	logger *logging.Logger
-	aiSvc  *AIService
 }
 
 func NewChatService(
 	store *db.Store,
 	logger *logging.Logger,
-	aiSvc *AIService,
 ) *ChatService {
 	return &ChatService{
 		store:  store,
 		logger: logger,
-		aiSvc:  aiSvc,
 	}
 }
 

@@ -83,10 +83,12 @@ type Server struct {
 	virtualcard              *virtualcard.Service
 	bridgecard               *bridgecards.BridgeCardProvider
 	subscriptions            *subscriptions.Service
+	subscriptionScheduler    *subscriptions.Scheduler
 	chatService              *chatsupport.ChatService
 	ticketService            *chatsupport.TicketService
 	aiService                *chatsupport.AIService
 	supportService           *chatsupport.SupportAdminService
+	wsHub                    *Hub
 }
 
 func NewServer(envPath string) *Server {
@@ -230,17 +232,24 @@ func NewServer(envPath string) *Server {
 	// virtual card service
 	vcs := virtualcard.NewService(q, l, bridgecard, ws)
 
+	// subscription scheduler
+	ssScheduler := subscriptions.NewScheduler(t, ss, q, l, 1*time.Hour)
+
 	// chat AI service
 	ai := chatsupport.NewAIService(q, l, c)
 
 	// chat service
-	chat := chatsupport.NewChatService(q, l, ai)
+	chat := chatsupport.NewChatService(q, l)
 
 	// tickets
 	ticket := chatsupport.NewTicketService(q, l, ns, email)
 
 	// admin support
 	support := chatsupport.NewSupportAdminService(q, l)
+
+	// Initialize WebSocket Hub
+	wsHub := NewHub(l)
+	go wsHub.Run()
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -296,10 +305,12 @@ func NewServer(envPath string) *Server {
 		virtualcard:              vcs,
 		bridgecard:               bridgecard,
 		subscriptions:            ss,
+		subscriptionScheduler:    ssScheduler,
 		chatService:              chat,
 		aiService:                ai,
 		ticketService:            ticket,
 		supportService:           support,
+		wsHub:                    wsHub,
 	}
 }
 
@@ -340,6 +351,7 @@ func (s *Server) Start() error {
 	Subscriptions{}.router(s)
 	ChatSupport{}.router(s)
 	SupportAdmin{}.router(s)
+	WebSocketHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
@@ -368,6 +380,13 @@ func (s *Server) Start() error {
 	if s.smartConversionScheduler != nil {
 		if err := s.smartConversionScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start smart conversion scheduler", "error", err)
+		}
+	}
+
+	// Start subscription scheduler
+	if s.subscriptionScheduler != nil {
+		if err := s.subscriptionScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start subscription scheduler", "error", err)
 		}
 	}
 
@@ -405,6 +424,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if s.smartConversionScheduler != nil {
 			if err := s.smartConversionScheduler.Stop(); err != nil {
 				s.logger.Warn("Error stopping smart conversion scheduler", "error", err)
+			}
+		}
+
+		// Stop subscription scheduler
+		if s.subscriptionScheduler != nil {
+			if err := s.subscriptionScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping subscription scheduler", "error", err)
 			}
 		}
 
