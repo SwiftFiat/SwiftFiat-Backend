@@ -52,6 +52,19 @@ INSERT INTO virtual_cards (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
 ) RETURNING *;
+ 
+-- name: GetTotalCards :one
+SELECT COUNT(*) AS total_cards
+FROM virtual_cards;
+
+-- name: GetTotalCardsByStatus :one
+SELECT
+    COUNT(*) AS total_cards,
+    COUNT(*) FILTER (WHERE status = 'active')     AS active_cards,
+    COUNT(*) FILTER (WHERE status = 'frozen')     AS frozen_cards,
+    COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_cards
+FROM virtual_cards;
+
 
 -- name: GetVirtualCard :one
 SELECT * FROM virtual_cards
@@ -142,6 +155,42 @@ UPDATE virtual_cards
 SET 
     status = 'terminated',
     terminated_at = NOW(),
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING *;
+
+-- name: DeactivateCard :one
+UPDATE virtual_cards
+SET 
+    status = 'inactive',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING *;
+
+-- name: ActivateCard :one
+UPDATE virtual_cards
+SET 
+    status = 'active',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING *;
+
+-- name: FreezeCard :one
+UPDATE virtual_cards
+SET 
+    status = 'frozen',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING *;
+
+-- name: UnfreezeCard :one
+UPDATE virtual_cards
+SET 
+    status = 'active',
+    terminated_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
 RETURNING *;

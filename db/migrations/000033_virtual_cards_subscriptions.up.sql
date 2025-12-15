@@ -84,9 +84,9 @@ CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS 
     
     -- Status (mirrors BridgeCard status but cached for quick queries)
     "status" VARCHAR(20) NOT NULL DEFAULT 'active', 
-    -- Status: 'active', 'frozen', 'terminated'
+    -- Status: 'active', 'frozen', 'terminated', 'inactive'
     "status_reason" TEXT,
-    
+     
     -- Auto top-up feature (our business logic)
     "auto_topup_enabled" BOOLEAN NOT NULL DEFAULT FALSE,
     "auto_topup_threshold_cents" BIGINT, -- Top up when balance falls below
@@ -193,7 +193,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     
     -- Status
     "status" VARCHAR(20) NOT NULL,
-    -- Status: 'pending', 'approved', 'declined', 'reversed'
+    -- Status: 'pending', 'successful', 'declined', 'reversed'
     "decline_reason" TEXT,
     
     -- Classification (for subscription detection)

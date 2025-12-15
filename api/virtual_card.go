@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 	virtualcard "github.com/SwiftFiat/SwiftFiat-Backend/services/virtual_card"
@@ -39,12 +40,10 @@ func (v Virtualcard) router(server *Server) {
 		v1.PATCH("/debit-card", server.authMiddleware.AuthenticatedMiddleware(), v.DebitCard)                               //done
 		v1.GET("/list-card-transactions", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactions)          //done
 		v1.GET("/get-card-transaction-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardTransactionStatus) //done
-		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard)                          //not done
-	}
-	v1admin := server.router.Group("/api/v1/admin/cards")
-	v1admin.Use(server.authMiddleware.AuthenticatedMiddleware())
-	{
-		v1admin.POST("/fund-issuing-wallet", v.FundIssuingWallet) //done
+		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard)
+		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)          //done
+		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                   //not done
+		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus) //not done
 	}
 
 }
@@ -59,7 +58,7 @@ func (v Virtualcard) router(server *Server) {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/cards/fund-issuing-wallet [post]
+// @Router /api/v1/cards/admin/fund-issuing-wallet [post]
 func (v *Virtualcard) FundIssuingWallet(c *gin.Context) {
 	var req bridgecards.FundIssuingWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -634,4 +633,66 @@ func (v *Virtualcard) Webhook(c *gin.Context) {
 
 	v.server.logger.Info(fmt.Sprintf("Successfully processed webhook event: %s", eventType))
 	c.JSON(http.StatusOK, basemodels.NewSuccess("webhook processed successfully", nil))
+}
+
+// GetTotalCards godoc
+// @Summary Get total number of virtual cards
+// @Description Get total number of virtual cards
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Success 200 {object} int
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/admin/get-total-cards [get]
+func (v *Virtualcard) GetTotalCards(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	totalCards, err := v.server.queries.GetTotalCards(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, totalCards)
+}
+
+// GetTotalCardsByStatus godoc
+// @Summary Get total number of virtual cards by status
+// @Description Get total number of virtual cards by status
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Success 200 {object} int
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/admin/get-total-cards-by-status [get]
+func (v *Virtualcard) GetTotalCardsByStatus(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	totalCards, err := v.server.queries.GetTotalCardsByStatus(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, totalCards)
 }

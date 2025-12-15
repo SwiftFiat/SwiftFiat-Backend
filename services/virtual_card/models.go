@@ -2,8 +2,6 @@ package virtualcard
 
 import (
 	"fmt"
-
-	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 )
 
 var (
@@ -16,10 +14,52 @@ var (
 	ErrSpendingLimitExceeded = fmt.Errorf("spending limit exceeded")
 )
 
-// ============================================================================
-// CARD CREATION
-// ============================================================================
+// 'active', 'frozen', 'terminated', 'inactive'
+type VirtualCardStatus string
 
-type CreateCardResult struct {
-	BridgeCardDetails *bridgecards.CreateCardResponse
-}
+const (
+	VirtualCardStatusActive     VirtualCardStatus = "active"
+	VirtualCardStatusFrozen     VirtualCardStatus = "frozen"
+	VirtualCardStatusTerminated VirtualCardStatus = "terminated"
+	VirtualCardStatusInactive   VirtualCardStatus = "inactive"
+)
+
+// 'pending', 'successful', 'failed', 'reversed'
+type CardFundingStatus string
+
+const (
+	CardFundingStatusPending    CardFundingStatus = "pending"
+	CardFundingStatusSuccessful CardFundingStatus = "successful"
+	CardFundingStatusFailed     CardFundingStatus = "failed"
+	CardFundingStatusReversed   CardFundingStatus = "reversed"
+)
+
+// 'pending', 'successful', 'declined', 'reversed'
+type CardTransactionStatus string
+
+const (
+	CardTransactionStatusPending    CardTransactionStatus = "pending"
+	CardTransactionStatusSuccessful CardTransactionStatus = "successful"
+	CardTransactionStatusDeclined   CardTransactionStatus = "declined"
+	CardTransactionStatusReversed   CardTransactionStatus = "reversed"
+)
+
+// 'active', 'cancelled', 'failed', 'paused'
+type CardSubscriptionStatus string
+
+const (
+	CardSubscriptionStatusActive    CardSubscriptionStatus = "active"
+	CardSubscriptionStatusCancelled CardSubscriptionStatus = "cancelled"
+	CardSubscriptionStatusFailed    CardSubscriptionStatus = "failed"
+	CardSubscriptionStatusPaused    CardSubscriptionStatus = "paused"
+)
+
+// 'pending', 'completed', 'failed', 'waived'
+type CardBillingHistoryStatus string
+
+const (
+	CardBillingHistoryStatusPending    CardBillingHistoryStatus = "pending"
+	CardBillingHistoryStatusSuccessful CardBillingHistoryStatus = "successful"
+	CardBillingHistoryStatusFailed     CardBillingHistoryStatus = "failed"
+	CardBillingHistoryStatusWaived     CardBillingHistoryStatus = "waived"
+)

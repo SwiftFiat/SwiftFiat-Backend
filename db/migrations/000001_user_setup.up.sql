@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     "is_kyc_verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- BridgeCard verified cardolder
-    "bridgecard_verification_status" VARCHAR(50) DEFAULT 'pending' CHECK (bridgecard_verification_status IN ('pending', 'verified', 'failed', 'manual_review')),
+    "bridgecard_verification_status" VARCHAR(50) CHECK (bridgecard_verification_status IN ('pending', 'verified', 'failed', 'manual_review')),
 
     -- BridgeCard cardholder ID
     "bridgecard_cardholder_id" VARCHAR(50) UNIQUE,

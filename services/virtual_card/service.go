@@ -23,7 +23,6 @@ type Service struct {
 	bridgeCard    *bridgecards.BridgeCardProvider
 	walletService *wallet.WalletService
 	logger        *logging.Logger
-	
 }
 
 func NewService(
@@ -54,6 +53,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		BridgecardVerificationStatus: sql.NullString{String: "pending", Valid: true},
 		UpdatedAt:                    time.Now(),
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("update cardholder verification status error: %w", err)
 	}
@@ -174,7 +174,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		CardName:         params.CardName,
 		CardColor:        sql.NullString{String: params.CardColor, Valid: params.CardColor != ""},
 		Currency:         "USD",
-		Status:           "active",
+		Status:           string(VirtualCardStatusActive),
 		NextBillingDate:  sql.NullTime{Time: nextBillingDate, Valid: true},
 		SpendingMonth:    sql.NullString{String: now.Format("2006-01"), Valid: true},
 	})
@@ -205,7 +205,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		BillingPeriodStart: now,
 		BillingPeriodEnd:   now,
 		SourceWalletID:     params.SourceWalletID,
-		Status:             "successful",
+		Status:             string(CardBillingHistoryStatusSuccessful),
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to log creation fee: %v", err))
@@ -221,7 +221,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		SourceCurrency: sourceWallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
-		Status:         "successful",
+		Status:         string(CardFundingStatusSuccessful),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create funding record: %w", err)
@@ -356,7 +356,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		SourceCurrency: wallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
-		Status:         "pending",
+		Status:         string(CardFundingStatusPending),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create card funding record error: %w", err)
@@ -381,7 +381,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		// Update funding status to failed if BridgeCard call fails
 		_, updateErr := s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
 			ID:            fundingRecord.ID,
-			Status:        "failed",
+			Status:        string(CardFundingStatusFailed),
 			FailureReason: sql.NullString{String: err.Error(), Valid: true},
 		})
 		if updateErr != nil {
@@ -411,7 +411,7 @@ func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (
 	// update virtual card status
 	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
 		ID:     card.ID,
-		Status: "frozen",
+		Status: string(VirtualCardStatusFrozen),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update virtual card status error: %w", err)
@@ -440,7 +440,7 @@ func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64)
 	// update virtual card status
 	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
 		ID:     card.ID,
-		Status: "active",
+		Status: string(VirtualCardStatusActive),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update virtual card status error: %w", err)
@@ -486,6 +486,15 @@ func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (
 	})
 	if err != nil {
 		return nil, fmt.Errorf("terminate card error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: string(VirtualCardStatusTerminated),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
 	}
 
 	// TODO: send notifications
@@ -644,7 +653,7 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 	defer dbTx.Rollback()
 
 	qtx := s.store.WithTx(dbTx)
-	
+
 	// set SetBridgeCardCardholderID to user
 	if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
 		BridgecardCardholderID: sql.NullString{String: success.CardholderID, Valid: true},
@@ -657,8 +666,8 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 	// update kyc
 	_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
 		IsKycVerified: true,
-		UpdatedAt: time.Now(),
-		ID: foundUID,
+		UpdatedAt:     time.Now(),
+		ID:            foundUID,
 	})
 
 	if err != nil {
@@ -791,7 +800,7 @@ func (s Service) handleCardCreditFailed(ctx context.Context, failed *bridgecards
 		// update card status with failure reason
 		_, _ = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
 			ID:            card.ID,
-			Status:        "failed",
+			Status:        string(CardFundingStatusFailed),
 			FailureReason: sql.NullString{String: walletErr.Error(), Valid: true},
 		})
 
@@ -873,7 +882,7 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		SourceCurrency: usdWallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
-		Status:         "successful",
+		Status:         string(CardFundingStatusSuccessful),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create card funding error: %w", err)
@@ -891,14 +900,6 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)
-	}
-
-	_, err = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
-		ID:     card.ID,
-		Status: "successful",
-	})
-	if err != nil {
-		return "", fmt.Errorf("update card funding status error: %w", err)
 	}
 
 	// Commit transaction

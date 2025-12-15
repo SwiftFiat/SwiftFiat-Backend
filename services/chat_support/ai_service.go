@@ -22,6 +22,14 @@ const (
 	MaxContextMessages  = 10
 )
 
+// Lower threshold = more AI responses, less escalation
+// Higher threshold = more escalation, better quality
+
+// Recommended values:
+// 0.50 - Aggressive AI (more automation)
+// 0.55 - Balanced (recommended)
+// 0.70 - Conservative (more human touch)
+
 type AIService struct {
 	store      *db.Store
 	logger     *logging.Logger
@@ -124,7 +132,8 @@ func (s *AIService) retrieveRelevantFAQs(ctx context.Context, query string) ([]F
 
 // buildSystemPrompt creates the system prompt with FAQ context
 func (s *AIService) buildSystemPrompt(faqSources []FAQSource) string {
-	prompt := `You are a helpful customer support assistant for SwiftFiat, a financial services platform. 
+	var prompt strings.Builder
+	prompt.WriteString(`You are a helpful customer support assistant for SwiftFiat, a financial services platform. 
 Your goal is to provide accurate, helpful, and friendly responses to customer inquiries.
 
 Guidelines:
@@ -135,16 +144,16 @@ Guidelines:
 5. For account-specific issues, payments, or verification, recommend contacting human support
 6. Never make up information - only use provided context
 
-`
+`)
 
 	if len(faqSources) > 0 {
-		prompt += "\n\nRelevant FAQ Articles:\n"
+		prompt.WriteString("\n\nRelevant FAQ Articles:\n")
 		for i, source := range faqSources {
-			prompt += fmt.Sprintf("\n%d. %s\n%s\n", i+1, source.Title, source.Snippet)
+			fmt.Fprintf(&prompt, "\n%d. %s\n%s\n", i+1, source.Title, source.Snippet)
 		}
 	}
 
-	return prompt
+	return prompt.String()
 }
 
 // buildMessages constructs the message array for OpenAI
@@ -265,7 +274,6 @@ func (s *AIService) calculateConfidence(response string, faqSources []FAQSource,
 	return confidence
 
 }
-
 
 // shouldEscalate determines if the query should be escalated to human support
 func (s *AIService) shouldEscalate(confidence float64, query string, faqSources []FAQSource) (bool, string) {

@@ -13190,6 +13190,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/ws/admin/support": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Establish WebSocket connection for admin notifications and ticket updates",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "websocket"
+                ],
+                "summary": "Admin WebSocket Connection",
+                "responses": {}
+            }
+        },
+        "/api/v1/ws/chat": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Establish WebSocket connection for real-time chat updates",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "websocket"
+                ],
+                "summary": "User WebSocket Connection",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Ticket ID to subscribe to",
+                        "name": "ticket_id",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/rate-manager/current-rate": {
             "get": {
                 "security": [

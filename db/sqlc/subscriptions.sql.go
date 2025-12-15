@@ -15,6 +15,53 @@ import (
 	"github.com/sqlc-dev/pqtype"
 )
 
+const activateCard = `-- name: ActivateCard :one
+UPDATE virtual_cards
+SET 
+    status = 'active',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend_cents, current_day_spend_cents, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+`
+
+type ActivateCardParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID int64     `json:"user_id"`
+}
+
+func (q *Queries) ActivateCard(ctx context.Context, arg ActivateCardParams) (VirtualCard, error) {
+	row := q.db.QueryRowContext(ctx, activateCard, arg.ID, arg.UserID)
+	var i VirtualCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardPlanID,
+		&i.BridgecardCardID,
+		&i.CardName,
+		&i.CardColor,
+		&i.Currency,
+		&i.CurrentMonthSpendCents,
+		&i.CurrentDaySpendCents,
+		&i.SpendingMonth,
+		&i.SpendingDay,
+		&i.Status,
+		&i.StatusReason,
+		&i.AutoTopupEnabled,
+		&i.AutoTopupThresholdCents,
+		&i.AutoTopupAmountCents,
+		&i.AutoTopupSourceWalletID,
+		&i.NextBillingDate,
+		&i.LastBillingDate,
+		&i.LastTransactionAt,
+		&i.TotalTransactionsCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TerminatedAt,
+	)
+	return i, err
+}
+
 const createCardBilling = `-- name: CreateCardBilling :one
 
 INSERT INTO card_billing_history (
@@ -564,6 +611,53 @@ func (q *Queries) CreateVirtualCard(ctx context.Context, arg CreateVirtualCardPa
 	return i, err
 }
 
+const deactivateCard = `-- name: DeactivateCard :one
+UPDATE virtual_cards
+SET 
+    status = 'inactive',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend_cents, current_day_spend_cents, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+`
+
+type DeactivateCardParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID int64     `json:"user_id"`
+}
+
+func (q *Queries) DeactivateCard(ctx context.Context, arg DeactivateCardParams) (VirtualCard, error) {
+	row := q.db.QueryRowContext(ctx, deactivateCard, arg.ID, arg.UserID)
+	var i VirtualCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardPlanID,
+		&i.BridgecardCardID,
+		&i.CardName,
+		&i.CardColor,
+		&i.Currency,
+		&i.CurrentMonthSpendCents,
+		&i.CurrentDaySpendCents,
+		&i.SpendingMonth,
+		&i.SpendingDay,
+		&i.Status,
+		&i.StatusReason,
+		&i.AutoTopupEnabled,
+		&i.AutoTopupThresholdCents,
+		&i.AutoTopupAmountCents,
+		&i.AutoTopupSourceWalletID,
+		&i.NextBillingDate,
+		&i.LastBillingDate,
+		&i.LastTransactionAt,
+		&i.TotalTransactionsCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TerminatedAt,
+	)
+	return i, err
+}
+
 const deleteCardPlan = `-- name: DeleteCardPlan :exec
 UPDATE card_plans
 SET deleted_at = NOW(), updated_at = NOW()
@@ -657,6 +751,53 @@ func (q *Queries) FindSubscriptionMerchantByPattern(ctx context.Context, lower s
 		&i.AutoDetect,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const freezeCard = `-- name: FreezeCard :one
+UPDATE virtual_cards
+SET 
+    status = 'frozen',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend_cents, current_day_spend_cents, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+`
+
+type FreezeCardParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID int64     `json:"user_id"`
+}
+
+func (q *Queries) FreezeCard(ctx context.Context, arg FreezeCardParams) (VirtualCard, error) {
+	row := q.db.QueryRowContext(ctx, freezeCard, arg.ID, arg.UserID)
+	var i VirtualCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardPlanID,
+		&i.BridgecardCardID,
+		&i.CardName,
+		&i.CardColor,
+		&i.Currency,
+		&i.CurrentMonthSpendCents,
+		&i.CurrentDaySpendCents,
+		&i.SpendingMonth,
+		&i.SpendingDay,
+		&i.Status,
+		&i.StatusReason,
+		&i.AutoTopupEnabled,
+		&i.AutoTopupThresholdCents,
+		&i.AutoTopupAmountCents,
+		&i.AutoTopupSourceWalletID,
+		&i.NextBillingDate,
+		&i.LastBillingDate,
+		&i.LastTransactionAt,
+		&i.TotalTransactionsCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TerminatedAt,
 	)
 	return i, err
 }
@@ -1557,6 +1698,46 @@ func (q *Queries) GetTopMerchantsBySpend(ctx context.Context, arg GetTopMerchant
 		return nil, err
 	}
 	return items, nil
+}
+
+const getTotalCards = `-- name: GetTotalCards :one
+SELECT COUNT(*) AS total_cards
+FROM virtual_cards
+`
+
+func (q *Queries) GetTotalCards(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalCards)
+	var total_cards int64
+	err := row.Scan(&total_cards)
+	return total_cards, err
+}
+
+const getTotalCardsByStatus = `-- name: GetTotalCardsByStatus :one
+SELECT
+    COUNT(*) AS total_cards,
+    COUNT(*) FILTER (WHERE status = 'active')     AS active_cards,
+    COUNT(*) FILTER (WHERE status = 'frozen')     AS frozen_cards,
+    COUNT(*) FILTER (WHERE status = 'terminated') AS terminated_cards
+FROM virtual_cards
+`
+
+type GetTotalCardsByStatusRow struct {
+	TotalCards      int64 `json:"total_cards"`
+	ActiveCards     int64 `json:"active_cards"`
+	FrozenCards     int64 `json:"frozen_cards"`
+	TerminatedCards int64 `json:"terminated_cards"`
+}
+
+func (q *Queries) GetTotalCardsByStatus(ctx context.Context) (GetTotalCardsByStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, getTotalCardsByStatus)
+	var i GetTotalCardsByStatusRow
+	err := row.Scan(
+		&i.TotalCards,
+		&i.ActiveCards,
+		&i.FrozenCards,
+		&i.TerminatedCards,
+	)
+	return i, err
 }
 
 const getTransactionsByMerchant = `-- name: GetTransactionsByMerchant :many
@@ -2680,6 +2861,53 @@ type TerminateCardParams struct {
 
 func (q *Queries) TerminateCard(ctx context.Context, arg TerminateCardParams) (VirtualCard, error) {
 	row := q.db.QueryRowContext(ctx, terminateCard, arg.ID, arg.UserID)
+	var i VirtualCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardPlanID,
+		&i.BridgecardCardID,
+		&i.CardName,
+		&i.CardColor,
+		&i.Currency,
+		&i.CurrentMonthSpendCents,
+		&i.CurrentDaySpendCents,
+		&i.SpendingMonth,
+		&i.SpendingDay,
+		&i.Status,
+		&i.StatusReason,
+		&i.AutoTopupEnabled,
+		&i.AutoTopupThresholdCents,
+		&i.AutoTopupAmountCents,
+		&i.AutoTopupSourceWalletID,
+		&i.NextBillingDate,
+		&i.LastBillingDate,
+		&i.LastTransactionAt,
+		&i.TotalTransactionsCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TerminatedAt,
+	)
+	return i, err
+}
+
+const unfreezeCard = `-- name: UnfreezeCard :one
+UPDATE virtual_cards
+SET 
+    status = 'active',
+    terminated_at = NULL,
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend_cents, current_day_spend_cents, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+`
+
+type UnfreezeCardParams struct {
+	ID     uuid.UUID `json:"id"`
+	UserID int64     `json:"user_id"`
+}
+
+func (q *Queries) UnfreezeCard(ctx context.Context, arg UnfreezeCardParams) (VirtualCard, error) {
+	row := q.db.QueryRowContext(ctx, unfreezeCard, arg.ID, arg.UserID)
 	var i VirtualCard
 	err := row.Scan(
 		&i.ID,
