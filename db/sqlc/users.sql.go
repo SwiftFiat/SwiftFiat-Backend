@@ -769,17 +769,17 @@ func (q *Queries) SetUserTwoFA(ctx context.Context, arg SetUserTwoFAParams) (Use
 
 const updateCardholderVerificationStatus = `-- name: UpdateCardholderVerificationStatus :exec
 UPDATE users SET bridgecard_verification_status = $1, updated_at = $2
-WHERE bridgecard_cardholder_id = $3
+WHERE id = $3
 `
 
 type UpdateCardholderVerificationStatusParams struct {
 	BridgecardVerificationStatus sql.NullString `json:"bridgecard_verification_status"`
 	UpdatedAt                    time.Time      `json:"updated_at"`
-	BridgecardCardholderID       sql.NullString `json:"bridgecard_cardholder_id"`
+	ID                           int64          `json:"id"`
 }
 
 func (q *Queries) UpdateCardholderVerificationStatus(ctx context.Context, arg UpdateCardholderVerificationStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateCardholderVerificationStatus, arg.BridgecardVerificationStatus, arg.UpdatedAt, arg.BridgecardCardholderID)
+	_, err := q.db.ExecContext(ctx, updateCardholderVerificationStatus, arg.BridgecardVerificationStatus, arg.UpdatedAt, arg.ID)
 	return err
 }
 
