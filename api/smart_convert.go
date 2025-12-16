@@ -370,7 +370,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		c,
 		audit.CategoryConversion,
 		audit.EventManualConversion,
-		result.ConversionID.String(),
+		result.ID.String(),
 		"Manual conversion executed successfully",
 		&activeUser.UserID,
 		activeUser.Role,
@@ -379,7 +379,6 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 	)
 	entry.Metadata = map[string]any{
 		"time":           time.Now().Format(time.RFC3339),
-		"transaction_id": result.TransactionID.String(),
 		"executed_rate":  result.ExecutedRate,
 		"net_amount":     result.NetAmount,
 		"source_amount":  result.SourceAmount,

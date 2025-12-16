@@ -518,7 +518,7 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from
 	// Get base rate from exchange rate service
 	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, from, to)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get base rate: %w", err)
+		return nil, fmt.Errorf("failed to get base rate 1: %w", err)
 	}
 
 	// Get applicable rule for user
@@ -636,7 +636,7 @@ func (s *Service) SimulateRateAdjustment(ctx context.Context, req *RateSimulatio
 	// Get base rate
 	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, req.SourceCurrency, req.TargetCurrency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get base rate: %w", err)
+		return nil, fmt.Errorf("failed to get base rate 2: %w", err)
 	}
 
 	var adjustedRate decimal.Decimal
