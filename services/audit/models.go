@@ -188,6 +188,9 @@ const (
 	EventFAQCreated          = "support.FAQ.created"
 	EventFAQUpdated          = "support.FAQ.updated"
 	EventFAQDeleted          = "support.FAQ.deleted"
+
+	EventUpdateCardPlan = "card.plan.updated"
+	EventDeleteCardPlan = "card.plan.deleted"
 )
 
 // LogEntry represents the input for creating an audit log

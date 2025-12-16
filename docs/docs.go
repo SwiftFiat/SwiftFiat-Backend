@@ -634,52 +634,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/cards/fund-issuing-wallet": {
-            "post": {
-                "description": "Fund the issuing wallet with BridgeCard",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "Fund issuing wallet [admin]",
-                "parameters": [
-                    {
-                        "description": "Issuing wallet funding parameters",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/bridgecards.FundIssuingWalletRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/admin/faq": {
             "get": {
                 "security": [
@@ -4687,7 +4641,123 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/virtualcard.CreateCardResult"
+                            "$ref": "#/definitions/bridgecards.CreateCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/fund-issuing-wallet": {
+            "post": {
+                "description": "Fund the issuing wallet with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Fund issuing wallet [admin]",
+                "parameters": [
+                    {
+                        "description": "Issuing wallet funding parameters",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FundIssuingWalletRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/get-total-cards": {
+            "get": {
+                "description": "Get total number of virtual cards",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get total number of virtual cards",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "integer"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/get-total-cards-by-status": {
+            "get": {
+                "description": "Get total number of virtual cards by status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get total number of virtual cards by status",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/db.GetTotalCardsByStatusRow"
                         }
                     },
                     "400": {
@@ -4776,6 +4846,50 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/delete-card-plan": {
+            "delete": {
+                "description": "Delete card plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Delete card plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Plan ID",
+                        "name": "plan_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     },
                     "400": {
@@ -4954,6 +5068,88 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.GetCardDetailsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/get-card-plan-by-id": {
+            "get": {
+                "description": "Get card plan by id",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get card plan by id",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Plan ID",
+                        "name": "plan_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CardPlanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/get-card-plans": {
+            "get": {
+                "description": "Get card plans",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get card plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.CardPlanResponse"
+                            }
                         }
                     },
                     "400": {
@@ -5236,6 +5432,106 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/update-card-plan": {
+            "put": {
+                "description": "Update card plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Update card plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Plan ID",
+                        "name": "plan_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Name",
+                        "name": "name",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Description",
+                        "name": "description",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Monthly Spending Limit",
+                        "name": "monthly_spending_limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Monthly Maintenance Fee",
+                        "name": "monthly_maintenance_fee",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Transaction Limit",
+                        "name": "transaction_limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Daily Spending Limit",
+                        "name": "daily_spending_limit",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Is Active",
+                        "name": "is_active",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Card Limit",
+                        "name": "card_limit",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CardPlanResponse"
                         }
                     },
                     "400": {
@@ -13341,6 +13637,62 @@ const docTemplate = `{
                 }
             }
         },
+        "api.CardPlanResponse": {
+            "type": "object",
+            "properties": {
+                "card_limit": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "creation_fee": {
+                    "type": "string"
+                },
+                "daily_spending_limit": {
+                    "type": "string"
+                },
+                "deleted_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "max_cards_per_user": {
+                    "type": "integer"
+                },
+                "monthly_maintenance_fee": {
+                    "type": "string"
+                },
+                "monthly_spending_limit": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "supports_atm": {
+                    "type": "boolean"
+                },
+                "supports_international": {
+                    "type": "boolean"
+                },
+                "supports_online": {
+                    "type": "boolean"
+                },
+                "transaction_limit": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
         "api.CreateCardRequest": {
             "type": "object",
             "required": [
@@ -15115,6 +15467,23 @@ const docTemplate = `{
                 }
             }
         },
+        "db.GetTotalCardsByStatusRow": {
+            "type": "object",
+            "properties": {
+                "active_cards": {
+                    "type": "integer"
+                },
+                "frozen_cards": {
+                    "type": "integer"
+                },
+                "terminated_cards": {
+                    "type": "integer"
+                },
+                "total_cards": {
+                    "type": "integer"
+                }
+            }
+        },
         "db.GetUserVaultsSummaryRow": {
             "type": "object",
             "properties": {
@@ -15684,6 +16053,9 @@ const docTemplate = `{
                 "avatar_url": {
                     "type": "string"
                 },
+                "card_holder_id": {
+                    "type": "string"
+                },
                 "created_at": {
                     "type": "string"
                 },
@@ -15706,6 +16078,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "is_active": {
+                    "type": "boolean"
+                },
+                "is_kyc_verified": {
                     "type": "boolean"
                 },
                 "last_name": {
@@ -18310,14 +18685,6 @@ const docTemplate = `{
                 },
                 "yearly_yield": {
                     "type": "string"
-                }
-            }
-        },
-        "virtualcard.CreateCardResult": {
-            "type": "object",
-            "properties": {
-                "bridgeCardDetails": {
-                    "$ref": "#/definitions/bridgecards.CreateCardResponse"
                 }
             }
         }
