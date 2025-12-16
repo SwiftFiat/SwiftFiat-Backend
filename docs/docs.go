@@ -17993,7 +17993,6 @@ const docTemplate = `{
             "type": "object",
             "required": [
                 "amount",
-                "amount_type",
                 "source_currency",
                 "source_wallet_id",
                 "target_currency",
@@ -18002,15 +18001,7 @@ const docTemplate = `{
             "properties": {
                 "amount": {
                     "description": "Amount to convert",
-                    "type": "number"
-                },
-                "amount_type": {
-                    "description": "Indicates if the amount is in source or target currency",
-                    "type": "string",
-                    "enum": [
-                        "source",
-                        "target"
-                    ]
+                    "type": "string"
                 },
                 "source_currency": {
                     "type": "string",

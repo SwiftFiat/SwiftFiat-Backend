@@ -115,7 +115,7 @@ type CreateCardRequest struct {
 // @Description Create a new USD virtual card with BridgeCard
 // @Accept json
 // @Produce json
-// @Success 201 {object} bridgecards.CreateCardResponse4
+// @Success 201 {object} bridgecards.CreateCardResponse
 // @Param request body CreateCardRequest true "Card creation parameters"
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
