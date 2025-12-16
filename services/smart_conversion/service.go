@@ -192,7 +192,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
-		return nil, exchangerate.ErrInvalidCurrencyPair
+		return nil, err
 	}
 
 	s.logger.Infof("converting Amount %s from %s to %s", req.Amount, req.SourceCurrency, req.TargetCurrency)
