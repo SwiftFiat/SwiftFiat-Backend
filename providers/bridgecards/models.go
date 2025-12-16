@@ -29,8 +29,8 @@ type CreateCardHolderResponse struct {
 }
 
 type Identity struct {
-	IDType      string `json:"id_type" binding:"required"`
-	IDNumber    string `json:"id_number" binding:"omitempty"`
+	IDType   string `json:"id_type" binding:"required"`
+	IDNumber string `json:"id_number" binding:"omitempty"`
 	// IDImage     *string `json:"id_image" binding:"omitempty"`
 	SelfieImage string `json:"selfie_image" binding:"omitempty"`
 	BVN         string `json:"bvn" binding:"required"`
@@ -46,11 +46,11 @@ type CreateCardRequest struct {
 	TransactionReference string         `json:"transaction_reference"`
 	Pin                  string         `json:"pin"`
 	MetaData             map[string]any `json:"metadata"`
-	UserID               int64
-	CardPlanID           int64
-	CardName             string
-	CardColor            string
-	SourceWalletID       uuid.UUID
+	UserID               int64          `json:"-"`
+	CardPlanID           int64          `json:"-"`
+	CardName             string         `json:"-"`
+	CardColor            string         `json:"-"`
+	SourceWalletID       uuid.UUID      `json:"-"`
 }
 
 type CreateCardResponse struct {
@@ -468,4 +468,29 @@ type CardWithDrawEventFailed struct {
 		TransactionDate      string    `json:"transaction_date"`
 		TransactionTimestamp time.Time `json:"transaction_timestamp"`
 	} `json:"data"`
+}
+
+
+type CardCreationEventSuccessful struct {
+    Event string `json:"event"`
+    Data  struct {
+        CardID               string    `json:"card_id"`
+        CardholderID         string    `json:"cardholder_id"`
+        Currency             string    `json:"currency"`
+        IssuingAppID         string    `json:"issuing_app_id"`
+        Livemode             bool      `json:"livemode"`
+        MetaData             map[string]string `json:"meta_data"`
+    } `json:"data"`
+}
+
+type CardCreationEventFailed struct {
+    Event string `json:"event"`
+    Data  struct {
+        CardID               string    `json:"card_id"`
+        CardholderID         string    `json:"cardholder_id"`
+        Currency             string    `json:"currency"`
+        IssuingAppID         string    `json:"issuing_app_id"`
+        Livemode             bool      `json:"livemode"`
+        Reason               string    `json:"reason"`
+    } `json:"data"`
 }

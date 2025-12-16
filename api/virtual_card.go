@@ -49,6 +49,8 @@ func (v Virtualcard) router(server *Server) {
 		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard)
 		v1.GET("/get-card-plans", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlans)
 		v1.GET("/get-card-plan-by-id", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlanById)
+		v1.GET("/get-card", server.authMiddleware.AuthenticatedMiddleware(), v.GetVirtualCard)
+		v1.GET("/get-user-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetUserCards)
 		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)          //done
 		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                   //one
 		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus) //done
@@ -70,6 +72,12 @@ func (v Virtualcard) router(server *Server) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/admin/fund-issuing-wallet [post]
 func (v *Virtualcard) FundIssuingWallet(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 	var req bridgecards.FundIssuingWalletRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
@@ -77,16 +85,28 @@ func (v *Virtualcard) FundIssuingWallet(c *gin.Context) {
 	}
 
 	message := v.virtualCardSvc.FundIssuingWallet(c, req)
+
+	entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventFundIssuingWallet,
+		"",
+		fmt.Sprintf("%d funded the issuing wallet with %d", activeUser.UserID, req.Amount),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	v.audit.Log(entry)
 	c.JSON(http.StatusOK, basemodels.NewSuccess(message, nil))
 }
 
 type CreateCardRequest struct {
-	Brand          string    `json:"card_brand"`                        // "visa" or "mastercard"
-	FundingAmount  string    `json:"funding_amount" binding:"required"` // Initial funding amount
 	CardPlanID     int64     `json:"card_plan_id" binding:"required"`
 	CardName       string    `json:"card_name" binding:"required"`
 	CardColor      string    `json:"color" binding:"omitempty"`
-	SourceWalletID uuid.UUID `json:"source_wallet_id" binding:"required"`
+	CardHolderID   string    `json:"card_holder_id" binding:"required"`
+	FundingAmount  string    `json:"funding_amount" binding:"required"`
 }
 
 // CreateCard godoc
@@ -119,9 +139,8 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		CardPlanID:     req.CardPlanID,
 		CardName:       req.CardName,
 		CardColor:      req.CardColor,
+		CardHolderID:   req.CardHolderID,
 		FundingAmount:  req.FundingAmount,
-		SourceWalletID: req.SourceWalletID,
-		Brand:          req.Brand,
 	})
 
 	v.server.logger.Infof("create card result is ====: %v", result)
@@ -139,6 +158,26 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		}
 		return
 	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventCreateCard,
+		"",
+		fmt.Sprintf("%d created a new card", activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.NewValues = map[string]interface{}{
+		"card_id":          result.Data.CardID,
+		"currency":         result.Data.Currency,
+		"card_name":        req.CardName,
+		"card_color":       req.CardColor,
+		"card_holder_id":   req.CardHolderID,
+	}
+	v.audit.Log(entry)
 
 	c.JSON(http.StatusCreated, result)
 }
@@ -173,6 +212,22 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventRegisterCardHolder,
+		"",
+		fmt.Sprintf("%d created a new cardholder", activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.NewValues = map[string]interface{}{
+		"cardholder_id": response.Data.CardHolderID,
+	}
+	v.audit.Log(entry)
 
 	c.JSON(http.StatusOK, response)
 }
@@ -944,6 +999,195 @@ func (v *Virtualcard) DeleteCardPlan(c *gin.Context) {
 	v.audit.Log(entry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plan deleted successfully", nil))
+}
+
+// GetVirtualCard godoc
+// @Summary Get virtual card
+// @Description Get virtual card
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param id query string true "Virtual Card ID"
+// @Success 200 {object} VirtualCardResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/get-card [get]
+func (v *Virtualcard) GetVirtualCard(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	cardID, err := uuid.Parse(c.Query("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCard(c.Request.Context(), cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Virtual card retrieved successfully", mapVirtualCardToResponse(&card)))
+}
+
+// GetUserCards godoc
+// @Summary Get user cards
+// @Description Get user cards
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Success 200 {object} []GetUserCardsRowResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/get-user-cards [get]
+func (v *Virtualcard) GetUserCards(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	cards, err := v.server.queries.GetUserCards(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var response []GetUserCardsRowResponse
+	for _, card := range cards {
+		response = append(response, mapGetUserCardsRowToResponse(card))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("User cards retrieved successfully", response))
+}
+
+type GetUserCardsRowResponse struct {
+	ID                      uuid.UUID  `json:"id"`
+	UserID                  int64      `json:"user_id"`
+	CardPlanID              int64      `json:"card_plan_id"`
+	BridgecardCardID        string     `json:"bridgecard_card_id"`
+	CardName                string     `json:"card_name"`
+	CardColor               *string    `json:"card_color"`
+	Currency                string     `json:"currency"`
+	CurrentMonthSpendCents  int64      `json:"current_month_spend_cents"`
+	CurrentDaySpendCents    int64      `json:"current_day_spend_cents"`
+	SpendingMonth           *string    `json:"spending_month"`
+	SpendingDay             *time.Time `json:"spending_day"`
+	Status                  string     `json:"status"`
+	StatusReason            *string    `json:"status_reason"`
+	AutoTopupEnabled        bool       `json:"auto_topup_enabled"`
+	AutoTopupThresholdCents *int64     `json:"auto_topup_threshold_cents"`
+	AutoTopupAmountCents    *int64     `json:"auto_topup_amount_cents"`
+	AutoTopupSourceWalletID *uuid.UUID `json:"auto_topup_source_wallet_id"`
+	NextBillingDate         *time.Time `json:"next_billing_date"`
+	LastBillingDate         *time.Time `json:"last_billing_date"`
+	LastTransactionAt       *time.Time `json:"last_transaction_at"`
+	TotalTransactionsCount  int64      `json:"total_transactions_count"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+	TerminatedAt            *time.Time `json:"terminated_at"`
+	PlanName                string     `json:"plan_name"`
+	MonthlySpendingLimit    string     `json:"monthly_spending_limit"`
+	TransactionLimit        string     `json:"transaction_limit"`
+}
+
+func mapGetUserCardsRowToResponse(row db.GetUserCardsRow) GetUserCardsRowResponse {
+	return GetUserCardsRowResponse{
+		ID:                      row.ID,
+		UserID:                  row.UserID,
+		CardPlanID:              row.CardPlanID,
+		BridgecardCardID:        row.BridgecardCardID,
+		CardName:                row.CardName,
+		CardColor:               &row.CardColor.String,
+		Currency:                row.Currency,
+		CurrentMonthSpendCents:  row.CurrentMonthSpendCents,
+		CurrentDaySpendCents:    row.CurrentDaySpendCents,
+		SpendingMonth:           &row.SpendingMonth.String,
+		SpendingDay:             &row.SpendingDay.Time,
+		Status:                  row.Status,
+		StatusReason:            &row.StatusReason.String,
+		AutoTopupEnabled:        row.AutoTopupEnabled,
+		AutoTopupThresholdCents: &row.AutoTopupThresholdCents.Int64,
+		AutoTopupAmountCents:    &row.AutoTopupAmountCents.Int64,
+		AutoTopupSourceWalletID: &row.AutoTopupSourceWalletID.UUID,
+		NextBillingDate:         &row.NextBillingDate.Time,
+		LastBillingDate:         &row.LastBillingDate.Time,
+		LastTransactionAt:       &row.LastTransactionAt.Time,
+		TotalTransactionsCount:  row.TotalTransactionsCount,
+		CreatedAt:               row.CreatedAt,
+		UpdatedAt:               row.UpdatedAt,
+		TerminatedAt:            &row.TerminatedAt.Time,
+		PlanName:                row.PlanName,
+		MonthlySpendingLimit:    row.MonthlySpendingLimit,
+		TransactionLimit:        row.TransactionLimit,
+	}
+}
+
+type VirtualCardResponse struct {
+	ID                      uuid.UUID  `json:"id"`
+	UserID                  int64      `json:"user_id"`
+	CardPlanID              int64      `json:"card_plan_id"`
+	BridgecardCardID        string     `json:"bridgecard_card_id"`
+	CardName                string     `json:"card_name"`
+	CardColor               *string    `json:"card_color"`
+	Currency                string     `json:"currency"`
+	CurrentMonthSpendCents  int64      `json:"current_month_spend_cents"`
+	CurrentDaySpendCents    int64      `json:"current_day_spend_cents"`
+	SpendingMonth           *string    `json:"spending_month"`
+	SpendingDay             *time.Time `json:"spending_day"`
+	Status                  string     `json:"status"`
+	StatusReason            *string    `json:"status_reason"`
+	AutoTopupEnabled        bool       `json:"auto_topup_enabled"`
+	AutoTopupThresholdCents *int64     `json:"auto_topup_threshold_cents"`
+	AutoTopupAmountCents    *int64     `json:"auto_topup_amount_cents"`
+	AutoTopupSourceWalletID *uuid.UUID `json:"auto_topup_source_wallet_id"`
+	NextBillingDate         *time.Time `json:"next_billing_date"`
+	LastBillingDate         *time.Time `json:"last_billing_date"`
+	LastTransactionAt       *time.Time `json:"last_transaction_at"`
+	TotalTransactionsCount  int64      `json:"total_transactions_count"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+	TerminatedAt            *time.Time `json:"terminated_at"`
+}
+
+func mapVirtualCardToResponse(card *db.VirtualCard) VirtualCardResponse {
+	return VirtualCardResponse{
+		ID:                      card.ID,
+		UserID:                  card.UserID,
+		CardPlanID:              card.CardPlanID,
+		BridgecardCardID:        card.BridgecardCardID,
+		CardName:                card.CardName,
+		CardColor:               &card.CardColor.String,
+		Currency:                card.Currency,
+		CurrentMonthSpendCents:  card.CurrentMonthSpendCents,
+		CurrentDaySpendCents:    card.CurrentDaySpendCents,
+		SpendingMonth:           &card.SpendingMonth.String,
+		SpendingDay:             &card.SpendingDay.Time,
+		Status:                  card.Status,
+		StatusReason:            &card.StatusReason.String,
+		AutoTopupEnabled:        card.AutoTopupEnabled,
+		AutoTopupThresholdCents: &card.AutoTopupThresholdCents.Int64,
+		AutoTopupAmountCents:    &card.AutoTopupAmountCents.Int64,
+		AutoTopupSourceWalletID: &card.AutoTopupSourceWalletID.UUID,
+		NextBillingDate:         &card.NextBillingDate.Time,
+		LastBillingDate:         &card.LastBillingDate.Time,
+		LastTransactionAt:       &card.LastTransactionAt.Time,
+		TotalTransactionsCount:  card.TotalTransactionsCount,
+		CreatedAt:               card.CreatedAt,
+		UpdatedAt:               card.UpdatedAt,
+		TerminatedAt:            &card.TerminatedAt.Time,
+	}
 }
 
 type CardPlanResponse struct {

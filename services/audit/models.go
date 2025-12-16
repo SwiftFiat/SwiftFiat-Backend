@@ -189,8 +189,11 @@ const (
 	EventFAQUpdated          = "support.FAQ.updated"
 	EventFAQDeleted          = "support.FAQ.deleted"
 
-	EventUpdateCardPlan = "card.plan.updated"
-	EventDeleteCardPlan = "card.plan.deleted"
+	EventUpdateCardPlan    = "card.plan.updated"
+	EventDeleteCardPlan    = "card.plan.deleted"
+	EventFundIssuingWallet = "card.fund_issuing_wallet"
+	EventCreateCard        = "card.created"
+	EventRegisterCardHolder = "kyc.verified"
 )
 
 // LogEntry represents the input for creating an audit log

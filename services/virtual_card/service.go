@@ -128,6 +128,10 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, ErrInvalidCardPlan
 	}
 
+	if !plan.CardLimit.Valid || plan.CardLimit.String == "" {
+		return nil, fmt.Errorf("card plan limit is not configured")
+	}
+
 	// 2. Check if user has reached plan card limit
 	userCardsCount, err := qtx.GetUserActiveCardsCount(ctx, params.UserID)
 	if err != nil {
@@ -148,8 +152,16 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 	creationFee := creationFeeCents.Div(decimal.NewFromInt(100))
 
+	usdWallet, err := s.store.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+		CustomerID: params.UserID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("get wallet: %w", err)
+	}
+
 	// 4. Verify user has sufficient wallet balance
-	sourceWallet, err := s.walletService.GetWalletForUpdate(ctx, dbTx, params.SourceWalletID)
+	sourceWallet, err := s.walletService.GetWalletForUpdate(ctx, dbTx, usdWallet.ID)
 	if err != nil {
 		return nil, fmt.Errorf("get wallet: %w", err)
 	}
@@ -189,16 +201,16 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	if sourceWallet.Balance.LessThan(totalCost) {
 		return nil, ErrInsufficientFunds
 	}
-
 	// 5. Create card in BridgeCard
 	bridgeCardReq := &bridgecards.CreateCardRequest{
-		CardHolderID:         "220cf84a33954f81a325f2d5108d8fed", // get from user data
+		CardHolderID:         params.CardHolderID, // get from user data
 		CardType:             "virtual",
 		Brand:                "Mastercard", //Visa is not supported yet
 		Currency:             "USD",
 		CardLimit:            "500000",        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
 		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
 		TransactionReference: utils.NewTxRef("swiift_card"),
+		SourceWalletID:       usdWallet.ID,
 	}
 
 	s.logger.Infof("bridgeCardReq is : %v", bridgeCardReq)
@@ -233,7 +245,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	newBalance := sourceWallet.Balance.Sub(totalDeduction)
 	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
 		Amount: sql.NullString{String: newBalance.String(), Valid: true},
-		ID:     params.SourceWalletID,
+		ID:     usdWallet.ID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("deduct funds from wallet error: %w", err)
@@ -249,7 +261,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		Currency:           "USD",
 		BillingPeriodStart: now,
 		BillingPeriodEnd:   now,
-		SourceWalletID:     params.SourceWalletID,
+		SourceWalletID:     usdWallet.ID,
 		Status:             string(CardBillingHistoryStatusSuccessful),
 	})
 	if err != nil {
@@ -260,10 +272,10 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	_, err = qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
 		CardID:         dbCard.ID,
 		UserID:         params.UserID,
-		SourceWalletID: params.SourceWalletID,
+		SourceWalletID: usdWallet.ID,
 		Amount:         fundingAmountDecimal.String(),
 		Currency:       "USD",
-		SourceCurrency: sourceWallet.Currency,
+		SourceCurrency: usdWallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
 		Status:         string(CardFundingStatusSuccessful),
@@ -345,8 +357,8 @@ func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, e
 	// case strings.HasPrefix(event.Event, "card.transaction."):
 	// 	return s.processTransactionWebhook(ctx, payload)
 
-	// case strings.HasPrefix(event.Event, "card."):
-	// return s.processCardWebhook(ctx, payload)
+	case strings.HasPrefix(event.Event, "card_creation"):
+		return s.processCardCreationEvent(ctx, payload)
 
 	default:
 		s.logger.Warn(fmt.Sprintf("Unhandled webhook event type: %s", event.Event))
@@ -607,6 +619,36 @@ func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string
 	default:
 		return "", fmt.Errorf("unknown credit type")
 	}
+}
+
+func (s *Service) processCardCreationEvent(ctx context.Context, payload []byte) (string, error) {
+	creationEvent, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card creation event: %w", err)
+	}
+
+	switch c := creationEvent.(type) {
+	case *bridgecards.CardCreationEventSuccessful:
+		return s.handleCardCreationEventSuccess(ctx, c)
+
+	case *bridgecards.CardCreationEventFailed:
+		return s.handleCardCreationEventFailed(ctx, c)
+
+	default:
+		return "", fmt.Errorf("unknown creation event type")
+	}
+}
+
+func (s *Service) handleCardCreationEventSuccess(ctx context.Context, success *bridgecards.CardCreationEventSuccessful) (string, error) {
+	// TODO: create virtual card
+	// TODO: send notifications
+
+	return "card_creation_event.successful", nil
+}
+
+func (s *Service) handleCardCreationEventFailed(ctx context.Context, failed *bridgecards.CardCreationEventFailed) (string, error) {
+	// TODO: send notifications
+	return "card_creation_event.failed", nil
 }
 
 func (s *Service) processCardUnloadEvent(ctx context.Context, payload []byte) (string, error) {

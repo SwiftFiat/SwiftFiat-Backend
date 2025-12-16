@@ -4997,6 +4997,50 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/cards/get-card": {
+            "get": {
+                "description": "Get virtual card",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get virtual card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Virtual Card ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.VirtualCardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/get-card-balance": {
             "get": {
                 "description": "Get the balance of a virtual card",
@@ -5201,6 +5245,44 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.GetCardTransactionStatusResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/get-user-cards": {
+            "get": {
+                "description": "Get user cards",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Get user cards",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.GetUserCardsRowResponse"
+                            }
                         }
                     },
                     "400": {
@@ -13696,14 +13778,13 @@ const docTemplate = `{
         "api.CreateCardRequest": {
             "type": "object",
             "required": [
+                "card_holder_id",
                 "card_name",
                 "card_plan_id",
-                "funding_amount",
-                "source_wallet_id"
+                "funding_amount"
             ],
             "properties": {
-                "card_brand": {
-                    "description": "\"visa\" or \"mastercard\"",
+                "card_holder_id": {
                     "type": "string"
                 },
                 "card_name": {
@@ -13716,10 +13797,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "funding_amount": {
-                    "description": "Initial funding amount",
-                    "type": "string"
-                },
-                "source_wallet_id": {
                     "type": "string"
                 }
             }
@@ -13863,6 +13940,92 @@ const docTemplate = `{
                 },
                 "transaction": {
                     "$ref": "#/definitions/transaction.TransactionResponse-transaction_FiatWithdrawalMetadataResponse"
+                }
+            }
+        },
+        "api.GetUserCardsRowResponse": {
+            "type": "object",
+            "properties": {
+                "auto_topup_amount_cents": {
+                    "type": "integer"
+                },
+                "auto_topup_enabled": {
+                    "type": "boolean"
+                },
+                "auto_topup_source_wallet_id": {
+                    "type": "string"
+                },
+                "auto_topup_threshold_cents": {
+                    "type": "integer"
+                },
+                "bridgecard_card_id": {
+                    "type": "string"
+                },
+                "card_color": {
+                    "type": "string"
+                },
+                "card_name": {
+                    "type": "string"
+                },
+                "card_plan_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "current_day_spend_cents": {
+                    "type": "integer"
+                },
+                "current_month_spend_cents": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_billing_date": {
+                    "type": "string"
+                },
+                "last_transaction_at": {
+                    "type": "string"
+                },
+                "monthly_spending_limit": {
+                    "type": "string"
+                },
+                "next_billing_date": {
+                    "type": "string"
+                },
+                "plan_name": {
+                    "type": "string"
+                },
+                "spending_day": {
+                    "type": "string"
+                },
+                "spending_month": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_reason": {
+                    "type": "string"
+                },
+                "terminated_at": {
+                    "type": "string"
+                },
+                "total_transactions_count": {
+                    "type": "integer"
+                },
+                "transaction_limit": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -14274,6 +14437,83 @@ const docTemplate = `{
                 },
                 "temp_token": {
                     "type": "string"
+                }
+            }
+        },
+        "api.VirtualCardResponse": {
+            "type": "object",
+            "properties": {
+                "auto_topup_amount_cents": {
+                    "type": "integer"
+                },
+                "auto_topup_enabled": {
+                    "type": "boolean"
+                },
+                "auto_topup_source_wallet_id": {
+                    "type": "string"
+                },
+                "auto_topup_threshold_cents": {
+                    "type": "integer"
+                },
+                "bridgecard_card_id": {
+                    "type": "string"
+                },
+                "card_color": {
+                    "type": "string"
+                },
+                "card_name": {
+                    "type": "string"
+                },
+                "card_plan_id": {
+                    "type": "integer"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "current_day_spend_cents": {
+                    "type": "integer"
+                },
+                "current_month_spend_cents": {
+                    "type": "integer"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "last_billing_date": {
+                    "type": "string"
+                },
+                "last_transaction_at": {
+                    "type": "string"
+                },
+                "next_billing_date": {
+                    "type": "string"
+                },
+                "spending_day": {
+                    "type": "string"
+                },
+                "spending_month": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "status_reason": {
+                    "type": "string"
+                },
+                "terminated_at": {
+                    "type": "string"
+                },
+                "total_transactions_count": {
+                    "type": "integer"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
