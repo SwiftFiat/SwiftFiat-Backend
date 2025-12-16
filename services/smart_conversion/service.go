@@ -177,10 +177,14 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, ErrWalletNotFound
 	}
 
+	s.logger.Infof("source wallet is %s", sourceWallet.Currency)
+
 	targetWallet, err := s.store.GetWallet(ctx, req.TargetWalletID)
 	if err != nil {
 		return nil, ErrWalletNotFound
 	}
+
+	s.logger.Infof("target wallet is %s", targetWallet.Currency)
 
 	if sourceWallet.CustomerID != user.ID || targetWallet.CustomerID != user.ID {
 		return nil, fmt.Errorf("unauthorized")
@@ -191,12 +195,24 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, exchangerate.ErrInvalidCurrencyPair
 	}
 
-	// Get vip adjusted rate
-	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, req.Amount)
+	s.logger.Infof("converting Amount %s from %s to %s", req.Amount, req.SourceCurrency, req.TargetCurrency)
+
+	amount, err := utils.ToDecimal(req.Amount)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get VIP-adjusted rate: %v", err))
+		return nil, fmt.Errorf("failed to convert amount to decimal: %w", err)
+	}
+
+	// Get vip adjusted rate
+	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, amount)
+	if err != nil {
+		s.logger.Warnf("%s", fmt.Sprintf("Failed to get VIP-adjusted rate: %v", err))
 		// fallback to base rate if vip rate fails
+		s.logger.Warnf("%s", fmt.Sprintf("Falling back to base rate for user %d", user.ID))
 		return s.executeWithBaseRate(ctx, user.ID, req)
+	}
+
+	if rate.AdjustedRate != "" {
+		s.logger.Infof("VIP adjusted rate for %s to %s is %s", req.SourceCurrency, req.TargetCurrency, rate.AdjustedRate)
 	}
 
 	// Calculate amounts
@@ -209,19 +225,26 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert adjusted rate to decimal: %w", err)
 	}
+	s.logger.Infof("adjusted rate for %s to %s is %s", req.SourceCurrency, req.TargetCurrency, adjustedRate)
 
 	var sourceAmount, targetAmount, netAmount decimal.Decimal
 
-	if req.AmountType == "source" {
-		sourceAmount = req.Amount
-		targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(sourceAmount, adjustedRate, fees)
-	} else {
-		targetAmount = req.Amount
-		sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(targetAmount, adjustedRate, fees)
-	}
+	// if req.AmountType == "source" {
+	sourceAmount = amount
+	targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(sourceAmount, adjustedRate, fees)
+	// }
+	// else {
+	// 	targetAmount = amount
+	// 	sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(targetAmount, adjustedRate, fees)
+	// }
+
+	s.logger.Infof("source amount is %s", sourceAmount)
+	s.logger.Infof("target amount is %s", targetAmount)
+	s.logger.Infof("fees is %s", rate.Fees)
+	s.logger.Infof("net amount is %s", netAmount)
 
 	// Execute the conversion in a transaction
-	conversionID, transactionID, err := s.executeConversion(ctx, &conversionExecutionParams{
+	history, err := s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         user.ID,
 		ruleID:         nil,
 		sourceWalletID: req.SourceWalletID,
@@ -243,8 +266,8 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 	}
 
 	return &ManualConversionResponse{
-		ConversionID:  *conversionID,
-		TransactionID: *transactionID,
+		ConversionID:  history.ConversionRuleID.UUID,
+		TransactionID: history.TransactionID.UUID,
 		SourceAmount:  sourceAmount,
 		TargetAmount:  targetAmount,
 		ExecutedRate:  adjustedRate,
@@ -272,25 +295,39 @@ func (s *ConversionService) executeWithBaseRate(
 		return nil, fmt.Errorf("failed to get base rate: %w", err)
 	}
 
+	s.logger.Infof("Base rate for %s to %s is %s", req.SourceCurrency, req.TargetCurrency, baseRate.Rate)
+
 	// Calculate amounts
 	feePercentage := s.exchangeRateService.GetFeePercentage(req.SourceCurrency, req.TargetCurrency)
+	s.logger.Infof("Fee percentage for %s to %s is %s", req.SourceCurrency, req.TargetCurrency, feePercentage)
+
+	amount, err := utils.ToDecimal(req.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to decimal: %w", err)
+	}
 
 	var sourceAmount, targetAmount, fees, netAmount decimal.Decimal
-	if req.AmountType == "source" {
-		sourceAmount = req.Amount
-		targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(
-			sourceAmount, baseRate.Rate, feePercentage,
-		)
-	} else {
-		sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(
-			req.Amount, baseRate.Rate, feePercentage,
-		)
-		targetAmount = req.Amount
-	}
+	// if req.AmountType == "source" {
+	sourceAmount = amount
+	targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(
+		sourceAmount, baseRate.Rate, feePercentage,
+	)
+
+	// else {
+	// 	sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(
+	// 		amount, baseRate.Rate, feePercentage,
+	// 	)
+	// 	targetAmount = amount
+	// }
+
+	s.logger.Infof("source amount is %s", sourceAmount)
+	s.logger.Infof("target amount is %s", targetAmount)
+	s.logger.Infof("fees is %s", fees)
+	s.logger.Infof("net amount is %s", netAmount)
 
 	// Continue with regular conversion logic...
 	// (Similar to ExecuteManualConversionWithVIPRate but without VIP adjustment)
-	conversionID, transactionID, err := s.executeConversion(ctx, &conversionExecutionParams{
+	history, err := s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         userID,
 		ruleID:         nil,
 		sourceWalletID: req.SourceWalletID,
@@ -312,8 +349,8 @@ func (s *ConversionService) executeWithBaseRate(
 	}
 
 	return &ManualConversionResponse{
-		ConversionID:  *conversionID,
-		TransactionID: *transactionID,
+		ConversionID:  history.ConversionRuleID.UUID,
+		TransactionID: history.TransactionID.UUID,
 		SourceAmount:  sourceAmount,
 		TargetAmount:  targetAmount,
 		ExecutedRate:  baseRate.Rate,
@@ -342,121 +379,75 @@ type conversionExecutionParams struct {
 }
 
 // executeConversion performs the actual conversion in a database transaction
-func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*uuid.UUID, *uuid.UUID, error) {
-	var conversionID, transactionID *uuid.UUID
-	// var historyErr error
+func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*db.ConversionHistory, error) {
 
-	err := s.store.ExecTx(ctx, func(q *db.Queries) error {
-		// get wallet for update
-		sourceWallet, err := q.GetWalletForUpdate(ctx, params.sourceWalletID)
-		if err != nil {
-			return fmt.Errorf("failed to get source wallet: %w", err)
-		}
+	sourceWallet, err := s.store.GetWalletForUpdate(ctx, params.sourceWalletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source wallet: %w", err)
+	}
 
-		targetWallet, err := q.GetWalletForUpdate(ctx, params.targetWalletID)
-		if err != nil {
-			return fmt.Errorf("failed to get target wallet: %w", err)
-		}
+	targetWallet, err := s.store.GetWalletForUpdate(ctx, params.targetWalletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get target wallet: %w", err)
+	}
 
-		user, err := s.store.GetUserByID(ctx, params.userID)
-		if err != nil {
-			return fmt.Errorf("failed to get user: %w", err)
-		}
+	sourceBalance, _ := decimal.NewFromString(sourceWallet.Balance.String)
+	if params.sourceAmount.GreaterThan(sourceBalance) {
+		return nil, ErrInsufficientBalance
+	}
 
-		sourceBalance, _ := decimal.NewFromString(sourceWallet.Balance.String)
-		if params.sourceAmount.GreaterThan(sourceBalance) {
-			return ErrInsufficientBalance
-		}
+	// calculate new balances
+	newSourceBalance := sourceBalance.Sub(params.sourceAmount)
+	targetBalance, _ := decimal.NewFromString(targetWallet.Balance.String)
+	newTargetBalance := targetBalance.Add(params.netAmount)
 
-		// calculate new balances
-		newSourceBalance := sourceBalance.Sub(params.sourceAmount)
-		targetBalance, _ := decimal.NewFromString(targetWallet.Balance.String)
-		newTargetBalance := targetBalance.Add(params.netAmount)
+	// update source wallet
+	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		Amount: sql.NullString{String: newSourceBalance.String(), Valid: true},
+		ID:     params.sourceWalletID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update source wallet: %w", err)
+	}
 
-		// update source wallet
-		_, err = q.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-			Amount: sql.NullString{String: newSourceBalance.String(), Valid: true},
-			ID:     params.sourceWalletID,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update source wallet: %w", err)
-		}
+	// update target wallet
+	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID:     params.targetWalletID,
+		Amount: sql.NullString{String: newTargetBalance.String(), Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update target wallet: %w", err)
+	}
 
-		// update target wallet
-		_, err = q.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-			ID:     params.targetWalletID,
-			Amount: sql.NullString{String: newTargetBalance.String(), Valid: true},
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update target wallet: %w", err)
-		}
-
-		// Create main transaction record (swap type)
-		txnID := uuid.New()
-		transactionID = &txnID
-
-		intraTxParams := transaction.IntraTransaction{
-			FromAccountID: params.sourceWalletID,
-			ToAccountID:   params.targetWalletID,
-			SentAmount:    params.netAmount,
-			Rate:          params.executedRate,
-			Type:          transaction.Swap,
-		}
-
-		// TODO: Create transaction using your transaction service
-		// This would involve calling s.transactionService.CreateSwapTransaction(...)
-		// Create token object for transaction service
-		tokenUser := &utils.TokenObject{
-			UserID:   user.ID,
-			Role:     user.Role,
-			Verified: user.Verified,
-		}
-		_, err = s.transactionService.CreateWalletTransaction(ctx, intraTxParams, tokenUser)
-		if err != nil {
-			return fmt.Errorf("failed to create a swap wallet transaction: %w", err)
-		}
-
-		// Create conversion history
-		history, err := q.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
-			ConversionRuleID:    s.uuidToNullUUID(params.ruleID),
-			UserID:              params.userID,
-			TransactionID:       s.uuidToNullUUID(transactionID),
-			SourceCurrency:      params.sourceCurrency,
-			TargetCurrency:      params.targetCurrency,
-			SourceWalletID:      uuid.NullUUID{UUID: params.sourceWalletID, Valid: true},
-			TargetWalletID:      uuid.NullUUID{UUID: params.targetWalletID, Valid: true},
-			TriggerRate:         s.decimalToNullString(params.triggerRate),
-			ExecutedRate:        params.executedRate.String(),
-			RateProvider:        sql.NullString{String: params.rateProvider, Valid: true},
-			SourceAmount:        params.sourceAmount.String(),
-			TargetAmount:        params.targetAmount.String(),
-			Fees:                sql.NullString{String: params.fees.String(), Valid: true},
-			NetAmount:           params.netAmount.String(),
-			SourceBalanceBefore: sql.NullString{String: sourceBalance.String(), Valid: true},
-			SourceBalanceAfter:  sql.NullString{String: newSourceBalance.String(), Valid: true},
-			TargetBalanceBefore: sql.NullString{String: targetBalance.String(), Valid: true},
-			TargetBalanceAfter:  sql.NullString{String: newTargetBalance.String(), Valid: true},
-			ExecutionType:       params.executionType,
-			TriggerType:         s.stringToNullString(params.triggerType),
-			Status:              "success",
-		})
-
-		if err != nil {
-			// historyErr = err
-			return fmt.Errorf("failed to create history: %w", err)
-		}
-
-		conversionID = &history.ID
-		return nil
-
+	// Create conversion history
+	history, err := s.store.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
+		ConversionRuleID:    s.uuidToNullUUID(params.ruleID),
+		UserID:              params.userID,
+		SourceCurrency:      params.sourceCurrency,
+		TargetCurrency:      params.targetCurrency,
+		SourceWalletID:      uuid.NullUUID{UUID: params.sourceWalletID, Valid: true},
+		TargetWalletID:      uuid.NullUUID{UUID: params.targetWalletID, Valid: true},
+		TriggerRate:         s.decimalToNullString(params.triggerRate),
+		ExecutedRate:        params.executedRate.String(),
+		RateProvider:        sql.NullString{String: params.rateProvider, Valid: true},
+		SourceAmount:        params.sourceAmount.String(),
+		TargetAmount:        params.targetAmount.String(),
+		Fees:                sql.NullString{String: params.fees.String(), Valid: true},
+		NetAmount:           params.netAmount.String(),
+		SourceBalanceBefore: sql.NullString{String: sourceBalance.String(), Valid: true},
+		SourceBalanceAfter:  sql.NullString{String: newSourceBalance.String(), Valid: true},
+		TargetBalanceBefore: sql.NullString{String: targetBalance.String(), Valid: true},
+		TargetBalanceAfter:  sql.NullString{String: newTargetBalance.String(), Valid: true},
+		ExecutionType:       params.executionType,
+		TriggerType:         s.stringToNullString(params.triggerType),
+		Status:              "success",
 	})
 
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Conversion failed: %v", err))
-		return nil, nil, ErrConversionFailed
+		return nil, fmt.Errorf("failed to create history: %w", err)
 	}
 
-	return conversionID, transactionID, nil
+	return &history, nil
 }
 
 // CheckAndExecuteRateBasedRules checks rate-based rules and executes if triggered
@@ -603,7 +594,7 @@ func (s *ConversionService) executeRuleConversion(ctx context.Context, rule *db.
 
 	// Execute the conversion
 	triggerType := rule.TriggerType
-	_, _, err = s.executeConversion(ctx, &conversionExecutionParams{
+	_, err = s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         rule.UserID,
 		ruleID:         &rule.ID,
 		sourceWalletID: rule.SourceWalletID.UUID,

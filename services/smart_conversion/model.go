@@ -14,15 +14,15 @@ type ConversionRule struct {
 	TargetCurrency     string           `json:"target_currency"`
 	SourceWalletID     uuid.UUID        `json:"source_wallet_id"`
 	TargetWalletID     uuid.UUID        `json:"target_wallet_id"`
-	TriggerType        string           `json:"trigger_type"` // rate_based, scheduled, percentage
-	TriggerRate        *decimal.Decimal `json:"trigger_rate,omitempty"` // applicable for rate_based and percentage triggers
-	TriggerCondition   *string          `json:"trigger_condition,omitempty"` // gte, lte, eq
-	ConversionType     string           `json:"conversion_type"`             // fixed_amount, percentage, full_balance
-	FixedAmount        *decimal.Decimal `json:"fixed_amount,omitempty"` // applicable for fixed_amount conversion type
-	Percentage         *decimal.Decimal `json:"percentage,omitempty"` // applicable for percentage conversion type
+	TriggerType        string           `json:"trigger_type"`                 // rate_based, scheduled, percentage
+	TriggerRate        *decimal.Decimal `json:"trigger_rate,omitempty"`       // applicable for rate_based and percentage triggers
+	TriggerCondition   *string          `json:"trigger_condition,omitempty"`  // gte, lte, eq
+	ConversionType     string           `json:"conversion_type"`              // fixed_amount, percentage, full_balance
+	FixedAmount        *decimal.Decimal `json:"fixed_amount,omitempty"`       // applicable for fixed_amount conversion type
+	Percentage         *decimal.Decimal `json:"percentage,omitempty"`         // applicable for percentage conversion type
 	ScheduleFrequency  *string          `json:"schedule_frequency,omitempty"` // daily, weekly, monthly
-	ScheduleDayOfWeek  *int32             `json:"schedule_day_of_week,omitempty"`
-	ScheduleDayOfMonth *int32             `json:"schedule_day_of_month,omitempty"`
+	ScheduleDayOfWeek  *int32           `json:"schedule_day_of_week,omitempty"`
+	ScheduleDayOfMonth *int32           `json:"schedule_day_of_month,omitempty"`
 	ScheduleTime       *time.Time       `json:"schedule_time,omitempty"`
 	NextExecutionAt    *time.Time       `json:"next_execution_at,omitempty"`
 	Timezone           string           `json:"timezone"`
@@ -30,9 +30,9 @@ type ConversionRule struct {
 	IsActive           bool             `json:"is_active"`
 	LastTriggeredAt    *time.Time       `json:"last_triggered_at,omitempty"`
 	LastTriggerRate    *decimal.Decimal `json:"last_trigger_rate,omitempty"`
-	ExecutionCount     int32              `json:"execution_count"`
-	MaxExecutions      *int32            `json:"max_executions,omitempty"`
-	FailureCount       int32              `json:"failure_count"`
+	ExecutionCount     int32            `json:"execution_count"`
+	MaxExecutions      *int32           `json:"max_executions,omitempty"`
+	FailureCount       int32            `json:"failure_count"`
 	LastFailureReason  *string          `json:"last_failure_reason,omitempty"`
 	Description        *string          `json:"description,omitempty"`
 	Label              *string          `json:"label,omitempty"`
@@ -147,15 +147,13 @@ type ConversionStats struct {
 	TotalFees             decimal.Decimal `json:"total_fees"`
 }
 
-
-
 type ManualConversionRequest struct {
-	SourceWalletID uuid.UUID       `json:"source_wallet_id" binding:"required"` // UUID of the source wallet
-	TargetWalletID uuid.UUID       `json:"target_wallet_id" binding:"required"` // UUID of the target wallet
-	SourceCurrency string          `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
-	TargetCurrency string          `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
-	Amount         decimal.Decimal `json:"amount" binding:"required,gt=0"` 		 // Amount to convert
-	AmountType     string          `json:"amount_type" binding:"required,oneof=source target"` // Indicates if the amount is in source or target currency
+	SourceWalletID uuid.UUID `json:"source_wallet_id" binding:"required"` // UUID of the source wallet
+	TargetWalletID uuid.UUID `json:"target_wallet_id" binding:"required"` // UUID of the target wallet
+	SourceCurrency string    `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
+	TargetCurrency string    `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
+	Amount         string    `json:"amount" binding:"required,gt=0"`           // Amount to convert
+	// AmountType     string    `json:"-" binding:"required,oneof=source target"` // Indicates if the amount is in source or target currency
 }
 
 type ManualConversionResponse struct {

@@ -33,7 +33,7 @@
     "transaction_limit" DECIMAL(20,2) NOT NULL, -- Max per transaction
     "daily_spending_limit" DECIMAL(20,2), -- Optional daily limit
     "card_limit" DECIMAL(20,2), -- max amount a card can have
-    
+     
     -- Additional features
     "max_cards_per_user" INT NOT NULL DEFAULT 1,
     "supports_international" BOOLEAN NOT NULL DEFAULT TRUE,

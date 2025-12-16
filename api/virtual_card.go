@@ -111,12 +111,12 @@ type CreateCardRequest struct {
 
 // CreateCard godoc
 // @Summary Create virtual card
-// @Description Create a new USD virtual card with BridgeCard
 // @Tags Cards
+// @Description Create a new USD virtual card with BridgeCard
 // @Accept json
 // @Produce json
+// @Success 201 {object} bridgecards.CreateCardResponse4
 // @Param request body CreateCardRequest true "Card creation parameters"
-// @Success 201 {object} bridgecards.CreateCardResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards [post]
@@ -244,9 +244,27 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/get-card-balance [get]
 func (v *Virtualcard) GetCardBalance(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
 	cardID := c.Query("card_id")
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
@@ -283,6 +301,18 @@ func (v *Virtualcard) FundCard(c *gin.Context) {
 		return
 	}
 	req.TransactionReference = utils.NewTxRef("fund-card")
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, req.CardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
 	response, err := v.virtualCardSvc.FundCard(c, req, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -314,6 +344,17 @@ func (v *Virtualcard) FreezeCard(c *gin.Context) {
 	cardID := c.Query("card_id")
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
@@ -351,6 +392,17 @@ func (v *Virtualcard) UnfreezeCard(c *gin.Context) {
 		return
 	}
 
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
 	response, err := v.virtualCardSvc.UnfreezeCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -381,6 +433,17 @@ func (v *Virtualcard) UpdateCardPin(c *gin.Context) {
 	var req bridgecards.UpdateCardPinRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, req.CardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
@@ -417,6 +480,17 @@ func (v *Virtualcard) DeleteCard(c *gin.Context) {
 		return
 	}
 
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
 	response, err := v.virtualCardSvc.DeleteCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -447,6 +521,17 @@ func (v *Virtualcard) DebitCard(c *gin.Context) {
 	cardID := c.Query("card_id")
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
@@ -557,10 +642,10 @@ func (v *Virtualcard) ListCardTransactions(c *gin.Context) {
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/get-card-transaction-status [get]
-func (s *Virtualcard) GetCardTransactionStatus(c *gin.Context) {
+func (v *Virtualcard) GetCardTransactionStatus(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
-		s.server.logger.Error(err.Error())
+		v.server.logger.Error(err.Error())
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
@@ -575,7 +660,18 @@ func (s *Virtualcard) GetCardTransactionStatus(c *gin.Context) {
 		return
 	}
 
-	response, err := s.virtualCardSvc.GetCardTransactionStatus(c, cardID, clientTransactionReference, activeUser.UserID)
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	response, err := v.virtualCardSvc.GetCardTransactionStatus(c, cardID, clientTransactionReference, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -596,12 +692,12 @@ func (s *Virtualcard) GetCardTransactionStatus(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/withdraw-card [post]
 func (v *Virtualcard) WithdrawCard(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
 	var req bridgecards.WithdrawCardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -611,6 +707,17 @@ func (v *Virtualcard) WithdrawCard(c *gin.Context) {
 
 	req.TransactionReference = utils.NewTxRef("card_withdrawal")
 	req.Currency = "USD"
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, req.CardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 	response, err := v.virtualCardSvc.WithdrawCard(c.Request.Context(), req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -641,6 +748,17 @@ func (v *Virtualcard) GetCardDetails(c *gin.Context) {
 	cardID := c.Query("card_id")
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+		return
+	}
+
+	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 

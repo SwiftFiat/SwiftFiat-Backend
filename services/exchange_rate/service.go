@@ -224,7 +224,7 @@ func (s *ExchangeRateService) CalculateConversionAmount(sourceAmount, rate decim
 	targetAmount = sourceAmount.Mul(rate)
 
 	// Calculate fees
-	fees = targetAmount.Mul(feePercentage.Div(decimal.NewFromInt(100)))
+	fees = decimal.NewFromInt(0)
 
 	// Calculate net amount
 	netAmount = targetAmount.Sub(fees)
@@ -237,14 +237,15 @@ func (s *ExchangeRateService) CalculateInverseAmount(targetAmount, rate decimal.
 	// Calculate the amount with fees
 	// targetAmount = (sourceAmount * rate) - fees
 	// targetAmount = (sourceAmount * rate) - (sourceAmount * rate * feePercentage/100)
-	// targetAmount = sourceAmount * rate * (1 - feePercentage/100)
+	// targetAmount = sourceAmount * rate * (1 - feePercentsourceage/100)
 	// sourceAmount = targetAmount / (rate * (1 - feePercentage/100))
 
 	multiplier := rate.Mul(decimal.NewFromInt(1).Sub(feePercentage.Div(decimal.NewFromInt(100))))
 	sourceAmount = targetAmount.Div(multiplier)
 
 	grossAmount := sourceAmount.Mul(rate)
-	fees = grossAmount.Mul(feePercentage.Div(decimal.NewFromInt(100)))
+	// fees = grossAmount.Mul(feePercentage.Div(decimal.NewFromInt(100)))
+	fees = decimal.NewFromInt(0)
 	netAmount = grossAmount.Sub(fees)
 
 	return sourceAmount, fees, netAmount

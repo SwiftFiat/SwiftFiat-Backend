@@ -339,14 +339,14 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 	// make admin check
 	var req smartconversion.ManualConversionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request payload"))
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
 	user, err := s.server.queries.GetUserByID(c.Request.Context(), activeUser.UserID)
 	if err != nil {
 		s.logger.Error("Failed to fetch user", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch user"))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -361,7 +361,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 			return
 		}
 		s.logger.Error("Failed to execute conversion", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to execute conversion"))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
