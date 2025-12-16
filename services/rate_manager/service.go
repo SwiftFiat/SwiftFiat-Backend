@@ -529,6 +529,9 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from
 		UserID:              userID,
 	})
 
+	s.logger.Infof("Applicable rule for user %d: %s -> %s, amount: %s", userID, from, to, amount)
+	s.logger.Infof("Applicable rule name : %v", applicableRule)
+
 	var adjustedRate decimal.Decimal
 	var adjustmentAmount decimal.Decimal
 	var vipLevelApplied *string
