@@ -4,12 +4,28 @@ meta {
   seq: 2
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/smart-convert/execute
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "source_wallet_id": "41152ed3-6289-46b0-8bb5-c929c623af0e",
+    "target_wallet_id": "f19bd079-eaaa-4651-802f-4a6790485978",
+    "source_currency": "USD",
+    "target_currency":"NGN",
+    "amount": "1"
+  //   "amount_type": "target"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
