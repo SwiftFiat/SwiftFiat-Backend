@@ -13,6 +13,43 @@ definitions:
       role:
         type: string
     type: object
+  api.CardPlanResponse:
+    properties:
+      card_limit:
+        type: string
+      created_at:
+        type: string
+      creation_fee:
+        type: string
+      daily_spending_limit:
+        type: string
+      deleted_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      max_cards_per_user:
+        type: integer
+      monthly_maintenance_fee:
+        type: string
+      monthly_spending_limit:
+        type: string
+      name:
+        type: string
+      supports_atm:
+        type: boolean
+      supports_international:
+        type: boolean
+      supports_online:
+        type: boolean
+      transaction_limit:
+        type: string
+      updated_at:
+        type: string
+    type: object
   api.CreateCardRequest:
     properties:
       card_brand:
@@ -1202,6 +1239,17 @@ definitions:
       resolved_tickets:
         type: integer
     type: object
+  db.GetTotalCardsByStatusRow:
+    properties:
+      active_cards:
+        type: integer
+      frozen_cards:
+        type: integer
+      terminated_cards:
+        type: integer
+      total_cards:
+        type: integer
+    type: object
   db.GetUserVaultsSummaryRow:
     properties:
       active_vaults:
@@ -1584,6 +1632,8 @@ definitions:
     properties:
       avatar_url:
         type: string
+      card_holder_id:
+        type: string
       created_at:
         type: string
       email:
@@ -1599,6 +1649,8 @@ definitions:
       id:
         type: integer
       is_active:
+        type: boolean
+      is_kyc_verified:
         type: boolean
       last_name:
         type: string
@@ -3451,11 +3503,6 @@ definitions:
       yearly_yield:
         type: string
     type: object
-  virtualcard.CreateCardResult:
-    properties:
-      bridgeCardDetails:
-        $ref: '#/definitions/bridgecards.CreateCardResponse'
-    type: object
 host: localhost:8080
 info:
   contact:
@@ -3856,36 +3903,6 @@ paths:
       summary: Update VIP level
       tags:
       - Rate Manager - VIP Levels
-  /api/v1/admin/cards/fund-issuing-wallet:
-    post:
-      consumes:
-      - application/json
-      description: Fund the issuing wallet with BridgeCard
-      parameters:
-      - description: Issuing wallet funding parameters
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/bridgecards.FundIssuingWalletRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Fund issuing wallet [admin]
-      tags:
-      - Cards
   /api/v1/admin/faq:
     get:
       description: Retrieve paginated list of FAQ documents
@@ -6404,7 +6421,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/virtualcard.CreateCardResult'
+            $ref: '#/definitions/bridgecards.CreateCardResponse'
         "400":
           description: Bad Request
           schema:
@@ -6414,6 +6431,82 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Create virtual card
+      tags:
+      - Cards
+  /api/v1/cards/admin/fund-issuing-wallet:
+    post:
+      consumes:
+      - application/json
+      description: Fund the issuing wallet with BridgeCard
+      parameters:
+      - description: Issuing wallet funding parameters
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/bridgecards.FundIssuingWalletRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Fund issuing wallet [admin]
+      tags:
+      - Cards
+  /api/v1/cards/admin/get-total-cards:
+    get:
+      consumes:
+      - application/json
+      description: Get total number of virtual cards
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get total number of virtual cards
+      tags:
+      - Cards
+  /api/v1/cards/admin/get-total-cards-by-status:
+    get:
+      consumes:
+      - application/json
+      description: Get total number of virtual cards by status
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/db.GetTotalCardsByStatusRow'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get total number of virtual cards by status
       tags:
       - Cards
   /api/v1/cards/debit-card:
@@ -6472,6 +6565,35 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Delete virtual card
+      tags:
+      - Cards
+  /api/v1/cards/delete-card-plan:
+    delete:
+      consumes:
+      - application/json
+      description: Delete card plan
+      parameters:
+      - description: Plan ID
+        in: query
+        name: plan_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Delete card plan
       tags:
       - Cards
   /api/v1/cards/freeze-card:
@@ -6589,6 +6711,60 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get virtual card details
+      tags:
+      - Cards
+  /api/v1/cards/get-card-plan-by-id:
+    get:
+      consumes:
+      - application/json
+      description: Get card plan by id
+      parameters:
+      - description: Plan ID
+        in: query
+        name: plan_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CardPlanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get card plan by id
+      tags:
+      - Cards
+  /api/v1/cards/get-card-plans:
+    get:
+      consumes:
+      - application/json
+      description: Get card plans
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.CardPlanResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get card plans
       tags:
       - Cards
   /api/v1/cards/get-card-transaction-status:
@@ -6775,6 +6951,75 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update virtual card pin
+      tags:
+      - Cards
+  /api/v1/cards/update-card-plan:
+    put:
+      consumes:
+      - application/json
+      description: Update card plan
+      parameters:
+      - description: Plan ID
+        in: query
+        name: plan_id
+        required: true
+        type: integer
+      - description: Name
+        in: query
+        name: name
+        required: true
+        type: string
+      - description: Description
+        in: query
+        name: description
+        required: true
+        type: string
+      - description: Monthly Spending Limit
+        in: query
+        name: monthly_spending_limit
+        required: true
+        type: string
+      - description: Monthly Maintenance Fee
+        in: query
+        name: monthly_maintenance_fee
+        required: true
+        type: string
+      - description: Transaction Limit
+        in: query
+        name: transaction_limit
+        required: true
+        type: string
+      - description: Daily Spending Limit
+        in: query
+        name: daily_spending_limit
+        required: true
+        type: string
+      - description: Is Active
+        in: query
+        name: is_active
+        required: true
+        type: boolean
+      - description: Card Limit
+        in: query
+        name: card_limit
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CardPlanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update card plan
       tags:
       - Cards
   /api/v1/cards/withdraw-card:
