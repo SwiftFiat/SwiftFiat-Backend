@@ -168,7 +168,7 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 // ============================================================
 
 // ExecuteManualConversion executes a manual conversion with vip rate
-func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*ManualConversionResponse, error) {
+func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*db.ConversionHistory, error) {
 	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.ID))
 
 	// Validate wallets
@@ -265,16 +265,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, err
 	}
 
-	return &ManualConversionResponse{
-		ConversionID:  history.ConversionRuleID.UUID,
-		TransactionID: history.TransactionID.UUID,
-		SourceAmount:  sourceAmount,
-		TargetAmount:  targetAmount,
-		ExecutedRate:  adjustedRate,
-		Fees:          fees,
-		NetAmount:     netAmount,
-		Status:        "success",
-	}, nil
+	return history, nil
 }
 
 // ============================================================
@@ -286,13 +277,13 @@ func (s *ConversionService) executeWithBaseRate(
 	ctx context.Context,
 	userID int64,
 	req *ManualConversionRequest,
-) (*ManualConversionResponse, error) {
+) (*db.ConversionHistory, error) {
 	s.logger.Info("Executing conversion with base rate (VIP adjustment unavailable)")
 
 	// Get base rate
 	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, req.SourceCurrency, req.TargetCurrency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get base rate: %w", err)
+		return nil, fmt.Errorf("failed to get base rate 3: %w", err)
 	}
 
 	s.logger.Infof("Base rate for %s to %s is %s", req.SourceCurrency, req.TargetCurrency, baseRate.Rate)
@@ -348,16 +339,7 @@ func (s *ConversionService) executeWithBaseRate(
 		return nil, err
 	}
 
-	return &ManualConversionResponse{
-		ConversionID:  history.ConversionRuleID.UUID,
-		TransactionID: history.TransactionID.UUID,
-		SourceAmount:  sourceAmount,
-		TargetAmount:  targetAmount,
-		ExecutedRate:  baseRate.Rate,
-		Fees:          fees,
-		NetAmount:     netAmount,
-		Status:        "success",
-	}, nil
+	return history, nil
 }
 
 type conversionExecutionParams struct {

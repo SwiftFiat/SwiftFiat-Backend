@@ -54,7 +54,7 @@ func (s *ExchangeRateService) GetExchangeRate(ctx context.Context, from, to stri
 // getDirectRate attempts to get rate directly between two currencies
 func (s *ExchangeRateService) getDirectRate(ctx context.Context, from, to string) (*ExchangeRate, error) {
 	// For crypto pairs (USDT, USDC), use Cryptomus
-	if s.isCrypto(from) {
+	if s.isCrypto(from) || s.isCrypto(to) {
 		return s.getCryptoRate(ctx, from, to)
 	}
 
