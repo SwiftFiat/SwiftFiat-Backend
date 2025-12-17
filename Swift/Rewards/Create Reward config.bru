@@ -1,0 +1,29 @@
+meta {
+  name: Create Reward config
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BaseURl}}/rewards/admin/configure
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "config_name": "test config 1",
+    "reward_rate": 1,
+    "transaction_type": "bill_payment",
+    "min_transaction_amount": "0"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

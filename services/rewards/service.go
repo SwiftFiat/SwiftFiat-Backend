@@ -184,12 +184,12 @@ type RedeemRewardPointsParams struct {
 	ServiceType        string
 	ServiceProvider    string
 }
-
+ 
 // RedeemRewardPoints redeems reward points and applies discount to bill payment
 // This should be called before processing the actual bill payment
 // Returns the final amount to pay after discount
 func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRewardPointsParams) (*RewardRedemptionResponse, float64, error) {
-	s.logger.Info("Redeeming reward points", map[string]interface{}{
+	s.logger.Info("Redeeming reward points", map[string]any{
 		"user_id":     params.UserID,
 		"points":      params.PointsToRedeem,
 		"bill_amount": params.OriginalBillAmount,
@@ -470,7 +470,7 @@ func (s *RewardService) GetRecentRewardActivity(ctx context.Context, userID int3
 // ============================================================================
 // ADMIN: REWARD CONFIGURATION MANAGEMENT
 // ============================================================================
-
+ 
 // CreateRewardConfiguration creates a new reward configuration (admin only)
 func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req CreateRewardConfigRequest, adminID int32) (*RewardConfigurationResponse, error) {
 	validFrom := time.Now()

@@ -34,7 +34,7 @@ func (r RateManagerHandler) router(server *Server) {
 	v1.GET("/vip-levels/:id", r.GetVIPLevel)
 	v1.GET("/vip-levels", r.ListVIPLevels)
 	v1.PUT("/vip-levels/:id", r.UpdateVIPLevel)
-	v1.DELETE("/vip-levels/:id", r.DeleteVIPLevel)
+	v1.DELETE("/vip-levels/:id", r.DeleteVIPLevel) 
 
 	// rules
 	v1.POST("/rules", r.CreateRateAdjustmentRule)

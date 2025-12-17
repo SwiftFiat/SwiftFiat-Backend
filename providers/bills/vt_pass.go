@@ -17,14 +17,15 @@ import (
 type VTPassProvider struct {
 	providers.BaseProvider
 	config *BillConfig
+	logger *logging.Logger
 }
 
 type BillConfig struct {
 	BillProviderName string `mapstructure:"BILL_PROVIDER_NAME"`
-	VTPassBaseUrl    string `mapstructure:"VT_BASE_URL"`
-	VTPassKey        string `mapstructure:"VT_PASS_KEY"`
-	VTPassPK         string `mapstructure:"VT_PASS_PK"`
-	VTPassSK         string `mapstructure:"VT_PASS_SK"`
+	VTPassBaseUrl    string `mapstructure:"VT_PASS_SANDBOX_URL"`
+	VTPassKey        string `mapstructure:"VT_PASS_TEST_KEY"`
+	VTPassPK         string `mapstructure:"VT_PASS_TEST_PK"`
+	VTPassSK         string `mapstructure:"VT_PASS_TEST_SK"`
 }
 
 func NewBillProvider() *VTPassProvider {
@@ -46,6 +47,7 @@ func NewBillProvider() *VTPassProvider {
 			},
 		},
 		config: &c,
+		logger: logging.NewLogger(),
 	}
 }
 
@@ -210,6 +212,8 @@ func (p *VTPassProvider) BuyAirtime(request PurchaseAirtimeRequest) (*Transactio
 		"secret-key": p.config.VTPassSK,
 		"api-key":    p.config.VTPassKey,
 	}
+
+	p.logger.Infof("headers: %v", headers)
 
 	resp, err := p.MakeRequest("POST", base.String(), request, headers)
 	if err != nil {

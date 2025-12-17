@@ -38,23 +38,17 @@ func (r Rewards) router(server *Server) {
 		rewards.GET("/history", r.getUserRewardHistory)
 		rewards.GET("/activity", r.getRecentRewardActivity)
 	}
-
-	// Admin endpoints
-	admin := server.router.Group("/api/v1/admin/rewards")
-	admin.Use(r.server.authMiddleware.AuthenticatedMiddleware())
-	{
 		// Configuration management
-		admin.POST("/configure", r.createRewardConfiguration)
-		admin.GET("/config", r.getRewardConfiguration)
-		admin.GET("/configurations", r.listRewardConfigurations)
-		admin.PUT("/configure/:id", r.updateRewardConfiguration)
-		admin.POST("/configure/:id/activate", r.activateRewardConfiguration)
-		admin.POST("/configure/:id/deactivate", r.deactivateRewardConfiguration)
+		rewards.POST("/admin/configure", r.createRewardConfiguration)
+		rewards.GET("/admin/config", r.getRewardConfiguration)
+		rewards.GET("/admin/configurations", r.listRewardConfigurations)
+		rewards.PUT("/admin/configure/:id", r.updateRewardConfiguration)
+		rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
+		rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
 
 		// Analytics
-		admin.GET("/statistics", r.getRewardStatistics)
-		admin.GET("/top-users", r.getTopRewardUsers)
-	}
+		rewards.GET("/admin/statistics", r.getRewardStatistics)
+		rewards.GET("/admin/top-users", r.getTopRewardUsers)
 }
 
 // ============================================================================
@@ -194,6 +188,18 @@ func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, history)
 }
 
+// getRecentRewardActivity godoc
+// @Summary Get recent reward activity
+// @Description Get recent reward activity for authenticated user
+// @Tags rewards
+// @Accept json
+// @Produce json
+// @Param limit query int false "Number of recent activities to retrieve" default(10)
+// @Success 200 {object} []rewards.RewardTransactionItem
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/rewards/activity [get]
+// @Security BearerAuth
 func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -234,7 +240,7 @@ func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/configure [post]
+// @Router /api/v1/rewards/admin/configure [post]
 // @Security BearerAuth
 func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 	// Verify admin role
@@ -245,14 +251,14 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
 	var req rewards.CreateRewardConfigRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request payload"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -303,7 +309,7 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/config [get]
+// @Router /api/v1/rewards/admin/config [get]
 // @Security BearerAuth
 func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -313,7 +319,7 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
@@ -346,7 +352,7 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/configurations [get]
+// @Router /api/v1/rewards/admin/configurations [get]
 // @Security BearerAuth
 func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -356,7 +362,7 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
@@ -512,7 +518,7 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/configure/{id}/activate [post]
+// @Router /api/v1/rewards/admin/configure/{id}/activate [put]
 // @Security BearerAuth
 func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -522,7 +528,7 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
@@ -575,7 +581,7 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/configure/{id}/deactivate [post]
+// @Router /api/v1/admin/rewards/configure/{id}/deactivate [put]
 // @Security BearerAuth
 func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -585,10 +591,10 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	configID, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
@@ -630,30 +636,31 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 // ADMIN ENDPOINTS - ANALYTICS
 // ==============================================================
 
-// getRewardStatistics godoc
-// @Summary Get reward system statistics (Admin)
-// @Description Get comprehensive statistics about the reward system
+// getTopRewardUsers godoc
+// @Summary Get top reward users (Admin)
+// @Description Get top users by total rewards earned
 // @Tags admin,rewards
 // @Accept json
 // @Produce json
+// @Param limit query int false "Limit" default(10)
 // @Success 200 {object} []rewards.GetTopUsersByRewardsEarnedRow
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/rewards/statistics [get]
+// @Router /api/v1/rewards/admin/top-users [get]
 // @Security BearerAuth
 func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		r.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	r.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role != models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	limit := 10
 	if limitStr := ctx.Query("limit"); limitStr != "" {
@@ -673,9 +680,21 @@ func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
 		usersResponse = append(usersResponse, *rewards.MapGetTopUsersByRewardsEarnedRowToResponse(&user))
 	}
 
-	ctx.JSON(http.StatusOK, usersResponse)
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Top reward users retrieved successfully", usersResponse))
 }
 
+// getRewardStatistics godoc
+// @Summary Get reward system statistics (Admin)
+// @Description Get comprehensive statistics about the reward system
+// @Tags admin,rewards
+// @Accept json
+// @Produce json
+// @Success 200 {object} []rewards.GetTopUsersByRewardsEarnedRow
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/rewards/admin/statistics [get]
+// @Security BearerAuth
 func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -684,7 +703,7 @@ func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
