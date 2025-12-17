@@ -1,0 +1,26 @@
+meta {
+  name: Create pin
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{BaseURl}}/auth/create-pin
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "pin": "1234"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

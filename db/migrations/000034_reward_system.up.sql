@@ -97,7 +97,7 @@ CREATE INDEX idx_reward_configurations_type ON reward_configurations(transaction
 -- This table tracks all reward point earning and redemption activities
 -- Provides complete audit trail for user reward points
 CREATE TABLE reward_transactions (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY, 
     -- User reference
     user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     

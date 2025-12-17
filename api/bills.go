@@ -52,6 +52,18 @@ func (b Bills) router(server *Server) {
 	serverGroupV1.POST("buy-electricity", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyElectricity)
 }
 
+// getCategories godoc
+// @Summary Get categories
+// @Description Get categories
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/categories [get]
+// @Security BearerAuth
 func (b *Bills) getCategories(ctx *gin.Context) {
 	provider, exists := b.server.provider.GetProvider(providers.VTPass)
 	if !exists {
@@ -74,6 +86,19 @@ func (b *Bills) getCategories(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched bill categories", categories))
 }
 
+// getServices godoc
+// @Summary Get services
+// @Description Get services
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param identifier query string true "Identifier"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/services [get]
+// @Security BearerAuth
 func (b *Bills) getServices(ctx *gin.Context) {
 	identifier := ctx.Query("identifier")
 
@@ -104,6 +129,20 @@ func (b *Bills) getServices(ctx *gin.Context) {
 // It then returns the variations to the client
 // The cache is set to expire in 10 minutes
 // If the cache is empty, it will be set to expire in 10 seconds
+
+// getServiceVariations godoc
+// @Summary Get service variations
+// @Description Get service variations
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param service_id query string true "Service ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/service-variations [get]
+// @Security BearerAuth
 func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	serviceID := ctx.Query("serviceID")
 
@@ -173,6 +212,25 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched service variations", variations))
 }
 
+// buyAirtime godoc
+// @Summary Buy airtime
+// @Description Buy airtime
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param wallet_id query string true "Wallet ID"
+// @Param service_id query string true "Service ID"
+// @Param phone query string true "Phone"
+// @Param amount query int true "Amount"
+// @Param pin query string true "Pin"
+// @Param use_reward_points query bool false "Use reward points"
+// @Param points_to_use query int false "Points to use"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/buy-airtime [post]
+// @Security BearerAuth
 func (b *Bills) buyAirtime(ctx *gin.Context) {
 	request := struct {
 		WalletID        string `json:"wallet_id" binding:"required"`
@@ -227,6 +285,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		return
 	}
 
+	b.server.logger.Infof("buy airtime: %v", request)
 	// ========================================================================
 	// REWARD POINTS PROCESSING
 	// ========================================================================
@@ -379,10 +438,10 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	// ========================================================================
 	notificationMsg := fmt.Sprintf("You have received an airtime of %d to %s", request.Amount, request.Phone)
 	if pointsUsed.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You saved ₦%d using reward points", pointsUsed)
+		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
 	}
 	if pointsEarned.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You earned ₦%d in reward points!", pointsEarned)
+		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
 	}
 
 	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", notificationMsg)
@@ -401,7 +460,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	// ========================================================================
 	// RETURN ENHANCED RESPONSE
 	// ========================================================================
-	response := map[string]interface{}{
+	response := map[string]any{
 		"transaction":       tInfo,
 		"original_amount":   originalAmount.InexactFloat64(),
 		"discount_applied":  pointsUsed,
@@ -415,139 +474,23 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 
 }
 
-// func (b *Bills) buyAirtime(ctx *gin.Context) {
-// 	request := struct {
-// 		WalletID  string `json:"wallet_id" binding:"required"`
-// 		ServiceID string `json:"service_id" binding:"required"`
-// 		Phone     string `json:"phone" binding:"required"`
-// 		Amount    int64  `json:"amount" binding:"required"`
-// 		Pin       string `json:"pin" binding:"required"`
-// 	}{}
-
-// 	if err := ctx.ShouldBindJSON(&request); err != nil {
-// 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-// 		return
-// 	}
-
-// 	if request.Pin == "" {
-// 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
-// 		return
-// 	}
-
-// 	// Start transaction
-// 	dbTx, err := b.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-// 	if err != nil {
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-// 		return
-// 	}
-// 	defer dbTx.Rollback()
-
-// 	// Fetch user details
-// 	activeUser, err := utils.GetActiveUser(ctx)
-// 	if err != nil {
-// 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-// 		return
-// 	}
-
-// 	// Pull user information
-// 	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
-// 	if err != nil {
-// 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-// 		return
-// 	}
-
-// 	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
-// 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
-// 		return
-// 	}
-
-// 	walletID, err := uuid.Parse(request.WalletID)
-// 	if err != nil {
-// 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
-// 		return
-// 	}
-
-// 	// Create BillTransaction
-// 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
-// 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
-// 		SourceWalletID:  walletID,
-// 		SentAmount:      decimal.NewFromInt(request.Amount),
-// 		Description:     "airtime-purchase",
-// 		Type:            transaction.Airtime,
-// 		ServiceID:       request.ServiceID,
-// 		ServiceCurrency: "NGN",
-// 	})
-// 	if err != nil {
-// 		b.server.logger.Error(err)
-// 		if walletErr, ok := err.(*wallet.WalletError); ok {
-// 			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
-// 				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-// 				return
-// 			}
-// 			if walletErr.Error() == wallet.ErrNotYours.Error() {
-// 				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-// 				return
-// 			}
-// 			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
-// 				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
-// 				return
-// 			}
-// 		}
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-// 		return
-// 	}
-
-// 	provider, exists := b.server.provider.GetProvider(providers.VTPass)
-// 	if !exists {
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
-// 		return
-// 	}
-
-// 	billProv, ok := provider.(*bills.VTPassProvider)
-// 	if !ok {
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
-// 		return
-// 	}
-
-// 	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
-
-// 	transaction, err := billProv.BuyAirtime(bills.PurchaseAirtimeRequest{
-// 		ServiceID: request.ServiceID,
-// 		Phone:     request.Phone,
-// 		RequestID: purchaseRequestID,
-// 		Amount:    request.Amount,
-// 	})
-// 	if err != nil {
-// 		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
-// 		return
-// 	}
-
-// 	if _, err := b.server.queries.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-// 		ServiceTransactionID: sql.NullString{
-// 			String: transaction.TransactionID,
-// 			Valid:  true,
-// 		},
-// 		TransactionID: tInfo.ID,
-// 	}); err != nil {
-// 		b.server.logger.Error(err)
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-// 		return
-// 	}
-
-// 	// Commit transaction
-// 	if err := dbTx.Commit(); err != nil {
-// 		b.server.logger.Error(err)
-// 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-// 		return
-// 	}
-
-// 	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", fmt.Sprintf("You have received an airtime of %d to %s", request.Amount, request.Phone))
-
-// 	b.server.logger.Info("transaction (airtime purchase) completed successfully", tInfo)
-
-// 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase airtime successful", tInfo))
-// }
-
+// buyData godoc
+// @Summary Buy data
+// @Description Buy data
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param wallet_id query string true "Wallet ID"
+// @Param service_id query string true "Service ID"
+// @Param phone query string true "Phone"
+// @Param variation_code query string true "Variation Code"
+// @Param pin query string true "Pin"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/buy-data [post]
+// @Security BearerAuth
 func (b *Bills) buyData(ctx *gin.Context) {
 	request := struct {
 		WalletID  string `json:"wallet_id" binding:"required"`
@@ -723,6 +666,20 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", tInfo))
 }
 
+// getCustomerInfo godoc
+// @Summary Get customer info
+// @Description Get customer info
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param service_id query string true "Service ID"
+// @Param billers_code query string true "Billers Code"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/customer-info [post]
+// @Security BearerAuth
 func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 	request := struct {
 		ServiceID   string `json:"service_id" binding:"required"`
@@ -759,6 +716,25 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", models.ToCustomerInfoResponse(*customerInfo)))
 }
 
+
+// buyTVSubscription godoc
+// @Summary Buy TV subscription
+// @Description Buy TV subscription
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param wallet_id query string true "Wallet ID"
+// @Param service_id query string true "Service ID"
+// @Param billers_code query string true "Billers Code"
+// @Param subscription_type query string true "Subscription Type"
+// @Param variation_code query string true "Variation Code"
+// @Param pin query string true "Pin"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/buy-tv [post]
+// @Security BearerAuth
 func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	request := struct {
 		WalletID         string `json:"wallet_id" binding:"required"`
@@ -964,6 +940,21 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", tInfo))
 }
 
+// getCustomerMeterInfo godoc
+// @Summary Get customer meter info
+// @Description Get customer meter info
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param service_id query string true "Service ID"
+// @Param billers_code query string true "Billers Code"
+// @Param type query string true "Type"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/customer-meter-info [post]
+// @Security BearerAuth
 func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 	request := struct {
 		ServiceID   string `json:"service_id" binding:"required"`
@@ -1001,6 +992,25 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", models.ToMeterInfoResponse(*customerMeterInfo)))
 }
 
+
+// buyElectricity godoc
+// @Summary Buy electricity
+// @Description Buy electricity
+// @Tags bills
+// @Accept json
+// @Produce json
+// @Param wallet_id query string true "Wallet ID"
+// @Param service_id query string true "Service ID"
+// @Param billers_code query string true "Billers Code"
+// @Param variation_code query string true "Variation Code"
+// @Param amount query int true "Amount"
+// @Param pin query string true "Pin"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/bills/buy-electricity [post]
+// @Security BearerAuth
 func (b *Bills) buyElectricity(ctx *gin.Context) {
 	request := struct {
 		WalletID      string  `json:"wallet_id" binding:"required"`

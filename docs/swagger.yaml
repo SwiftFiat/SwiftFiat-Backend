@@ -4243,126 +4243,6 @@ paths:
       summary: Mark FAQ as helpful
       tags:
       - admin-faq
-  /api/v1/admin/rewards/config:
-    get:
-      consumes:
-      - application/json
-      description: Get current active reward configuration
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/rewards.RewardConfigurationResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get reward configuration (Admin)
-      tags:
-      - admin
-      - rewards
-  /api/v1/admin/rewards/configurations:
-    get:
-      consumes:
-      - application/json
-      description: Get paginated list of all reward configurations
-      parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 20
-        description: Page size
-        in: query
-        name: page_size
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              items:
-                $ref: '#/definitions/rewards.RewardConfigurationResponse'
-              type: array
-            type: array
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List all reward configurations (Admin)
-      tags:
-      - admin
-      - rewards
-  /api/v1/admin/rewards/configure:
-    post:
-      consumes:
-      - application/json
-      description: Create a new reward configuration to define earning rates
-      parameters:
-      - description: Configuration details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/rewards.CreateRewardConfigRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/rewards.RewardConfigurationResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Create reward configuration (Admin)
-      tags:
-      - admin
-      - rewards
   /api/v1/admin/rewards/configure/{id}:
     put:
       consumes:
@@ -4413,48 +4293,8 @@ paths:
       tags:
       - admin
       - rewards
-  /api/v1/admin/rewards/configure/{id}/activate:
-    post:
-      consumes:
-      - application/json
-      description: Activate a reward configuration
-      parameters:
-      - description: Configuration ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/rewards.RewardConfigurationResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Activate reward configuration (Admin)
-      tags:
-      - admin
-      - rewards
   /api/v1/admin/rewards/configure/{id}/deactivate:
-    post:
+    put:
       consumes:
       - application/json
       description: Deactivate a reward configuration
@@ -4490,38 +4330,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Deactivate reward configuration (Admin)
-      tags:
-      - admin
-      - rewards
-  /api/v1/admin/rewards/statistics:
-    get:
-      consumes:
-      - application/json
-      description: Get comprehensive statistics about the reward system
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/rewards.GetTopUsersByRewardsEarnedRow'
-            type: array
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get reward system statistics (Admin)
       tags:
       - admin
       - rewards
@@ -6500,6 +6308,428 @@ paths:
       summary: Verify transaction pin
       tags:
       - auth
+  /api/v1/bills/buy-airtime:
+    post:
+      consumes:
+      - application/json
+      description: Buy airtime
+      parameters:
+      - description: Wallet ID
+        in: query
+        name: wallet_id
+        required: true
+        type: string
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Phone
+        in: query
+        name: phone
+        required: true
+        type: string
+      - description: Amount
+        in: query
+        name: amount
+        required: true
+        type: integer
+      - description: Pin
+        in: query
+        name: pin
+        required: true
+        type: string
+      - description: Use reward points
+        in: query
+        name: use_reward_points
+        type: boolean
+      - description: Points to use
+        in: query
+        name: points_to_use
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Buy airtime
+      tags:
+      - bills
+  /api/v1/bills/buy-data:
+    post:
+      consumes:
+      - application/json
+      description: Buy data
+      parameters:
+      - description: Wallet ID
+        in: query
+        name: wallet_id
+        required: true
+        type: string
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Phone
+        in: query
+        name: phone
+        required: true
+        type: string
+      - description: Variation Code
+        in: query
+        name: variation_code
+        required: true
+        type: string
+      - description: Pin
+        in: query
+        name: pin
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Buy data
+      tags:
+      - bills
+  /api/v1/bills/buy-electricity:
+    post:
+      consumes:
+      - application/json
+      description: Buy electricity
+      parameters:
+      - description: Wallet ID
+        in: query
+        name: wallet_id
+        required: true
+        type: string
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Billers Code
+        in: query
+        name: billers_code
+        required: true
+        type: string
+      - description: Variation Code
+        in: query
+        name: variation_code
+        required: true
+        type: string
+      - description: Amount
+        in: query
+        name: amount
+        required: true
+        type: integer
+      - description: Pin
+        in: query
+        name: pin
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Buy electricity
+      tags:
+      - bills
+  /api/v1/bills/buy-tv:
+    post:
+      consumes:
+      - application/json
+      description: Buy TV subscription
+      parameters:
+      - description: Wallet ID
+        in: query
+        name: wallet_id
+        required: true
+        type: string
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Billers Code
+        in: query
+        name: billers_code
+        required: true
+        type: string
+      - description: Subscription Type
+        in: query
+        name: subscription_type
+        required: true
+        type: string
+      - description: Variation Code
+        in: query
+        name: variation_code
+        required: true
+        type: string
+      - description: Pin
+        in: query
+        name: pin
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Buy TV subscription
+      tags:
+      - bills
+  /api/v1/bills/categories:
+    get:
+      consumes:
+      - application/json
+      description: Get categories
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get categories
+      tags:
+      - bills
+  /api/v1/bills/customer-info:
+    post:
+      consumes:
+      - application/json
+      description: Get customer info
+      parameters:
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Billers Code
+        in: query
+        name: billers_code
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get customer info
+      tags:
+      - bills
+  /api/v1/bills/customer-meter-info:
+    post:
+      consumes:
+      - application/json
+      description: Get customer meter info
+      parameters:
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      - description: Billers Code
+        in: query
+        name: billers_code
+        required: true
+        type: string
+      - description: Type
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get customer meter info
+      tags:
+      - bills
+  /api/v1/bills/service-variations:
+    get:
+      consumes:
+      - application/json
+      description: Get service variations
+      parameters:
+      - description: Service ID
+        in: query
+        name: service_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get service variations
+      tags:
+      - bills
+  /api/v1/bills/services:
+    get:
+      consumes:
+      - application/json
+      description: Get services
+      parameters:
+      - description: Identifier
+        in: query
+        name: identifier
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get services
+      tags:
+      - bills
   /api/v1/cards:
     post:
       consumes:
@@ -8396,6 +8626,269 @@ paths:
       summary: Get Referral Earnings
       tags:
       - Referral
+  /api/v1/rewards/activity:
+    get:
+      consumes:
+      - application/json
+      description: Get recent reward activity for authenticated user
+      parameters:
+      - default: 10
+        description: Number of recent activities to retrieve
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/rewards.RewardTransactionItem'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get recent reward activity
+      tags:
+      - rewards
+  /api/v1/rewards/admin/config:
+    get:
+      consumes:
+      - application/json
+      description: Get current active reward configuration
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/rewards/admin/configurations:
+    get:
+      consumes:
+      - application/json
+      description: Get paginated list of all reward configurations
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              items:
+                $ref: '#/definitions/rewards.RewardConfigurationResponse'
+              type: array
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List all reward configurations (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/rewards/admin/configure:
+    post:
+      consumes:
+      - application/json
+      description: Create a new reward configuration to define earning rates
+      parameters:
+      - description: Configuration details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/rewards.CreateRewardConfigRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/rewards/admin/configure/{id}/activate:
+    put:
+      consumes:
+      - application/json
+      description: Activate a reward configuration
+      parameters:
+      - description: Configuration ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rewards.RewardConfigurationResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Activate reward configuration (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/rewards/admin/statistics:
+    get:
+      consumes:
+      - application/json
+      description: Get comprehensive statistics about the reward system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/rewards.GetTopUsersByRewardsEarnedRow'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get reward system statistics (Admin)
+      tags:
+      - admin
+      - rewards
+  /api/v1/rewards/admin/top-users:
+    get:
+      consumes:
+      - application/json
+      description: Get top users by total rewards earned
+      parameters:
+      - default: 10
+        description: Limit
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/rewards.GetTopUsersByRewardsEarnedRow'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get top reward users (Admin)
+      tags:
+      - admin
+      - rewards
   /api/v1/rewards/balance:
     get:
       consumes:

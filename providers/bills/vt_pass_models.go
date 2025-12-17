@@ -1,6 +1,7 @@
 package bills
 
 import (
+	"encoding/json"
 	"time"
 )
 
@@ -49,13 +50,13 @@ type Variation struct {
 }
 
 type PayResponse struct {
-	Code                string    `json:"code"`
-	Content             Content   `json:"content"`
-	ResponseDescription string    `json:"response_description"`
-	RequestID           string    `json:"requestId"`
-	Amount              string    `json:"amount"`
-	TransactionDate     time.Time `json:"transaction_date"`
-	PurchasedCode       string    `json:"purchased_code"`
+	Code                string      `json:"code"`
+	Content             Content     `json:"content"`
+	ResponseDescription string      `json:"response_description"`
+	RequestID           string      `json:"requestId"`
+	Amount              json.Number `json:"amount"`
+	TransactionDate     time.Time   `json:"transaction_date"`
+	PurchasedCode       string      `json:"purchased_code"`
 }
 
 type Content struct {
@@ -66,23 +67,45 @@ type Transaction struct {
 	Status              string      `json:"status"`
 	ProductName         string      `json:"product_name"`
 	UniqueElement       string      `json:"unique_element"`
-	UnitPrice           interface{} `json:"unit_price"`
-	Quantity            interface{} `json:"quantity"`
-	ServiceVerification interface{} `json:"service_verification"`
+	UnitPrice           json.Number `json:"unit_price"`
+	Quantity            json.Number `json:"quantity"`
+	ServiceVerification any         `json:"service_verification"`
 	Channel             string      `json:"channel"`
-	Commission          interface{} `json:"commission"`
-	TotalAmount         interface{} `json:"total_amount"`
-	Discount            interface{} `json:"discount"`
+	Commission          json.Number `json:"commission"`
+	TotalAmount         json.Number `json:"total_amount"`
+	Discount            any         `json:"discount"`
 	Type                string      `json:"type"`
 	Email               string      `json:"email"`
 	Phone               string      `json:"phone"`
-	Name                interface{} `json:"name"`
-	ConvinienceFee      interface{} `json:"convinience_fee"`
-	Amount              interface{} `json:"amount"`
+	Name                any         `json:"name"`
+	ConvinienceFee      json.Number `json:"convinience_fee"`
+	Amount              json.Number `json:"amount"`
 	Platform            string      `json:"platform"`
 	Method              string      `json:"method"`
 	TransactionID       string      `json:"transactionId"`
 }
+
+// type Transaction struct {
+// 	Status              string      `json:"status"`
+// 	ProductName         string      `json:"product_name"`
+// 	UniqueElement       string      `json:"unique_element"`
+// 	UnitPrice           interface{} `json:"unit_price"`
+// 	Quantity            interface{} `json:"quantity"`
+// 	ServiceVerification interface{} `json:"service_verification"`
+// 	Channel             string      `json:"channel"`
+// 	Commission          interface{} `json:"commission"`
+// 	TotalAmount         interface{} `json:"total_amount"`
+// 	Discount            interface{} `json:"discount"`
+// 	Type                string      `json:"type"`
+// 	Email               string      `json:"email"`
+// 	Phone               string      `json:"phone"`
+// 	Name                interface{} `json:"name"`
+// 	ConvinienceFee      interface{} `json:"convinience_fee"`
+// 	Amount              interface{} `json:"amount"`
+// 	Platform            string      `json:"platform"`
+// 	Method              string      `json:"method"`
+// 	TransactionID       string      `json:"transactionId"`
+// }
 
 type PurchaseAirtimeRequest struct {
 	ServiceID string `json:"serviceID"`

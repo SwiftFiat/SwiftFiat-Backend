@@ -1,11 +1,11 @@
 meta {
-  name: Get user reward balance
+  name: List reward configs
   type: http
-  seq: 1
+  seq: 5
 }
 
 get {
-  url: {{BaseURl}}/rewards/balance
+  url: {{BaseURl}}/rewards/admin/configurations
   body: none
   auth: bearer
 }

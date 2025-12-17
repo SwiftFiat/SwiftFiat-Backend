@@ -8,9 +8,9 @@ import (
 )
 
 type TransactionStatus string
-
+ 
 const (
-	Success TransactionStatus = "success"
+	Success TransactionStatus = "successful"
 	Pending TransactionStatus = "pending"
 	Failed  TransactionStatus = "failed"
 	Unknown TransactionStatus = "unknown"
@@ -28,6 +28,8 @@ const (
 	Data        TransactionType = "data"
 	TV          TransactionType = "tv"
 	Electricity TransactionType = "electricity"
+	UtilityPayment TransactionType = "utility_payment"
+	Other       TransactionType = "other"
 )
 
 var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV, Electricity}

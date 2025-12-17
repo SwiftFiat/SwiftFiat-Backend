@@ -152,11 +152,13 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	}
 
 	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, tx.FromAccountID, sentAmount.Neg()); err != nil {
+	newBalance := fromAccount.Balance.Sub(sentAmount)
+	if err := s.updateBalance(ctx, dbTx, tx.FromAccountID, newBalance); err != nil {
 		return nil, fmt.Errorf("update from account balance: %w", err)
 	}
 
-	if err := s.updateBalance(ctx, dbTx, tx.ToAccountID, receivedAmount); err != nil {
+	newBalance = toAccount.Balance.Add(receivedAmount)
+	if err := s.updateBalance(ctx, dbTx, tx.ToAccountID, newBalance); err != nil {
 		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
@@ -563,7 +565,8 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	}
 
 	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, sentAmount.Neg()); err != nil {
+	newBalance := tx.WalletBalance.Sub(sentAmount)
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, newBalance); err != nil {
 		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
@@ -654,7 +657,8 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 	}
 
 	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, sentAmount.Neg()); err != nil {
+	newBalance := tx.WalletBalance.Sub(sentAmount)
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, newBalance); err != nil {
 		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
@@ -685,7 +689,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	currFlow := func(fromCurrency, toCurrency string) string {
 		if fromCurrency == toCurrency {
 			return fromCurrency + " to " + toCurrency
-		} 
+		}
 		return fromCurrency + " to " + toCurrency
 	}(tx.WalletCurrency, tx.ServiceCurrency) // Default to NGN Transactions
 
@@ -751,7 +755,8 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	}
 
 	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, sentAmount.Neg()); err != nil {
+	newBalance := tx.WalletBalance.Sub(sentAmount)
+	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, newBalance); err != nil {
 		return nil, fmt.Errorf("update to account balance: %w", err)
 	}
 
@@ -1480,6 +1485,12 @@ func (s *TransactionService) AwardRewardPoints(
 		}
 	}
 
+	pointsEarned = points
+	if pointsEarned.LessThanOrEqual(decimal.Zero) {
+		s.logger.Info(fmt.Sprintf("Calculated points ₦%s are zero or negative, skipping reward", pointsEarned.String()))
+		return decimal.Zero, nil
+	}
+
 	// Award points
 	description := fmt.Sprintf("Earned ₦%d reward points from %s payment of ₦%d",
 		pointsEarned, serviceType, paidAmount)
@@ -1488,7 +1499,7 @@ func (s *TransactionService) AwardRewardPoints(
 		UserID:                int64(userID),
 		PointsAmount:          pointsEarned.String(),
 		TransactionID:         uuid.NullUUID{UUID: transactionID, Valid: true},
-		SourceTransactionType: sql.NullString{String: "bill_payment", Valid: true},
+		SourceTransactionType: sql.NullString{String: "airtime_purchase", Valid: true},
 		TransactionAmount:     sql.NullString{String: paidAmount.String(), Valid: true},
 		RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
 		Description:           sql.NullString{String: description, Valid: true},

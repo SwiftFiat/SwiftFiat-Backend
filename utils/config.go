@@ -247,6 +247,10 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("PLUNK_API_KEY")
 	_ = v.BindEnv("PLUNK_BASE_URL")
 	_ = v.BindEnv("PLUNK_SECRET_KEY")
+	_ = v.BindEnv("VT_PASS_SANDBOX_URL")
+	_ = v.BindEnv("VT_PASS_TEST_KEY")
+	_ = v.BindEnv("VT_PASS_TEST_PK")
+	_ = v.BindEnv("VT_PASS_TEST_SK")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)

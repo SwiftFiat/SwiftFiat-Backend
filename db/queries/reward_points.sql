@@ -14,7 +14,7 @@
 -- 1. ADMIN: REWARD CONFIGURATION MANAGEMENT
 -- ============================================================================
 
--- name: CreateRewardConfiguration :one
+-- name: CreateRewardConfiguration :one 
 INSERT INTO reward_configurations (
     config_name,
     reward_rate,
@@ -361,13 +361,14 @@ WHERE deleted_at IS NULL;
 -- name: GetRewardStatisticsSummary :one
 -- Get comprehensive reward statistics for admin dashboard
 SELECT 
-    COALESCE(SUM(reward_balance), 0)::string AS outstanding_liability,
-    COALESCE(SUM(total_reward_earned), 0)::string AS total_points_issued,
-    COALESCE(SUM(total_reward_redeemed), 0)::string AS total_points_redeemed,
+    COALESCE(SUM(reward_balance), 0)::TEXT AS outstanding_liability,
+    COALESCE(SUM(total_reward_earned), 0)::TEXT AS total_points_issued,
+    COALESCE(SUM(total_reward_redeemed), 0)::TEXT AS total_points_redeemed,
     COUNT(*) FILTER (WHERE reward_balance > 0) AS users_with_balance,
     COUNT(*) AS total_users
 FROM users
 WHERE deleted_at IS NULL;
+
 
 -- name: GetTopUsersByRewardsEarned :many
 -- Get top users by total rewards earned

@@ -865,9 +865,9 @@ func (q *Queries) GetRewardRedemptionByRewardTransactionID(ctx context.Context, 
 
 const getRewardStatisticsSummary = `-- name: GetRewardStatisticsSummary :one
 SELECT 
-    COALESCE(SUM(reward_balance), 0)::string AS outstanding_liability,
-    COALESCE(SUM(total_reward_earned), 0)::string AS total_points_issued,
-    COALESCE(SUM(total_reward_redeemed), 0)::string AS total_points_redeemed,
+    COALESCE(SUM(reward_balance), 0)::TEXT AS outstanding_liability,
+    COALESCE(SUM(total_reward_earned), 0)::TEXT AS total_points_issued,
+    COALESCE(SUM(total_reward_redeemed), 0)::TEXT AS total_points_redeemed,
     COUNT(*) FILTER (WHERE reward_balance > 0) AS users_with_balance,
     COUNT(*) AS total_users
 FROM users

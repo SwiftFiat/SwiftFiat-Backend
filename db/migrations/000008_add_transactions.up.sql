@@ -2,7 +2,7 @@
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT REFERENCES "users"("id") ON DELETE SET NULL,
-    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service', 'card', 'savings_deposit', 'savings_withdrawal')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
+    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service', 'card', 'savings_deposit', 'savings_withdrawal', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'other')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
     "description" TEXT, -- e.g. User entered transaction description
     "transaction_flow" VARCHAR(50), -- e.g. tbtc -> USD
     "status" VARCHAR(20) NOT NULL CHECK (status IN ('failed', 'pending', 'successful', 'unknown')), -- e.g success | pending | failed | unknown
