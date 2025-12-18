@@ -84,6 +84,7 @@ func (v Vault) router(server *Server) {
 		vaultGroup.POST("/admin/yield-configs/:id/deactivate", v.deactivateYieldConfig)
 		vaultGroup.POST("/admin/process-yields-now", v.processYieldsNow)
 		vaultGroup.GET("/admin/yield-scheduler/stats", v.getYieldSchedulerStats)
+		vaultGroup.GET("/admin/goals", v.AdminListGoals)
 	}
 }
 
@@ -149,7 +150,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 		"user_id":        goal.UserID,
 		"name":           goal.VaultName,
 		"target_amount":  goal.GoalAmount,
-		"currency":       goal.Currency,	
+		"currency":       goal.Currency,
 		"created_at":     time.Now(),
 		"updated_at":     time.Now(),
 		"status":         goal.Status,
@@ -191,6 +192,45 @@ func (v *Vault) listGoals(ctx *gin.Context) {
 	} else {
 		goals, err = v.vaultService.GetUserVaults(ctx.Request.Context(), activeUser.UserID)
 	}
+
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to fetch vault goals: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch savings goals"))
+		return
+	}
+
+	var resp []vaultsavings.VaultSavingResponse
+	for _, goal := range goals {
+		resp = append(resp, *vaultsavings.MapVaultSavingToResponse(&goal))
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("savings goals fetched successfully", resp))
+}
+
+// AdminListGoals godoc
+// @Summary List All Vault Goals
+// @Description Get all vault savings goals for the authenticated user
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Success 200 {object} []vaultsavings.VaultSavingResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/goals [get]
+func (v *Vault) AdminListGoals(ctx *gin.Context) {
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	v.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+	goals, err := v.server.queries.GetAllVaultGoals(ctx.Request.Context())
 
 	if err != nil {
 		v.server.logger.Error(fmt.Sprintf("failed to fetch vault goals: %v", err))
@@ -1062,17 +1102,17 @@ func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/metrics [get]
 func (v *Vault) getAdminMetrics(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		v.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	v.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	metrics, err := v.server.queries.GetVaultsDashboardMetrics(ctx.Request.Context())
 	if err != nil {
@@ -1386,7 +1426,7 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param createYieldConfigRequest body db.CreateYieldConfigParams true "Yield Config"
+// @Param createYieldConfigRequest body vaultsavings.CreateYieldConfigParams true "Yield Config"
 // @Success 201 {object} basemodels.SuccessResponse{data=vaultsavings.VaultYieldConfigResponse}
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
@@ -1405,7 +1445,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	var req db.CreateYieldConfigParams
+	var req vaultsavings.CreateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
@@ -1430,16 +1470,16 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigCreated, "vault", config.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yield config %s created by user %d", config.ID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]interface{}{
-		"id":                      config.ID,
-		"currency":                config.Currency,
-		"apy_rate":                config.ApyRate,
-		"min_balance_for_yield":   config.MinBalanceForYield,
-		"compound_frequency":      config.CompoundFrequency,
-		"is_active":               config.IsActive,
-		"effective_from":          config.EffectiveFrom,
-		"effective_until":         config.EffectiveUntil,
-		"notes":                   config.Notes,
-		"created_at":              config.CreatedAt,
+		"id":                    config.ID,
+		"currency":              config.Currency,
+		"apy_rate":              config.ApyRate,
+		"min_balance_for_yield": config.MinBalanceForYield,
+		"compound_frequency":    config.CompoundFrequency,
+		"is_active":             config.IsActive,
+		"effective_from":        config.EffectiveFrom,
+		"effective_until":       config.EffectiveUntil,
+		"notes":                 config.Notes,
+		"created_at":            config.CreatedAt,
 	}
 	v.audit.Log(auditLog)
 
@@ -1464,7 +1504,7 @@ type UpdateYieldConfigParams struct {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Config ID"
-// @Param updateYieldConfigRequest body db.UpdateYieldConfigParams true "Updated Config"
+// @Param updateYieldConfigRequest body vaultsavings.UpdateYieldConfigParams true "Updated Config"
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
@@ -1489,7 +1529,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	var req db.UpdateYieldConfigParams
+	var req vaultsavings.UpdateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
@@ -1514,21 +1554,21 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigUpdated, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Yield config %s updated by user %d", configID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]any{
-		"apy_rate":                req.ApyRate,
-		"min_balance_for_yield":   req.MinBalanceForYield,
-		"compound_frequency":      req.CompoundFrequency,
-		"is_active":               req.IsActive,
-		"effective_until":         req.EffectiveUntil,
-		"notes":                   req.Notes,
+		"apy_rate":              req.ApyRate,
+		"min_balance_for_yield": req.MinBalanceForYield,
+		"compound_frequency":    req.CompoundFrequency,
+		"is_active":             req.IsActive,
+		"effective_until":       req.EffectiveUntil,
+		"notes":                 req.Notes,
 	}
 
 	auditLog.OldValues = map[string]any{
-		"apy_rate":                existingConfig.ApyRate,
-		"min_balance_for_yield":   existingConfig.MinBalanceForYield,
-		"compound_frequency":      existingConfig.CompoundFrequency,
-		"is_active":               existingConfig.IsActive,
-		"effective_until":         existingConfig.EffectiveUntil,
-		"notes":                   existingConfig.Notes,
+		"apy_rate":              existingConfig.ApyRate,
+		"min_balance_for_yield": existingConfig.MinBalanceForYield,
+		"compound_frequency":    existingConfig.CompoundFrequency,
+		"is_active":             existingConfig.IsActive,
+		"effective_until":       existingConfig.EffectiveUntil,
+		"notes":                 existingConfig.Notes,
 	}
 	v.audit.Log(auditLog)
 

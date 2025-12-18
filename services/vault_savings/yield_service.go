@@ -564,11 +564,33 @@ func MapVaultYieldConfigToResponse(v *db.VaultYieldConfig) *VaultYieldConfigResp
 		UpdatedAt:          v.UpdatedAt,
 	}
 }
+
+type CreateYieldConfigParams struct {
+    Currency           string         `json:"currency"`
+    ApyRate            string         `json:"apy_rate"`
+    MinBalanceForYield string         `json:"min_balance_for_yield"`
+    CompoundFrequency  *string `json:"compound_frequency"`
+    IsActive           bool           `json:"is_active"`
+    EffectiveFrom      time.Time      `json:"effective_from"`
+    EffectiveUntil     *time.Time   `json:"effective_until"`
+    Notes              *string `json:"notes"`
+}
+
 // CreateYieldConfig creates a new yield configuration
-func (ys *YieldService) CreateYieldConfig(ctx context.Context, params db.CreateYieldConfigParams) (*db.VaultYieldConfig, error) {
+func (ys *YieldService) CreateYieldConfig(ctx context.Context, params CreateYieldConfigParams) (*db.VaultYieldConfig, error) {
 	ys.logger.Info(fmt.Sprintf("Creating yield config for %s: %s%% APY", params.Currency, params.ApyRate))
 
-	config, err := ys.store.CreateYieldConfig(ctx, params)
+	args := db.CreateYieldConfigParams{
+		Currency:           params.Currency,
+		ApyRate:            params.ApyRate,
+		MinBalanceForYield: params.MinBalanceForYield,
+		CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: params.CompoundFrequency != nil},
+		IsActive:           params.IsActive,
+		EffectiveFrom:      params.EffectiveFrom,
+		EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: params.EffectiveUntil != nil},
+		Notes:              sql.NullString{String: *params.Notes, Valid: params.Notes != nil},
+	}
+	config, err := ys.store.CreateYieldConfig(ctx, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create yield config: %w", err)
 	}
@@ -576,12 +598,32 @@ func (ys *YieldService) CreateYieldConfig(ctx context.Context, params db.CreateY
 	return &config, nil
 }
 
+type UpdateYieldConfigParams struct {
+    ID                 uuid.UUID      `json:"id"`
+    Currency           string         `json:"currency"`
+    ApyRate            string         `json:"apy_rate"`
+    MinBalanceForYield string         `json:"min_balance_for_yield"`
+    CompoundFrequency  *string `json:"compound_frequency"`
+    IsActive           bool           `json:"is_active"`
+    EffectiveFrom      time.Time      `json:"effective_from"`
+    EffectiveUntil     *time.Time   `json:"effective_until"`
+    Notes              *string `json:"notes"`
+}
+
 // UpdateYieldConfig updates an existing yield configuration
-func (ys *YieldService) UpdateYieldConfig(ctx context.Context, configID uuid.UUID, params db.UpdateYieldConfigParams) error {
+func (ys *YieldService) UpdateYieldConfig(ctx context.Context, configID uuid.UUID, params UpdateYieldConfigParams) error {
 	ys.logger.Info(fmt.Sprintf("Updating yield config %s", configID))
 
-	params.ID = configID
-	if err := ys.store.UpdateYieldConfig(ctx, params); err != nil {
+	args := db.UpdateYieldConfigParams{
+		ID:                 configID,
+		ApyRate:            sql.NullString{String: params.ApyRate, Valid: true},
+		MinBalanceForYield: sql.NullString{String: params.MinBalanceForYield, Valid: true},
+		CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: params.CompoundFrequency != nil},
+		IsActive:           sql.NullBool{Bool: params.IsActive, Valid: true},
+		EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: params.EffectiveUntil != nil},
+		Notes:              sql.NullString{String: *params.Notes, Valid: params.Notes != nil},
+	}
+	if err := ys.store.UpdateYieldConfig(ctx, args); err != nil {
 		return fmt.Errorf("failed to update yield config: %w", err)
 	}
 
