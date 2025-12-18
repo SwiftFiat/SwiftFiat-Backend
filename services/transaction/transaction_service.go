@@ -27,9 +27,10 @@ type TransactionService struct {
 	logger         *logging.Logger
 	config         *utils.Config
 	notifyr        *service.Notification
+	streakUpdater  StreakUpdater
 }
 
-func NewTransactionService(store *db.Store, currencyClient *currency.CurrencyService, walletClient *wallet.WalletService, logger *logging.Logger, config *utils.Config, notifyr *service.Notification) *TransactionService {
+func NewTransactionService(store *db.Store, currencyClient *currency.CurrencyService, walletClient *wallet.WalletService, logger *logging.Logger, config *utils.Config, notifyr *service.Notification, streakUpdater StreakUpdater) *TransactionService {
 	return &TransactionService{
 		store:          store,
 		currencyClient: currencyClient,
@@ -37,6 +38,7 @@ func NewTransactionService(store *db.Store, currencyClient *currency.CurrencySer
 		logger:         logger,
 		config:         config,
 		notifyr:        notifyr,
+		streakUpdater:  streakUpdater,
 	}
 }
 
@@ -1522,4 +1524,24 @@ func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID in
 		return "", fmt.Errorf("failed to get reward balance: %w", err)
 	}
 	return balance.RewardBalance, nil
+}
+
+// UpdateStreakAfterBillPayment updates streak after successful bill payment
+func (s *TransactionService) UpdateStreakAfterBillPayment(
+	ctx context.Context,
+	userID int64,
+	transactionID uuid.UUID,
+	transactionType TransactionType,
+) error {
+	if s.streakUpdater == nil {
+		s.logger.Warn("Streak updater not configured")
+		return nil
+	}
+
+	return s.streakUpdater.UpdateStreakOnTransaction(
+		ctx,
+		userID,
+		transactionID,
+		string(transactionType),
+	)
 }

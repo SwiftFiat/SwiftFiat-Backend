@@ -189,10 +189,10 @@ const (
 	EventFAQUpdated          = "support.FAQ.updated"
 	EventFAQDeleted          = "support.FAQ.deleted"
 
-	EventUpdateCardPlan    = "card.plan.updated"
-	EventDeleteCardPlan    = "card.plan.deleted"
-	EventFundIssuingWallet = "card.fund_issuing_wallet"
-	EventCreateCard        = "card.created"
+	EventUpdateCardPlan     = "card.plan.updated"
+	EventDeleteCardPlan     = "card.plan.deleted"
+	EventFundIssuingWallet  = "card.fund_issuing_wallet"
+	EventCreateCard         = "card.created"
 	EventRegisterCardHolder = "kyc.verified"
 )
 
@@ -312,7 +312,7 @@ type IPActivity struct {
 }
 
 // NewAuthenticationLog creates a log entry for authentication events
-func NewAuthenticationLog(c *gin.Context, eventType string, actorID *int64, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
+func NewAuthenticationLog(c *gin.Context, eventType, description string, actorID *int64, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
 	severity := SeverityInfo
 	if !success {
 		severity = SeverityWarning
@@ -330,6 +330,7 @@ func NewAuthenticationLog(c *gin.Context, eventType string, actorID *int64, emai
 		Action:        ActionExecute,
 		Success:       success,
 		ErrorMessage:  errMsg,
+		Description:   description,
 		IPAddress:     net.ParseIP(c.ClientIP()),
 		UserAgent:     c.Request.UserAgent(),
 	}

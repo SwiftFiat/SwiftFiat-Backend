@@ -15,7 +15,6 @@ import (
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/giftcard"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
@@ -34,28 +33,14 @@ type GiftCard struct {
 
 func (g GiftCard) router(server *Server) {
 	g.server = server
-	g.notifr = service.NewNotificationService(g.server.queries)
+	g.notifr = server.inAppnotificationService
 	g.service = giftcard.NewGiftcardServiceWithCache(
 		server.queries,
 		server.logger,
 		server.redis,
 		server.config,
 	)
-	g.transactionService = transaction.NewTransactionService(
-		server.queries,
-		currency.NewCurrencyService(
-			server.queries,
-			server.logger,
-		),
-		wallet.NewWalletServiceWithCache(
-			server.queries,
-			server.logger,
-			server.redis,
-		),
-		server.logger,
-		server.config,
-		g.notifr,
-	)
+	g.transactionService = server.transactionService
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/giftcard")

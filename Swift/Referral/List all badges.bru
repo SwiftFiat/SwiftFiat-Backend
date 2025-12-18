@@ -1,0 +1,20 @@
+meta {
+  name: List all badges
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BaseURl}}/streaks/badges/available
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
