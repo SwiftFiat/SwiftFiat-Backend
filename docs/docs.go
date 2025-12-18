@@ -11960,6 +11960,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/vault/admin/goals": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all vault savings goals for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "vault"
+                ],
+                "summary": "List All Vault Goals",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/vaultsavings.VaultSavingResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/vault/admin/metrics": {
             "get": {
                 "security": [
@@ -12180,7 +12223,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/db.CreateYieldConfigParams"
+                            "$ref": "#/definitions/vaultsavings.CreateYieldConfigParams"
                         }
                     }
                 ],
@@ -12256,7 +12299,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/db.UpdateYieldConfigParams"
+                            "$ref": "#/definitions/vaultsavings.UpdateYieldConfigParams"
                         }
                     }
                 ],
@@ -16437,9 +16480,6 @@ const docTemplate = `{
                 }
             }
         },
-        "db.CreateYieldConfigParams": {
-            "type": "object"
-        },
         "db.GetTicketStatisticsRow": {
             "type": "object",
             "properties": {
@@ -16502,22 +16542,36 @@ const docTemplate = `{
         "db.GetVaultsDashboardMetricsRow": {
             "type": "object",
             "properties": {
-                "average_vault_balance": {},
-                "deposits_last_30_days": {},
+                "average_vault_balance": {
+                    "type": "string"
+                },
+                "deposits_last_30_days": {
+                    "type": "string"
+                },
                 "new_users_last_30_days": {
                     "type": "integer"
                 },
                 "total_active_vaults": {
                     "type": "integer"
                 },
-                "total_ngn_locked": {},
-                "total_usd_locked": {},
-                "total_usdc_locked": {},
-                "total_usdt_locked": {},
+                "total_ngn_locked": {
+                    "type": "string"
+                },
+                "total_usd_locked": {
+                    "type": "string"
+                },
+                "total_usdc_locked": {
+                    "type": "string"
+                },
+                "total_usdt_locked": {
+                    "type": "string"
+                },
                 "unique_users": {
                     "type": "integer"
                 },
-                "withdrawals_last_30_days": {}
+                "withdrawals_last_30_days": {
+                    "type": "string"
+                }
             }
         },
         "db.Referral": {
@@ -16565,9 +16619,6 @@ const docTemplate = `{
                     "type": "integer"
                 }
             }
-        },
-        "db.UpdateYieldConfigParams": {
-            "type": "object"
         },
         "exchangerate.ExchangeRateResponse": {
             "type": "object",
@@ -19212,6 +19263,35 @@ const docTemplate = `{
                 }
             }
         },
+        "vaultsavings.CreateYieldConfigParams": {
+            "type": "object",
+            "properties": {
+                "apy_rate": {
+                    "type": "string"
+                },
+                "compound_frequency": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "effective_from": {
+                    "type": "string"
+                },
+                "effective_until": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "min_balance_for_yield": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                }
+            }
+        },
         "vaultsavings.DepositResponse": {
             "type": "object",
             "properties": {
@@ -19476,6 +19556,38 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "time_of_day": {
+                    "type": "string"
+                }
+            }
+        },
+        "vaultsavings.UpdateYieldConfigParams": {
+            "type": "object",
+            "properties": {
+                "apy_rate": {
+                    "type": "string"
+                },
+                "compound_frequency": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "effective_from": {
+                    "type": "string"
+                },
+                "effective_until": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_active": {
+                    "type": "boolean"
+                },
+                "min_balance_for_yield": {
+                    "type": "string"
+                },
+                "notes": {
                     "type": "string"
                 }
             }

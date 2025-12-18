@@ -607,6 +607,56 @@ func (q *Queries) GetAllActiveYieldConfigs(ctx context.Context) ([]VaultYieldCon
 	return items, nil
 }
 
+const getAllVaultGoals = `-- name: GetAllVaultGoals :many
+SELECT id, user_id, vault_name, description, goal_amount, current_balance, category, currency, auto_save_enabled, auto_save_frequency, auto_save_amount, next_auto_save, recurring_rule, total_yield_earned, next_yield_calculation, last_yield_calculation, status, vault_type, created_at, updated_at, completed_at FROM vault_savings
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetAllVaultGoals(ctx context.Context) ([]VaultSaving, error) {
+	rows, err := q.db.QueryContext(ctx, getAllVaultGoals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VaultSaving{}
+	for rows.Next() {
+		var i VaultSaving
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.VaultName,
+			&i.Description,
+			&i.GoalAmount,
+			&i.CurrentBalance,
+			&i.Category,
+			&i.Currency,
+			&i.AutoSaveEnabled,
+			&i.AutoSaveFrequency,
+			&i.AutoSaveAmount,
+			&i.NextAutoSave,
+			&i.RecurringRule,
+			&i.TotalYieldEarned,
+			&i.NextYieldCalculation,
+			&i.LastYieldCalculation,
+			&i.Status,
+			&i.VaultType,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CompletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDueVaultsWithRecurringRules = `-- name: GetDueVaultsWithRecurringRules :many
 SELECT vs.id, vs.user_id, vs.vault_name, vs.description, vs.goal_amount, vs.current_balance, vs.category, vs.currency, vs.auto_save_enabled, vs.auto_save_frequency, vs.auto_save_amount, vs.next_auto_save, vs.recurring_rule, vs.total_yield_earned, vs.next_yield_calculation, vs.last_yield_calculation, vs.status, vs.vault_type, vs.created_at, vs.updated_at, vs.completed_at FROM vault_savings vs
 WHERE vs.auto_save_enabled = true
@@ -1879,32 +1929,45 @@ func (q *Queries) GetVaultYieldsByVaultID(ctx context.Context, arg GetVaultYield
 const getVaultsDashboardMetrics = `-- name: GetVaultsDashboardMetrics :one
 
 SELECT 
-    COUNT(DISTINCT vs.id) as total_active_vaults,
-    COUNT(DISTINCT vs.user_id) as unique_users,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDT'), 0) as total_usdt_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDC'), 0) as total_usdc_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'NGN'), 0) as total_ngn_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USD'), 0) as total_usd_locked,
-    COALESCE(SUM(vt.amount) FILTER (WHERE vt.transaction_type = 'deposit' AND vt.created_at >= NOW() - INTERVAL '30 days'), 0) as deposits_last_30_days,
-    COALESCE(SUM(vt.amount) FILTER (WHERE vt.transaction_type = 'withdrawal' AND vt.created_at >= NOW() - INTERVAL '30 days'), 0) as withdrawals_last_30_days,
-    COUNT(DISTINCT vs.user_id) FILTER (WHERE vs.created_at >= NOW() - INTERVAL '30 days') as new_users_last_30_days,
-    COALESCE(AVG(vs.current_balance), 0) as average_vault_balance
+    COUNT(DISTINCT vs.id) AS total_active_vaults,
+    COUNT(DISTINCT vs.user_id) AS unique_users,
+
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDT'), 0)::NUMERIC(20, 8) AS total_usdt_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDC'), 0)::NUMERIC(20, 8) AS total_usdc_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'NGN'), 0)::NUMERIC(20, 2) AS total_ngn_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USD'), 0)::NUMERIC(20, 2) AS total_usd_locked,
+
+    COALESCE(SUM(vt.amount) FILTER (
+        WHERE vt.transaction_type = 'deposit'
+        AND vt.created_at >= NOW() - INTERVAL '30 days'
+    ), 0)::NUMERIC(20, 2) AS deposits_last_30_days,
+
+    COALESCE(SUM(vt.amount) FILTER (
+        WHERE vt.transaction_type = 'withdrawal'
+        AND vt.created_at >= NOW() - INTERVAL '30 days'
+    ), 0)::NUMERIC(20, 2) AS withdrawals_last_30_days,
+
+    COUNT(DISTINCT vs.user_id)
+        FILTER (WHERE vs.created_at >= NOW() - INTERVAL '30 days')
+        AS new_users_last_30_days,
+
+    COALESCE(AVG(vs.current_balance), 0)::NUMERIC(20, 2) AS average_vault_balance
 FROM vault_savings vs
 LEFT JOIN vault_transactions vt ON vs.id = vt.vault_id
 WHERE vs.status = 'active'
 `
 
 type GetVaultsDashboardMetricsRow struct {
-	TotalActiveVaults     int64       `json:"total_active_vaults"`
-	UniqueUsers           int64       `json:"unique_users"`
-	TotalUsdtLocked       interface{} `json:"total_usdt_locked"`
-	TotalUsdcLocked       interface{} `json:"total_usdc_locked"`
-	TotalNgnLocked        interface{} `json:"total_ngn_locked"`
-	TotalUsdLocked        interface{} `json:"total_usd_locked"`
-	DepositsLast30Days    interface{} `json:"deposits_last_30_days"`
-	WithdrawalsLast30Days interface{} `json:"withdrawals_last_30_days"`
-	NewUsersLast30Days    int64       `json:"new_users_last_30_days"`
-	AverageVaultBalance   interface{} `json:"average_vault_balance"`
+	TotalActiveVaults     int64  `json:"total_active_vaults"`
+	UniqueUsers           int64  `json:"unique_users"`
+	TotalUsdtLocked       string `json:"total_usdt_locked"`
+	TotalUsdcLocked       string `json:"total_usdc_locked"`
+	TotalNgnLocked        string `json:"total_ngn_locked"`
+	TotalUsdLocked        string `json:"total_usd_locked"`
+	DepositsLast30Days    string `json:"deposits_last_30_days"`
+	WithdrawalsLast30Days string `json:"withdrawals_last_30_days"`
+	NewUsersLast30Days    int64  `json:"new_users_last_30_days"`
+	AverageVaultBalance   string `json:"average_vault_balance"`
 }
 
 // ============================================================================

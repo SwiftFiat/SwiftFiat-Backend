@@ -36,6 +36,10 @@ SELECT * FROM vault_savings
 WHERE user_id = $1 AND status = 'active'
 ORDER BY created_at DESC;
 
+-- name: GetAllVaultGoals :many
+SELECT * FROM vault_savings
+ORDER BY created_at DESC;
+
 -- name: GetVaultGoalsByUserIDAndCurrency :many
 SELECT * FROM vault_savings
 WHERE user_id = $1 AND currency = $2 AND status != 'cancelled'
@@ -55,7 +59,6 @@ SET vault_name = COALESCE(sqlc.narg('vault_name'), vault_name),
     updated_at = NOW()
 WHERE id = $1;
 
--- name: UpdateVaultStatus :exec
 -- name: UpdateVaultStatus :exec
 UPDATE vault_savings
 SET status = sqlc.arg(status)::text,
@@ -428,16 +431,29 @@ LIMIT $2 OFFSET $3;
 
 -- name: GetVaultsDashboardMetrics :one
 SELECT 
-    COUNT(DISTINCT vs.id) as total_active_vaults,
-    COUNT(DISTINCT vs.user_id) as unique_users,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDT'), 0) as total_usdt_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDC'), 0) as total_usdc_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'NGN'), 0) as total_ngn_locked,
-    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USD'), 0) as total_usd_locked,
-    COALESCE(SUM(vt.amount) FILTER (WHERE vt.transaction_type = 'deposit' AND vt.created_at >= NOW() - INTERVAL '30 days'), 0) as deposits_last_30_days,
-    COALESCE(SUM(vt.amount) FILTER (WHERE vt.transaction_type = 'withdrawal' AND vt.created_at >= NOW() - INTERVAL '30 days'), 0) as withdrawals_last_30_days,
-    COUNT(DISTINCT vs.user_id) FILTER (WHERE vs.created_at >= NOW() - INTERVAL '30 days') as new_users_last_30_days,
-    COALESCE(AVG(vs.current_balance), 0) as average_vault_balance
+    COUNT(DISTINCT vs.id) AS total_active_vaults,
+    COUNT(DISTINCT vs.user_id) AS unique_users,
+
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDT'), 0)::NUMERIC(20, 8) AS total_usdt_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USDC'), 0)::NUMERIC(20, 8) AS total_usdc_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'NGN'), 0)::NUMERIC(20, 2) AS total_ngn_locked,
+    COALESCE(SUM(vs.current_balance) FILTER (WHERE vs.currency = 'USD'), 0)::NUMERIC(20, 2) AS total_usd_locked,
+
+    COALESCE(SUM(vt.amount) FILTER (
+        WHERE vt.transaction_type = 'deposit'
+        AND vt.created_at >= NOW() - INTERVAL '30 days'
+    ), 0)::NUMERIC(20, 2) AS deposits_last_30_days,
+
+    COALESCE(SUM(vt.amount) FILTER (
+        WHERE vt.transaction_type = 'withdrawal'
+        AND vt.created_at >= NOW() - INTERVAL '30 days'
+    ), 0)::NUMERIC(20, 2) AS withdrawals_last_30_days,
+
+    COUNT(DISTINCT vs.user_id)
+        FILTER (WHERE vs.created_at >= NOW() - INTERVAL '30 days')
+        AS new_users_last_30_days,
+
+    COALESCE(AVG(vs.current_balance), 0)::NUMERIC(20, 2) AS average_vault_balance
 FROM vault_savings vs
 LEFT JOIN vault_transactions vt ON vs.id = vt.vault_id
 WHERE vs.status = 'active';

@@ -1326,8 +1326,6 @@ definitions:
       uuid:
         type: string
     type: object
-  db.CreateYieldConfigParams:
-    type: object
   db.GetTicketStatisticsRow:
     properties:
       assigned_tickets:
@@ -1370,19 +1368,26 @@ definitions:
     type: object
   db.GetVaultsDashboardMetricsRow:
     properties:
-      average_vault_balance: {}
-      deposits_last_30_days: {}
+      average_vault_balance:
+        type: string
+      deposits_last_30_days:
+        type: string
       new_users_last_30_days:
         type: integer
       total_active_vaults:
         type: integer
-      total_ngn_locked: {}
-      total_usd_locked: {}
-      total_usdc_locked: {}
-      total_usdt_locked: {}
+      total_ngn_locked:
+        type: string
+      total_usd_locked:
+        type: string
+      total_usdc_locked:
+        type: string
+      total_usdt_locked:
+        type: string
       unique_users:
         type: integer
-      withdrawals_last_30_days: {}
+      withdrawals_last_30_days:
+        type: string
     type: object
   db.Referral:
     properties:
@@ -1413,8 +1418,6 @@ definitions:
         type: string
       user_id:
         type: integer
-    type: object
-  db.UpdateYieldConfigParams:
     type: object
   exchangerate.ExchangeRateResponse:
     properties:
@@ -3201,6 +3204,25 @@ definitions:
     - name
     - target_amount
     type: object
+  vaultsavings.CreateYieldConfigParams:
+    properties:
+      apy_rate:
+        type: string
+      compound_frequency:
+        type: string
+      currency:
+        type: string
+      effective_from:
+        type: string
+      effective_until:
+        type: string
+      is_active:
+        type: boolean
+      min_balance_for_yield:
+        type: string
+      notes:
+        type: string
+    type: object
   vaultsavings.DepositResponse:
     properties:
       admin_approved_at:
@@ -3465,6 +3487,27 @@ definitions:
       skip_weekends:
         type: boolean
       time_of_day:
+        type: string
+    type: object
+  vaultsavings.UpdateYieldConfigParams:
+    properties:
+      apy_rate:
+        type: string
+      compound_frequency:
+        type: string
+      currency:
+        type: string
+      effective_from:
+        type: string
+      effective_until:
+        type: string
+      id:
+        type: string
+      is_active:
+        type: boolean
+      min_balance_for_yield:
+        type: string
+      notes:
         type: string
     type: object
   vaultsavings.VaultSavingResponse:
@@ -11151,6 +11194,33 @@ paths:
       summary: Set User Tag
       tags:
       - user
+  /api/v1/vault/admin/goals:
+    get:
+      consumes:
+      - application/json
+      description: Get all vault savings goals for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/vaultsavings.VaultSavingResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List All Vault Goals
+      tags:
+      - vault
   /api/v1/vault/admin/metrics:
     get:
       consumes:
@@ -11278,7 +11348,7 @@ paths:
         name: createYieldConfigRequest
         required: true
         schema:
-          $ref: '#/definitions/db.CreateYieldConfigParams'
+          $ref: '#/definitions/vaultsavings.CreateYieldConfigParams'
       produces:
       - application/json
       responses:
@@ -11324,7 +11394,7 @@ paths:
         name: updateYieldConfigRequest
         required: true
         schema:
-          $ref: '#/definitions/db.UpdateYieldConfigParams'
+          $ref: '#/definitions/vaultsavings.UpdateYieldConfigParams'
       produces:
       - application/json
       responses:
