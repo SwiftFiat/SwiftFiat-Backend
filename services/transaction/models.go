@@ -26,7 +26,7 @@ const (
 	GiftCard    TransactionType = "giftcard"
 	Airtime     TransactionType = "airtime"
 	Data        TransactionType = "data"
-	TV          TransactionType = "tv"
+	TV          TransactionType = "tv_subscription"
 	Electricity TransactionType = "electricity"
 	UtilityPayment TransactionType = "utility_payment"
 	Other       TransactionType = "other"

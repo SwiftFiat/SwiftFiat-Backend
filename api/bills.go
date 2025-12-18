@@ -233,13 +233,13 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 // @Security BearerAuth
 func (b *Bills) buyAirtime(ctx *gin.Context) {
 	request := struct {
-		WalletID        string `json:"wallet_id" binding:"required"`
-		ServiceID       string `json:"service_id" binding:"required"`
-		Phone           string `json:"phone" binding:"required"`
-		Amount          int64  `json:"amount" binding:"required"`
-		Pin             string `json:"pin" binding:"required"`
-		UseRewardPoints bool   `json:"use_reward_points"`
-		PointsToUse     int64  `json:"points_to_use"`
+		WalletID        string  `json:"wallet_id" binding:"required"`
+		ServiceID       string  `json:"service_id" binding:"required"`
+		Phone           string  `json:"phone" binding:"required"`
+		Amount          int64   `json:"amount" binding:"required"`
+		Pin             string  `json:"pin" binding:"required"`
+		UseRewardPoints bool    `json:"use_reward_points"`
+		PointsToUse     float32 `json:"points_to_use"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -295,7 +295,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	var pointsEarned decimal.Decimal
 	redemptionApplied := false
 
-	pointsToUseDecimal := decimal.NewFromInt(request.PointsToUse)
+	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
 
 	// STEP 1: Validate and apply reward redemption if requested
 	if request.UseRewardPoints && request.PointsToUse > 0 {
@@ -493,12 +493,13 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 // @Security BearerAuth
 func (b *Bills) buyData(ctx *gin.Context) {
 	request := struct {
-		WalletID  string `json:"wallet_id" binding:"required"`
-		ServiceID string `json:"service_id" binding:"required"`
-		Phone     string `json:"phone" binding:"required"`
-		// Amount        int64  `json:"amount" binding:"required"` -- User's can inject arbitrary amounts
-		VariationCode string `json:"variation_code" binding:"required"`
-		Pin           string `json:"pin" binding:"required"`
+		WalletID        string  `json:"wallet_id" binding:"required"`
+		ServiceID       string  `json:"service_id" binding:"required"`
+		Phone           string  `json:"phone" binding:"required"`
+		VariationCode   string  `json:"variation_code" binding:"required"`
+		Pin             string  `json:"pin" binding:"required"`
+		UseRewardPoints bool    `json:"use_reward_points"`
+		PointsToUse     float32 `json:"points_to_use"`
 	}{}
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
@@ -546,11 +547,47 @@ func (b *Bills) buyData(ctx *gin.Context) {
 
 	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
+		b.server.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
 	}
 
-	fmt.Println(variations)
+	if len(variations) == 0 {
+		provider, exists := b.server.provider.GetProvider(providers.VTPass)
+		if !exists {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+			return
+		}
+
+		billProv, ok := provider.(*bills.VTPassProvider)
+		if !ok {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+			return
+		}
+
+		remoteVariations, err := billProv.GetServiceVariation(request.ServiceID)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if remoteVariations != nil {
+			variations = make([]models.BillVariation, len(remoteVariations))
+			for i, variation := range remoteVariations {
+				variations[i] = models.BillVariation{
+					VariationCode:   variation.VariationCode,
+					Name:            variation.Name,
+					VariationAmount: variation.VariationAmount,
+					FixedPrice:      variation.FixedPrice,
+				}
+			}
+
+			err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID), variations)
+			if err != nil {
+				b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			}
+		}
+	}
+
+	// b.server.logger.Info("variations", variations)
 
 	var selectedVariation *models.BillVariation
 	for _, variation := range variations {
@@ -571,11 +608,44 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		return
 	}
 
+	// ========================================================================
+	// REWARD POINTS PROCESSING
+	// ========================================================================
+	originalAmount := amount
+	finalAmount := originalAmount
+	var pointsUsed decimal.Decimal
+	var pointsEarned decimal.Decimal
+	redemptionApplied := false
+
+	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
+
+	// STEP 1: Validate and apply reward redemption if requested
+	if request.UseRewardPoints && request.PointsToUse > 0 {
+		var err error
+		finalAmount, redemptionApplied, err = b.transactionService.ProcessRewardRedemption(
+			ctx, dbTx, &userInfo, pointsToUseDecimal, originalAmount,
+		)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if redemptionApplied {
+			pointsUsed = pointsToUseDecimal
+			b.server.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
+				userInfo.ID, pointsUsed, originalAmount, finalAmount))
+		}
+	}
+
+	// ========================================================================
+	// CREATE BILL TRANSACTION (with discounted amount)
+	// ========================================================================
+
 	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
 		SourceWalletID:  walletID,
-		SentAmount:      amount,
+		SentAmount:      finalAmount,
 		Description:     "data-purchase",
 		Type:            transaction.Data,
 		ServiceID:       request.ServiceID,
@@ -640,6 +710,33 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		return
 	}
 
+	// ========================================================================
+	// COMPLETE REWARD REDEMPTION (if applicable)
+	// ========================================================================
+	if redemptionApplied {
+		err = b.transactionService.CompleteRewardRedemption(
+			ctx, dbTx, int32(userInfo.ID), tInfo.ID,
+			pointsUsed, originalAmount, finalAmount,
+			"data", request.ServiceID,
+		)
+		if err != nil {
+			// Log but don't fail transaction
+			b.server.logger.Error("Failed to complete reward redemption:", err)
+		}
+	}
+
+	// ========================================================================
+	// AWARD REWARD POINTS (based on amount paid)
+	// ========================================================================
+	pointsEarned, err = b.transactionService.AwardRewardPoints(
+		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "data",
+	)
+	if err != nil {
+		// Log but don't fail transaction
+		// todo: audit log here
+		b.server.logger.Error("Failed to award reward points:", err)
+	}
+
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
@@ -658,12 +755,32 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
 	b.audit.Log(logEntry)
 
+	notificationMsg := fmt.Sprintf("You have received a data of %s to %s", selectedVariation.VariationAmount, request.Phone)
+	if pointsUsed.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
+	}
+	if pointsEarned.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
+	}
+
 	// TODO: push notif
-	b.notifr.Create(ctx, int32(userInfo.ID), "Data Purchase", fmt.Sprintf("You have received data of %s to %s", selectedVariation.VariationAmount, request.Phone))
+	b.notifr.Create(ctx, int32(userInfo.ID), "Data Purchase", notificationMsg)
 
 	b.server.logger.Info("transaction (data purchase) completed successfully", tInfo)
+	// ========================================================================
+	// RETURN ENHANCED RESPONSE
+	// ========================================================================
+	response := map[string]any{
+		"transaction":       tInfo,
+		"original_amount":   originalAmount.InexactFloat64(),
+		"discount_applied":  pointsUsed,
+		"final_amount_paid": finalAmount.InexactFloat64(),
+		"points_used":       pointsUsed,
+		"points_earned":     pointsEarned,
+		"message":           notificationMsg,
+	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", tInfo))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", response))
 }
 
 // getCustomerInfo godoc
@@ -716,7 +833,6 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", models.ToCustomerInfoResponse(*customerInfo)))
 }
 
-
 // buyTVSubscription godoc
 // @Summary Buy TV subscription
 // @Description Buy TV subscription
@@ -737,12 +853,14 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 // @Security BearerAuth
 func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	request := struct {
-		WalletID         string `json:"wallet_id" binding:"required"`
-		ServiceID        string `json:"service_id" binding:"required"`
-		BillersCode      string `json:"billers_code" binding:"required"`
-		SubscriptionType string `json:"subscription_type" binding:"required"`
-		VariationCode    string `json:"variation_code" binding:"required"`
-		Pin              string `json:"pin" binding:"required"`
+		WalletID         string  `json:"wallet_id" binding:"required"`
+		ServiceID        string  `json:"service_id" binding:"required"`
+		BillersCode      string  `json:"billers_code" binding:"required"`
+		SubscriptionType string  `json:"subscription_type" binding:"required"`
+		VariationCode    string  `json:"variation_code" binding:"required"`
+		Pin              string  `json:"pin" binding:"required"`
+		UseRewardPoints  bool    `json:"use_reward_points"`
+		PointsToUse      float32 `json:"points_to_use"`
 	}{}
 
 	// Fetch user details
@@ -790,8 +908,44 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 
 	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
+		b.server.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
+	}
+
+	if len(variations) == 0 {
+		provider, exists := b.server.provider.GetProvider(providers.VTPass)
+		if !exists {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+			return
+		}
+
+		billProv, ok := provider.(*bills.VTPassProvider)
+		if !ok {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+			return
+		}
+
+		remoteVariations, err := billProv.GetServiceVariation(request.ServiceID)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if remoteVariations != nil {
+			variations = make([]models.BillVariation, len(remoteVariations))
+			for i, variation := range remoteVariations {
+				variations[i] = models.BillVariation{
+					VariationCode:   variation.VariationCode,
+					Name:            variation.Name,
+					VariationAmount: variation.VariationAmount,
+					FixedPrice:      variation.FixedPrice,
+				}
+			}
+
+			err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID), variations)
+			if err != nil {
+				b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			}
+		}
 	}
 
 	var selectedVariation *models.BillVariation
@@ -813,10 +967,39 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		return
 	}
 
+	// ========================================================================
+	// REWARD POINTS PROCESSING
+	// ========================================================================
+	originalAmount := amount
+	finalAmount := originalAmount
+	var pointsUsed decimal.Decimal
+	var pointsEarned decimal.Decimal
+	redemptionApplied := false
+
+	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
+
+	// STEP 1: Validate and apply reward redemption if requested
+	if request.UseRewardPoints && request.PointsToUse > 0 {
+		var err error
+		finalAmount, redemptionApplied, err = b.transactionService.ProcessRewardRedemption(
+			ctx, dbTx, &userInfo, pointsToUseDecimal, originalAmount,
+		)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if redemptionApplied {
+			pointsUsed = pointsToUseDecimal
+			b.server.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
+				userInfo.ID, pointsUsed, originalAmount, finalAmount))
+		}
+	}
+
 	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		SourceWalletID:  walletID,
-		SentAmount:      amount,
+		SentAmount:      finalAmount,
 		Description:     "tv-subscription-purchase",
 		Type:            transaction.TV,
 		ServiceID:       request.ServiceID,
@@ -824,7 +1007,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	})
 	if err != nil {
 		b.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -862,7 +1045,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		TransactionID: tInfo.ID,
 	}); err != nil {
 		b.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -873,7 +1056,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 			ID:     tInfo.ID,
 		}); err != nil {
 			b.server.logger.Error(err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
 
@@ -883,7 +1066,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		// Commit transaction
 		if err := dbTx.Commit(); err != nil {
 			b.server.logger.Error(err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
 
@@ -898,19 +1081,45 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 			ID:     tInfo.ID,
 		}); err != nil {
 			b.server.logger.Error(err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
 
 		// Don't commit failed transactions
 		if err := dbTx.Rollback(); err != nil {
 			b.server.logger.Error(err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
 
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("tv subscription purchase failed"))
 		return
+	}
+
+	// ========================================================================
+	// COMPLETE REWARD REDEMPTION (if applicable)
+	// ========================================================================
+	if redemptionApplied {
+		err = b.transactionService.CompleteRewardRedemption(
+			ctx, dbTx, int32(userInfo.ID), tInfo.ID,
+			pointsUsed, originalAmount, finalAmount,
+			"tv_subscription", request.ServiceID,
+		)
+		if err != nil {
+			// Log but don't fail transaction
+			b.server.logger.Error("Failed to complete reward redemption:", err)
+		}
+	}
+
+	// ========================================================================
+	// AWARD REWARD POINTS (based on amount paid)
+	// ========================================================================
+	pointsEarned, err = b.transactionService.AwardRewardPoints(
+		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "tv_subscription",
+	)
+	if err != nil {
+		// Log but don't fail transaction
+		b.server.logger.Error("Failed to award reward points:", err)
 	}
 
 	// Commit transaction
@@ -924,7 +1133,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		} // TODO:
 		b.audit.Log(logEntry)
 
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -933,11 +1142,35 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	logEntry.Metadata = map[string]any{} // TODO:
 	b.audit.Log(logEntry)
 
-	b.notifr.Create(ctx, int32(userInfo.ID), "Successful TV subscription", fmt.Sprintf("TV subscription of %s is successful", amount))
+	// ========================================================================
+	// SEND NOTIFICATION
+	// ========================================================================
+	notificationMsg := fmt.Sprintf("TV subscription of %s is successful", amount)
+	if pointsUsed.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
+	}
+	if pointsEarned.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
+	}
+
+	b.notifr.Create(ctx, int32(userInfo.ID), "Successful TV subscription", notificationMsg)
 
 	b.server.logger.Info("transaction (tv subscription purchase) completed successfully", tInfo)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", tInfo))
+	// ========================================================================
+	// RETURN ENHANCED RESPONSE
+	// ========================================================================
+	response := map[string]any{
+		"transaction":       tInfo,
+		"original_amount":   originalAmount.InexactFloat64(),
+		"discount_applied":  pointsUsed,
+		"final_amount_paid": finalAmount.InexactFloat64(),
+		"points_used":       pointsUsed,
+		"points_earned":     pointsEarned,
+		"message":           notificationMsg,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", response))
 }
 
 // getCustomerMeterInfo godoc
@@ -992,7 +1225,6 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", models.ToMeterInfoResponse(*customerMeterInfo)))
 }
 
-
 // buyElectricity godoc
 // @Summary Buy electricity
 // @Description Buy electricity
@@ -1013,12 +1245,14 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 // @Security BearerAuth
 func (b *Bills) buyElectricity(ctx *gin.Context) {
 	request := struct {
-		WalletID      string  `json:"wallet_id" binding:"required"`
-		ServiceID     string  `json:"service_id" binding:"required"`
-		BillersCode   string  `json:"billers_code" binding:"required"`
-		VariationCode string  `json:"variation_code" binding:"required"`
-		Amount        float64 `json:"amount" binding:"required"`
-		Pin           string  `json:"pin" binding:"required"`
+		WalletID        string  `json:"wallet_id" binding:"required"`
+		ServiceID       string  `json:"service_id" binding:"required"`
+		BillersCode     string  `json:"billers_code" binding:"required"`
+		VariationCode   string  `json:"variation_code" binding:"required"`
+		Amount          float64 `json:"amount" binding:"required"`
+		Pin             string  `json:"pin" binding:"required"`
+		UseRewardPoints bool    `json:"use_reward_points"`
+		PointsToUse     float32 `json:"points_to_use"`
 	}{}
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -1065,8 +1299,44 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 
 	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
+		b.server.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
+	}
+
+	if len(variations) == 0 {
+		provider, exists := b.server.provider.GetProvider(providers.VTPass)
+		if !exists {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
+			return
+		}
+
+		billProv, ok := provider.(*bills.VTPassProvider)
+		if !ok {
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
+			return
+		}
+
+		remoteVariations, err := billProv.GetServiceVariation(request.ServiceID)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if remoteVariations != nil {
+			variations = make([]models.BillVariation, len(remoteVariations))
+			for i, variation := range remoteVariations {
+				variations[i] = models.BillVariation{
+					VariationCode:   variation.VariationCode,
+					Name:            variation.Name,
+					VariationAmount: variation.VariationAmount,
+					FixedPrice:      variation.FixedPrice,
+				}
+			}
+
+			err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID), variations)
+			if err != nil {
+				b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			}
+		}
 	}
 
 	var selectedVariation *models.BillVariation
@@ -1082,12 +1352,41 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		return
 	}
 
+	// ========================================================================
+	// REWARD POINTS PROCESSING
+	// ========================================================================
+	originalAmount := decimal.NewFromFloat(request.Amount)
+	finalAmount := originalAmount
+	var pointsUsed decimal.Decimal
+	var pointsEarned decimal.Decimal
+	redemptionApplied := false
+
+	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
+
+	// STEP 1: Validate and apply reward redemption if requested
+	if request.UseRewardPoints && request.PointsToUse > 0 {
+		var err error
+		finalAmount, redemptionApplied, err = b.transactionService.ProcessRewardRedemption(
+			ctx, dbTx, &userInfo, pointsToUseDecimal, originalAmount,
+		)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+			return
+		}
+
+		if redemptionApplied {
+			pointsUsed = pointsToUseDecimal
+			b.server.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
+				userInfo.ID, pointsUsed, originalAmount, finalAmount))
+		}
+	}
+
 	// Create BillTransaction
 	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
 		SourceWalletID:  walletID,
-		SentAmount:      decimal.NewFromFloat(request.Amount),
+		SentAmount:      finalAmount,
 		Description:     "electricity-purchase",
-		Type:            transaction.Electricity,
+		Type:            transaction.Other,
 		ServiceID:       request.ServiceID,
 		ServiceCurrency: "NGN",
 	})
@@ -1101,7 +1400,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -1219,6 +1518,32 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		return
 	}
 
+	// ========================================================================
+	// COMPLETE REWARD REDEMPTION (if applicable)
+	// ========================================================================
+	if redemptionApplied {
+		err = b.transactionService.CompleteRewardRedemption(
+			ctx, dbTx, int32(userInfo.ID), tInfo.ID,
+			pointsUsed, originalAmount, finalAmount,
+			"electricity", request.ServiceID,
+		)
+		if err != nil {
+			// Log but don't fail transaction
+			b.server.logger.Error("Failed to complete reward redemption:", err)
+		}
+	}
+
+	// ========================================================================
+	// AWARD REWARD POINTS (based on amount paid)
+	// ========================================================================
+	pointsEarned, err = b.transactionService.AwardRewardPoints(
+		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "electricity",
+	)
+	if err != nil {
+		// Log but don't fail transaction
+		b.server.logger.Error("Failed to award reward points:", err)
+	}
+
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
@@ -1238,10 +1563,34 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	logEntry.Metadata = map[string]any{} // TODO:
 	b.audit.Log(logEntry)
 
+	// ========================================================================
+	// SEND NOTIFICATION
+	// ========================================================================
+	notificationMsg := fmt.Sprintf("Electricity subscription of %f is successful", request.Amount)
+	if pointsUsed.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
+	}
+	if pointsEarned.GreaterThan(decimal.Zero) {
+		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
+	}
+
 	// TTODO: push notifications
-	b.notifr.Create(ctx, int32(userInfo.ID), "Successful Electricity Subscription", fmt.Sprintf("Electricity subscription of %f is successful", request.Amount))
+	b.notifr.Create(ctx, int32(userInfo.ID), "Successful Electricity Subscription", notificationMsg)
 
 	b.server.logger.Info("transaction (electricity purchase) completed successfully", tInfo)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase electricity successful", tInfo))
+	// ========================================================================
+	// RETURN ENHANCED RESPONSE
+	// ========================================================================
+	response := map[string]any{
+		"transaction":       tInfo,
+		"original_amount":   originalAmount.InexactFloat64(),
+		"discount_applied":  pointsUsed,
+		"final_amount_paid": finalAmount.InexactFloat64(),
+		"points_used":       pointsUsed,
+		"points_earned":     pointsEarned,
+		"message":           notificationMsg,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase electricity successful", response))
 }

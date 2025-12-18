@@ -1,0 +1,24 @@
+meta {
+  name: Get user reward history
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{BaseURl}}/rewards/history?type=redeemed
+  body: none
+  auth: bearer
+}
+
+params:query {
+  type: redeemed
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
