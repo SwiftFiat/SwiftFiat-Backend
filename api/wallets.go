@@ -46,18 +46,11 @@ type Wallet struct {
 
 func (w Wallet) router(server *Server) {
 	w.server = server
-	w.walletService = wallet.NewWalletServiceWithCache(w.server.queries, w.server.logger, w.server.redis)
-	w.currencyService = currency.NewCurrencyService(w.server.queries, w.server.logger)
-	w.notifr = service.NewNotificationService(w.server.queries)
-	w.transactionService = transaction.NewTransactionService(
-		w.server.queries,
-		w.currencyService,
-		w.walletService,
-		w.server.logger,
-		w.server.config,
-		w.notifr,
-	)
-	w.audit = w.server.auditService
+	w.walletService = server.walletService
+	w.currencyService = server.currencyService
+	w.notifr = server.inAppnotificationService
+	w.transactionService = server.transactionService
+	w.audit = server.auditService
 	w.pushService = server.pushNotification
 
 	// serverGroupV1 := server.router.Group("/auth")

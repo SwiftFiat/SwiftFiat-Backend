@@ -32,6 +32,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
 	smartconversion "github.com/SwiftFiat/SwiftFiat-Backend/services/smart_conversion"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/subscriptions"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
@@ -89,6 +90,8 @@ type Server struct {
 	aiService                *chatsupport.AIService
 	supportService           *chatsupport.SupportAdminService
 	wsHub                    *Hub
+	streakScheduler          *streaks.StreakScheduler
+	streakService            *streaks.StreakService
 }
 
 func NewServer(envPath string) *Server {
@@ -208,11 +211,16 @@ func NewServer(envPath string) *Server {
 		1*time.Minute,
 	)
 
+	// streak
+	streak := streaks.NewStreakService(q, l)
+
+	streakScheduler := streaks.NewStreakScheduler(q, l, t, ns, streak)
+
 	// currency service
 	cs := currency.NewCurrencyService(q, l)
 
 	// transaction service
-	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns)
+	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, streakScheduler)
 
 	// smart conversion exchange rate service
 	scex := exchangerate.NewExchangeRateService(cryptomus, l)
@@ -311,6 +319,8 @@ func NewServer(envPath string) *Server {
 		ticketService:            ticket,
 		supportService:           support,
 		wsHub:                    wsHub,
+		streakScheduler:          streakScheduler,
+		streakService:            streak,
 	}
 }
 
@@ -390,6 +400,13 @@ func (s *Server) Start() error {
 	// 	}
 	// }
 
+	// Start streak scheduler
+	if s.streakScheduler != nil {
+		if err := s.streakScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start streak scheduler", "error", err)
+		}
+	}
+
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err
 }
@@ -433,6 +450,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// 		s.logger.Warn("Error stopping subscription scheduler", "error", err)
 		// 	}
 		// }
+
+		// Stop streak scheduler
+		if s.streakScheduler != nil {
+			if err := s.streakScheduler.Stop(); err != nil {
+				s.logger.Warn("Error stopping streak scheduler", "error", err)
+			}
+		}
 
 		// Close Redis connection with context awareness
 		if err := s.redis.Close(); err != nil {

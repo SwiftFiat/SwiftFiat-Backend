@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	tx "github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -25,7 +27,7 @@ import (
 
 type Bills struct {
 	server             *Server
-	transactionService *transaction.TransactionService
+	transactionService *tx.TransactionService
 	notifr             *service.Notification
 	walletService      *wallet.WalletService
 	currencyService    *currency.CurrencyService
@@ -50,6 +52,19 @@ func (b Bills) router(server *Server) {
 	serverGroupV1.POST("buy-tv", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyTVSubscription)
 	serverGroupV1.POST("customer-meter-info", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCustomerMeterInfo)
 	serverGroupV1.POST("buy-electricity", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyElectricity)
+}
+
+// updateStreakAsync updates user streak asynchronously
+func (b *Bills) updateStreakAsync(userID int64, transactionID uuid.UUID, txType transaction.TransactionType) {
+	bgCtx := context.Background()
+	if err := b.transactionService.UpdateStreakAfterBillPayment(
+		bgCtx,
+		userID,
+		transactionID,
+		txType,
+	); err != nil {
+		b.server.logger.Error(fmt.Sprintf("Failed to update streak for user %d: %v", userID, err))
+	}
 }
 
 // getCategories godoc
@@ -318,11 +333,11 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	// ========================================================================
 	// CREATE BILL TRANSACTION (with discounted amount)
 	// ========================================================================
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount, // User pays discounted amount
 		Description:     "airtime-purchase",
-		Type:            transaction.Airtime,
+		Type:            tx.Airtime,
 		ServiceID:       request.ServiceID,
 		ServiceCurrency: "NGN",
 	})
@@ -427,6 +442,9 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	// UPdate streak
+	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Airtime)
 
 	// audit log
 	logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", true)
@@ -750,6 +768,9 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	// update streak
+	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Data)
 
 	// audit log
 	logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
@@ -1136,6 +1157,9 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// update streak
+	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.TV)
 
 	// audit log
 	logEntry := audit.NewTransactionLog(ctx, audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
@@ -1557,6 +1581,9 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
+	// update streak
+	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Electricity)
 
 	// audit log
 	logEntry := audit.NewTransactionLog(ctx, audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", true)

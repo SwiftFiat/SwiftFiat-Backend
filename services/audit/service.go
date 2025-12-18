@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -92,11 +93,15 @@ func (s *Service) buildCreateParams(entry *LogEntry) (db.CreateAuditLogParams, e
 		EventType:     entry.EventType,
 		Severity:      db.AuditSeverity(entry.Severity),
 		ActorType:     string(entry.ActorType),
+		ActorID:       sql.NullInt64{Int64: *entry.ActorID, Valid: true},
 		EntityType:    entry.EntityType,
 		EntityID:      entry.EntityID,
 		Action:        string(entry.Action),
 		Description:   entry.Description,
+		IpAddress:     pqtype.Inet{IPNet: net.IPNet{IP: entry.IPAddress, Mask: net.CIDRMask(32, 32)}},
+		UserAgent:     sql.NullString{String: entry.UserAgent, Valid: true},
 		Success:       entry.Success,
+		// ErrorMessage:  sql.NullString{String: entry.ErrorMessage, Valid: true},
 	}
 
 	// Marshal JSON fields
@@ -141,10 +146,10 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*LogResponse, error) {
 // GetAllAuditLogs retrieves all audit logs
 func (s *Service) GetAllAuditLogs(ctx context.Context, time1, time2 time.Time, limit, offset int32) ([]LogResponse, error) {
 	logs, err := s.store.GetAllAuditLogs(ctx, db.GetAllAuditLogsParams{
-		CreatedAt: time1,
+		CreatedAt:   time1,
 		CreatedAt_2: time2,
-		Limit:     limit,
-		Offset:    offset,
+		Limit:       limit,
+		Offset:      offset,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all audit logs: %w", err)

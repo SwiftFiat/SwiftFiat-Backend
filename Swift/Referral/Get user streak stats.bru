@@ -1,0 +1,20 @@
+meta {
+  name: Get user streak stats
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BaseURl}}/streaks/stats
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

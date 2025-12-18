@@ -229,7 +229,7 @@ func (a *Auth) login(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := apistrings.IncorrectEmailPass
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
@@ -361,7 +361,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	}()
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -448,7 +448,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 
 			// Log audit
 			errMsg := err.Error()
-			entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, false, &errMsg)
+			entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s enabled 2FA", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
 			a.audit.Log(entry)
 
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred enabling 2FA"))
@@ -457,7 +457,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 
 		// Log 2FA setup attempt
 		// Log audit
-		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, true, nil)
+		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s enabled 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 		a.audit.Log(entry)
 
 		img, err := key.Image(200, 200)
@@ -492,7 +492,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, &user.ID, &user.Email, user.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s disabled 2FA", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred disabling 2FA"))
@@ -500,7 +500,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.Event2FADisabled, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.Event2FADisabled, fmt.Sprintf("User %s disabled 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA disabled successfully", models.UserResponse{}.ToUserResponse(&updatedUser)))
@@ -593,7 +593,7 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.Event2FAVerified, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.Event2FAVerified, fmt.Sprintf("User %s verified 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -624,7 +624,7 @@ func (a *Auth) logout(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, fmt.Sprintf("User %d logged out", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -632,7 +632,7 @@ func (a *Auth) logout(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, fmt.Sprintf("User %d logged out", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged out successfully", nil))
@@ -670,7 +670,7 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, fmt.Sprintf("User %d logged out from all devices", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -678,7 +678,7 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, &activeUser.UserID, nil, activeUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, fmt.Sprintf("User %d logged out from all devices", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("logged out from all devices successfully", nil))
@@ -739,7 +739,7 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	a.server.redis.Delete(ctx, redisKey)
@@ -781,7 +781,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := "incorrect email or passcode"
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(errMsg))
@@ -807,7 +807,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
@@ -937,7 +937,7 @@ func (a *Auth) register(ctx *gin.Context) {
 	}()
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, &newUser.ID, &newUser.Email, newUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, fmt.Sprintf("User %s registered", newUser.Email), &newUser.ID, &newUser.Email, newUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
@@ -989,7 +989,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, &user.ID, &user.Email, user.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, fmt.Sprintf("User %s verified email", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Could not verify user"))
@@ -997,7 +997,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventEmailVerified, fmt.Sprintf("User %s verified email", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	a.server.redis.Delete(ctx, redisKey)
@@ -1257,7 +1257,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	}()
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, &newUser.ID, &newUser.Email, newUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, fmt.Sprintf("User %s registered", newUser.Email), &newUser.ID, &newUser.Email, newUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	// Prepare response with 2FA setup information
@@ -1334,7 +1334,7 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 
 		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, &user.ID, &user.Email, user.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, fmt.Sprintf("User %s requested password reset", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error sending OTP please try again later"))
@@ -1342,7 +1342,7 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 	}
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, fmt.Sprintf("User %s requested password reset", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
@@ -1405,7 +1405,7 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 		errMsg := err.Error()
 		
 		// Log audit
-		entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s changed passcode", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -1418,7 +1418,7 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s changed passcode", dbUser.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
@@ -1495,7 +1495,7 @@ func (a *Auth) changePassword(ctx *gin.Context) {
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
 	// audit log
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s changed password", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
@@ -1552,7 +1552,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeCreated, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeCreated, fmt.Sprintf("User %s created passcode", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 	
 	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
@@ -1679,7 +1679,7 @@ func (a *Auth) createPin(ctx *gin.Context) {
 
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPinCreated, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPinCreated, fmt.Sprintf("User %s created pin", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin created successfully", userResponse))
@@ -1789,7 +1789,7 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		return
 	}
 
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPinChanged, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPinChanged, fmt.Sprintf("User %s changed pin", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
@@ -1858,7 +1858,7 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 		return
 	}
 
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s changed password", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
 
@@ -1929,7 +1929,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
 
-	entry := audit.NewAuthenticationLog(ctx, audit.EventAccountDeleted, &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventAccountDeleted, fmt.Sprintf("User %s deleted account", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
 
