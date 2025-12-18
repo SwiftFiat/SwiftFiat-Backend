@@ -21,3 +21,5 @@ echo "📄 Showing last 10 log lines:"
 journalctl -u swiftfiat -n 10 --no-pager
 
 echo "✅ Deployment complete!"
+
+# sudo systemctl stop swiftfiat

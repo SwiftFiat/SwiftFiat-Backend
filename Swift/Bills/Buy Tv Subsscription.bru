@@ -1,0 +1,33 @@
+meta {
+  name: Buy Tv Subsscription
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BaseURl}}/bills/buy-tv
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "wallet_id": "df9a74e8-2382-421d-8b65-6bcbc94d8197",
+    "service_id": "dstv",
+    "billers_code": "201000000000",
+    "subscription_type": "renew",
+    "variation_code": "dstv-padi",
+    "pin": "1234",
+    "use_reward_points": false,
+    "points_to_use": 1
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

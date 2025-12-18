@@ -1,11 +1,11 @@
 meta {
-  name: Buy airtime
+  name: Buy Data
   type: http
-  seq: 1
+  seq: 2
 }
 
 post {
-  url: {{BaseURl}}/bills/buy-airtime
+  url: {{BaseURl}}/bills/buy-data
   body: json
   auth: bearer
 }
@@ -16,10 +16,10 @@ auth:bearer {
 
 body:json {
   {
-    "wallet_id": "f7e665bd-fe18-4365-a45d-7b81c7546c7e",
-    "service_id": "mtn",
+    "wallet_id": "df9a74e8-2382-421d-8b65-6bcbc94d8197",
+    "service_id": "mtn-data",
     "phone": "08011111111",
-    "amount": 100,
+    "variation_code": "mtn-10mb-100",
     "pin": "1234",
     "use_reward_points": true,
     "points_to_use": 1

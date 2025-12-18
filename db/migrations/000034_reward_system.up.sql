@@ -127,7 +127,7 @@ CREATE TABLE reward_transactions (
     
     -- Status: 'completed', 'pending', 'reversed', 'failed'
     status VARCHAR(20) NOT NULL DEFAULT 'completed',
-    
+     
     -- Balance after this transaction
     balance_after DECIMAL(10, 2) NOT NULL,
     

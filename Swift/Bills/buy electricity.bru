@@ -1,0 +1,34 @@
+meta {
+  name: buy electricity
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BaseURl}}/bills/buy-electricity
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "wallet_id": "df9a74e8-2382-421d-8b65-6bcbc94d8197",
+    "service_id": "ikeja-electric",
+    "billers_code": "1111111111111",
+    "variation_code": "prepaid",
+    "amount": 1000,
+    "pin": "1234",
+    "use_reward_points": false,
+    "points_to_use": 1
+    
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
