@@ -409,6 +409,7 @@ type CardSpendingSummary struct {
 
 type CardTransaction struct {
 	ID                      uuid.UUID             `json:"id"`
+	TransactionID           uuid.UUID             `json:"transaction_id"`
 	CardID                  uuid.UUID             `json:"card_id"`
 	UserID                  int64                 `json:"user_id"`
 	BridgecardTransactionID string                `json:"bridgecard_transaction_id"`
@@ -418,19 +419,21 @@ type CardTransaction struct {
 	MerchantCategoryCode    sql.NullString        `json:"merchant_category_code"`
 	MerchantCountry         sql.NullString        `json:"merchant_country"`
 	MerchantCity            sql.NullString        `json:"merchant_city"`
-	AmountCents             int64                 `json:"amount_cents"`
-	FeeCents                int64                 `json:"fee_cents"`
+	Amount                  int64                 `json:"amount"`
+	Fee                     int64                 `json:"fee"`
 	Currency                string                `json:"currency"`
-	BillingAmountCents      sql.NullInt64         `json:"billing_amount_cents"`
+	BillingAmount           sql.NullInt64         `json:"billing_amount"`
 	BillingCurrency         sql.NullString        `json:"billing_currency"`
 	Status                  string                `json:"status"`
 	DeclineReason           sql.NullString        `json:"decline_reason"`
 	IsRecurringMerchant     bool                  `json:"is_recurring_merchant"`
 	SubscriptionID          uuid.NullUUID         `json:"subscription_id"`
-	BalanceAfterCents       sql.NullInt64         `json:"balance_after_cents"`
+	BalanceAfter            sql.NullString        `json:"balance_after"`
 	WebhookReceivedAt       sql.NullTime          `json:"webhook_received_at"`
 	RawWebhookData          pqtype.NullRawMessage `json:"raw_webhook_data"`
+	Mode                    bool                  `json:"mode"`
 	TransactionDate         time.Time             `json:"transaction_date"`
+	TransactionTimestamp    time.Time             `json:"transaction_timestamp"`
 	CreatedAt               time.Time             `json:"created_at"`
 }
 
@@ -1394,10 +1397,10 @@ type VirtualCard struct {
 	CardName                string         `json:"card_name"`
 	CardColor               sql.NullString `json:"card_color"`
 	Currency                string         `json:"currency"`
-	CurrentMonthSpendCents  int64          `json:"current_month_spend_cents"`
-	CurrentDaySpendCents    int64          `json:"current_day_spend_cents"`
+	CurrentMonthSpend       sql.NullInt64  `json:"current_month_spend"`
+	CurrentDaySpend         sql.NullInt64  `json:"current_day_spend"`
 	SpendingMonth           sql.NullString `json:"spending_month"`
-	SpendingDay             sql.NullTime   `json:"spending_day"`
+	SpendingDay             sql.NullString `json:"spending_day"`
 	Status                  string         `json:"status"`
 	StatusReason            sql.NullString `json:"status_reason"`
 	AutoTopupEnabled        bool           `json:"auto_topup_enabled"`

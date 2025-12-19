@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -12,13 +13,14 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
-type ActivityLog struct {
+type Analytics struct {
 	server *Server
 }
 
-func (h ActivityLog) router(server *Server) {
+func (h Analytics) router(server *Server) {
 	h.server = server
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
@@ -35,6 +37,92 @@ func (h ActivityLog) router(server *Server) {
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
 }
 
+type GetTransactionByIDRow struct {
+	ID                   uuid.UUID  `json:"id"`
+	UserID               *int64     `json:"user_id"`
+	Type                 string     `json:"type"`
+	Description          *string    `json:"description"`
+	TransactionFlow      *string    `json:"transaction_flow"`
+	Status               string     `json:"status"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedFromAccountID *uuid.UUID `json:"deleted_from_account_id"`
+	DeletedToAccountID   *uuid.UUID `json:"deleted_to_account_id"`
+	SourceWallet         *uuid.UUID `json:"source_wallet"`
+	DestinationWallet    *uuid.UUID `json:"destination_wallet"`
+	Currency             string     `json:"currency"`
+	Rate                 *string    `json:"rate"`
+	Fees                 *string    `json:"fees"`
+	ReceivedAmount       *string    `json:"received_amount"`
+	SentAmount           *string    `json:"sent_amount"`
+}
+
+func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRow {
+	return GetTransactionByIDRow{
+		ID:                   row.ID,
+		UserID:               &row.UserID.Int64,
+		Type:                 row.Type,
+		Description:          &row.Description.String,
+		TransactionFlow:      &row.TransactionFlow.String,
+		Status:               row.Status,
+		CreatedAt:            row.CreatedAt,
+		UpdatedAt:            row.UpdatedAt,
+		DeletedFromAccountID: &row.DeletedFromAccountID.UUID,
+		DeletedToAccountID:   &row.DeletedToAccountID.UUID,
+		SourceWallet:         &row.SourceWallet.UUID,
+		DestinationWallet:    &row.DestinationWallet.UUID,
+		Currency:             row.Currency,
+		Rate:                 &row.Rate.String,
+		Fees:                 &row.Fees.String,
+		ReceivedAmount:       &row.ReceivedAmount.String,
+		SentAmount:           &row.SentAmount.String,
+	}
+}
+
+// GetTransaction godoc
+// @Summary      Get Transaction
+// @Description  Retrieve a specific transaction by ID. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        id   path     string  true  "Transaction ID"
+// @Success      200  {object}  GetTransactionByIDRow
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/analytics/transactions/{id} [get]
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+func (h *Analytics) GetTransaction(c *gin.Context) {
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	h.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
+
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+	// 	return
+	// }
+
+	transactionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error parsing transaction ID: %v", err))
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid transaction ID"))
+		return
+	}
+
+	transaction, err := h.server.queries.GetTransactionByID(c, transactionID)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching transaction: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transaction"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Transaction retrieved successfully", mapGetTransactionByIDRow(transaction)))
+}
+
 // ListAllTransactions godoc
 // @Summary      List All Transactions
 // @Description  Retrieve all transactions with user details. Accessible only by admin.
@@ -45,21 +133,21 @@ func (h ActivityLog) router(server *Server) {
 // @Failure      400  {object}  basemodels.ErrorResponse
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Failure      403  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/analytics/transactions [get]4
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/v1/analytics/transactions [get]
-func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+func (h *Analytics) ListAllTransactions(c *gin.Context) {
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	h.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+	// 	return
+	// }
 
 	transactions, err := h.server.queries.ListAllTransactionsWithUsers(c)
 	if err != nil {
@@ -94,7 +182,7 @@ func (h *ActivityLog) ListAllTransactions(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/gift-cards [get]
-func (h *ActivityLog) ListGiftCards(c *gin.Context) {
+func (h *Analytics) ListGiftCards(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -132,7 +220,7 @@ func (h *ActivityLog) ListGiftCards(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/total-received [get]
-func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
+func (h *Analytics) GetTotalReceived(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -170,7 +258,7 @@ func (h *ActivityLog) GetTotalReceived(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/total-sent [get]
-func (h *ActivityLog) GetTotalSent(c *gin.Context) {
+func (h *Analytics) GetTotalSent(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -208,7 +296,7 @@ func (h *ActivityLog) GetTotalSent(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/total-trade [get]
-func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
+func (h *Analytics) GetTotalTrade(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -246,7 +334,7 @@ func (h *ActivityLog) GetTotalTrade(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/crypto-transactions/counts [get]
-func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
+func (h *Analytics) GetCryptoTransactionCounts(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -288,7 +376,7 @@ func (h *ActivityLog) GetCryptoTransactionCounts(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/crypto-transactions/amount [get]
-func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
+func (h *Analytics) GetTotalCryptoTransactionAmount(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -329,7 +417,7 @@ func (h *ActivityLog) GetTotalCryptoTransactionAmount(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/crypto-transactions [get]
-func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
+func (h *Analytics) ListAllCryptoTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -367,7 +455,7 @@ func (h *ActivityLog) ListAllCryptoTransactions(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/giftcard-transactions [get]
-func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
+func (h *Analytics) ListAllGiftCardTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -406,7 +494,7 @@ func (h *ActivityLog) ListAllGiftCardTransactions(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/user-wallets/{id} [get]
-func (h *ActivityLog) GetUserWallets(c *gin.Context) {
+func (h *Analytics) GetUserWallets(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -462,7 +550,7 @@ type AdminEditUserRequest struct {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/edit-user/{id} [put]
-func (h *ActivityLog) AdminEditUser(c *gin.Context) {
+func (h *Analytics) AdminEditUser(c *gin.Context) {
 	id := c.Param("id")
 	userID, err := strconv.Atoi(id)
 	if err != nil {

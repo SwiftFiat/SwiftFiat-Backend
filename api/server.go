@@ -349,7 +349,7 @@ func (s *Server) Start() error {
 	User{}.router(s)
 	Bills{}.router(s)
 	Referral{}.router(s)
-	ActivityLog{}.router(s)
+	Analytics{}.router(s)
 	Vault{}.router(s)
 	Rewards{}.router(s)
 	QRCodeHandler{}.router(s)

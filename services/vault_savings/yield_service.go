@@ -96,7 +96,7 @@ type YieldCalculationResult struct {
 	EffectiveAPY    string // Actual APY achieved (may differ due to compounding)
 	CalculatedAt    time.Time
 	CompoundingUsed bool
-	Reference 	 string
+	Reference       string
 }
 
 // ============================================================================
@@ -536,17 +536,17 @@ func (ys *YieldService) GetYieldProjection(ctx context.Context, vaultID uuid.UUI
 // ============================================================================
 
 type VaultYieldConfigResponse struct {
-	ID                 uuid.UUID      `json:"id"`
-	Currency           string         `json:"currency"`
-	ApyRate            string         `json:"apy_rate"`
-	MinBalanceForYield string         `json:"min_balance_for_yield"`
-	CompoundFrequency  string         `json:"compound_frequency"`
-	IsActive           bool           `json:"is_active"`
-	EffectiveFrom      time.Time      `json:"effective_from"`
-	EffectiveUntil     time.Time      `json:"effective_until"`
-	Notes              string         `json:"notes"`
-	CreatedAt          time.Time      `json:"created_at"`
-	UpdatedAt          time.Time      `json:"updated_at"`
+	ID                 uuid.UUID `json:"id"`
+	Currency           string    `json:"currency"`
+	ApyRate            string    `json:"apy_rate"`
+	MinBalanceForYield string    `json:"min_balance_for_yield"`
+	CompoundFrequency  string    `json:"compound_frequency"`
+	IsActive           bool      `json:"is_active"`
+	EffectiveFrom      time.Time `json:"effective_from"`
+	EffectiveUntil     time.Time `json:"effective_until"`
+	Notes              string    `json:"notes"`
+	CreatedAt          time.Time `json:"created_at"`
+	UpdatedAt          time.Time `json:"updated_at"`
 }
 
 func MapVaultYieldConfigToResponse(v *db.VaultYieldConfig) *VaultYieldConfigResponse {
@@ -566,14 +566,14 @@ func MapVaultYieldConfigToResponse(v *db.VaultYieldConfig) *VaultYieldConfigResp
 }
 
 type CreateYieldConfigParams struct {
-    Currency           string         `json:"currency"`
-    ApyRate            string         `json:"apy_rate"`
-    MinBalanceForYield string         `json:"min_balance_for_yield"`
-    CompoundFrequency  *string `json:"compound_frequency"`
-    IsActive           bool           `json:"is_active"`
-    EffectiveFrom      time.Time      `json:"effective_from"`
-    EffectiveUntil     *time.Time   `json:"effective_until"`
-    Notes              *string `json:"notes"`
+	Currency           string     `json:"currency" example:"USD"`
+	ApyRate            string     `json:"apy_rate" example:"10"`
+	MinBalanceForYield string     `json:"min_balance_for_yield" example:"100"`
+	CompoundFrequency  *string    `json:"compound_frequency" example:"daily"`
+	IsActive           bool       `json:"is_active" example:"true"`
+	EffectiveFrom      time.Time  `json:"effective_from" example:"2025-12-19T13:24:54Z"`
+	EffectiveUntil     *time.Time `json:"effective_until" example:"2025-12-19T13:24:54Z"`
+	Notes              *string    `json:"notes"`
 }
 
 // CreateYieldConfig creates a new yield configuration
@@ -584,11 +584,11 @@ func (ys *YieldService) CreateYieldConfig(ctx context.Context, params CreateYiel
 		Currency:           params.Currency,
 		ApyRate:            params.ApyRate,
 		MinBalanceForYield: params.MinBalanceForYield,
-		CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: params.CompoundFrequency != nil},
+		// CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: true},
 		IsActive:           params.IsActive,
 		EffectiveFrom:      params.EffectiveFrom,
-		EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: params.EffectiveUntil != nil},
-		Notes:              sql.NullString{String: *params.Notes, Valid: params.Notes != nil},
+		// EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: true},
+		// Notes:              sql.NullString{String: *params.Notes, Valid: true},
 	}
 	config, err := ys.store.CreateYieldConfig(ctx, args)
 	if err != nil {
@@ -599,15 +599,15 @@ func (ys *YieldService) CreateYieldConfig(ctx context.Context, params CreateYiel
 }
 
 type UpdateYieldConfigParams struct {
-    ID                 uuid.UUID      `json:"id"`
-    Currency           string         `json:"currency"`
-    ApyRate            string         `json:"apy_rate"`
-    MinBalanceForYield string         `json:"min_balance_for_yield"`
-    CompoundFrequency  *string `json:"compound_frequency"`
-    IsActive           bool           `json:"is_active"`
-    EffectiveFrom      time.Time      `json:"effective_from"`
-    EffectiveUntil     *time.Time   `json:"effective_until"`
-    Notes              *string `json:"notes"`
+	ID                 uuid.UUID  `json:"id"`
+	Currency           string     `json:"currency"`
+	ApyRate            string     `json:"apy_rate"`
+	MinBalanceForYield string     `json:"min_balance_for_yield"`
+	CompoundFrequency  *string    `json:"compound_frequency"`
+	IsActive           bool       `json:"is_active"`
+	EffectiveFrom      time.Time  `json:"effective_from"`
+	EffectiveUntil     *time.Time `json:"effective_until"`
+	Notes              *string    `json:"notes"`
 }
 
 // UpdateYieldConfig updates an existing yield configuration

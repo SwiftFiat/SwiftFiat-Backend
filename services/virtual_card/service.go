@@ -11,10 +11,12 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/shopspring/decimal"
+	"github.com/sqlc-dev/pqtype"
 )
 
 // VirtualCardService handles all virtual card business logic
@@ -257,10 +259,10 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		UserID:             params.UserID,
 		CardPlanID:         params.CardPlanID,
 		BillingType:        "card_creation_fee",
-		Amount:             plan.CreationFee,
+		Amount:             creationFee.String(),
 		Currency:           "USD",
-		BillingPeriodStart: now,
-		BillingPeriodEnd:   now,
+		BillingPeriodStart: now, // TODO: change this to the start of the billing period
+		BillingPeriodEnd:   now, // TODO: change this to the end of the billing period
 		SourceWalletID:     usdWallet.ID,
 		Status:             string(CardBillingHistoryStatusSuccessful),
 	})
@@ -285,19 +287,39 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	// create generic tx record
-	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:      sql.NullInt64{Int64: params.UserID, Valid: true},
-		Type:        "card",
+		Type:        string(transaction.Card),
 		Description: sql.NullString{String: "Card creation fee", Valid: true},
-		Status:      "successful",
+		Status:      string(transaction.Success),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create transaction: %w", err)
 	}
 
+	// create card transaction
+	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  dbCard.ID,
+		UserID:                  params.UserID,
+		Amount:                  totalCost.IntPart(),
+		Currency:                "USD",
+		Status:                  string(transaction.Success),
+		TransactionType:         "card_creation_fee",
+		TransactionDate:         now,
+		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
+		BalanceAfter:            sql.NullString{String: "0", Valid: true},
+		Mode:                    true,
+		TransactionTimestamp:    now,
+		BridgecardTransactionID: utils.NewTxRef("dummy"),
+		TransactionID:           txx.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create card transaction error: %w", err)
+	}	
+
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
+		return nil, fmt.Errorf("commit transaction error: %w", err)
 	}
 
 	// TODO: Send notification to user about card creation
@@ -328,42 +350,6 @@ func (s *Service) FundIssuingWallet(ctx context.Context, req bridgecards.FundIss
 // VerifyWebhookSignature verifies BridgeCard webhook signatures
 func (s *Service) VerifyWebhookSignature(payload []byte, signature string) (bool, error) {
 	return s.bridgeCard.VerifyWebhookSignature(payload, signature)
-}
-
-// ProcessWebhook processes incoming webhook events from BridgeCard
-func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, error) {
-	// Parse the webhook event type
-	var event struct {
-		Event string `json:"event"`
-	}
-
-	if err := json.Unmarshal(payload, &event); err != nil {
-		return "", fmt.Errorf("parse webhook event: %w", err)
-	}
-
-	s.logger.Info(fmt.Sprintf("Processing webhook event: %s", event.Event))
-
-	// Handle different event types
-	switch {
-	case strings.HasPrefix(event.Event, "cardholder_verification."):
-		return s.processCardholderVerification(ctx, payload)
-
-	case strings.HasPrefix(event.Event, "card_credit."):
-		return s.processCardCredit(ctx, payload)
-
-	case strings.HasPrefix(event.Event, "card_unload"):
-		return s.processCardUnloadEvent(ctx, payload)
-
-	// case strings.HasPrefix(event.Event, "card.transaction."):
-	// 	return s.processTransactionWebhook(ctx, payload)
-
-	case strings.HasPrefix(event.Event, "card_creation"):
-		return s.processCardCreationEvent(ctx, payload)
-
-	default:
-		s.logger.Warn(fmt.Sprintf("Unhandled webhook event type: %s", event.Event))
-		return event.Event, nil // Return event type but don't error for unknown events
-	}
 }
 
 func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest, userID int64) (*bridgecards.FundCardResponse, error) {
@@ -603,22 +589,123 @@ func (s *Service) WithdrawCard(ctx context.Context, req bridgecards.WithdrawCard
 	return s.bridgeCard.WithdrawCard(ctx, req)
 }
 
-func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string, error) {
-	credit, err := s.bridgeCard.ParseCardholderVerification(payload)
+func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *bridgecards.CardDebitEventSuccessful) (string, error) {
+	now := time.Now()
+	spendingMonth := now.Format("2006-01")
+	spendingDay := now.Format("2006-01-02")
+	// Get user by cardholderID
+	user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{String: success.Data.CardholderID, Valid: true})
 	if err != nil {
-		return "", fmt.Errorf("parse card credit: %w", err)
+		return "", fmt.Errorf("failed to get user from cardholderID: %w", err)
 	}
 
-	switch c := credit.(type) {
-	case *bridgecards.CardCreditSuccess:
-		return s.handleCardCreditSuccess(ctx, c)
-
-	case *bridgecards.CardCreditFailed:
-		return s.handleCardCreditFailed(ctx, c)
-
-	default:
-		return "", fmt.Errorf("unknown credit type")
+	// get wallet for debit
+	usdWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to get wallet for debit: %w", err)
 	}
+
+	amountString, err := utils.CentsStringToDollarString(success.Data.Amount)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert amount from cent to dollars: %w", err)
+	}
+
+	amount, err := utils.ToDecimal(amountString)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert amount from string to decimal: %w", err)
+	}
+
+	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert wallet balance from string to decimal: %w", err)
+	}
+	// start db transaction
+	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return "", fmt.Errorf("failed to start transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	qtx := s.store.WithTx(tx)
+
+	// update wallet balance
+	newBalance := walletBalance.Sub(amount)
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID:     usdWallet.ID,
+		Amount: sql.NullString{String: newBalance.String(), Valid: true},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to update wallet balance: %w", err)
+	}
+
+	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.Data.CardID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get virtual card by bridge card ID: %w", err)
+	}
+
+	// marshal success to json
+	rawWebhookData, err := json.Marshal(success)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal success data: %w", err)
+	}
+
+	// Create transaction
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		Type:            string(transaction.Card),
+		Description:     sql.NullString{String: "Card Debit", Valid: true},
+		TransactionFlow: sql.NullString{String: "outgoing", Valid: true},
+		Status:          string(transaction.Success),
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// create card transaction
+	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  card.ID,
+		UserID:                  user.ID,
+		BridgecardTransactionID: success.Data.TransactionReference,
+		Amount:                  amount.IntPart(),
+		Currency:                success.Data.Currency,
+		Status:                  string(transaction.Success),
+		TransactionType:         success.Data.CardTransactionType,
+		TransactionDate:         success.Data.TransactionDate,
+		MerchantCategoryCode:    sql.NullString{String: success.Data.MerchantCategoryCode, Valid: true},
+		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
+		BalanceAfter:            sql.NullString{String: success.Data.SettledBookBalance, Valid: true},
+		Mode:                    success.Data.Livemode,
+		TransactionTimestamp:    success.Data.TransactionTimestamp,
+		RawWebhookData:          pqtype.NullRawMessage{RawMessage: rawWebhookData, Valid: true},
+		TransactionID:           txx.ID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to create card transaction: %w", err)
+	}
+
+	// update card spending
+	_, err = qtx.UpdateCardSpending(ctx, db.UpdateCardSpendingParams{
+		CurrentMonthSpend: sql.NullInt64{Int64: amount.IntPart(), Valid: true},
+		ID:                card.ID,
+		SpendingMonth:     sql.NullString{String: spendingMonth, Valid: true},
+		SpendingDay:       sql.NullString{String: spendingDay, Valid: true},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to update card spending: %w", err)
+	}
+
+	// commit transaction
+	if err := tx.Commit(); err != nil {
+		return "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return "card_debit_event.successful", nil
+}
+
+func (s *Service) handleCardDebitEventFailed(ctx context.Context, failed *bridgecards.CardDebitEventDeclined) (string, error) {
+	return "card_debit_event.failed", nil
 }
 
 func (s *Service) processCardCreationEvent(ctx context.Context, payload []byte) (string, error) {
@@ -649,43 +736,6 @@ func (s *Service) handleCardCreationEventSuccess(ctx context.Context, success *b
 func (s *Service) handleCardCreationEventFailed(ctx context.Context, failed *bridgecards.CardCreationEventFailed) (string, error) {
 	// TODO: send notifications
 	return "card_creation_event.failed", nil
-}
-
-func (s *Service) processCardUnloadEvent(ctx context.Context, payload []byte) (string, error) {
-	unloadEvent, err := s.bridgeCard.ParseCardholderVerification(payload)
-	if err != nil {
-		return "", fmt.Errorf("parse card unload event: %w", err)
-	}
-
-	switch u := unloadEvent.(type) {
-	case *bridgecards.CardWithDrawEventSuccessful:
-		return s.handleCardUnloadEventSuccess(ctx, u)
-
-	case *bridgecards.CardWithDrawEventFailed:
-		return s.handleCardUnloadEventFailed(ctx, u)
-
-	default:
-		return "", fmt.Errorf("unknown unload event type")
-	}
-}
-
-// processCardholderVerification handles cardholder verification webhooks
-func (s *Service) processCardholderVerification(ctx context.Context, payload []byte) (string, error) {
-	verification, err := s.bridgeCard.ParseCardholderVerification(payload)
-	if err != nil {
-		return "", fmt.Errorf("parse cardholder verification: %w", err)
-	}
-
-	switch v := verification.(type) {
-	case *bridgecards.CardholderVerificationSuccess:
-		return s.handleCardholderVerificationSuccess(ctx, v)
-
-	case *bridgecards.CardholderVerificationFailed:
-		return s.handleCardholderVerificationFailed(ctx, v)
-
-	default:
-		return "", fmt.Errorf("unknown verification type")
-	}
 }
 
 // handleCardholderVerificationSuccess handles successful cardholder verification
@@ -1078,51 +1128,111 @@ func (s *Service) handleCardUnloadEventFailed(ctx context.Context, failed *bridg
 	return "card_withdraw.failed", nil
 }
 
-// processCardWebhook handles card-related webhooks (status changes, etc.)
-// func (s *Service) processCardWebhook(ctx context.Context, payload []byte) (string, error) {
-// 	// Parse card webhook
-// 	var webhook struct {
-// 		Event string `json:"event"`
-// 		Data  struct {
-// 			Card bridgecards.Card `json:"card"`
-// 		} `json:"data"`
-// 	}
+func (s *Service) processCardCredit(ctx context.Context, payload []byte) (string, error) {
+	credit, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card credit: %w", err)
+	}
 
-// 	if err := json.Unmarshal(payload, &webhook); err != nil {
-// 		return "", fmt.Errorf("parse card webhook: %w", err)
-// 	}
+	switch c := credit.(type) {
+	case *bridgecards.CardCreditSuccess:
+		return s.handleCardCreditSuccess(ctx, c)
 
-// 	// Start transaction
-// 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
-// 	if err != nil {
-// 		return "", fmt.Errorf("begin transaction: %w", err)
-// 	}
-// 	defer dbTx.Rollback()
+	case *bridgecards.CardCreditFailed:
+		return s.handleCardCreditFailed(ctx, c)
 
-// 	qtx := s.store.WithTx(dbTx)
+	default:
+		return "", fmt.Errorf("unknown credit type")
+	}
+}
 
-// 	// Get card by bridgecard ID
-// 	card, err := qtx.GetVirtualCardByBridgecardID(ctx, webhook.Data.Card.ID)
-// 	if err != nil {
-// 		return "", fmt.Errorf("get card by bridgecard ID: %w", err)
-// 	}
+func (s *Service) processCardUnloadEvent(ctx context.Context, payload []byte) (string, error) {
+	unloadEvent, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card unload event: %w", err)
+	}
 
-// 	// Update card status
-// 	_, err = qtx.UpdateVirtualCardStatus(ctx, db.UpdateVirtualCardStatusParams{
-// 		ID:     card.ID,
-// 		Status: webhook.Data.Card.Status,
-// 	})
-// 	if err != nil {
-// 		return "", fmt.Errorf("update card status: %w", err)
-// 	}
+	switch u := unloadEvent.(type) {
+	case *bridgecards.CardWithDrawEventSuccessful:
+		return s.handleCardUnloadEventSuccess(ctx, u)
 
-// 	// TODO: Send notification to user about card status change
+	case *bridgecards.CardWithDrawEventFailed:
+		return s.handleCardUnloadEventFailed(ctx, u)
 
-// 	s.logger.Info(fmt.Sprintf("Updated card %s status to %s", card.ID, webhook.Data.Card.Status))
+	default:
+		return "", fmt.Errorf("unknown unload event type")
+	}
+}
 
-// 	if err := dbTx.Commit(); err != nil {
-// 		return "", fmt.Errorf("commit transaction: %w", err)
-// 	}
+// processCardholderVerification handles cardholder verification webhooks
+func (s *Service) processCardholderVerification(ctx context.Context, payload []byte) (string, error) {
+	verification, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse cardholder verification: %w", err)
+	}
 
-// 	return webhook.Event, nil
-// }
+	switch v := verification.(type) {
+	case *bridgecards.CardholderVerificationSuccess:
+		return s.handleCardholderVerificationSuccess(ctx, v)
+
+	case *bridgecards.CardholderVerificationFailed:
+		return s.handleCardholderVerificationFailed(ctx, v)
+
+	default:
+		return "", fmt.Errorf("unknown verification type")
+	}
+}
+
+func (s *Service) processCardDebitEvent(ctx context.Context, payload []byte) (string, error) {
+	debitEvent, err := s.bridgeCard.ParseCardholderVerification(payload)
+	if err != nil {
+		return "", fmt.Errorf("parse card debit event: %w", err)
+	}
+
+	switch d := debitEvent.(type) {
+	case *bridgecards.CardDebitEventSuccessful:
+		return s.handleCardDebitEventSuccess(ctx, d)
+
+	case *bridgecards.CardDebitEventDeclined:
+		return s.handleCardDebitEventFailed(ctx, d)
+
+	default:
+		return "", fmt.Errorf("unknown debit event type")
+	}
+}
+
+// ProcessWebhook processes incoming webhook events from BridgeCard
+func (s *Service) ProcessWebhook(ctx context.Context, payload []byte) (string, error) {
+	// Parse the webhook event type
+	var event struct {
+		Event string `json:"event"`
+	}
+
+	if err := json.Unmarshal(payload, &event); err != nil {
+		return "", fmt.Errorf("parse webhook event: %w", err)
+	}
+
+	s.logger.Info(fmt.Sprintf("Processing webhook event: %s", event.Event))
+
+	// Handle different event types
+	switch {
+	case strings.HasPrefix(event.Event, "cardholder_verification."):
+		return s.processCardholderVerification(ctx, payload)
+
+	case strings.HasPrefix(event.Event, "card_credit."):
+		return s.processCardCredit(ctx, payload)
+
+	case strings.HasPrefix(event.Event, "card_unload"):
+		return s.processCardUnloadEvent(ctx, payload)
+
+	case strings.HasPrefix(event.Event, "card_creation"):
+		return s.processCardCreationEvent(ctx, payload)
+
+	case strings.HasPrefix(event.Event, "card_debit"):
+		return s.processCardDebitEvent(ctx, payload)
+
+	default:
+		s.logger.Warn(fmt.Sprintf("Unhandled webhook event type: %s", event.Event))
+		return event.Event, nil // Return event type but don't error for unknown events
+	}
+}

@@ -350,9 +350,9 @@ type CardDebitEventSuccessful struct {
 		CardTransactionType     string    `json:"card_transaction_type"`
 		MerchantCategoryCode    string    `json:"merchant_category_code"`
 		TransactionDate         time.Time `json:"transaction_date"`
-		TransactionTimestamp    int64     `json:"transaction_timestamp"`
-		SettledAvailableBalance int64     `json:"settled_available_balance"`
-		SettledBookBalance      int64     `json:"settled_book_balance"`
+		TransactionTimestamp    time.Time `json:"transaction_timestamp"`
+		SettledAvailableBalance string    `json:"settled_available_balance"`
+		SettledBookBalance      string    `json:"settled_book_balance"`
 	} `json:"data"`
 }
 
@@ -470,27 +470,26 @@ type CardWithDrawEventFailed struct {
 	} `json:"data"`
 }
 
-
 type CardCreationEventSuccessful struct {
-    Event string `json:"event"`
-    Data  struct {
-        CardID               string    `json:"card_id"`
-        CardholderID         string    `json:"cardholder_id"`
-        Currency             string    `json:"currency"`
-        IssuingAppID         string    `json:"issuing_app_id"`
-        Livemode             bool      `json:"livemode"`
-        MetaData             map[string]string `json:"meta_data"`
-    } `json:"data"`
+	Event string `json:"event"`
+	Data  struct {
+		CardID       string            `json:"card_id"`
+		CardholderID string            `json:"cardholder_id"`
+		Currency     string            `json:"currency"`
+		IssuingAppID string            `json:"issuing_app_id"`
+		Livemode     bool              `json:"livemode"`
+		MetaData     map[string]string `json:"meta_data"`
+	} `json:"data"`
 }
 
 type CardCreationEventFailed struct {
-    Event string `json:"event"`
-    Data  struct {
-        CardID               string    `json:"card_id"`
-        CardholderID         string    `json:"cardholder_id"`
-        Currency             string    `json:"currency"`
-        IssuingAppID         string    `json:"issuing_app_id"`
-        Livemode             bool      `json:"livemode"`
-        Reason               string    `json:"reason"`
-    } `json:"data"`
+	Event string `json:"event"`
+	Data  struct {
+		CardID       string `json:"card_id"`
+		CardholderID string `json:"cardholder_id"`
+		Currency     string `json:"currency"`
+		IssuingAppID string `json:"issuing_app_id"`
+		Livemode     bool   `json:"livemode"`
+		Reason       string `json:"reason"`
+	} `json:"data"`
 }

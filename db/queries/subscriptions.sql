@@ -116,28 +116,43 @@ RETURNING *;
 
 -- name: UpdateCardSpending :one
 UPDATE virtual_cards
-SET 
-    current_month_spend_cents = $2,
-    current_day_spend_cents = $3,
-    spending_month = $4,
-    spending_day = $5,
+SET
+    current_month_spend =
+        CASE
+            WHEN spending_month = $2
+            THEN current_month_spend + $1
+            ELSE $1
+        END,
+
+    current_day_spend =
+        CASE
+            WHEN spending_day = $3
+            THEN current_day_spend + $1
+            ELSE $1
+        END,
+
+    spending_month = $2,
+    spending_day = $3,
+
     total_transactions_count = total_transactions_count + 1,
     last_transaction_at = NOW(),
     updated_at = NOW()
-WHERE id = $1 AND terminated_at IS NULL
+WHERE id = $4
+  AND terminated_at IS NULL
 RETURNING *;
+
 
 -- name: ResetMonthlySpending :exec
 UPDATE virtual_cards
 SET 
-    current_month_spend_cents = 0,
+    current_month_spend = 0,
     spending_month = $1
 WHERE spending_month < $1;
 
 -- name: ResetDailySpending :exec
 UPDATE virtual_cards
 SET 
-    current_day_spend_cents = 0,
+    current_day_spend = 0,
     spending_day = $1
 WHERE spending_day < $1;
 
@@ -255,11 +270,11 @@ LIMIT $2 OFFSET $3;
 INSERT INTO card_transactions (
     card_id, user_id, bridgecard_transaction_id, transaction_type,
     merchant_name, merchant_category, merchant_category_code,
-    merchant_country, merchant_city, amount_cents, fee_cents,
-    currency, billing_amount_cents, billing_currency,
-    status, balance_after_cents, transaction_date, webhook_received_at, raw_webhook_data
+    merchant_country, merchant_city, amount, fee,
+    currency, billing_amount, billing_currency,
+    status, balance_after, transaction_date, webhook_received_at, raw_webhook_data, transaction_id, mode, transaction_timestamp
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
 ) RETURNING *;
 
 -- name: GetCardTransaction :one

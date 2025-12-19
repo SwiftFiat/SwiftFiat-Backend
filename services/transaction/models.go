@@ -8,7 +8,7 @@ import (
 )
 
 type TransactionStatus string
- 
+
 const (
 	Success TransactionStatus = "successful"
 	Pending TransactionStatus = "pending"
@@ -19,17 +19,18 @@ const (
 type TransactionType string // type of transaction
 
 const (
-	Transfer    TransactionType = "transfer"
-	Withdrawal  TransactionType = "withdrawal"
-	Deposit     TransactionType = "deposit"
-	Swap        TransactionType = "swap"
-	GiftCard    TransactionType = "giftcard"
-	Airtime     TransactionType = "airtime"
-	Data        TransactionType = "data"
-	TV          TransactionType = "tv_subscription"
-	Electricity TransactionType = "electricity"
+	Transfer       TransactionType = "transfer"
+	Withdrawal     TransactionType = "withdrawal"
+	Deposit        TransactionType = "deposit"
+	Swap           TransactionType = "swap"
+	GiftCard       TransactionType = "giftcard"
+	Airtime        TransactionType = "airtime"
+	Data           TransactionType = "data"
+	TV             TransactionType = "tv_subscription"
+	Electricity    TransactionType = "electricity"
+	Card           TransactionType = "card"
 	UtilityPayment TransactionType = "utility_payment"
-	Other       TransactionType = "other"
+	Other          TransactionType = "other"
 )
 
 var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV, Electricity}
@@ -46,11 +47,11 @@ func IsTransactionTypeValid(request TransactionType) bool {
 type TransactionPlatform string // platform that the transaction was initiated for
 
 const (
-	WalletTransaction          TransactionPlatform = "wallet"
-	CryptoInflowTransaction    TransactionPlatform = "crypto"
-	GiftCardOutflowTransaction TransactionPlatform = "giftcard"
-	FiatOutflowTransaction     TransactionPlatform = "fiat"
-	BillOutflowTransaction     TransactionPlatform = "bill"
+	WalletTransaction                  TransactionPlatform = "wallet"
+	CryptoInflowTransaction            TransactionPlatform = "crypto"
+	GiftCardOutflowTransaction         TransactionPlatform = "giftcard"
+	FiatOutflowTransaction             TransactionPlatform = "fiat"
+	BillOutflowTransaction             TransactionPlatform = "bill"
 	StablecoinWalletFundingTransaction TransactionPlatform = "stablecoin_funding"
 )
 
@@ -68,7 +69,7 @@ type IntraTransaction struct {
 	Currency       string
 	Description    string
 	Type           TransactionType
-} 
+}
 
 type CryptoTransaction struct {
 	ID                 string
@@ -252,29 +253,29 @@ type CreateTransactionFeeRequest struct {
 }
 
 type StablecoinFundingTransaction struct {
-    SourceHash         string
-    DestinationAddress string
-    AmountInSatoshis   decimal.Decimal
-    Coin               string
-    Description        string
-    Type               TransactionType
-    ReceivedAmount     decimal.Decimal
-    TransactionID      uuid.UUID
-    DestinationAccount uuid.UUID
-    Rate               decimal.Decimal
-    SentAmount         decimal.Decimal
-    Fees               decimal.Decimal
+	SourceHash         string
+	DestinationAddress string
+	AmountInSatoshis   decimal.Decimal
+	Coin               string
+	Description        string
+	Type               TransactionType
+	ReceivedAmount     decimal.Decimal
+	TransactionID      uuid.UUID
+	DestinationAccount uuid.UUID
+	Rate               decimal.Decimal
+	SentAmount         decimal.Decimal
+	Fees               decimal.Decimal
 }
 
 type StablecoinMetadataResponse struct {
-    ID                   int32     `json:"id"`
-    DestinationWallet    uuid.UUID `json:"destination_wallet"`
-    Coin                 string    `json:"coin"`
-    SourceHash           string    `json:"source_hash"`
-    Rate                 string    `json:"rate"`
-    Fees                 string    `json:"fees"`
-    ReceivedAmount       string    `json:"received_amount"`
-    SentAmount           string    `json:"sent_amount"`
-    ServiceProvider      string    `json:"service_provider"`
-    ServiceTransactionID string   `json:"service_transaction_id"`
+	ID                   int32     `json:"id"`
+	DestinationWallet    uuid.UUID `json:"destination_wallet"`
+	Coin                 string    `json:"coin"`
+	SourceHash           string    `json:"source_hash"`
+	Rate                 string    `json:"rate"`
+	Fees                 string    `json:"fees"`
+	ReceivedAmount       string    `json:"received_amount"`
+	SentAmount           string    `json:"sent_amount"`
+	ServiceProvider      string    `json:"service_provider"`
+	ServiceTransactionID string    `json:"service_transaction_id"`
 }

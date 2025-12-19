@@ -1201,7 +1201,7 @@ type GetUserCardsRowResponse struct {
 	CurrentMonthSpendCents  int64      `json:"current_month_spend_cents"`
 	CurrentDaySpendCents    int64      `json:"current_day_spend_cents"`
 	SpendingMonth           *string    `json:"spending_month"`
-	SpendingDay             *time.Time `json:"spending_day"`
+	SpendingDay             *string `json:"spending_day"`
 	Status                  string     `json:"status"`
 	StatusReason            *string    `json:"status_reason"`
 	AutoTopupEnabled        bool       `json:"auto_topup_enabled"`
@@ -1229,10 +1229,10 @@ func mapGetUserCardsRowToResponse(row db.GetUserCardsRow) GetUserCardsRowRespons
 		CardName:                row.CardName,
 		CardColor:               &row.CardColor.String,
 		Currency:                row.Currency,
-		CurrentMonthSpendCents:  row.CurrentMonthSpendCents,
-		CurrentDaySpendCents:    row.CurrentDaySpendCents,
+		CurrentMonthSpendCents:  row.CurrentMonthSpend.Int64,
+		CurrentDaySpendCents:    row.CurrentDaySpend.Int64,
 		SpendingMonth:           &row.SpendingMonth.String,
-		SpendingDay:             &row.SpendingDay.Time,
+		SpendingDay:             &row.SpendingDay.String,
 		Status:                  row.Status,
 		StatusReason:            &row.StatusReason.String,
 		AutoTopupEnabled:        row.AutoTopupEnabled,
@@ -1263,7 +1263,7 @@ type VirtualCardResponse struct {
 	CurrentMonthSpendCents  int64      `json:"current_month_spend_cents"`
 	CurrentDaySpendCents    int64      `json:"current_day_spend_cents"`
 	SpendingMonth           *string    `json:"spending_month"`
-	SpendingDay             *time.Time `json:"spending_day"`
+	SpendingDay             *string    `json:"spending_day"`
 	Status                  string     `json:"status"`
 	StatusReason            *string    `json:"status_reason"`
 	AutoTopupEnabled        bool       `json:"auto_topup_enabled"`
@@ -1288,10 +1288,10 @@ func mapVirtualCardToResponse(card *db.VirtualCard) VirtualCardResponse {
 		CardName:                card.CardName,
 		CardColor:               &card.CardColor.String,
 		Currency:                card.Currency,
-		CurrentMonthSpendCents:  card.CurrentMonthSpendCents,
-		CurrentDaySpendCents:    card.CurrentDaySpendCents,
+		CurrentMonthSpendCents:  card.CurrentMonthSpend.Int64,
+		CurrentDaySpendCents:    card.CurrentDaySpend.Int64,
 		SpendingMonth:           &card.SpendingMonth.String,
-		SpendingDay:             &card.SpendingDay.Time,
+		SpendingDay:             &card.SpendingDay.String,
 		Status:                  card.Status,
 		StatusReason:            &card.StatusReason.String,
 		AutoTopupEnabled:        card.AutoTopupEnabled,

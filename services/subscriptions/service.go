@@ -91,7 +91,7 @@ func (s *Service) isLikelySubscription(ctx context.Context, transaction *db.Card
 	for i := 1; i < len(previousTxs); i++ {
 		daysDiff := int(previousTxs[i-1].TransactionDate.Sub(previousTxs[i].TransactionDate).Hours() / 24)
 		intervals = append(intervals, daysDiff)
-		amounts = append(amounts, previousTxs[i].AmountCents)
+		amounts = append(amounts, previousTxs[i].Amount)
 	}
 
 	// Check if intervals are consistent (within 5 days variance for monthly)
@@ -130,7 +130,7 @@ func (s *Service) createNewSubscription(
 		MerchantName:            transaction.MerchantName.String,
 		DisplayName:             displayName,
 		Category:                sql.NullString{String: category, Valid: true},
-		AmountCents:             transaction.AmountCents,
+		AmountCents:             transaction.Amount,
 		Currency:                transaction.Currency,
 		BillingIntervalDays:     billingInterval,
 		FirstChargeDate:         transaction.TransactionDate,
@@ -147,7 +147,7 @@ func (s *Service) createNewSubscription(
 	}
 
 	s.logger.Infof("Created new subscription for user %d: %s ($%.2f every %d days)",
-		transaction.UserID, displayName, float64(transaction.AmountCents)/100, billingInterval)
+		transaction.UserID, displayName, float64(transaction.Amount)/100, billingInterval)
 
 	return nil
 }
@@ -175,7 +175,7 @@ func (s *Service) updateExistingSubscription(
 		ID:                      subscription.ID,
 		LastChargeDate:          transaction.TransactionDate,
 		NextEstimatedChargeDate: nextChargeDate,
-		AmountCents:             transaction.AmountCents,
+		AmountCents:             transaction.Amount,
 	})
 
 	if err != nil {
