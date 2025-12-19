@@ -11494,11 +11494,11 @@ paths:
       summary: Update Yield Configuration (Admin)
       tags:
       - vault
-  /api/v1/vault/admin/yield-configs/{id}/deactivate:
+  /api/v1/vault/admin/yield-configs/{id}/delete:
     post:
       consumes:
       - application/json
-      description: Deactivate a yield configuration
+      description: Delete a yield configuration
       parameters:
       - description: Config ID
         in: path
@@ -11526,7 +11526,7 @@ paths:
             $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Deactivate Yield Configuration (Admin)
+      summary: Delete Yield Configuration (Admin)
       tags:
       - vault
   /api/v1/vault/admin/yield-scheduler/stats:

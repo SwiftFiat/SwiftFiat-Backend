@@ -12,6 +12,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -286,7 +287,7 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 
 	// Create transaction record
 	txRecord, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		Type:            qrCode.QrType,
+		Type:            string(transaction.QrCode),
 		Description:     qrCode.Description,
 		TransactionFlow: sql.NullString{String: "crypto_to_fiat", Valid: true},
 		Status:          string(QRTransactionStatusReceived),

@@ -11,6 +11,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -19,12 +20,12 @@ import (
 )
 
 type VaultService struct {
-	store              *db.Store
-	logger             *logging.Logger
-	walletService      *wallet.WalletService
-	emailService       *service.Plunk
-	pushService        *service.PushNotificationService
-	notifService       *service.Notification
+	store         *db.Store
+	logger        *logging.Logger
+	walletService *wallet.WalletService
+	emailService  *service.Plunk
+	pushService   *service.PushNotificationService
+	notifService  *service.Notification
 }
 
 func NewVaultService(
@@ -37,12 +38,12 @@ func NewVaultService(
 
 ) *VaultService {
 	return &VaultService{
-		store:              store,
-		logger:             logger,
-		walletService:      walletService,
-		emailService:       emailService,
-		pushService:        pushService,
-		notifService:       notifService,
+		store:         store,
+		logger:        logger,
+		walletService: walletService,
+		emailService:  emailService,
+		pushService:   pushService,
+		notifService:  notifService,
 	}
 }
 
@@ -110,9 +111,9 @@ const (
 type TransactionStatus string
 
 const (
-	TransactionStatusPending   TransactionStatus = "pending"
+	TransactionStatusPending    TransactionStatus = "pending"
 	TransactionStatusSuccessful TransactionStatus = "successful"
-	TransactionStatusFailed    TransactionStatus = "failed"
+	TransactionStatusFailed     TransactionStatus = "failed"
 )
 
 type TransactionRequires2fa bool
@@ -1142,9 +1143,9 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Create main Transaction record
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		Type:            string(TransactionTypeSavingsDeposit),
+		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          "successful",
+		Status:          string(transaction.Success),
 		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
 	})
 	if err != nil {
@@ -1163,7 +1164,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		BalanceAfter:    newVaultBalance.String(),
 		Reference:       sql.NullString{String: reference, Valid: true},
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          nullString(string(TransactionStatusSuccessful)),
+		Status:          sql.NullString{String: string(transaction.Success), Valid: true},
 		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
 		TransactionID:   uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
@@ -1312,16 +1313,16 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Determine status
-	status := string(TransactionStatusSuccessful)
+	status := string(transaction.Success)
 	if requires2FA {
-		status = string(TransactionStatusPending)
+		status = string(transaction.Pending)
 	}
 
 	// Create main Transaction
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		Type:            string(TransactionTypeSavingsWithdrawal),
+		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          string(TransactionStatusSuccessful),
+		Status:          status,
 		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
 	})
 	if err != nil {
@@ -1332,7 +1333,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	txParams := db.CreateVaultTransactionParams{
 		UserID:            req.UserID,
 		VaultID:           req.VaultID,
-		TransactionType:   string(TransactionTypeWithdrawal),
+		TransactionType:   string(transaction.Withdrawal),
 		Amount:            req.Amount,
 		Currency:          vault.Currency,
 		DestinationWallet: uuid.NullUUID{UUID: req.ToWalletID, Valid: true},
@@ -1507,7 +1508,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 		Amount:       rule.Amount,
 		Currency:     vault.Currency,
 		Description:  "Recurring deposit",
-		Reference: utils.NewTxRef("vault_auto_deposit"),
+		Reference:    utils.NewTxRef("vault_auto_deposit"),
 	}
 
 	_, err = s.Deposit(ctx, depositReq)

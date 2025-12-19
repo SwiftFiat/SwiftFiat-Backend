@@ -345,19 +345,6 @@ func (q *Queries) CreateYieldConfig(ctx context.Context, arg CreateYieldConfigPa
 	return i, err
 }
 
-const deactivateYieldConfig = `-- name: DeactivateYieldConfig :exec
-UPDATE vault_yield_configs
-SET is_active = FALSE,
-    effective_until = NOW(),
-    updated_at = NOW()
-WHERE id = $1
-`
-
-func (q *Queries) DeactivateYieldConfig(ctx context.Context, id uuid.UUID) error {
-	_, err := q.db.ExecContext(ctx, deactivateYieldConfig, id)
-	return err
-}
-
 const decrementVaultBalance = `-- name: DecrementVaultBalance :exec
 UPDATE vault_savings
 SET current_balance = current_balance - $2,
@@ -384,6 +371,16 @@ WHERE id = $1
 
 func (q *Queries) DeleteVaultGoal(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, deleteVaultGoal, id)
+	return err
+}
+
+const deleteYieldConfig = `-- name: DeleteYieldConfig :exec
+DELETE FROM vault_yield_configs
+WHERE id = $1
+`
+
+func (q *Queries) DeleteYieldConfig(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteYieldConfig, id)
 	return err
 }
 

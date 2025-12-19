@@ -36,12 +36,12 @@ CREATE TABLE IF NOT EXISTS "vault_savings" (
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "completed_at" TIMESTAMPTZ
 );
-
+ 
 -- ============================================================================
 -- VAULT TRANSACTIONS TABLE
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_transactions" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),  
     "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "transaction_type" VARCHAR(30) NOT NULL CHECK(transaction_type IN ('deposit', 'withdrawal', 'auto_save', 'yield_credit')),
