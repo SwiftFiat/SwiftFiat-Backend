@@ -401,6 +401,17 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		return nil, fmt.Errorf("failed to update target wallet: %w", err)
 	}
 
+	mainTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          sql.NullInt64{Int64: params.userID, Valid: true},
+		Type:            string(transaction.Swap),
+		Description:     sql.NullString{String: "Conversion from " + params.sourceCurrency + " to " + params.targetCurrency, Valid: true},
+		TransactionFlow: sql.NullString{String: fmt.Sprintf("%s to %s", params.sourceCurrency, params.targetCurrency), Valid: true},
+		Status:          string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
 	// Create conversion history
 	history, err := s.store.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
 		ConversionRuleID:    s.uuidToNullUUID(params.ruleID),
@@ -423,10 +434,11 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		ExecutionType:       params.executionType,
 		TriggerType:         s.stringToNullString(params.triggerType),
 		Status:              "success",
+		TransactionID:       uuid.NullUUID{UUID: mainTx.ID, Valid: true},
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to create history: %w", err)
+		return nil, fmt.Errorf("failed to create conversion history: %w", err)
 	}
 
 	return &history, nil

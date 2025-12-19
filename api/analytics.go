@@ -25,7 +25,7 @@ func (h Analytics) router(server *Server) {
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
-	serverGroupV1.GET("/transaction/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransaction)
+	serverGroupV1.GET("/transaction/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransaction) // not done
 	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
 	serverGroupV1.GET("/total-received", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalReceived)
 	serverGroupV1.GET("/total-sent", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalSent)
@@ -36,6 +36,7 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/giftcard-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllGiftCardTransactions)
 	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
+	serverGroupV1.GET("/transaction-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 }
 
 type GetTransactionByIDRow struct {
@@ -168,6 +169,24 @@ func (h *Analytics) ListAllTransactions(c *gin.Context) {
 		"count":        len(transactions),
 		"volume":       volume,
 	}))
+}
+
+func (h *Analytics) GetTransactionWithMetadata(c *gin.Context) {
+	transactionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error parsing transaction ID: %v", err))
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid transaction ID"))
+		return
+	}
+
+	transaction, err := h.server.queries.GetTransactionWithMetadata(c, transactionID)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching transaction: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transaction"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Transaction retrieved successfully", transaction))
 }
 
 // ListGiftCards godoc

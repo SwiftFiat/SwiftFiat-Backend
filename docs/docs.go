@@ -12392,14 +12392,14 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/vault/admin/yield-configs/{id}/deactivate": {
+        "/api/v1/vault/admin/yield-configs/{id}/delete": {
             "post": {
                 "security": [
                     {
                         "BearerAuth": []
                     }
                 ],
-                "description": "Deactivate a yield configuration",
+                "description": "Delete a yield configuration",
                 "consumes": [
                     "application/json"
                 ],
@@ -12409,7 +12409,7 @@ const docTemplate = `{
                 "tags": [
                     "vault"
                 ],
-                "summary": "Deactivate Yield Configuration (Admin)",
+                "summary": "Delete Yield Configuration (Admin)",
                 "parameters": [
                     {
                         "type": "string",

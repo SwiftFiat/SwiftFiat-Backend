@@ -767,7 +767,7 @@ SELECT
                     FROM public.services_metadata sm
                     WHERE sm.transaction_id = t.id
                 )
-                WHEN t.type IN ('transfer', 'swap') THEN (
+                WHEN t.type IN ('transfer') THEN (
                     SELECT jsonb_build_object(
                         'currency', stm.currency,
                         'transfer_type', stm.transfer_type,
@@ -779,9 +779,84 @@ SELECT
                         'fees', stm.fees,
                         'received_amount', stm.received_amount,
                         'sent_amount', stm.sent_amount
-                    )::jsonb
+                    )::jsonb 
                     FROM public.swap_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
+                )
+                WHEN t.type IN ('card') THEN (
+                    SELECT jsonb_build_object(
+                        'card_id', cm.card_id,
+                        'user_id', cm.user_id,
+                        'transaction_id', cm.transaction_id,
+                        'transaction_type', cm.transaction_type,
+                        'merchant_category_code', cm.merchant_category_code,
+                        'amount', cm.amount,
+                        'fee', cm.fee,
+                        'currency', cm.currency,
+                        'status', cm.status,
+                        'balance_after', cm.balance_after,
+                        'mode', cm.mode,
+                        'transaction_timestamp', cm.transaction_timestamp
+                    )::jsonb
+                    FROM public.card_transactions cm
+                    WHERE cm.transaction_id = t.id
+                )
+                WHEN t.type IN ('swap') THEN (
+                    SELECT jsonb_build_object(
+                        'user_id', ch.user_id,
+                        'source_currency', ch.source_currency,
+                        'target_currency', ch.target_currency,
+                        'source_amount', ch.source_amount,
+                        'target_amount', ch.target_amount,
+                        'source_wallet_id', ch.source_wallet_id,
+                        'target_wallet_id', ch.target_wallet_id,
+                        'fees', ch.fees,
+                        'rate_provider', ch.rate_provider,
+                        'net_amount', ch.net_amount,
+                        'source_balance_before', ch.source_balance_before,
+                        'target_balance_before', ch.target_balance_before,
+                        'source_balance_after', ch.source_balance_after,
+                        'target_balance_after', ch.target_balance_after,
+                        'execution_type', ch.execution_type,
+                        'status', ch.status,
+                        'executed_at', ch.executed_at
+                    )::jsonb
+                    FROM public.conversion_history ch
+                    WHERE ch.transaction_id = t.id
+                )
+                WHEN t.type IN ('qr_code') THEN (
+                    SELECT jsonb_build_object(
+                        'user_id', qr.user_id,
+                        'qr_code_id', qr.qr_code_id,
+                        'qr_code_type', qr.qr_code_type,
+                        'provider_transaction_id', qr.cryptomus_transaction_id,
+                        'provider_order_id', qr.cryptomus_order_id,
+                        'address_id', qr.cryptomus_address_id,
+                        'crypto_currency', qr.crypto_currency,
+                        'crypto_network', qr.crypto_network,
+                        'crypto_amount', qr.crypto_amount,
+                        'crypto_amount_usd', qr.crypto_amount_usd,
+                        'transaction_hash', qr.transaction_hash,
+                        'conversion_rate', qr.conversion_rate,
+                        'fiat_currency', qr.fiat_currency,
+                        'fiat_amount', qr.fiat_amount,
+                        'conversion_fees', qr.conversion_fees, 
+                        'net_amount', qr.net_amount,
+                        'bank_account_id', qr.bank_account_id,
+                        'status', qr.status,
+                        'created_at', qr.created_at,
+                        'failure_reason', qr.failure_reason,
+                        'failure_stage', qr.failure_stage,
+                        'retry_count', qr.retry_count,
+                        'last_retry_at', qr.last_retry_at,
+                        'payment_received_at', qr.payment_received_at,
+                        'conversion_started_at', qr.conversion_started_at,
+                        'payout_initiated_at', qr.payout_initiated_at,
+                        'payout_completed_at', qr.payout_completed_at,
+                        'updated_at', qr.updated_at
+                    )::jsonb
+                    FROM public.qr_transactions qr
+                    WHERE qr.transaction_id = t.id
                 )
             END
         )

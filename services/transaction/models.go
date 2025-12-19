@@ -23,17 +23,19 @@ const (
 	Withdrawal     TransactionType = "withdrawal"
 	Deposit        TransactionType = "deposit"
 	Swap           TransactionType = "swap"
+	Vault          TransactionType = "vault"
 	GiftCard       TransactionType = "giftcard"
 	Airtime        TransactionType = "airtime"
 	Data           TransactionType = "data"
 	TV             TransactionType = "tv_subscription"
 	Electricity    TransactionType = "electricity"
 	Card           TransactionType = "card"
+	QrCode         TransactionType = "qr_code"
 	UtilityPayment TransactionType = "utility_payment"
 	Other          TransactionType = "other"
 )
 
-var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, GiftCard, Airtime, Data, TV, Electricity}
+var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, Vault, GiftCard, Airtime, Data, TV, Electricity}
 
 func IsTransactionTypeValid(request TransactionType) bool {
 	for _, c := range SupportedTransactions {

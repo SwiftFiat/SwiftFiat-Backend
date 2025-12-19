@@ -81,7 +81,7 @@ func (v Vault) router(server *Server) {
 		vaultGroup.GET("/admin/yield-configs", v.listYieldConfigs)
 		vaultGroup.POST("/admin/yield-configs", v.createYieldConfig)
 		vaultGroup.PUT("/admin/yield-configs/:id", v.updateYieldConfig)
-		vaultGroup.POST("/admin/yield-configs/:id/deactivate", v.deactivateYieldConfig)
+		vaultGroup.POST("/admin/yield-configs/:id/delete", v.deleteYieldConfig)
 		vaultGroup.POST("/admin/process-yields-now", v.processYieldsNow)
 		vaultGroup.GET("/admin/yield-scheduler/stats", v.getYieldSchedulerStats)
 		vaultGroup.GET("/admin/goals", v.AdminListGoals)
@@ -137,7 +137,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid currency"))
 			return
 		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create savings goal"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -1575,9 +1575,9 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config updated", nil))
 }
 
-// deactivateYieldConfig godoc
-// @Summary Deactivate Yield Configuration (Admin)
-// @Description Deactivate a yield configuration
+// deleteYieldConfig godoc
+// @Summary Delete Yield Configuration (Admin)
+// @Description Delete a yield configuration
 // @Tags vault
 // @Accept json
 // @Produce json
@@ -1587,8 +1587,8 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
-// @Router /api/v1/vault/admin/yield-configs/{id}/deactivate [post]
-func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
+// @Router /api/v1/vault/admin/yield-configs/{id}/delete [post]
+func (v *Vault) deleteYieldConfig(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1607,18 +1607,31 @@ func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if err := v.server.queries.DeactivateYieldConfig(ctx.Request.Context(), configID); err != nil {
-		v.server.logger.Error(fmt.Sprintf("Failed to deactivate config: %v", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to deactivate config"))
+	existingConfig, err := v.server.queries.GetYieldConfigByID(ctx.Request.Context(), configID)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to fetch existing yield config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch existing yield config"))
+		return
+	}
+
+	if err := v.server.queries.DeleteYieldConfig(ctx.Request.Context(), configID); err != nil {
+		v.server.logger.Error(fmt.Sprintf("Failed to delete config: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete config"))
 		return
 	}
 
 	// audit log
-	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeactivated, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Yield config %s deactivated by user %d", configID.String(), activeUser.UserID)
+	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeleted, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Yield config %s deleted by user %d", configID.String(), activeUser.UserID)
+	auditLog.OldValues = map[string]any{
+		"apy_rate":              existingConfig.ApyRate,
+		"min_balance_for_yield": existingConfig.MinBalanceForYield,
+		"is_active":             existingConfig.IsActive,
+		"notes":                 existingConfig.Notes,
+	}
 	v.audit.Log(auditLog)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config deactivated", nil))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield config deleted", nil))
 }
 
 // @Summary Process Yields Now (Admin)

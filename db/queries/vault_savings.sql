@@ -409,11 +409,8 @@ SET apy_rate = COALESCE(sqlc.narg('apy_rate'), apy_rate),
     updated_at = NOW()
 WHERE id = $1;
 
--- name: DeactivateYieldConfig :exec
-UPDATE vault_yield_configs
-SET is_active = FALSE,
-    effective_until = NOW(),
-    updated_at = NOW()
+-- name: DeleteYieldConfig :exec
+DELETE FROM vault_yield_configs
 WHERE id = $1;
 
 -- name: GetYieldConfigHistory :many
