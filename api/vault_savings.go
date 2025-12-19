@@ -1440,10 +1440,10 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	var req vaultsavings.CreateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -1518,10 +1518,10 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	configID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -1556,19 +1556,13 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 	auditLog.NewValues = map[string]any{
 		"apy_rate":              req.ApyRate,
 		"min_balance_for_yield": req.MinBalanceForYield,
-		"compound_frequency":    req.CompoundFrequency,
 		"is_active":             req.IsActive,
-		"effective_until":       req.EffectiveUntil,
-		"notes":                 req.Notes,
 	}
 
 	auditLog.OldValues = map[string]any{
 		"apy_rate":              existingConfig.ApyRate,
 		"min_balance_for_yield": existingConfig.MinBalanceForYield,
-		"compound_frequency":    existingConfig.CompoundFrequency,
 		"is_active":             existingConfig.IsActive,
-		"effective_until":       existingConfig.EffectiveUntil,
-		"notes":                 existingConfig.Notes,
 	}
 	v.audit.Log(auditLog)
 

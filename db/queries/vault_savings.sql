@@ -402,10 +402,7 @@ ORDER BY effective_from DESC;
 UPDATE vault_yield_configs
 SET apy_rate = COALESCE(sqlc.narg('apy_rate'), apy_rate),
     min_balance_for_yield = COALESCE(sqlc.narg('min_balance_for_yield'), min_balance_for_yield),
-    compound_frequency = COALESCE(sqlc.narg('compound_frequency'), compound_frequency),
     is_active = COALESCE(sqlc.narg('is_active'), is_active),
-    effective_until = COALESCE(sqlc.narg('effective_until'), effective_until),
-    notes = COALESCE(sqlc.narg('notes'), notes),
     updated_at = NOW()
 WHERE id = $1;
 
