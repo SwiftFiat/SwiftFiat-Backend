@@ -585,8 +585,8 @@ func (ys *YieldService) CreateYieldConfig(ctx context.Context, params CreateYiel
 		ApyRate:            params.ApyRate,
 		MinBalanceForYield: params.MinBalanceForYield,
 		// CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: true},
-		IsActive:           params.IsActive,
-		EffectiveFrom:      params.EffectiveFrom,
+		IsActive:      params.IsActive,
+		EffectiveFrom: params.EffectiveFrom,
 		// EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: true},
 		// Notes:              sql.NullString{String: *params.Notes, Valid: true},
 	}
@@ -599,15 +599,15 @@ func (ys *YieldService) CreateYieldConfig(ctx context.Context, params CreateYiel
 }
 
 type UpdateYieldConfigParams struct {
-	ID                 uuid.UUID  `json:"id"`
-	Currency           string     `json:"currency"`
-	ApyRate            string     `json:"apy_rate"`
-	MinBalanceForYield string     `json:"min_balance_for_yield"`
-	CompoundFrequency  *string    `json:"compound_frequency"`
-	IsActive           bool       `json:"is_active"`
-	EffectiveFrom      time.Time  `json:"effective_from"`
-	EffectiveUntil     *time.Time `json:"effective_until"`
-	Notes              *string    `json:"notes"`
+	ID                 uuid.UUID `json:"id"`
+	Currency           string    `json:"currency"`
+	ApyRate            string    `json:"apy_rate"`
+	MinBalanceForYield string    `json:"min_balance_for_yield"`
+	// CompoundFrequency  *string    `json:"-"`
+	IsActive      bool      `json:"is_active"`
+	EffectiveFrom time.Time `json:"effective_from"`
+	// EffectiveUntil     *time.Time `json:"-"`
+	// Notes              *string    `json:"-"`
 }
 
 // UpdateYieldConfig updates an existing yield configuration
@@ -616,12 +616,12 @@ func (ys *YieldService) UpdateYieldConfig(ctx context.Context, configID uuid.UUI
 
 	args := db.UpdateYieldConfigParams{
 		ID:                 configID,
-		ApyRate:            sql.NullString{String: params.ApyRate, Valid: true},
-		MinBalanceForYield: sql.NullString{String: params.MinBalanceForYield, Valid: true},
-		CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: params.CompoundFrequency != nil},
-		IsActive:           sql.NullBool{Bool: params.IsActive, Valid: true},
-		EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: params.EffectiveUntil != nil},
-		Notes:              sql.NullString{String: *params.Notes, Valid: params.Notes != nil},
+		ApyRate:            sql.NullString{String: params.ApyRate, Valid: params.ApyRate != ""},
+		MinBalanceForYield: sql.NullString{String: params.MinBalanceForYield, Valid: params.MinBalanceForYield != ""},
+		// CompoundFrequency:  sql.NullString{String: *params.CompoundFrequency, Valid: params.CompoundFrequency != nil},
+		IsActive: sql.NullBool{Bool: params.IsActive, Valid: true},
+		// EffectiveUntil:     sql.NullTime{Time: *params.EffectiveUntil, Valid: params.EffectiveUntil != nil},
+		// Notes:              sql.NullString{String: *params.Notes, Valid: params.Notes != nil},
 	}
 	if err := ys.store.UpdateYieldConfig(ctx, args); err != nil {
 		return fmt.Errorf("failed to update yield config: %w", err)
