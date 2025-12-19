@@ -2307,6 +2307,67 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/analytics/transactions/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific transaction by ID. Accessible only by admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Get Transaction",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Transaction ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.GetTransactionByIDRow"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/analytics/user-wallets/{id}": {
             "get": {
                 "security": [
@@ -12018,7 +12079,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin"
+                    "vault"
                 ],
                 "summary": "Get Vault Metrics (Admin)",
                 "responses": {
@@ -12076,7 +12137,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "Process Yields Now (Admin)",
                 "responses": {
@@ -12110,7 +12171,7 @@ const docTemplate = `{
                 ],
                 "description": "Get current vault scheduler statistics",
                 "tags": [
-                    "vault-admin"
+                    "vault"
                 ],
                 "summary": "Get Scheduler Stats (Admin)",
                 "responses": {
@@ -12132,7 +12193,7 @@ const docTemplate = `{
                 ],
                 "description": "Manually trigger recurring deposits processing",
                 "tags": [
-                    "vault-admin"
+                    "vault"
                 ],
                 "summary": "Trigger Scheduler Now (Admin)",
                 "responses": {
@@ -12160,7 +12221,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "List Yield Configurations (Admin)",
                 "responses": {
@@ -12213,7 +12274,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "Create Yield Configuration (Admin)",
                 "parameters": [
@@ -12282,7 +12343,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "Update Yield Configuration (Admin)",
                 "parameters": [
@@ -12346,7 +12407,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "Deactivate Yield Configuration (Admin)",
                 "parameters": [
@@ -12401,7 +12462,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-admin-yields"
+                    "vault"
                 ],
                 "summary": "Get Yield Scheduler Stats (Admin)",
                 "responses": {
@@ -13239,7 +13300,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-yields"
+                    "vault"
                 ],
                 "summary": "Get Vault Yield History",
                 "parameters": [
@@ -13323,7 +13384,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-yields"
+                    "vault"
                 ],
                 "summary": "Get Yield Projection",
                 "parameters": [
@@ -13508,7 +13569,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "vault-yields"
+                    "vault"
                 ],
                 "summary": "Get User Yield Summary",
                 "responses": {
@@ -14739,6 +14800,62 @@ const docTemplate = `{
                 },
                 "transaction": {
                     "$ref": "#/definitions/transaction.TransactionResponse-transaction_FiatWithdrawalMetadataResponse"
+                }
+            }
+        },
+        "api.GetTransactionByIDRow": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "currency": {
+                    "type": "string"
+                },
+                "deleted_from_account_id": {
+                    "type": "string"
+                },
+                "deleted_to_account_id": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "destination_wallet": {
+                    "type": "string"
+                },
+                "fees": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "rate": {
+                    "type": "string"
+                },
+                "received_amount": {
+                    "type": "string"
+                },
+                "sent_amount": {
+                    "type": "string"
+                },
+                "source_wallet": {
+                    "type": "string"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "transaction_flow": {
+                    "type": "string"
+                },
+                "type": {
+                    "type": "string"
+                },
+                "updated_at": {
+                    "type": "string"
+                },
+                "user_id": {
+                    "type": "integer"
                 }
             }
         },
@@ -19267,28 +19384,24 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "apy_rate": {
-                    "type": "string"
-                },
-                "compound_frequency": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "10"
                 },
                 "currency": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "USD"
                 },
                 "effective_from": {
-                    "type": "string"
-                },
-                "effective_until": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "2025-12-19T13:24:54Z"
                 },
                 "is_active": {
-                    "type": "boolean"
+                    "type": "boolean",
+                    "example": true
                 },
                 "min_balance_for_yield": {
-                    "type": "string"
-                },
-                "notes": {
-                    "type": "string"
+                    "type": "string",
+                    "example": "100"
                 }
             }
         },

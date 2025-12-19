@@ -569,11 +569,11 @@ type CreateYieldConfigParams struct {
 	Currency           string     `json:"currency" example:"USD"`
 	ApyRate            string     `json:"apy_rate" example:"10"`
 	MinBalanceForYield string     `json:"min_balance_for_yield" example:"100"`
-	CompoundFrequency  *string    `json:"compound_frequency" example:"daily"`
+	CompoundFrequency  *string    `json:"-" example:"daily"`
 	IsActive           bool       `json:"is_active" example:"true"`
 	EffectiveFrom      time.Time  `json:"effective_from" example:"2025-12-19T13:24:54Z"`
-	EffectiveUntil     *time.Time `json:"effective_until" example:"2025-12-19T13:24:54Z"`
-	Notes              *string    `json:"notes"`
+	EffectiveUntil     *time.Time `json:"-" example:"2025-12-19T13:24:54Z"`
+	Notes              *string    `json:"-"`
 }
 
 // CreateYieldConfig creates a new yield configuration

@@ -219,17 +219,17 @@ func (v *Vault) listGoals(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/goals [get]
 func (v *Vault) AdminListGoals(ctx *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 	goals, err := v.server.queries.GetAllVaultGoals(ctx.Request.Context())
 
 	if err != nil {
@@ -1092,7 +1092,7 @@ func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
 // getAdminMetrics godoc
 // @Summary Get Vault Metrics (Admin)
 // @Description Get vault system metrics for admin dashboard
-// @Tags vault-admin
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1102,17 +1102,17 @@ func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/metrics [get]
 func (v *Vault) getAdminMetrics(ctx *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	metrics, err := v.server.queries.GetVaultsDashboardMetrics(ctx.Request.Context())
 	if err != nil {
@@ -1127,7 +1127,7 @@ func (v *Vault) getAdminMetrics(ctx *gin.Context) {
 // getSchedulerStats godoc
 // @Summary Get Scheduler Stats (Admin)
 // @Description Get current vault scheduler statistics
-// @Tags vault-admin
+// @Tags vault
 // @Security BearerAuth
 // @Success 200 {object} vaultsavings.SchedulerStats
 // @Router /api/v1/vault/admin/scheduler/stats [get]
@@ -1150,7 +1150,7 @@ func (v *Vault) getSchedulerStats(ctx *gin.Context) {
 // triggerSchedulerNow godoc
 // @Summary Trigger Scheduler Now (Admin)
 // @Description Manually trigger recurring deposits processing
-// @Tags vault-admin
+// @Tags vault
 // @Security BearerAuth
 // @Success 200 {object} basemodels.SuccessResponse
 // @Router /api/v1/vault/admin/scheduler/trigger [post]
@@ -1186,7 +1186,7 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 // getYieldHistory godoc
 // @Summary Get Vault Yield History
 // @Description Get historical yield earnings for a specific vault
-// @Tags vault-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1258,7 +1258,7 @@ func (v *Vault) getYieldHistory(ctx *gin.Context) {
 // getYieldProjection godoc
 // @Summary Get Yield Projection
 // @Description Get estimated future yield earnings for a vault
-// @Tags vault-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1315,7 +1315,7 @@ func (v *Vault) getYieldProjection(ctx *gin.Context) {
 // getYieldSummary godoc
 // @Summary Get User Yield Summary
 // @Description Get summary of all yield earnings across all vaults
-// @Tags vault-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1383,7 +1383,7 @@ func (v *Vault) getYieldSummary(ctx *gin.Context) {
 // listYieldConfigs godoc
 // @Summary List Yield Configurations (Admin)
 // @Description Get all yield configurations
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1422,7 +1422,7 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 // createYieldConfig godoc
 // @Summary Create Yield Configuration (Admin)
 // @Description Create a new yield configuration for a currency
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1440,10 +1440,10 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	var req vaultsavings.CreateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -1499,7 +1499,7 @@ type UpdateYieldConfigParams struct {
 // updateYieldConfig godoc
 // @Summary Update Yield Configuration (Admin)
 // @Description Update an existing yield configuration
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1578,7 +1578,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 // deactivateYieldConfig godoc
 // @Summary Deactivate Yield Configuration (Admin)
 // @Description Deactivate a yield configuration
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1623,7 +1623,7 @@ func (v *Vault) deactivateYieldConfig(ctx *gin.Context) {
 
 // @Summary Process Yields Now (Admin)
 // @Description Manually trigger yield calculations for all due vaults
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
@@ -1669,7 +1669,7 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 // getYieldSchedulerStats godoc
 // @Summary Get Yield Scheduler Stats (Admin)
 // @Description Get statistics about the yield calculation scheduler
-// @Tags vault-admin-yields
+// @Tags vault
 // @Accept json
 // @Produce json
 // @Security BearerAuth
