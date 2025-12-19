@@ -1,11 +1,11 @@
 meta {
-  name: Get all transacions
+  name: List configs
   type: http
-  seq: 1
+  seq: 2
 }
 
 get {
-  url: {{BaseURl}}/analytics/transactions
+  url: {{BaseURl}}/vault/admin/yield-configs
   body: none
   auth: bearer
 }

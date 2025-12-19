@@ -566,10 +566,7 @@ func (q *Queries) GetActiveYieldConfigByCurrency(ctx context.Context, currency s
 
 const getAllActiveYieldConfigs = `-- name: GetAllActiveYieldConfigs :many
 SELECT id, currency, apy_rate, min_balance_for_yield, compound_frequency, is_active, effective_from, effective_until, notes, created_at, updated_at FROM vault_yield_configs
-WHERE is_active = TRUE
-  AND effective_from <= NOW()
-  AND (effective_until IS NULL OR effective_until > NOW())
-ORDER BY currency, effective_from DESC
+ORDER BY currency
 `
 
 func (q *Queries) GetAllActiveYieldConfigs(ctx context.Context) ([]VaultYieldConfig, error) {

@@ -391,10 +391,7 @@ LIMIT 1;
 
 -- name: GetAllActiveYieldConfigs :many
 SELECT * FROM vault_yield_configs
-WHERE is_active = TRUE
-  AND effective_from <= NOW()
-  AND (effective_until IS NULL OR effective_until > NOW())
-ORDER BY currency, effective_from DESC;
+ORDER BY currency;
 
 -- name: GetYieldConfigsByCurrency :many
 SELECT * FROM vault_yield_configs
