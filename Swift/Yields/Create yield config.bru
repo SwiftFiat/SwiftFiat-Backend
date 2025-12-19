@@ -4,12 +4,27 @@ meta {
   seq: 1
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/vault/admin/yield-configs
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "currency": "NGN",
+    "apy_rate": "2",
+    "min_balance_for_yield": "100",
+    "is_active": false,
+    "effective_from": "2025-12-19T13:24:54Z"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

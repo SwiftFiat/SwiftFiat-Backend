@@ -1392,17 +1392,17 @@ func (v *Vault) getYieldSummary(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs [get]
 func (v *Vault) listYieldConfigs(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		v.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	v.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	configs, err := v.server.queries.GetAllActiveYieldConfigs(ctx.Request.Context())
 	if err != nil {
