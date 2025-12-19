@@ -1440,15 +1440,15 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	var req vaultsavings.CreateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 

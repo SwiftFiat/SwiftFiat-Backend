@@ -77,10 +77,10 @@ CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS 
     "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
     
     -- Spending tracking (resets monthly, for our limits enforcement)
-    "current_month_spend_cents" BIGINT NOT NULL DEFAULT 0,
-    "current_day_spend_cents" BIGINT NOT NULL DEFAULT 0,
+    "current_month_spend" BIGINT DEFAULT 0, -- current_month_spend means 
+    "current_day_spend" BIGINT DEFAULT 0,
     "spending_month" VARCHAR(7), -- Format: YYYY-MM
-    "spending_day" DATE, -- For daily limit reset
+    "spending_day" VARCHAR(7), -- For daily limit reset
     
     -- Status (mirrors BridgeCard status but cached for quick queries)
     "status" VARCHAR(20) NOT NULL DEFAULT 'active', 
@@ -165,6 +165,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
  */
  CREATE TABLE IF NOT EXISTS "card_transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
@@ -175,7 +176,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "transaction_type" VARCHAR(50) NOT NULL, 
     -- Types: 'debit', 'credit', 'reversal', 'refund'
     
-    -- Merchant details (from BridgeCard webhook)
+    -- Merchant details (from BridgeCard webhook) 
     "merchant_name" VARCHAR(255),
     "merchant_category" VARCHAR(100), -- MCC category
     "merchant_category_code" VARCHAR(10), -- MCC code
@@ -183,12 +184,12 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "merchant_city" VARCHAR(100),
     
     -- Amounts (in cents)
-    "amount_cents" BIGINT NOT NULL,
-    "fee_cents" BIGINT NOT NULL DEFAULT 0,
+    "amount" BIGINT NOT NULL,
+    "fee" BIGINT NOT NULL DEFAULT 0,
     "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
     
     -- Original amounts (if different currency)
-    "billing_amount_cents" BIGINT,
+    "billing_amount" BIGINT,
     "billing_currency" VARCHAR(3),
     
     -- Status
@@ -201,14 +202,17 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "subscription_id" UUID, -- Links to user_subscriptions if detected
     
     -- Card balance after transaction (from BridgeCard)
-    "balance_after_cents" BIGINT,
+    "balance_after" DECIMAL(10,2),
     
     -- Webhook metadata
     "webhook_received_at" TIMESTAMPTZ,
     "raw_webhook_data" JSONB, -- Store full webhook payload for debugging
+
+    "mode" BOOLEAN NOT NULL,
     
     -- Audit
     "transaction_date" TIMESTAMPTZ NOT NULL,
+    "transaction_timestamp" TIMESTAMPTZ NOT NULL,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX idx_card_transactions_card ON card_transactions(card_id);
@@ -442,7 +446,7 @@ SELECT
     c.user_id,
     c.card_name,
     COUNT(t.id) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as transactions_30d,
-    SUM(t.amount_cents) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as spend_30d_cents,
+    SUM(t.amount) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as spend_30d_cents,
     COUNT(DISTINCT t.merchant_name) FILTER (WHERE t.transaction_date >= NOW() - INTERVAL '30 days') as unique_merchants_30d,
     COUNT(t.id) FILTER (WHERE t.is_recurring_merchant = TRUE) as subscription_transactions
 FROM virtual_cards c
@@ -456,13 +460,13 @@ GROUP BY c.id, c.user_id, c.card_name;
 
 INSERT INTO card_plans (name, description, creation_fee, monthly_maintenance_fee, 
                         monthly_spending_limit, transaction_limit, daily_spending_limit,
-                        max_cards_per_user, supports_international, supports_online, supports_atm)
+                        max_cards_per_user, supports_international, supports_online, supports_atm, card_limit)
 VALUES 
     ('Standard', 'Basic virtual card for everyday subscriptions', 
-     500, 100, 500000, 50000, 20000, 2, TRUE, TRUE, FALSE),
+     500, 100, 500000, 50000, 20000, 1, TRUE, TRUE, FALSE, 100000),
     
     ('Platinum', 'Premium card with higher limits and no monthly fees', 
-     1000, 0, 2000000, 200000, 100000, 5, TRUE, TRUE, FALSE)
+     1000, 0, 2000000, 200000, 100000, 1, TRUE, TRUE, FALSE, 200000)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

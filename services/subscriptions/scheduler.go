@@ -288,7 +288,7 @@ func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 		}
 	}
 
-	s.logger.Info(fmt.Sprintf("Reminder processing completed: %d sent, %d failed", 
+	s.logger.Info(fmt.Sprintf("Reminder processing completed: %d sent, %d failed",
 		successCount, failureCount))
 
 	return nil
@@ -298,14 +298,14 @@ func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 func (s *Scheduler) sendReminder(ctx context.Context, reminder db.GetPendingRemindersRow) error {
 	// TODO: Integrate with actual notification service
 	// For now, just log the reminder
-	s.logger.Info(fmt.Sprintf("Sending reminder to user %d: %s - %s", 
+	s.logger.Info(fmt.Sprintf("Sending reminder to user %d: %s - %s",
 		reminder.UserID, reminder.Title, reminder.Message))
 
 	// Example integration points:
 	// 1. Push Notifications (FCM/APNS)
 	// 2. Email Service (SendGrid/AWS SES)
 	// 3. SMS Service (Twilio)
-	
+
 	// For channels in reminder.Channels:
 	// - "push" -> Send push notification
 	// - "email" -> Send email
@@ -343,13 +343,7 @@ func (s *Scheduler) processDailySpendReset(ctx context.Context) error {
 
 	s.logger.Info(fmt.Sprintf("Resetting daily spending counters for day: %s", currentDay))
 
-	parsedDate, err := time.Parse("2006-01-02", currentDay)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to parse date: %v", err))
-		return err
-	}
-
-	if err := s.store.ResetDailySpending(ctx, sql.NullTime{Time: parsedDate, Valid: true}); err != nil {
+	if err := s.store.ResetDailySpending(ctx, sql.NullString{String: currentDay, Valid: true}); err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to reset daily spending: %v", err))
 		return err
 	}
@@ -394,7 +388,7 @@ func (s *Scheduler) Stop() error {
 // GetTaskStatus returns the status of all subscription tasks
 func (s *Scheduler) GetTaskStatus() map[string]interface{} {
 	status := make(map[string]interface{})
-	
+
 	tasks := []string{
 		TaskRenewalReminders3Days,
 		TaskRenewalReminders1Day,
@@ -445,22 +439,22 @@ func (s *Scheduler) RunTaskNow(taskID string) error {
 // RunRenewalRemindersNow manually triggers renewal reminder processing
 func (s *Scheduler) RunRenewalRemindersNow() error {
 	ctx := context.Background()
-	
+
 	s.logger.Info("Manually triggering all renewal reminders...")
-	
+
 	// Run all three reminder intervals
 	if err := s.processRenewalReminders3Days(ctx); err != nil {
 		s.logger.Error(fmt.Sprintf("3-day reminders failed: %v", err))
 	}
-	
+
 	if err := s.processRenewalReminders1Day(ctx); err != nil {
 		s.logger.Error(fmt.Sprintf("1-day reminders failed: %v", err))
 	}
-	
+
 	if err := s.processRenewalRemindersSameDay(ctx); err != nil {
 		s.logger.Error(fmt.Sprintf("Same-day reminders failed: %v", err))
 	}
-	
+
 	s.logger.Info("Manual renewal reminders processing completed")
 	return nil
 }

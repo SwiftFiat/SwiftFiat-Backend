@@ -367,7 +367,7 @@ func (v *Subscriptions) GetSpendingAnalytics(c *gin.Context) {
 
 		var cardTotal int64
 		for _, tx := range txs {
-			cardTotal += tx.AmountCents
+			cardTotal += tx.Amount
 		}
 
 		cardSpending[card.CardName] = cardTotal
