@@ -174,16 +174,10 @@ func NewServer(envPath string) *Server {
 	// in app notification service
 	ns := service.NewNotificationService(q)
 
-	// vault service
-	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, ns)
-
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)
 
 	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 1*time.Hour)
-
-	// vault scheduler
-	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Hour)
 
 	// reward service
 	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
@@ -216,6 +210,12 @@ func NewServer(envPath string) *Server {
 
 	streakScheduler := streaks.NewStreakScheduler(q, l, t, ns, streak)
 
+	// vault service
+	vs := vaultsavings.NewVaultService(q, l, ws, email, pn, ns, streakScheduler)
+
+	// vault scheduler
+	vaultScheduler := vaultsavings.NewVaultScheduler(t, vs, q, l, 1*time.Hour)
+
 	// currency service
 	cs := currency.NewCurrencyService(q, l)
 
@@ -229,7 +229,7 @@ func NewServer(envPath string) *Server {
 	rm := ratemanager.NewService(q, scex, ads, l)
 
 	// smart conversion service
-	scs := smartconversion.NewConversionService(q, l, rm, scex, txs)
+	scs := smartconversion.NewConversionService(q, l, rm, scex, txs, streakScheduler)
 
 	// smart conversion scheduler
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)

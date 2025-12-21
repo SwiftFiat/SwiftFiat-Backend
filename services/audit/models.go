@@ -194,6 +194,9 @@ const (
 	EventFundIssuingWallet  = "card.fund_issuing_wallet"
 	EventCreateCard         = "card.created"
 	EventRegisterCardHolder = "kyc.verified"
+	EventFreezeCard         = "card.frozen"
+	EventUnfreezeCard       = "card.unfrozen"
+	EventDeleteCard         = "card.deleted"
 )
 
 // LogEntry represents the input for creating an audit log

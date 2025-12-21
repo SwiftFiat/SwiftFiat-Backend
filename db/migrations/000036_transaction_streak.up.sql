@@ -186,9 +186,13 @@ CREATE INDEX IF NOT EXISTS "idx_streak_history_event_type" ON "transaction_strea
  * 7. Update best_streak if current exceeds it
  * 8. Log to history
  */
+-- Drop and recreate with correct field names
+DROP TRIGGER IF EXISTS transaction_streak_update ON transactions;
+DROP FUNCTION IF EXISTS update_transaction_streak();
+
 CREATE OR REPLACE FUNCTION update_transaction_streak()
 RETURNS TRIGGER AS $$
-DECLARE
+DECLARE 
     v_streak_record RECORD;
     v_today DATE := CURRENT_DATE;
     v_yesterday DATE := CURRENT_DATE - INTERVAL '1 day';
@@ -197,14 +201,19 @@ DECLARE
     v_days_since_last INT;
 BEGIN
     -- Only process successful transactions
-    IF NEW.status != 'delivered' AND NEW.status != 'success' THEN
+    IF NEW.status != 'successful' THEN
+        RETURN NEW;
+    END IF;
+    
+    -- Skip if user_id is null
+    IF NEW.user_id IS NULL THEN
         RETURN NEW;
     END IF;
     
     -- Get or create streak record for user
     SELECT * INTO v_streak_record
     FROM transaction_streaks
-    WHERE user_id = NEW.customer_id
+    WHERE user_id = NEW.user_id  -- ✅ FIXED
     FOR UPDATE;
     
     -- Initialize if doesn't exist
@@ -217,7 +226,7 @@ BEGIN
             last_transaction_date,
             streak_started_at
         ) VALUES (
-            NEW.customer_id,
+            NEW.user_id,  -- ✅ FIXED
             1,
             1,
             1,
@@ -234,7 +243,7 @@ BEGIN
             transaction_date,
             event_type
         ) VALUES (
-            NEW.customer_id,
+            NEW.user_id,  -- ✅ FIXED
             NEW.id,
             0,
             1,
@@ -255,15 +264,12 @@ BEGIN
     
     -- Determine new streak value and event type
     IF v_streak_record.last_transaction_date = v_yesterday THEN
-        -- Continue streak (transaction on consecutive day)
         v_new_streak := v_streak_record.current_streak + 1;
         v_event_type := 'streak_continued';
     ELSIF v_days_since_last > 1 THEN
-        -- Streak broken (missed day)
         v_new_streak := 1;
         v_event_type := 'streak_broken';
     ELSE
-        -- Edge case: same day (shouldn't reach here)
         v_new_streak := v_streak_record.current_streak;
         v_event_type := 'no_change';
     END IF;
@@ -280,7 +286,7 @@ BEGIN
             WHEN v_event_type = 'streak_broken' THEN NOW()
             ELSE v_streak_record.streak_started_at
         END
-    WHERE user_id = NEW.customer_id;
+    WHERE user_id = NEW.user_id;  -- ✅ FIXED
     
     -- Log streak change
     INSERT INTO transaction_streak_history (
@@ -292,7 +298,7 @@ BEGIN
         event_type,
         metadata
     ) VALUES (
-        NEW.customer_id,
+        NEW.user_id,  -- ✅ FIXED
         NEW.id,
         v_streak_record.current_streak,
         v_new_streak,

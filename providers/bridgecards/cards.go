@@ -56,6 +56,16 @@ func NewBridgeCardProvider(config *utils.Config, useSandbox bool, logger *loggin
 	}
 }
 
+// GetIssuingWalletBalance gets the issuing wallet balance
+func (p *BridgeCardProvider) GetIssuingWalletBalance(ctx context.Context) (*IssuingWalletBalanceResponse, error) {
+	var response IssuingWalletBalanceResponse
+	err := p.makeRequest(ctx, http.MethodGet, "/cards/get_issuing_wallet_balance", nil, &response)
+	if err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
 // CreateCardHolder creates a new card holder
 func (p *BridgeCardProvider) CreateCardHolder(ctx context.Context, req *CreateCardHolderRequest) (*CreateCardHolderResponse, error) {
 	var response CreateCardHolderResponse
@@ -65,6 +75,16 @@ func (p *BridgeCardProvider) CreateCardHolder(ctx context.Context, req *CreateCa
 		return nil, err
 	}
 
+	return &response, nil
+}
+
+// GetAllIssuedCards gets all issued cards
+func (p *BridgeCardProvider) GetAllIssuedCards(ctx context.Context) (*GetAllIssuedcardResponse, error) {
+	var response GetAllIssuedcardResponse
+	err := p.makeRequest(ctx, http.MethodGet, "/cards/get_all_cards?page=1", nil, &response)
+	if err != nil {
+		return nil, err
+	}
 	return &response, nil
 }
 

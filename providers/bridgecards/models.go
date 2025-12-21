@@ -493,3 +493,58 @@ type CardCreationEventFailed struct {
 		Reason       string `json:"reason"`
 	} `json:"data"`
 }
+
+type IssuingWalletBalanceResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		IssuingBalanceUSD string `json:"issuing_balance_USD"`
+	} `json:"data"`
+}
+
+type GetAllIssuedcardResponse struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Data    struct {
+		Cards []struct {
+			BillingAddress struct {
+				BillingAddress1 string `json:"billing_address1"`
+				BillingCity     string `json:"billing_city"`
+				BillingCountry  string `json:"billing_country"`
+				BillingZipCode  string `json:"billing_zip_code"`
+				CountryCode     string `json:"country_code"`
+				State           string `json:"state"`
+				StateCode       string `json:"state_code"`
+			} `json:"billing_address"`
+			Brand        string `json:"brand"`
+			CardCurrency string `json:"card_currency"`
+			CardID       string `json:"card_id"`
+			CardName     string `json:"card_name"`
+			CardNumber   string `json:"card_number"`
+			CardType     string `json:"card_type"`
+			CardholderID string `json:"cardholder_id"`
+			CreatedAt    int64  `json:"created_at"`
+			CVV          string `json:"cvv"`
+			ExpiryMonth  string `json:"expiry_month"`
+			ExpiryYear   string `json:"expiry_year"`
+			IsActive     bool   `json:"is_active"`
+			IssuingAppID string `json:"issuing_app_id"`
+			Last4        string `json:"last_4"`
+			Livemode     bool   `json:"livemode"`
+			MetaData     struct {
+				UserID string `json:"user_id"`
+			} `json:"meta_data"`
+			Balance           string `json:"balance"`
+			AvailableBalance  string `json:"available_balance"`
+			BookBalance       string `json:"book_balance"`
+			BlockedDueToFraud bool   `json:"blocked_due_to_fraud"`
+			Pin3DSActivated   bool   `json:"pin_3ds_activated"`
+		} `json:"cards"`
+		Meta struct {
+			Total  int `json:"total"`
+			Pages  int `json:"pages"`
+			Prev   string `json:"prev"`
+			Next   string `json:"next"`
+		} `json:"meta"`
+	} `json:"data"`
+}

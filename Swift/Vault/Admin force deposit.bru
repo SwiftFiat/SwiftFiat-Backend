@@ -1,11 +1,11 @@
 meta {
-  name: Update config
+  name: Admin force deposit
   type: http
-  seq: 3
+  seq: 8
 }
 
-put {
-  url: {{BaseURl}}/vault/admin/yield-configs/131ee669-f683-42dd-939c-143621ffe3a8
+post {
+  url: {{BaseURl}}/vault/goals/admin-deposit
   body: json
   auth: bearer
 }
@@ -16,7 +16,7 @@ auth:bearer {
 
 body:json {
   {
-    "apy_rate": "3"
+    "amount": "1000"
   }
 }
 

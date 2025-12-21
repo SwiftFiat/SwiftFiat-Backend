@@ -16,7 +16,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	tx "github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -32,6 +32,7 @@ type Bills struct {
 	walletService      *wallet.WalletService
 	currencyService    *currency.CurrencyService
 	audit              *audit.Service
+	streakScheduler    *streaks.StreakScheduler
 }
 
 func (b Bills) router(server *Server) {
@@ -41,6 +42,7 @@ func (b Bills) router(server *Server) {
 	b.currencyService = server.currencyService
 	b.transactionService = server.transactionService
 	b.audit = server.auditService
+	b.streakScheduler = server.streakScheduler
 
 	serverGroupV1 := server.router.Group("/api/v1/bills")
 	serverGroupV1.GET("categories", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCategories)
@@ -55,7 +57,7 @@ func (b Bills) router(server *Server) {
 }
 
 // updateStreakAsync updates user streak asynchronously
-func (b *Bills) updateStreakAsync(userID int64, transactionID uuid.UUID, txType transaction.TransactionType) {
+func (b *Bills) updateStreakAsync(userID int64, transactionID uuid.UUID, txType tx.TransactionType) {
 	bgCtx := context.Background()
 	if err := b.transactionService.UpdateStreakAfterBillPayment(
 		bgCtx,
@@ -444,7 +446,11 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 	}
 
 	// UPdate streak
-	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Airtime)
+	// b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Airtime)
+	err = b.streakScheduler.UpdateStreakOnTransaction(ctx, userInfo.ID, tInfo.ID, "airtime")
+	if err != nil {
+		b.server.logger.Error("Failed to update streak:", err)
+	}
 
 	// audit log
 	logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", true)
@@ -660,12 +666,12 @@ func (b *Bills) buyData(ctx *gin.Context) {
 	// ========================================================================
 
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
 		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount,
 		Description:     "data-purchase",
-		Type:            transaction.Data,
+		Type:            tx.Data,
 		ServiceID:       request.ServiceID,
 		ServiceCurrency: "NGN",
 	})
@@ -1018,11 +1024,11 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	}
 
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount,
 		Description:     "tv-subscription-purchase",
-		Type:            transaction.TV,
+		Type:            tx.TV,
 		ServiceID:       request.ServiceID,
 		ServiceCurrency: "NGN",
 	})
@@ -1406,11 +1412,11 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	}
 
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, transaction.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount,
 		Description:     "electricity-purchase",
-		Type:            transaction.Other,
+		Type:            tx.Other,
 		ServiceID:       request.ServiceID,
 		ServiceCurrency: "NGN",
 	})
@@ -1481,7 +1487,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	taxAmountString := fmt.Sprintf("%v", purchTrans.TaxAmount)
 
 	/// Update transaction metadata
-	tInfo.Metadata.ElectricityMetadata = &transaction.ElectricityMetadataResponse{
+	tInfo.Metadata.ElectricityMetadata = &tx.ElectricityMetadataResponse{
 		PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
 		CustomerName:      purchTrans.CustomerName,
 		CustomerAddress:   purchTrans.CustomerAddress,

@@ -1,0 +1,20 @@
+meta {
+  name: Get issuing wallet balance
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{BaseURl}}/cards/admin/get-issuing-wallet-balance
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

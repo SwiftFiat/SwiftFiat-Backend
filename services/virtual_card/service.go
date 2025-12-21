@@ -589,6 +589,14 @@ func (s *Service) WithdrawCard(ctx context.Context, req bridgecards.WithdrawCard
 	return s.bridgeCard.WithdrawCard(ctx, req)
 }
 
+func (s *Service) GetIssuingWalletBalance(ctx context.Context) (*bridgecards.IssuingWalletBalanceResponse, error) {
+	return s.bridgeCard.GetIssuingWalletBalance(ctx)
+}
+
+func (s *Service) GetAllIssuedCards(ctx context.Context) (*bridgecards.GetAllIssuedcardResponse, error) {
+	return s.bridgeCard.GetAllIssuedCards(ctx)
+}
+
 func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *bridgecards.CardDebitEventSuccessful) (string, error) {
 	now := time.Now()
 	spendingMonth := now.Format("2006-01")
