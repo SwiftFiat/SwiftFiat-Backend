@@ -53,19 +53,25 @@ func (v Vault) router(server *Server) {
 		vaultGroup.GET("/goals/:id", v.getGoal)
 		vaultGroup.PUT("/goals/:id", v.updateGoal)
 		vaultGroup.DELETE("/goals/:id", v.deleteGoal)
+		vaultGroup.DELETE("/admin/goals/:id", v.adminDeleteGoal)
 		vaultGroup.GET("/summary", v.getSummary)
 		vaultGroup.GET("/goals/:id/progress", v.getProgress)
 
 		// Transactions
 		vaultGroup.POST("/goals/:id/deposit", v.deposit)
+		vaultGroup.POST("/admin/goals/deposit", v.adminDeposit)
 		vaultGroup.POST("/goals/:id/withdraw", v.withdraw)
+		vaultGroup.POST("/admin/goals/withdraw", v.adminWithdraw)
 		vaultGroup.GET("/goals/:id/transactions", v.getVaultTransactions)
 		vaultGroup.GET("/transactions", v.getAllTransactions)
+		vaultGroup.GET("/admin/transactions", v.adminGetVaultTxsByUser)
 
 		// Recurring Rules
 		vaultGroup.PUT("/goals/:id/recurring", v.updateRecurringRule)
 		vaultGroup.POST("/goals/:id/recurring/pause", v.pauseRecurring)
 		vaultGroup.POST("/goals/:id/recurring/resume", v.resumeRecurring)
+		vaultGroup.PATCH("/admin/goals/:id/recurring/pause", v.AdminPauseRecurring)
+		vaultGroup.PATCH("/admin/goals/:id/recurring/resume", v.AdminResumeRecurring)
 
 		// Admin Routes
 		vaultGroup.GET("/admin/metrics", v.getAdminMetrics)
@@ -499,6 +505,128 @@ func (v *Vault) deposit(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("deposit successful", vaultsavings.MapVaultTxToDepositResponse(tx)))
 }
 
+// adminDeposit godoc
+// @Summary Admin Deposit to Vault
+// @Description Admin deposit funds to vault savings goal
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param vault_id query string true "Vault ID"
+// @Param user_id query string true "User ID"
+// @Param adminDepositRequest body object{amount=string,description=string} true "Admin Deposit Request"
+// @Success 200 {object} vaultsavings.DepositResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/goals/deposit [post]
+func (v *Vault) adminDeposit(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	vaultID, err := uuid.Parse(ctx.Query("vault_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
+		return
+	}
+
+	var req struct {
+		Amount      string `json:"amount" binding:"required"`
+		Description string `json:"description"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		return
+	}
+
+	// Validate amount
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	// Get vault to verify ownership and currency
+	goal, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault goal not found"))
+		return
+	}
+
+	// get user
+	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), int64(userID))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("user not found"))
+		return
+	}
+
+	wallet, err := v.server.queries.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+		CustomerID: user.ID,
+		Currency:   goal.Currency,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError(fmt.Sprintf("failed to get wallet for user %d and currency %s", user.ID, goal.Currency)))
+		return
+	}
+
+	// Create deposit request
+	depositReq := vaultsavings.DepositRequest{
+		UserID:       user.ID,
+		VaultID:      vaultID,
+		FromWalletID: wallet.ID,
+		Amount:       req.Amount,
+		Currency:     goal.Currency,
+		Description:  req.Description,
+	}
+
+	tx, err := v.vaultService.Deposit(ctx.Request.Context(), depositReq)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to process deposit: %v", err))
+		if errors.Is(err, vaultsavings.ErrInsufficientBalance) {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient wallet balance"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by admin %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]any{
+		"transaction_id": tx.ID,
+		"from_wallet_id": wallet.ID,
+		"user_id":        user.ID,
+		"vault_id":       goal.ID,
+		"amount":         amount.String(),
+		"currency":       goal.Currency,
+		"status":         tx.Status,
+		"created_at":     time.Now(),
+	}
+	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("deposit successful", vaultsavings.MapVaultTxToDepositResponse(tx)))
+}
+
 // ============================================================================
 // WITHDRAW
 // ============================================================================
@@ -606,6 +734,136 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 		"transaction_id": tx.ID,
 		"to_wallet_id":   walletID,
 		"user_id":        activeUser.UserID,
+		"vault_id":       goal.ID,
+		"amount":         amount.String(),
+		"currency":       goal.Currency,
+		"status":         tx.Status,
+		"created_at":     time.Now(),
+	}
+	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess(message, vaultsavings.MapVaultTxToDepositResponse(tx)))
+}
+
+// adminWithdraw godoc
+// @Summary Admin withdraw from vault
+// @Description Admin withdraw from vault
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Param vault_id query string true "Vault ID"
+// @Param user_id query int true "User ID"
+// @Param amount query string true "Amount"
+// @Param description query string false "Description"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 403 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /vault/admin/withdraw [post]
+func (v *Vault) adminWithdraw(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Query("vault_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
+		return
+	}
+
+	var req struct {
+		Amount      string `json:"amount" binding:"required"`
+		Description string `json:"description"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		return
+	}
+
+	// Validate amount
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	// Get vault to verify ownership
+	goal, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault goal not found"))
+		return
+	}
+
+	// get user
+	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), int64(userID))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("user not found"))
+		return
+	}
+
+	wallet, err := v.server.queries.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+		CustomerID: user.ID,
+		Currency:   goal.Currency,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("wallet not found"))
+		return
+	}
+
+	// Create withdrawal request
+	withdrawReq := vaultsavings.WithdrawRequest{
+		UserID:      activeUser.UserID,
+		VaultID:     vaultID,
+		ToWalletID:  wallet.ID,
+		Amount:      req.Amount,
+		Description: req.Description,
+	}
+
+	tx, err := v.vaultService.Withdraw(ctx.Request.Context(), withdrawReq)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to process withdrawal: %v", err))
+		if errors.Is(err, vaultsavings.ErrInsufficientBalance) {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient vault balance"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to process withdrawal"))
+		return
+	}
+
+	// Prepare response based on status
+	var message string
+	if tx.Requires2fa.Bool {
+		message = "withdrawal requires 2FA verification"
+	} else {
+		message = "withdrawal successful"
+	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = nil
+	auditLog.NewValues = map[string]any{
+		"transaction_id": tx.ID,
+		"to_wallet_id":   wallet,
+		"user_id":        user.ID,
 		"vault_id":       goal.ID,
 		"amount":         amount.String(),
 		"currency":       goal.Currency,
@@ -736,6 +994,74 @@ func (v *Vault) getAllTransactions(ctx *gin.Context) {
 		Limit:  limit,
 		Offset: offset,
 		UserID: activeUser.UserID,
+	}
+
+	transactions, err := v.vaultService.GetUserTransactions(ctx.Request.Context(), param)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to fetch transactions: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
+		return
+	}
+
+	var filteredTransactions []vaultsavings.DepositResponse
+	for _, tx := range transactions {
+		filteredTransactions = append(filteredTransactions, *vaultsavings.MapVaultTxToDepositResponse(&tx))
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transactions retrieved successfully", filteredTransactions))
+}
+
+// adminGetVaultTxsByUser godoc
+// @Summary Get Vault Transactions By User
+// @Description Get vault transactions by user
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param limit query int false "Limit" default(20)
+// @Param offset query int false "Offset" default(0)
+// @Param user_id query int true "User ID"
+// @Success 200 {object} []vaultsavings.DepositResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/transactions [get]
+func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	// Parse pagination
+	limit := int32(20)
+	offset := int32(0)
+	if l := ctx.Query("limit"); l != "" {
+		if parsedLimit, err := strconv.Atoi(l); err == nil && parsedLimit > 0 {
+			limit = int32(parsedLimit)
+		}
+	}
+	if o := ctx.Query("offset"); o != "" {
+		if parsedOffset, err := strconv.Atoi(o); err == nil && parsedOffset >= 0 {
+			offset = int32(parsedOffset)
+		}
+	}
+
+	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
+		return
+	}
+
+	param := db.GetVaultTransactionsByUserIDParams{
+		Limit:  limit,
+		Offset: offset,
+		UserID: int64(userID),
 	}
 
 	transactions, err := v.vaultService.GetUserTransactions(ctx.Request.Context(), param)
@@ -923,6 +1249,76 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("savings goal deleted successfully", nil))
 }
 
+// adminDeleteGoal godoc
+// @Summary Admin Delete Vault Goal
+// @Description Delete a vault goal (only if balance is zero)
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault Goal ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/goals/{id} [delete]
+func (v *Vault) adminDeleteGoal(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	goal, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault goal not found"))
+		return
+	}
+
+	err = v.vaultService.DeleteVault(ctx.Request.Context(), vaultID)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to delete vault goal: %v", err.Error()))
+		if err.Error() == "VAULT_HAS_BALANCE_ERROR" {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot delete vault with balance"))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete savings goal"))
+		return
+	}
+
+	// audit log
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.OldValues = map[string]any{
+		"id":             goal.ID,
+		"user_id":        goal.UserID,
+		"name":           goal.VaultName,
+		"target_amount":  goal.GoalAmount,
+		"currency":       goal.Currency,
+		"created_at":     goal.CreatedAt,
+		"updated_at":     goal.UpdatedAt,
+		"status":         goal.Status,
+		"recurring_rule": goal.RecurringRule,
+	}
+	auditLog.NewValues = nil
+	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("savings goal deleted successfully", nil))
+}
+
 // ============================================================================
 // UPDATE RECURRING RULE
 // ============================================================================
@@ -1018,6 +1414,54 @@ func (v *Vault) pauseRecurring(ctx *gin.Context) {
 	v.audit.Log(auditLog)
 }
 
+// AdminPauseRecurring godoc
+// @Summary Pause Recurring Deposits
+// @Description Pause automatic recurring deposits for a vault goal
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault Goal ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/goals/{id}/recurring/pause [patch]
+func (v *Vault) AdminPauseRecurring(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	// Verify ownership
+	goal, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault goal not found"))
+		return
+	}
+
+	enabled := false
+	v.updateRecurringEnabled(ctx, &enabled)
+
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", goal.ID.String())
+	v.audit.Log(auditLog)
+}
+
 // resumeRecurring godoc
 // @Summary Resume Recurring Deposits
 // @Description Resume automatic recurring deposits for a vault goal
@@ -1038,6 +1482,54 @@ func (v *Vault) resumeRecurring(ctx *gin.Context) {
 
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", ctx.Param("id"))
+	v.audit.Log(auditLog)
+}
+
+// AdminResumeRecurring godoc
+// @Summary Resume Recurring Deposits
+// @Description Resume automatic recurring deposits for a vault goal
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault Goal ID"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/vault/admin/goals/{id}/recurring/resume [patch]
+func (v *Vault) AdminResumeRecurring(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	// Verify ownership
+	goal, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault goal not found"))
+		return
+	}
+
+	enabled := true
+	v.updateRecurringEnabled(ctx, &enabled)
+
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", goal.ID.String())
 	v.audit.Log(auditLog)
 }
 

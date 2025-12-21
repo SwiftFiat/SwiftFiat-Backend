@@ -11,6 +11,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -20,12 +21,13 @@ import (
 )
 
 type VaultService struct {
-	store         *db.Store
-	logger        *logging.Logger
-	walletService *wallet.WalletService
-	emailService  *service.Plunk
-	pushService   *service.PushNotificationService
-	notifService  *service.Notification
+	store           *db.Store
+	logger          *logging.Logger
+	walletService   *wallet.WalletService
+	emailService    *service.Plunk
+	pushService     *service.PushNotificationService
+	notifService    *service.Notification
+	streakScheduler *streaks.StreakScheduler
 }
 
 func NewVaultService(
@@ -35,15 +37,16 @@ func NewVaultService(
 	emailService *service.Plunk,
 	pushService *service.PushNotificationService,
 	notifService *service.Notification,
-
+	streakScheduler *streaks.StreakScheduler,
 ) *VaultService {
 	return &VaultService{
-		store:         store,
-		logger:        logger,
-		walletService: walletService,
-		emailService:  emailService,
-		pushService:   pushService,
-		notifService:  notifService,
+		store:           store,
+		logger:          logger,
+		walletService:   walletService,
+		emailService:    emailService,
+		pushService:     pushService,
+		notifService:    notifService,
+		streakScheduler: streakScheduler,
 	}
 }
 
@@ -1143,6 +1146,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Create main Transaction record
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          sql.NullInt64{Int64: req.UserID, Valid: true},
 		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
 		Status:          string(transaction.Success),
@@ -1217,6 +1221,11 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	if progress == "" {
 		progress = "0"
+	}
+
+	// Update user streak
+	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "savings"); err != nil {
+		return nil, err
 	}
 
 	// Get user for notifications

@@ -10,6 +10,7 @@ import (
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -22,6 +23,7 @@ type ConversionService struct {
 	rateManagerService  *ratemanager.Service
 	exchangeRateService *exchangerate.ExchangeRateService
 	transactionService  *transaction.TransactionService
+	streakScheduler     *streaks.StreakScheduler
 }
 
 func NewConversionService(
@@ -30,6 +32,7 @@ func NewConversionService(
 	rateManagerService *ratemanager.Service,
 	exchangeRateService *exchangerate.ExchangeRateService,
 	transactionService *transaction.TransactionService,
+	streakScheduler *streaks.StreakScheduler,
 ) *ConversionService {
 	return &ConversionService{
 		store:               store,
@@ -37,6 +40,7 @@ func NewConversionService(
 		rateManagerService:  rateManagerService,
 		exchangeRateService: exchangeRateService,
 		transactionService:  transactionService,
+		streakScheduler:     streakScheduler,
 	}
 }
 
@@ -439,6 +443,11 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create conversion history: %w", err)
+	}
+
+	// Update user streak
+	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, params.userID, history.ID, "conversion"); err != nil {
+		return nil, err
 	}
 
 	return &history, nil

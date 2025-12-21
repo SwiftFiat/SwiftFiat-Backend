@@ -1529,7 +1529,7 @@ func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID in
 // UpdateStreakAfterBillPayment updates streak after successful bill payment
 func (s *TransactionService) UpdateStreakAfterBillPayment(
 	ctx context.Context,
-	userID int64,
+	userID int64, 
 	transactionID uuid.UUID,
 	transactionType TransactionType,
 ) error {

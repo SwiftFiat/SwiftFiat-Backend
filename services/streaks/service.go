@@ -374,7 +374,7 @@ func (s *StreakService) GetSystemHealthCheck(ctx context.Context) (db.GetSystemH
 // ===============================================
 // NOTIFICATION HELPERS
 // ===============================================
-
+ 
 // NotifyStreakMilestone sends notification when user reaches milestone
 func (s *StreakService) NotifyStreakMilestone(ctx context.Context, userID int64, streak int, badgeName string) error {
 	s.logger.Info(fmt.Sprintf("notifying user %d of milestone: %d days, badge: %s", userID, streak, badgeName))

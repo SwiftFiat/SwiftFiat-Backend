@@ -1,0 +1,20 @@
+meta {
+  name: Get all issued cards
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{BaseURl}}/cards/admin/get-all-issued-cards
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

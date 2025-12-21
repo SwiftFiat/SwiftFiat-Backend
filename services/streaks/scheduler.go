@@ -206,39 +206,71 @@ func (ss *StreakScheduler) generateWeeklyAnalytics(ctx context.Context) error {
 
 // UpdateStreakOnTransaction updates user streak after successful transaction
 // This should be called from the transaction service after commit
+// UpdateStreakOnTransaction updates user streak after successful transaction
+// This should be called from the transaction service after commit
 func (ss *StreakScheduler) UpdateStreakOnTransaction(
 	ctx context.Context,
 	userID int64,
 	transactionID uuid.UUID,
 	transactionType string,
 ) error {
-	ss.logger.Info(fmt.Sprintf("Updating streak for user %d after %s transaction", userID, transactionType))
+	ss.logger.Info(fmt.Sprintf("🎯 Starting streak update for user %d after %s transaction %s",
+		userID, transactionType, transactionID))
 
-	// Get current streak
-	streak, err := ss.store.GetOrCreateUserStreak(ctx, userID)
+	// Wait for database trigger to complete
+	time.Sleep(150 * time.Millisecond)
+
+	// Get current streak AFTER trigger has fired
+	streak, err := ss.store.GetUserStreak(ctx, userID)
 	if err != nil {
-		ss.logger.Error(fmt.Sprintf("Failed to get streak for user %d: %v", userID, err))
+		ss.logger.Error(fmt.Sprintf("❌ Failed to get streak for user %d: %v", userID, err))
 		return fmt.Errorf("failed to get streak: %w", err)
 	}
 
-	previousStreak := streak.CurrentStreak
+	ss.logger.Info(fmt.Sprintf("📊 Streak for user %d: current=%d, best=%d, total_days=%d",
+		userID, streak.CurrentStreak, streak.BestStreak, streak.TotalTransactionDays))
 
-	// Note: The database trigger will automatically update the streak
-	// We just need to check if any new badges were earned
-
-	// Wait a moment for trigger to complete
-	time.Sleep(100 * time.Millisecond)
-
-	// Fetch updated streak
-	updatedStreak, err := ss.store.GetUserStreak(ctx, userID)
-	if err != nil {
-		ss.logger.Error(fmt.Sprintf("Failed to get updated streak: %v", err))
-		return fmt.Errorf("failed to get updated streak: %w", err)
+	// ✅ FIX: Check if this is the first transaction by looking at history
+	// If total_transaction_days == 1, this is their first transaction
+	isFirstTransaction := streak.TotalTransactionDays == 1
+	
+	// ✅ FIX: Also check if streak was just started today (for same-day multiple transactions)
+	isNewStreak := false
+	if streak.StreakStartedAt.Valid {
+		streakAge := time.Since(streak.StreakStartedAt.Time)
+		isNewStreak = streakAge < 5*time.Minute // Started within last 5 minutes
 	}
 
-	// Check if streak increased (milestone reached)
-	if updatedStreak.CurrentStreak > previousStreak {
-		ss.handleStreakMilestone(ctx, userID, updatedStreak.CurrentStreak, transactionType)
+	ss.logger.Info(fmt.Sprintf("🔍 Analysis: isFirstTransaction=%v, isNewStreak=%v, currentStreak=%d",
+		isFirstTransaction, isNewStreak, streak.CurrentStreak))
+
+	// Handle first transaction case
+	if isFirstTransaction && streak.CurrentStreak == 1 {
+		ss.logger.Info(fmt.Sprintf("🎉 FIRST TRANSACTION EVER! User %d started their streak!", userID))
+		ss.handleStreakMilestone(ctx, userID, 1, transactionType)
+		return nil
+	}
+
+	// Handle streak milestones (3, 7, 14, etc.)
+	// Only send milestone notification if the streak is at a milestone value
+	// AND it's a new day (to avoid duplicate notifications on same day)
+	if streak.CurrentStreak > 1 {
+		// Check if this is a milestone worth celebrating
+		isMilestone := streak.CurrentStreak%7 == 0 || 
+			streak.CurrentStreak == 3 || 
+			streak.CurrentStreak == 14 ||
+			streak.CurrentStreak == 30 ||
+			streak.CurrentStreak == 60 ||
+			streak.CurrentStreak == 90
+
+		if isMilestone && isNewStreak {
+			ss.logger.Info(fmt.Sprintf("⬆️  STREAK MILESTONE! User %d reached %d days", userID, streak.CurrentStreak))
+			ss.handleStreakMilestone(ctx, userID, streak.CurrentStreak, transactionType)
+		} else if isMilestone {
+			ss.logger.Info(fmt.Sprintf("ℹ️  User %d at milestone %d but not new (same day)", userID, streak.CurrentStreak))
+		} else {
+			ss.logger.Info(fmt.Sprintf("➡️  Streak %d not a milestone", streak.CurrentStreak))
+		}
 	}
 
 	return nil
@@ -251,7 +283,13 @@ func (ss *StreakScheduler) handleStreakMilestone(
 	currentStreak int32,
 	transactionType string,
 ) {
-	ss.logger.Info(fmt.Sprintf("User %d reached streak %d", userID, currentStreak))
+	ss.logger.Info(fmt.Sprintf("🏆 Processing milestone for user %d at streak %d", userID, currentStreak))
+
+	// Check notification service
+	if ss.notifService == nil {
+		ss.logger.Error(fmt.Sprintf("❌ Notification service is nil!"))
+		return
+	}
 
 	// Check if user unlocked any new badges
 	badges, err := ss.store.GetUserBadgesWithLockStatus(ctx, db.GetUserBadgesWithLockStatusParams{
@@ -259,52 +297,79 @@ func (ss *StreakScheduler) handleStreakMilestone(
 		RequiredStreakDays: currentStreak,
 	})
 	if err != nil {
-		ss.logger.Error(fmt.Sprintf("Failed to check badges: %v", err))
+		ss.logger.Error(fmt.Sprintf("❌ Failed to check badges: %v", err))
 		return
 	}
 
-	// Find newly unlocked badges (just earned)
+	ss.logger.Info(fmt.Sprintf("🎖️  Found %d total badges for user %d", len(badges), userID))
+
+	// Find newly unlocked badges (where required_streak_days exactly matches current streak)
+	badgesUnlocked := 0
 	for _, badge := range badges {
 		if badge.IsUnlocked && badge.RequiredStreakDays == currentStreak {
-			// This badge was just unlocked!
+			badgesUnlocked++
 			message := fmt.Sprintf(
 				"🎉 Congratulations! You've unlocked the '%s' badge with a %d-day streak!",
 				badge.Name,
 				currentStreak,
 			)
 
+			ss.logger.Info(fmt.Sprintf("🎖️  User %d unlocked badge: %s (required %d days)", 
+				userID, badge.Name, badge.RequiredStreakDays))
+
 			// Send celebration notification
 			go func(uid int64, msg string, badgeName string) {
-				_, err := ss.notifService.Create(ctx, int32(uid), "Badge Unlocked! 🏆", msg)
+				ss.logger.Info(fmt.Sprintf("📬 Sending badge notification to user %d: %s", uid, badgeName))
+				_, err := ss.notifService.Create(context.Background(), int32(uid), "Badge Unlocked! 🏆", msg)
 				if err != nil {
-					ss.logger.Error(fmt.Sprintf("Failed to send badge notification: %v", err))
+					ss.logger.Error(fmt.Sprintf("❌ Failed to send badge notification: %v", err))
+				} else {
+					ss.logger.Info(fmt.Sprintf("✅ Badge notification sent successfully"))
 				}
 			}(userID, message, badge.Name)
-
-			ss.logger.Info(fmt.Sprintf("User %d unlocked badge: %s", userID, badge.Name))
 		}
+	}
+
+	if badgesUnlocked == 0 {
+		ss.logger.Info(fmt.Sprintf("ℹ️  No new badges unlocked for user %d at streak %d", userID, currentStreak))
 	}
 
 	// Send milestone notification for significant streaks
 	if currentStreak%7 == 0 || currentStreak == 1 || currentStreak == 3 {
 		var message string
+		var title string
+
 		switch currentStreak {
 		case 1:
+			title = "Streak Started! 🎯"
 			message = "🎯 Great start! You've begun your transaction streak. Keep it going!"
+			ss.logger.Info(fmt.Sprintf("🎯 Sending FIRST STREAK notification to user %d", userID))
 		case 3:
+			title = "3-Day Streak! 🔥"
 			message = "🔥 3-day streak! You're building great financial habits."
+			ss.logger.Info(fmt.Sprintf("🔥 Sending 3-day notification to user %d", userID))
 		case 7:
+			title = "Week Streak! ⭐"
 			message = "⭐ Amazing! 7-day streak achieved. You're on fire!"
+			ss.logger.Info(fmt.Sprintf("⭐ Sending 7-day notification to user %d", userID))
 		default:
+			title = "Streak Milestone! 💪"
 			message = fmt.Sprintf("💪 Incredible! %d-day streak! You're a streak champion!", currentStreak)
+			ss.logger.Info(fmt.Sprintf("💪 Sending %d-day notification to user %d", currentStreak, userID))
 		}
 
-		go func(uid int64, msg string) {
-			_, err := ss.notifService.Create(ctx, int32(uid), "Streak Milestone", msg)
+		// Send notification (use background context to avoid cancellation)
+		go func(uid int64, notifTitle, msg string) {
+			ss.logger.Info(fmt.Sprintf("📬 Sending milestone notification to user %d: %s", uid, notifTitle))
+			_, err := ss.notifService.Create(context.Background(), int32(uid), notifTitle, msg)
 			if err != nil {
-				ss.logger.Error(fmt.Sprintf("Failed to send milestone notification: %v", err))
+				ss.logger.Error(fmt.Sprintf("❌ Failed to send milestone notification: %v", err))
+			} else {
+				ss.logger.Info(fmt.Sprintf("✅ Milestone notification sent successfully to user %d", uid))
 			}
-		}(userID, message)
+		}(userID, title, message)
+	} else {
+		ss.logger.Info(fmt.Sprintf("ℹ️  Streak %d is not a notification milestone", currentStreak))
 	}
 }
 
