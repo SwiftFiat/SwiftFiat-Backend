@@ -13,6 +13,16 @@ definitions:
       role:
         type: string
     type: object
+  api.AdminUpdateStatusRequest:
+    properties:
+      status:
+        enum:
+        - active
+        - inactive
+        type: string
+    required:
+    - status
+    type: object
   api.CardPlanResponse:
     properties:
       card_limit:
@@ -27,6 +37,8 @@ definitions:
         type: string
       description:
         type: string
+      failed_tx_count_before_block:
+        type: integer
       id:
         type: integer
       is_active:
@@ -39,12 +51,6 @@ definitions:
         type: string
       name:
         type: string
-      supports_atm:
-        type: boolean
-      supports_international:
-        type: boolean
-      supports_online:
-        type: boolean
       transaction_limit:
         type: string
       updated_at:
@@ -426,6 +432,13 @@ definitions:
       user_id:
         type: integer
     type: object
+  api.ToggleAutoTopupRequest:
+    properties:
+      enabled:
+        type: boolean
+    required:
+    - enabled
+    type: object
   api.TwoFARequest:
     properties:
       enable:
@@ -670,6 +683,7 @@ definitions:
     - smart_conversion
     - support
     - rewards
+    - subscription
     type: string
     x-enum-varnames:
     - CategoryAuthentication
@@ -690,6 +704,7 @@ definitions:
     - CategoryConversion
     - CategorySupport
     - CategoryRewards
+    - CategorySubscription
   audit.LogResponse:
     properties:
       action:
@@ -2034,6 +2049,27 @@ definitions:
         type: string
       timeline:
         $ref: '#/definitions/rapidramp.TransactionTimeline'
+    type: object
+  rapidramp.QRTransactionStats:
+    properties:
+      completed_transactions:
+        type: integer
+      converting_transactions:
+        type: integer
+      failed_transactions:
+        type: integer
+      pending_transactions:
+        type: integer
+      received_transactions:
+        type: integer
+      sending_to_bank_transactions:
+        type: integer
+      total_crypto_received:
+        type: number
+      total_net_payout:
+        type: number
+      total_transactions:
+        type: integer
     type: object
   rapidramp.TransactionTimeline:
     properties:
@@ -4714,25 +4750,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: List all merchants (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/stats:
-    get:
-      consumes:
-      - application/json
-      description: Get overall platform subscription statistics
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get platform statistics (Admin)
       tags:
       - Subscriptions
   /api/v1/admin/subscriptions/users/{user_id}:
@@ -8740,6 +8757,66 @@ paths:
       summary: Delete a QR code
       tags:
       - QR Codes
+  /api/v1/qr-codes/admin:
+    get:
+      description: Retrieves all QR codes for the admin
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/rapidramp.QRCodeResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Get all QR codes for admin
+      tags:
+      - QR Codes
+  /api/v1/qr-codes/admin/update-status:
+    put:
+      description: Updates the status of a QR code for the admin
+      parameters:
+      - description: QR Code ID
+        format: uuid
+        in: query
+        name: qr_id
+        required: true
+        type: string
+      - description: New Status
+        in: query
+        name: status
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update QR code status for admin
+      tags:
+      - QR Codes
   /api/v1/qr-codes/public/{token}:
     get:
       description: Retrieves a specific QR code by its token (public endpoint for
@@ -8763,6 +8840,63 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get QR code by token
+      tags:
+      - QR Codes
+  /api/v1/qr-codes/stats:
+    get:
+      description: Retrieves QR transaction statistics for the authenticated user
+      parameters:
+      - default: 30d
+        description: Time period
+        in: query
+        name: period
+        type: string
+      - default: 20
+        description: Number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rapidramp.QRTransactionStats'
+      security:
+      - BearerAuth: []
+      summary: Get QR transaction statistics
+      tags:
+      - QR Codes
+  /api/v1/qr-codes/stats/admin:
+    get:
+      description: Retrieves QR transaction statistics for the admin
+      parameters:
+      - default: 20
+        description: Limit for pagination
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/rapidramp.QRTransactionStats'
+      security:
+      - BearerAuth: []
+      summary: Get QR transaction statistics for admin
       tags:
       - QR Codes
   /api/v1/qr-codes/transactions:
@@ -9951,6 +10085,32 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update subscription status
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/auto-topup/success-rate:
+    get:
+      description: Auto topup success metrics
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Get auto topup success rate
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/stats:
+    get:
+      description: Total subscriptions, active/inactive count, monthly spend
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Get subscription stats
       tags:
       - Subscriptions
   /api/v1/subscriptions/analytics/category:
@@ -13359,6 +13519,76 @@ paths:
       summary: Get user VIP status
       tags:
       - Rate Manager - VIP Assignments
+  /subscriptions/admin/{id}/auto-topup:
+    post:
+      consumes:
+      - application/json
+      description: Toggle subscription auto topup
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Toggle auto topup
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ToggleAutoTopupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Toggle subscription auto topup
+      tags:
+      - subscriptions
+  /subscriptions/admin/{id}/status:
+    post:
+      consumes:
+      - application/json
+      description: Set subscription status
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Set subscription status
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminUpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Set subscription status
+      tags:
+      - subscriptions
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.
