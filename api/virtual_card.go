@@ -655,7 +655,7 @@ func (v *Virtualcard) AdminFreezeCard(c *gin.Context) {
 // @Param card_id query string true "Card ID"
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/admin-unfreeze-card [post]
+// @Router /api/v1/cards/admin/unfreeze-card [post]
 func (v *Virtualcard) AdminUnfreezeCard(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
