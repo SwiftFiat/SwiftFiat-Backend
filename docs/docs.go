@@ -1592,35 +1592,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/admin/subscriptions/stats": {
-            "get": {
-                "description": "Get overall platform subscription statistics",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Subscriptions"
-                ],
-                "summary": "Get platform statistics (Admin)",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/admin/subscriptions/users/{user_id}": {
             "get": {
                 "description": "Get all subscriptions for a specific user",
@@ -7885,6 +7856,100 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/qr-codes/admin": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all QR codes for the admin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get all QR codes for admin",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/rapidramp.QRCodeResponse"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/admin/update-status": {
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates the status of a QR code for the admin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Update QR code status for admin",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "QR Code ID",
+                        "name": "qr_id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "New Status",
+                        "name": "status",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/qr-codes/public/{token}": {
             "get": {
                 "description": "Retrieves a specific QR code by its token (public endpoint for payers)",
@@ -7916,6 +7981,95 @@ const docTemplate = `{
                         "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves QR transaction statistics for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get QR transaction statistics",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "default": "30d",
+                        "description": "Time period",
+                        "name": "period",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rapidramp.QRTransactionStats"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/qr-codes/stats/admin": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves QR transaction statistics for the admin",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "QR Codes"
+                ],
+                "summary": "Get QR transaction statistics for admin",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Limit for pagination",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/rapidramp.QRTransactionStats"
                         }
                     }
                 }
@@ -9648,6 +9802,46 @@ const docTemplate = `{
                         "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/admin/auto-topup/success-rate": {
+            "get": {
+                "description": "Auto topup success metrics",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get auto topup success rate",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/admin/stats": {
+            "get": {
+                "description": "Total subscriptions, active/inactive count, monthly spend",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get subscription stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     }
                 }
@@ -15278,6 +15472,112 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/subscriptions/admin/{id}/auto-topup": {
+            "post": {
+                "description": "Toggle subscription auto topup",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Toggle subscription auto topup",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Toggle auto topup",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.ToggleAutoTopupRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/subscriptions/admin/{id}/status": {
+            "post": {
+                "description": "Set subscription status",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "subscriptions"
+                ],
+                "summary": "Set subscription status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Set subscription status",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.AdminUpdateStatusRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -15298,6 +15598,21 @@ const docTemplate = `{
                 },
                 "role": {
                     "type": "string"
+                }
+            }
+        },
+        "api.AdminUpdateStatusRequest": {
+            "type": "object",
+            "required": [
+                "status"
+            ],
+            "properties": {
+                "status": {
+                    "type": "string",
+                    "enum": [
+                        "active",
+                        "inactive"
+                    ]
                 }
             }
         },
@@ -15322,6 +15637,9 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "failed_tx_count_before_block": {
+                    "type": "integer"
+                },
                 "id": {
                     "type": "integer"
                 },
@@ -15339,15 +15657,6 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
-                },
-                "supports_atm": {
-                    "type": "boolean"
-                },
-                "supports_international": {
-                    "type": "boolean"
-                },
-                "supports_online": {
-                    "type": "boolean"
                 },
                 "transaction_limit": {
                     "type": "string"
@@ -15924,6 +16233,17 @@ const docTemplate = `{
                 }
             }
         },
+        "api.ToggleAutoTopupRequest": {
+            "type": "object",
+            "required": [
+                "enabled"
+            ],
+            "properties": {
+                "enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "api.TwoFARequest": {
             "type": "object",
             "properties": {
@@ -16274,7 +16594,8 @@ const docTemplate = `{
                 "streaks",
                 "smart_conversion",
                 "support",
-                "rewards"
+                "rewards",
+                "subscription"
             ],
             "x-enum-varnames": [
                 "CategoryAuthentication",
@@ -16294,7 +16615,8 @@ const docTemplate = `{
                 "CategoryStreaks",
                 "CategoryConversion",
                 "CategorySupport",
-                "CategoryRewards"
+                "CategoryRewards",
+                "CategorySubscription"
             ]
         },
         "audit.LogResponse": {
@@ -18316,6 +18638,38 @@ const docTemplate = `{
                 },
                 "timeline": {
                     "$ref": "#/definitions/rapidramp.TransactionTimeline"
+                }
+            }
+        },
+        "rapidramp.QRTransactionStats": {
+            "type": "object",
+            "properties": {
+                "completed_transactions": {
+                    "type": "integer"
+                },
+                "converting_transactions": {
+                    "type": "integer"
+                },
+                "failed_transactions": {
+                    "type": "integer"
+                },
+                "pending_transactions": {
+                    "type": "integer"
+                },
+                "received_transactions": {
+                    "type": "integer"
+                },
+                "sending_to_bank_transactions": {
+                    "type": "integer"
+                },
+                "total_crypto_received": {
+                    "type": "number"
+                },
+                "total_net_payout": {
+                    "type": "number"
+                },
+                "total_transactions": {
+                    "type": "integer"
                 }
             }
         },
