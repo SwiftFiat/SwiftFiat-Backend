@@ -47,7 +47,8 @@ func (v Virtualcard) router(server *Server) {
 		v1.GET("/list-card-transactions", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactions)          //done
 		v1.GET("/get-card-transaction-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardTransactionStatus) //done
 		v1.POST("/withdraw-card", server.authMiddleware.AuthenticatedMiddleware(), v.WithdrawCard)
-		v1.GET("/get-card-plans", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlans)
+		v1.GET("/admin/get-card-plans", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardPlans)
+		v1.POST("/admin/create-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.createCardPlan)
 		v1.GET("/get-card-plan-by-id", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlanById)
 		v1.GET("/get-card", server.authMiddleware.AuthenticatedMiddleware(), v.GetVirtualCard)
 		v1.GET("/get-user-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetUserCards)
@@ -58,7 +59,7 @@ func (v Virtualcard) router(server *Server) {
 		v1.DELETE("/admin/delete-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCardPlan)                        //done
 		v1.POST("/admin/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminFreezeCard)                              //done
 		v1.POST("/admin/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUnfreezeCard)                          //done
-		v1.POST("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                              //done
+		v1.DELETE("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                            //done
 		v1.POST("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)                     //done
 		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance)        //done
 		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)                    //done
@@ -861,7 +862,7 @@ func (v *Virtualcard) DeleteCard(c *gin.Context) {
 // @Success 200 {object} bridgecards.CardResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/admin-delete-card [post]
+// @Router /api/v1/cards/admin/delete-card [delete]
 func (v *Virtualcard) AdminDeleteCard(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1359,31 +1360,6 @@ func (v *Virtualcard) GetTotalCardsByStatus(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Total cards retrieved successfully", totalCards))
 }
 
-// GetCardPlans godoc
-// @Summary Get card plans
-// @Description Get card plans
-// @Tags Cards
-// @Accept json
-// @Produce json
-// @Success 200 {object} []CardPlanResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/get-card-plans [get]
-func (v *Virtualcard) GetCardPlans(c *gin.Context) {
-	plans, err := v.server.queries.ListActiveCardPlans(c.Request.Context())
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	var cardPlans []CardPlanResponse
-	for _, plan := range plans {
-		cardPlans = append(cardPlans, mapCardPlanToCardPlanResponse(plan))
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plans retrieved successfully", cardPlans))
-}
-
 // GetCardPlanById godoc
 // @Summary Get card plan by id
 // @Description Get card plan by id
@@ -1409,6 +1385,146 @@ func (v *Virtualcard) GetCardPlanById(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plan retrieved successfully", mapCardPlanToCardPlanResponse(plan)))
+}
+
+type CreateCardPlanRequest struct {
+	Name                     string  `json:"name" binding:"required"`
+	Description              *string `json:"description"`
+	CreationFee              string  `json:"creation_fee" binding:"required"`
+	MonthlyMaintenanceFee    string  `json:"monthly_maintenance_fee" binding:"required"`
+	MonthlySpendingLimit     string  `json:"monthly_spending_limit" binding:"required"`
+	TransactionLimit         string  `json:"transaction_limit" binding:"required"`
+	DailySpendingLimit       *string `json:"daily_spending_limit"`
+	MaxCardsPerUser          int32   `json:"max_cards_per_user" binding:"required"`
+	CardLimit                *string `json:"card_limit"`
+	FailedTxCountBeforeBlock *int32  `json:"failed_tx_count_before_block"`
+}
+
+// CreateCardPlan godoc
+// @Summary Create card plan
+// @Description Create card plan
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param create_card_plan body CreateCardPlanRequest true "Create card plan"
+// @Success 200 {object} CardPlanResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/admin/create-card-plan [post]
+func (v *Virtualcard) createCardPlan(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	var req CreateCardPlanRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	params := db.CreateCardPlanParams{
+		Name:                     req.Name,
+		Description:              sql.NullString{String: *req.Description, Valid: req.Description != nil},
+		CreationFee:              req.CreationFee,
+		MonthlyMaintenanceFee:    req.MonthlyMaintenanceFee,
+		MonthlySpendingLimit:     req.MonthlySpendingLimit,
+		TransactionLimit:         req.TransactionLimit,
+		DailySpendingLimit:       sql.NullString{String: *req.DailySpendingLimit, Valid: req.DailySpendingLimit != nil},
+		MaxCardsPerUser:          req.MaxCardsPerUser,
+		CardLimit:                sql.NullString{String: *req.CardLimit, Valid: req.CardLimit != nil},
+		FailedTxCountBeforeBlock: sql.NullInt32{Int32: *req.FailedTxCountBeforeBlock, Valid: req.FailedTxCountBeforeBlock != nil},
+	}
+
+	plan, err := v.server.queries.CreateCardPlan(c.Request.Context(), params)
+	if err != nil {
+		errMsg := err.Error()
+		entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventCreateCardPlan,
+		fmt.Sprint(plan.ID),
+		fmt.Sprintf("Card plan %s created successfully by admin %d", plan.Name, activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		false,
+		&errMsg,
+	)
+	entry.NewValues = map[string]any{
+		"name":                     plan.Name,
+		"description":              plan.Description.String,
+		"creation_fee":             plan.CreationFee,
+		"monthly_maintenance_fee":  plan.MonthlyMaintenanceFee,
+		"monthly_spending_limit":   plan.MonthlySpendingLimit,
+		"transaction_limit":        plan.TransactionLimit,
+		"daily_spending_limit":     plan.DailySpendingLimit.String,
+		"max_cards_per_user":       plan.MaxCardsPerUser,
+		"card_limit":               plan.CardLimit.String,
+		"failed_tx_count_before_block": plan.FailedTxCountBeforeBlock.Int32,
+	}
+	v.audit.Log(entry)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// audit log
+	entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventCreateCardPlan,
+		fmt.Sprint(plan.ID),
+		fmt.Sprintf("Card plan %s created successfully by admin %d", plan.Name, activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.NewValues = map[string]any{
+		"name":                     plan.Name,
+		"description":              plan.Description.String,
+		"creation_fee":             plan.CreationFee,
+		"monthly_maintenance_fee":  plan.MonthlyMaintenanceFee,
+		"monthly_spending_limit":   plan.MonthlySpendingLimit,
+		"transaction_limit":        plan.TransactionLimit,
+		"daily_spending_limit":     plan.DailySpendingLimit.String,
+		"max_cards_per_user":       plan.MaxCardsPerUser,
+		"card_limit":               plan.CardLimit.String,
+		"failed_tx_count_before_block": plan.FailedTxCountBeforeBlock.Int32,
+	}
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plan created successfully", mapCardPlanToCardPlanResponse(plan)))
+}
+
+// ListCardPlans godoc
+// @Summary List card plans
+// @Description List card plans
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Success 200 {object} []CardPlanResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/admin/list-card-plans [get]
+func (v *Virtualcard) ListCardPlans(c *gin.Context) {
+	plans, err := v.server.queries.ListCardPlans(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var cardPlans []CardPlanResponse
+	for _, plan := range plans {
+		cardPlans = append(cardPlans, mapCardPlanToCardPlanResponse(plan))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plans retrieved successfully", cardPlans))
 }
 
 type UpdateCardPlanRequest struct {
@@ -1544,7 +1660,7 @@ func (v *Virtualcard) UpdateCardPlan(c *gin.Context) {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/delete-card-plan [delete]
+// @Router /api/v1/cards/admin/delete/card-plan [delete]
 func (v *Virtualcard) DeleteCardPlan(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1788,43 +1904,39 @@ func mapVirtualCardToResponse(card *db.VirtualCard) VirtualCardResponse {
 }
 
 type CardPlanResponse struct {
-	ID                    int64      `json:"id"`
-	Name                  string     `json:"name"`
-	Description           *string    `json:"description"`
-	IsActive              bool       `json:"is_active"`
-	CreationFee           string     `json:"creation_fee"`
-	MonthlyMaintenanceFee string     `json:"monthly_maintenance_fee"`
-	MonthlySpendingLimit  string     `json:"monthly_spending_limit"`
-	TransactionLimit      string     `json:"transaction_limit"`
-	DailySpendingLimit    *string    `json:"daily_spending_limit"`
-	CardLimit             *string    `json:"card_limit"`
-	MaxCardsPerUser       int32      `json:"max_cards_per_user"`
-	SupportsInternational bool       `json:"supports_international"`
-	SupportsOnline        bool       `json:"supports_online"`
-	SupportsAtm           bool       `json:"supports_atm"`
-	CreatedAt             time.Time  `json:"created_at"`
-	UpdatedAt             time.Time  `json:"updated_at"`
-	DeletedAt             *time.Time `json:"deleted_at"`
+	ID                       int64      `json:"id"`
+	Name                     string     `json:"name"`
+	Description              *string    `json:"description"`
+	IsActive                 bool       `json:"is_active"`
+	CreationFee              string     `json:"creation_fee"`
+	MonthlyMaintenanceFee    string     `json:"monthly_maintenance_fee"`
+	MonthlySpendingLimit     string     `json:"monthly_spending_limit"`
+	TransactionLimit         string     `json:"transaction_limit"`
+	DailySpendingLimit       *string    `json:"daily_spending_limit"`
+	CardLimit                *string    `json:"card_limit"`
+	MaxCardsPerUser          int32      `json:"max_cards_per_user"`
+	FailedTxCountBeforeBlock int32      `json:"failed_tx_count_before_block"`
+	CreatedAt                time.Time  `json:"created_at"`
+	UpdatedAt                time.Time  `json:"updated_at"`
+	DeletedAt                *time.Time `json:"deleted_at"`
 }
 
 func mapCardPlanToCardPlanResponse(cardPlan db.CardPlan) CardPlanResponse {
 	return CardPlanResponse{
-		ID:                    cardPlan.ID,
-		Name:                  cardPlan.Name,
-		Description:           &cardPlan.Description.String,
-		IsActive:              cardPlan.IsActive,
-		CreationFee:           cardPlan.CreationFee,
-		MonthlyMaintenanceFee: cardPlan.MonthlyMaintenanceFee,
-		MonthlySpendingLimit:  cardPlan.MonthlySpendingLimit,
-		TransactionLimit:      cardPlan.TransactionLimit,
-		DailySpendingLimit:    &cardPlan.DailySpendingLimit.String,
-		CardLimit:             &cardPlan.CardLimit.String,
-		MaxCardsPerUser:       cardPlan.MaxCardsPerUser,
-		SupportsInternational: cardPlan.SupportsInternational,
-		SupportsOnline:        cardPlan.SupportsOnline,
-		SupportsAtm:           cardPlan.SupportsAtm,
-		CreatedAt:             cardPlan.CreatedAt,
-		UpdatedAt:             cardPlan.UpdatedAt,
-		DeletedAt:             &cardPlan.DeletedAt.Time,
+		ID:                       cardPlan.ID,
+		Name:                     cardPlan.Name,
+		Description:              &cardPlan.Description.String,
+		IsActive:                 cardPlan.IsActive,
+		CreationFee:              cardPlan.CreationFee,
+		MonthlyMaintenanceFee:    cardPlan.MonthlyMaintenanceFee,
+		MonthlySpendingLimit:     cardPlan.MonthlySpendingLimit,
+		TransactionLimit:         cardPlan.TransactionLimit,
+		DailySpendingLimit:       &cardPlan.DailySpendingLimit.String,
+		CardLimit:                &cardPlan.CardLimit.String,
+		MaxCardsPerUser:          cardPlan.MaxCardsPerUser,
+		FailedTxCountBeforeBlock: cardPlan.FailedTxCountBeforeBlock.Int32,
+		CreatedAt:                cardPlan.CreatedAt,
+		UpdatedAt:                cardPlan.UpdatedAt,
+		DeletedAt:                &cardPlan.DeletedAt.Time,
 	}
 }

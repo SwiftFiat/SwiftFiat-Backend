@@ -2,9 +2,9 @@
 INSERT INTO card_plans (
     name, description, creation_fee, monthly_maintenance_fee,
     monthly_spending_limit, transaction_limit, daily_spending_limit,
-    max_cards_per_user, supports_international, supports_online, supports_atm, card_limit
+    max_cards_per_user, failed_tx_count_before_block, card_limit
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
 ) RETURNING *;
 
 -- name: GetCardPlan :one
@@ -15,9 +15,9 @@ WHERE id = $1 AND deleted_at IS NULL;
 SELECT * FROM card_plans
 WHERE name = $1 AND deleted_at IS NULL;
 
--- name: ListActiveCardPlans :many
+-- name: ListCardPlans :many
 SELECT * FROM card_plans
-WHERE is_active = TRUE AND deleted_at IS NULL
+WHERE deleted_at IS NULL
 ORDER BY creation_fee ASC;
 
 -- name: UpdateCardPlan :one
@@ -32,6 +32,7 @@ SET
     daily_spending_limit = COALESCE(sqlc.narg('daily_spending_limit'), daily_spending_limit),
     is_active = COALESCE(sqlc.narg('is_active'), is_active),
     card_limit = COALESCE(sqlc.narg('card_limit'), card_limit),
+    failed_tx_count_before_block = COALESCE(sqlc.narg('failed_tx_count_before_block'), failed_tx_count_before_block),
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
@@ -269,12 +270,11 @@ LIMIT $2 OFFSET $3;
 -- name: CreateCardTransaction :one
 INSERT INTO card_transactions (
     card_id, user_id, bridgecard_transaction_id, transaction_type,
-    merchant_name, merchant_category, merchant_category_code,
-    merchant_country, merchant_city, amount, fee,
+    merchant_name, merchant_category, merchant_category_code, amount, fee,
     currency, billing_amount, billing_currency,
     status, balance_after, transaction_date, webhook_received_at, raw_webhook_data, transaction_id, mode, transaction_timestamp
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
 ) RETURNING *;
 
 -- name: GetCardTransaction :one

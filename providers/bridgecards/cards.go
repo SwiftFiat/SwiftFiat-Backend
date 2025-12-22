@@ -194,7 +194,7 @@ func (p *BridgeCardProvider) UpdateCardPin(ctx context.Context, req UpdateCardPi
 	var response CardResponse
 
 	encryptedPin := utils.Encrypt(req.CardPin, p.secreyKey)
-	
+
 	req.CardPin = encryptedPin
 	err := p.makeRequest(ctx, http.MethodPost, "/cards/set_3d_secure_pin", req, &response)
 	if err != nil {
@@ -466,6 +466,22 @@ func (p *BridgeCardProvider) ParseCardholderVerification(payload []byte) (any, e
 		if err := json.Unmarshal(event.Data, &failed); err != nil {
 			return nil, fmt.Errorf("parse failed data: %w", err)
 		}
+		return &failed, nil
+
+	case "card_debit_event.successful":
+		var success CardDebitEventSuccessful
+		if err := json.Unmarshal(event.Data, &success.Data); err != nil {
+			return nil, fmt.Errorf("parse debit success data: %w", err)
+		}
+		success.Event = event.Event
+		return &success, nil
+
+	case "card_debit_event.failed":
+		var failed CardDebitEventDeclined
+		if err := json.Unmarshal(event.Data, &failed.Data); err != nil {
+			return nil, fmt.Errorf("parse debit failed data: %w", err)
+		}
+		failed.Event = event.Event
 		return &failed, nil
 
 	default:

@@ -4,12 +4,21 @@ meta {
   seq: 20
 }
 
-get {
-  url: 
+post {
+  url: {{BaseURl}}/cards/admin/unfreeze-card?card_id=a34d504beee54110a6b2347ee3ad2f72
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+params:query {
+  card_id: a34d504beee54110a6b2347ee3ad2f72
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VyX3JvbGUiOiJzdXBlcl9hZG1pbiIsInVzZXJfdmVyaWZpZWQiOnRydWUsImV4cCI6MTc2ODk3ODA1OH0.XyWRrPIlxxdAmGsFSnuFJKFnkVp1pf_1d4ZWZKLhg9M
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

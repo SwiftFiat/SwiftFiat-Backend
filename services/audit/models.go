@@ -197,6 +197,7 @@ const (
 	EventFreezeCard         = "card.frozen"
 	EventUnfreezeCard       = "card.unfrozen"
 	EventDeleteCard         = "card.deleted"
+	EventCreateCardPlan     = "card.plan.created"
 )
 
 // LogEntry represents the input for creating an audit log

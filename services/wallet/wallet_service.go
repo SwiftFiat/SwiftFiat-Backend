@@ -142,20 +142,23 @@ func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *str
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*30)
 	defer cancel()
 
-	var cachedBanks models.BankResponseCollection
-	cachedBanks, err := w.redis.GetBankResponseCollection(ctx, "banks")
-	if err != nil {
-		w.logger.Error(fmt.Sprintf("failed to fetch banks from redisCache: %v", err))
-		return nil, err
-	}
-
-	if len(cachedBanks) > 0 {
-		w.logger.Info("banks retrieved from cache")
-		if query != nil {
-			queryResults := cachedBanks.FindBanks(*query)
-			return queryResults, nil
+	// Check if Redis is available before attempting to use it
+	if w.redis != nil {
+		var cachedBanks models.BankResponseCollection
+		cachedBanks, err := w.redis.GetBankResponseCollection(ctx, "banks")
+		if err != nil {
+			w.logger.Error(fmt.Sprintf("failed to fetch banks from redisCache: %v", err))
+			// Don't return error, just fall through to fetch from provider
+		} else if len(cachedBanks) > 0 {
+			w.logger.Info("banks retrieved from cache")
+			if query != nil {
+				queryResults := cachedBanks.FindBanks(*query)
+				return queryResults, nil
+			}
+			return &cachedBanks, nil
 		}
-		return &cachedBanks, nil
+	} else {
+		w.logger.Warn("Redis service not available, skipping cache check")
 	}
 
 	w.logger.Info("retrieving banks from provider")
@@ -180,13 +183,16 @@ func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *str
 
 	banksCollection := models.ToBankResponseCollection(*banks)
 
-	w.logger.Info("storing banks into cache")
-
-	err = w.redis.StoreBankResponseCollection(ctx, "banks", banksCollection)
-	if err != nil {
-		w.logger.Error(fmt.Sprintf("failed to store banks into redisCache: %v", err))
-		// Do not break the user's flow just because you couldn't get your own (funny) convenience service to work
-		// return nil, err
+	// Store banks into cache if Redis is available
+	if w.redis != nil {
+		w.logger.Info("storing banks into cache")
+		err = w.redis.StoreBankResponseCollection(ctx, "banks", banksCollection)
+		if err != nil {
+			w.logger.Error(fmt.Sprintf("failed to store banks into redisCache: %v", err))
+			// Do not break the user's flow just because you couldn't get your own (funny) convenience service to work
+		}
+	} else {
+		w.logger.Warn("Redis service not available, skipping cache storage")
 	}
 
 	/// Perform search
