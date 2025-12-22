@@ -6931,35 +6931,6 @@ paths:
       summary: Freeze virtual card
       tags:
       - Cards
-  /api/v1/cards/admin-unfreeze-card:
-    post:
-      consumes:
-      - application/json
-      description: Unfreeze a virtual card with BridgeCard
-      parameters:
-      - description: Card ID
-        in: query
-        name: card_id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/bridgecards.FreezeCardResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Unfreeze virtual card
-      tags:
-      - Cards
   /api/v1/cards/admin/fund-issuing-wallet:
     post:
       consumes:
@@ -7119,6 +7090,35 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: List virtual card transactions by user
+      tags:
+      - Cards
+  /api/v1/cards/admin/unfreeze-card:
+    post:
+      consumes:
+      - application/json
+      description: Unfreeze a virtual card with BridgeCard
+      parameters:
+      - description: Card ID
+        in: query
+        name: card_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bridgecards.FreezeCardResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Unfreeze virtual card
       tags:
       - Cards
   /api/v1/cards/debit-card:

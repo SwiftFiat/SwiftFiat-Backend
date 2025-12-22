@@ -5155,50 +5155,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/cards/admin-unfreeze-card": {
-            "post": {
-                "description": "Unfreeze a virtual card with BridgeCard",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "Unfreeze virtual card",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Card ID",
-                        "name": "card_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/bridgecards.FreezeCardResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/cards/admin/fund-issuing-wallet": {
             "post": {
                 "description": "Fund the issuing wallet with BridgeCard",
@@ -5426,6 +5382,50 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.ListCardTransactionsResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/unfreeze-card": {
+            "post": {
+                "description": "Unfreeze a virtual card with BridgeCard",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Unfreeze virtual card",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Card ID",
+                        "name": "card_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/bridgecards.FreezeCardResponse"
                         }
                     },
                     "400": {
