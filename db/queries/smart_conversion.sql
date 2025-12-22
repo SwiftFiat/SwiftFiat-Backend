@@ -299,12 +299,9 @@ SELECT * FROM qr_codes
 WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC;
 
--- name: GetActiveQRCodes :many
+-- name: GetQRCodes :many
 SELECT * FROM qr_codes
-WHERE user_id = $1 
-    AND status = 'active'
-    AND deleted_at IS NULL
-    AND (expires_at IS NULL OR expires_at > NOW())
+WHERE deleted_at IS NULL
 ORDER BY created_at DESC;
 
 -- name: UpdateQRCodeUsage :one
@@ -461,8 +458,27 @@ SELECT
     COUNT(*) as total_transactions,
     COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_transactions,
     COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_transactions,
+    COUNT(CASE WHEN status = 'sending_to_bank' THEN 1 END) as sending_to_bank_transactions,
+    COUNT(CASE WHEN status = 'converting' THEN 1 END) as converting_transactions,
+    COUNT(CASE WHEN status = 'received' THEN 1 END) as received_transactions,
+    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_transactions,
     COALESCE(SUM(CASE WHEN status = 'completed' THEN crypto_amount ELSE 0 END), 0) as total_crypto_received,
     COALESCE(SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END), 0) as total_net_payout
 FROM qr_transactions
 WHERE user_id = $1
-    AND created_at >= $2;
+    AND created_at >= $2
+    limit $3 offset $4;
+
+-- name: GetQRTransactionStatsAdmin :one
+SELECT 
+    COUNT(*) as total_transactions,
+    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_transactions,
+    COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_transactions,
+    COUNT(CASE WHEN status = 'sending_to_bank' THEN 1 END) as sending_to_bank_transactions,
+    COUNT(CASE WHEN status = 'converting' THEN 1 END) as converting_transactions,
+    COUNT(CASE WHEN status = 'received' THEN 1 END) as received_transactions,
+    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_transactions,
+    COALESCE(SUM(CASE WHEN status = 'completed' THEN crypto_amount ELSE 0 END), 0) as total_crypto_received,
+    COALESCE(SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END), 0) as total_net_payout
+FROM qr_transactions
+limit $1 offset $2;

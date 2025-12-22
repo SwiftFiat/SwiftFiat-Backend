@@ -733,65 +733,6 @@ func (q *Queries) GetActiveConversionRules(ctx context.Context, userID int64) ([
 	return items, nil
 }
 
-const getActiveQRCodes = `-- name: GetActiveQRCodes :many
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
-WHERE user_id = $1 
-    AND status = 'active'
-    AND deleted_at IS NULL
-    AND (expires_at IS NULL OR expires_at > NOW())
-ORDER BY created_at DESC
-`
-
-func (q *Queries) GetActiveQRCodes(ctx context.Context, userID int64) ([]QrCode, error) {
-	rows, err := q.db.QueryContext(ctx, getActiveQRCodes, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []QrCode{}
-	for rows.Next() {
-		var i QrCode
-		if err := rows.Scan(
-			&i.ID,
-			&i.Token,
-			&i.UserID,
-			&i.QrType,
-			&i.CurrencyPreference,
-			&i.ConversionMode,
-			&i.Network,
-			&i.CryptoCurrency,
-			&i.CryptomusAddressID,
-			&i.LinkedWalletID,
-			&i.LinkedBankAccountID,
-			&i.FixedAmount,
-			&i.MinAmount,
-			&i.MaxAmount,
-			&i.QrCodeData,
-			&i.QrCodeImageUrl,
-			&i.Description,
-			&i.Label,
-			&i.Status,
-			&i.UsageLimit,
-			&i.UsageCount,
-			&i.ExpiresAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.LastUsedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getActiveRateBasedRules = `-- name: GetActiveRateBasedRules :many
 SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
 WHERE status = 'active'
@@ -1493,6 +1434,62 @@ func (q *Queries) GetQRCodeByToken(ctx context.Context, token uuid.UUID) (QrCode
 	return i, err
 }
 
+const getQRCodes = `-- name: GetQRCodes :many
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetQRCodes(ctx context.Context) ([]QrCode, error) {
+	rows, err := q.db.QueryContext(ctx, getQRCodes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []QrCode{}
+	for rows.Next() {
+		var i QrCode
+		if err := rows.Scan(
+			&i.ID,
+			&i.Token,
+			&i.UserID,
+			&i.QrType,
+			&i.CurrencyPreference,
+			&i.ConversionMode,
+			&i.Network,
+			&i.CryptoCurrency,
+			&i.CryptomusAddressID,
+			&i.LinkedWalletID,
+			&i.LinkedBankAccountID,
+			&i.FixedAmount,
+			&i.MinAmount,
+			&i.MaxAmount,
+			&i.QrCodeData,
+			&i.QrCodeImageUrl,
+			&i.Description,
+			&i.Label,
+			&i.Status,
+			&i.UsageLimit,
+			&i.UsageCount,
+			&i.ExpiresAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.LastUsedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getQRCodesByCryptomusAddress = `-- name: GetQRCodesByCryptomusAddress :many
 SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE cryptomus_address_id = $1 AND deleted_at IS NULL
@@ -1723,33 +1720,102 @@ SELECT
     COUNT(*) as total_transactions,
     COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_transactions,
     COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_transactions,
+    COUNT(CASE WHEN status = 'sending_to_bank' THEN 1 END) as sending_to_bank_transactions,
+    COUNT(CASE WHEN status = 'converting' THEN 1 END) as converting_transactions,
+    COUNT(CASE WHEN status = 'received' THEN 1 END) as received_transactions,
+    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_transactions,
     COALESCE(SUM(CASE WHEN status = 'completed' THEN crypto_amount ELSE 0 END), 0) as total_crypto_received,
     COALESCE(SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END), 0) as total_net_payout
 FROM qr_transactions
 WHERE user_id = $1
     AND created_at >= $2
+    limit $3 offset $4
 `
 
 type GetQRTransactionStatsParams struct {
 	UserID    int64     `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
+	Limit     int32     `json:"limit"`
+	Offset    int32     `json:"offset"`
 }
 
 type GetQRTransactionStatsRow struct {
-	TotalTransactions     int64       `json:"total_transactions"`
-	CompletedTransactions int64       `json:"completed_transactions"`
-	FailedTransactions    int64       `json:"failed_transactions"`
-	TotalCryptoReceived   interface{} `json:"total_crypto_received"`
-	TotalNetPayout        interface{} `json:"total_net_payout"`
+	TotalTransactions         int64       `json:"total_transactions"`
+	CompletedTransactions     int64       `json:"completed_transactions"`
+	FailedTransactions        int64       `json:"failed_transactions"`
+	SendingToBankTransactions int64       `json:"sending_to_bank_transactions"`
+	ConvertingTransactions    int64       `json:"converting_transactions"`
+	ReceivedTransactions      int64       `json:"received_transactions"`
+	PendingTransactions       int64       `json:"pending_transactions"`
+	TotalCryptoReceived       interface{} `json:"total_crypto_received"`
+	TotalNetPayout            interface{} `json:"total_net_payout"`
 }
 
 func (q *Queries) GetQRTransactionStats(ctx context.Context, arg GetQRTransactionStatsParams) (GetQRTransactionStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getQRTransactionStats, arg.UserID, arg.CreatedAt)
+	row := q.db.QueryRowContext(ctx, getQRTransactionStats,
+		arg.UserID,
+		arg.CreatedAt,
+		arg.Limit,
+		arg.Offset,
+	)
 	var i GetQRTransactionStatsRow
 	err := row.Scan(
 		&i.TotalTransactions,
 		&i.CompletedTransactions,
 		&i.FailedTransactions,
+		&i.SendingToBankTransactions,
+		&i.ConvertingTransactions,
+		&i.ReceivedTransactions,
+		&i.PendingTransactions,
+		&i.TotalCryptoReceived,
+		&i.TotalNetPayout,
+	)
+	return i, err
+}
+
+const getQRTransactionStatsAdmin = `-- name: GetQRTransactionStatsAdmin :one
+SELECT 
+    COUNT(*) as total_transactions,
+    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_transactions,
+    COUNT(CASE WHEN status = 'failed' THEN 1 END) as failed_transactions,
+    COUNT(CASE WHEN status = 'sending_to_bank' THEN 1 END) as sending_to_bank_transactions,
+    COUNT(CASE WHEN status = 'converting' THEN 1 END) as converting_transactions,
+    COUNT(CASE WHEN status = 'received' THEN 1 END) as received_transactions,
+    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_transactions,
+    COALESCE(SUM(CASE WHEN status = 'completed' THEN crypto_amount ELSE 0 END), 0) as total_crypto_received,
+    COALESCE(SUM(CASE WHEN status = 'completed' THEN net_amount ELSE 0 END), 0) as total_net_payout
+FROM qr_transactions
+limit $1 offset $2
+`
+
+type GetQRTransactionStatsAdminParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type GetQRTransactionStatsAdminRow struct {
+	TotalTransactions         int64       `json:"total_transactions"`
+	CompletedTransactions     int64       `json:"completed_transactions"`
+	FailedTransactions        int64       `json:"failed_transactions"`
+	SendingToBankTransactions int64       `json:"sending_to_bank_transactions"`
+	ConvertingTransactions    int64       `json:"converting_transactions"`
+	ReceivedTransactions      int64       `json:"received_transactions"`
+	PendingTransactions       int64       `json:"pending_transactions"`
+	TotalCryptoReceived       interface{} `json:"total_crypto_received"`
+	TotalNetPayout            interface{} `json:"total_net_payout"`
+}
+
+func (q *Queries) GetQRTransactionStatsAdmin(ctx context.Context, arg GetQRTransactionStatsAdminParams) (GetQRTransactionStatsAdminRow, error) {
+	row := q.db.QueryRowContext(ctx, getQRTransactionStatsAdmin, arg.Limit, arg.Offset)
+	var i GetQRTransactionStatsAdminRow
+	err := row.Scan(
+		&i.TotalTransactions,
+		&i.CompletedTransactions,
+		&i.FailedTransactions,
+		&i.SendingToBankTransactions,
+		&i.ConvertingTransactions,
+		&i.ReceivedTransactions,
+		&i.PendingTransactions,
 		&i.TotalCryptoReceived,
 		&i.TotalNetPayout,
 	)

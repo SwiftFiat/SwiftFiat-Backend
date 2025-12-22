@@ -32,6 +32,7 @@ const (
 	CategoryConversion     EventCategory = "smart_conversion"
 	CategorySupport        EventCategory = "support"
 	CategoryRewards        EventCategory = "rewards"
+	CategorySubscription   EventCategory = "subscription"
 )
 
 // Severity represents the importance level of an audit event
@@ -198,6 +199,12 @@ const (
 	EventUnfreezeCard       = "card.unfrozen"
 	EventDeleteCard         = "card.deleted"
 	EventCreateCardPlan     = "card.plan.created"
+
+	EventUpdateAutoTopup = "subscriptions.auto_topup.updated"
+	EventUpdateSubscriptionStatus = "subscriptions.status.updated"
+	EventUpdateSubscriptionPreferences = "subscriptions.preferences.updated"
+
+	EventUpdateQrCodeStatus = "rapid-ramp.qr-code.status.updated"
 )
 
 // LogEntry represents the input for creating an audit log

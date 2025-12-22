@@ -482,7 +482,8 @@ func (s *QRCodeService) RetryFailedTransactions(ctx context.Context, limit int32
 
 	for _, tx := range transactions {
 		// Determine what stage to retry
-		if tx.FailureStage.String == "conversion" {
+		switch tx.FailureStage.String {
+		case "conversion":
 			// Reset to confirmed and retry conversion
 			_, err := s.store.UpdateQRTransactionStatus(ctx, db.UpdateQRTransactionStatusParams{
 				ID:     tx.ID,
@@ -491,7 +492,7 @@ func (s *QRCodeService) RetryFailedTransactions(ctx context.Context, limit int32
 			if err == nil {
 				s.convertQRTransaction(ctx, &tx)
 			}
-		} else if tx.FailureStage.String == "payout" {
+		case "payout":
 			// Reset to sending_to_bank and retry payout
 			_, err := s.store.UpdateQRTransactionStatus(ctx, db.UpdateQRTransactionStatusParams{
 				ID:     tx.ID,

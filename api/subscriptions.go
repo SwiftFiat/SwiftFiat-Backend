@@ -2,12 +2,16 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/subscriptions"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -17,11 +21,13 @@ import (
 type Subscriptions struct {
 	server        *Server
 	Subscriptions *subscriptions.Service
+	audit         *audit.Service
 }
 
 func (v Subscriptions) router(server *Server) {
 	v.server = server
 	v.Subscriptions = server.subscriptions
+	v.audit = server.auditService
 
 	v1 := server.router.Group("/api/v1/subscriptions")
 	v1.Use(server.authMiddleware.AuthenticatedMiddleware())
@@ -46,12 +52,14 @@ func (v Subscriptions) router(server *Server) {
 		// User Story 9: User Subscription Monitoring
 		v1.GET("/all", v.AdminGetAllSubscriptions)
 		v1.GET("/users/:user_id", v.AdminGetUserSubscriptions)
+		v1.PATCH("/admin/:id/auto-topup", v.AdminToggleAutoTopup)
+		v1.PATCH("/admin/:id/status", v.AdminSetSubscriptionStatus)
 
 		// User Story 10: Merchant Insights
 		v1.GET("/merchants", v.AdminGetMerchantInsights)
 		v1.GET("/merchants/:merchant_id", v.AdminGetMerchantDetails)
 
-		// User Story 11: System Health & Alerts 
+		// User Story 11: System Health & Alerts
 		v1.GET("/alerts", v.AdminGetSystemAlerts)
 		v1.GET("/stats", v.AdminGetPlatformStats)
 
@@ -59,6 +67,10 @@ func (v Subscriptions) router(server *Server) {
 		v1.POST("/merchants", v.AdminCreateMerchant)
 		v1.PATCH("/merchants/:id", v.AdminUpdateMerchant)
 		v1.GET("/merchants/list", v.AdminListMerchants)
+		// Analytics (extended)
+		v1.GET("/admin/stats", v.GetSubscriptionStats)
+		v1.GET("/admin/auto-topup/success-rate", v.GetAutoTopupSuccessRate)
+
 	}
 }
 
@@ -100,6 +112,267 @@ type UpdateMerchantRequest struct {
 	AutoDetect          bool     `json:"auto_detect"`
 }
 
+type UserSubscriptionsByCardRow struct {
+	ID                      uuid.UUID  `json:"id"`
+	UserID                  int64      `json:"user_id"`
+	CardID                  uuid.UUID  `json:"card_id"`
+	MerchantID              *int64     `json:"merchant_id"`
+	MerchantName            string     `json:"merchant_name"`
+	DisplayName             string     `json:"display_name"`
+	Category                *string    `json:"category"`
+	AmountCents             int64      `json:"amount_cents"`
+	Currency                string     `json:"currency"`
+	BillingIntervalDays     int32      `json:"billing_interval_days"`
+	FirstChargeDate         time.Time  `json:"first_charge_date"`
+	LastChargeDate          time.Time  `json:"last_charge_date"`
+	NextEstimatedChargeDate time.Time  `json:"next_estimated_charge_date"`
+	Status                  string     `json:"status"`
+	ConfidenceScore         string     `json:"confidence_score"`
+	TotalCharges            int32      `json:"total_charges"`
+	FailedCharges           int32      `json:"failed_charges"`
+	LastFailedDate          *time.Time `json:"last_failed_date"`
+	LastFailureReason       *string    `json:"last_failure_reason"`
+	ReminderEnabled         bool       `json:"reminder_enabled"`
+	ReminderDaysBefore      int32      `json:"reminder_days_before"`
+	UserConfirmed           bool       `json:"user_confirmed"`
+	CustomName              *string    `json:"custom_name"`
+	CreatedAt               time.Time  `json:"created_at"`
+	UpdatedAt               time.Time  `json:"updated_at"`
+	CancelledAt             *time.Time `json:"cancelled_at"`
+	LogoUrl                 *string    `json:"logo_url"`
+	Website                 *string    `json:"website"`
+}
+
+func mapUserSubscriptionsByCardRow(row db.GetUserSubscriptionsByCardRow) UserSubscriptionsByCardRow {
+	return UserSubscriptionsByCardRow{
+		ID:                      row.ID,
+		UserID:                  row.UserID,
+		CardID:                  row.CardID,
+		MerchantID:              &row.MerchantID.Int64,
+		MerchantName:            row.MerchantName,
+		DisplayName:             row.DisplayName,
+		Category:                &row.Category.String,
+		AmountCents:             row.AmountCents,
+		Currency:                row.Currency,
+		BillingIntervalDays:     row.BillingIntervalDays,
+		FirstChargeDate:         row.FirstChargeDate,
+		LastChargeDate:          row.LastChargeDate,
+		NextEstimatedChargeDate: row.NextEstimatedChargeDate,
+		Status:                  row.Status,
+		ConfidenceScore:         row.ConfidenceScore,
+		TotalCharges:            row.TotalCharges,
+		FailedCharges:           row.FailedCharges,
+		LastFailedDate:          &row.LastFailedDate.Time,
+		LastFailureReason:       &row.LastFailureReason.String,
+		ReminderEnabled:         row.ReminderEnabled,
+		ReminderDaysBefore:      row.ReminderDaysBefore,
+		UserConfirmed:           row.UserConfirmed,
+		CustomName:              &row.CustomName.String,
+		CreatedAt:               row.CreatedAt,
+		UpdatedAt:               row.UpdatedAt,
+		CancelledAt:             &row.CancelledAt.Time,
+		LogoUrl:                 &row.LogoUrl.String,
+		Website:                 &row.Website.String,
+	}
+}
+
+type ToggleAutoTopupRequest struct {
+	Enabled bool `json:"enabled" binding:"required"`
+}
+
+type AdminUpdateStatusRequest struct {
+	Status string `json:"status" binding:"required,oneof=active inactive"`
+}
+
+// AdminToggleAutoTopup godoc
+// @Summary Toggle subscription auto topup
+// @Description Toggle subscription auto topup
+// @Tags subscriptions
+// @Accept json
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Param request body ToggleAutoTopupRequest true "Toggle auto topup"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /subscriptions/admin/{id}/auto-topup [post]
+func (v *Subscriptions) AdminToggleAutoTopup(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	subID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid subscription id"))
+		return
+	}
+
+	var req ToggleAutoTopupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	card, err := v.server.queries.AdminToggleCardAutoTopup(c, db.AdminToggleCardAutoTopupParams{
+		ID:               subID,
+		AutoTopupEnabled: req.Enabled,
+	})
+	if err != nil {
+		errMsg := err.Error()
+		entry := audit.NewLog(
+			c,
+			audit.CategorySubscription,
+			audit.EventUpdateAutoTopup,
+			card.ID.String(),
+			fmt.Sprintf("auto topup updated to %t", req.Enabled),
+			&activeUser.UserID,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		v.audit.Log(entry)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateAutoTopup,
+		card.ID.String(),
+		fmt.Sprintf("auto topup updated to %t", req.Enabled),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("auto topup updated", req.Enabled))
+}
+
+// AdminSetSubscriptionStatus godoc
+// @Summary Set subscription status
+// @Description Set subscription status
+// @Tags subscriptions
+// @Accept json
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Param request body AdminUpdateStatusRequest true "Set subscription status"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /subscriptions/admin/{id}/status [post]
+func (v *Subscriptions) AdminSetSubscriptionStatus(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	subID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid subscription id"))
+		return
+	}
+
+	var req AdminUpdateStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updated, err := v.server.queries.UpdateSubscriptionStatus(c, db.UpdateSubscriptionStatusParams{
+		ID:     subID,
+		Status: req.Status,
+	})
+	if err != nil {
+		errMsg := err.Error()
+		entry := audit.NewLog(
+			c,
+			audit.CategorySubscription,
+			audit.EventUpdateSubscriptionStatus,
+			updated.ID.String(),
+			fmt.Sprintf("subscription status updated to %s", req.Status),
+			&activeUser.UserID,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		v.audit.Log(entry)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateSubscriptionStatus,
+		updated.ID.String(),
+		fmt.Sprintf("subscription status updated to %s", req.Status),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("subscription status updated", updated))
+}
+
+// GetSubscriptionStats godoc
+// @Summary Get subscription stats
+// @Description Total subscriptions, active/inactive count, monthly spend
+// @Tags Subscriptions
+// @Produce json
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/stats [get]
+func (v *Subscriptions) GetSubscriptionStats(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	stats, err := v.Subscriptions.GetSubscriptionStats(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("subscription stats", stats))
+}
+
+// GetAutoTopupSuccessRate godoc
+// @Summary Get auto topup success rate
+// @Description Auto topup success metrics
+// @Tags Subscriptions
+// @Produce json
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/auto-topup/success-rate [get]
+func (v *Subscriptions) GetAutoTopupSuccessRate(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	rate, err := v.Subscriptions.GetAutoTopupSuccessRate(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("auto topup success rate", rate))
+}
+
 // GetUserSubscriptions godoc
 // @Summary Get user subscriptions
 // @Description Get all active subscriptions for the authenticated user
@@ -112,41 +385,29 @@ type UpdateMerchantRequest struct {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/subscriptions [get]
 func (v *Subscriptions) GetUserSubscriptions(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
-
-	cardIDStr := c.Query("card_id")
-
-	var subscriptions []db.GetUserSubscriptionsByCardRow
-
-	if cardIDStr != "" {
-		cardID, err := uuid.Parse(cardIDStr)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid card_id"))
-			return
-		}
-
-		subscriptions, err = v.server.queries.GetUserSubscriptionsByCard(c, cardID)
-		if err != nil {
-			c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-			return
-		}
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
 	}
-	// } else {
-	// 	subscriptions, err = v.server.queries.GetUserSubscriptions(c, activeUser.UserID)
-	// 	if err != nil {
-	// 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-	// 		return
-	// 	}
-	// }
+
+	// cardIDStr := c.Query("card_id")
+
+	subscriptions, err := v.server.queries.GetUserSubscriptions(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var response []UserSubscriptionsByCardRow
+	for _, subscription := range subscriptions {
+		response = append(response, mapUserSubscriptionsByCardRow(db.GetUserSubscriptionsByCardRow(subscription)))
+	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("subscriptions retrieved", gin.H{
-		"subscriptions": subscriptions,
-		"count":         len(subscriptions),
+		"subscriptions": response,
+		"count":         len(response),
 	}))
 }
 
@@ -245,6 +506,25 @@ func (v *Subscriptions) UpdateSubscriptionPreferences(c *gin.Context) {
 		return
 	}
 
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateSubscriptionPreferences,
+		updated.ID.String(),
+		"subscription preferences updated",
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.OldValues = map[string]interface{}{
+		"reminder_enabled":     updated.ReminderEnabled,
+		"reminder_days_before": updated.ReminderDaysBefore,
+		"custom_name":          updated.CustomName,
+		"user_confirmed":       updated.UserConfirmed,
+	}
+	v.audit.Log(entry)
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("preferences updated", updated))
 }
 
@@ -300,6 +580,25 @@ func (v *Subscriptions) UpdateSubscriptionStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateSubscriptionStatus,
+		updated.ID.String(),
+		"subscription status updated",
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.OldValues = map[string]interface{}{
+		"status": subscription.Status,
+	}
+	entry.NewValues = map[string]interface{}{
+		"status": updated.Status,
+	}
+	v.audit.Log(entry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("status updated", updated))
 }
@@ -459,17 +758,30 @@ func (v *Subscriptions) GetUserReminders(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/subscriptions/all [get]
 func (h *Subscriptions) AdminGetAllSubscriptions(c *gin.Context) {
-	// TODO: Add admin role verification
-	
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 
-	// This would need a new SQL query to get all subscriptions
-	// For now, return placeholder
+	subs, err := h.server.queries.ListAllSubscriptions(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("all subscriptions", gin.H{
-		"message": "Admin endpoint - implementation pending",
-		"page": page,
-		"limit": limit,
+		"subscriptions": subs,
+		"page":          page,
+		"limit":         limit,
 	}))
 }
 
@@ -484,19 +796,19 @@ func (h *Subscriptions) AdminGetAllSubscriptions(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/admin/subscriptions/users/{user_id} [get]
 func (v *Subscriptions) AdminGetUserSubscriptions(c *gin.Context) {
-	userID, err := strconv.ParseInt(c.Param("user_id"), 10, 64)
+	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user id"))
 		return
 	}
 
-	subscriptions, err := v.server.queries.GetUserSubscriptions(c, userID)
+	subscriptions, err := v.server.queries.GetUserSubscriptions(c, int64(userID))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	summary, _ := v.Subscriptions.GetUserSubscriptionSummary(c, userID)
+	summary, _ := v.Subscriptions.GetUserSubscriptionSummary(c, int64(userID))
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("user subscriptions", gin.H{
 		"subscriptions": subscriptions,
@@ -565,22 +877,13 @@ func (v *Subscriptions) AdminGetMerchantDetails(c *gin.Context) {
 func (v *Subscriptions) AdminGetSystemAlerts(c *gin.Context) {
 	// Get failed reminders
 	failedReminders, _ := v.server.queries.GetPendingReminders(c, 100)
-	
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("system alerts", gin.H{
 		"pending_reminders": len(failedReminders),
 		"reminders":         failedReminders,
 	}))
 }
 
-// AdminGetPlatformStats godoc
-// @Summary Get platform statistics (Admin)
-// @Description Get overall platform subscription statistics
-// @Tags Subscriptions
-// @Accept json
-// @Produce json
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/stats [get]
 func (v *Subscriptions) AdminGetPlatformStats(c *gin.Context) {
 	// TODO: Implement comprehensive platform stats
 	c.JSON(http.StatusOK, basemodels.NewSuccess("platform stats", gin.H{
@@ -607,19 +910,19 @@ func (v *Subscriptions) AdminCreateMerchant(c *gin.Context) {
 	}
 
 	merchant, err := v.server.queries.CreateSubscriptionMerchant(c, db.CreateSubscriptionMerchantParams{
-		MerchantName:          req.MerchantName,
-		DisplayName:           req.DisplayName,
-		Aliases:               req.Aliases,
-		Category:              req.Category,
-		Subcategory:           sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
-		LogoUrl:               sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
-		Website:               sql.NullString{String: req.Website, Valid: req.Website != ""},
-		Description:           sql.NullString{String: req.Description, Valid: req.Description != ""},
-		TypicalIntervals:      req.TypicalIntervals,
-		TypicalAmountsCents:   req.TypicalAmountsCents,
-		MccCodes:              req.MCCCodes,
-		MatchConfidence:       req.MatchConfidence,
-		AutoDetect:            req.AutoDetect,
+		MerchantName:        req.MerchantName,
+		DisplayName:         req.DisplayName,
+		Aliases:             req.Aliases,
+		Category:            req.Category,
+		Subcategory:         sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
+		LogoUrl:             sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
+		Website:             sql.NullString{String: req.Website, Valid: req.Website != ""},
+		Description:         sql.NullString{String: req.Description, Valid: req.Description != ""},
+		TypicalIntervals:    req.TypicalIntervals,
+		TypicalAmountsCents: req.TypicalAmountsCents,
+		MccCodes:            req.MCCCodes,
+		MatchConfidence:     req.MatchConfidence,
+		AutoDetect:          req.AutoDetect,
 	})
 
 	if err != nil {
@@ -687,16 +990,16 @@ func (v *Subscriptions) AdminUpdateMerchant(c *gin.Context) {
 // @Router /api/v1/admin/subscriptions/merchants/list [get]
 func (v *Subscriptions) AdminListMerchants(c *gin.Context) {
 	category := c.Query("category")
-	
+
 	var merchants []db.SubscriptionMerchant
 	var err error
-	
+
 	if category != "" {
 		merchants, err = v.server.queries.ListSubscriptionMerchantsByCategory(c, category)
 	} else {
 		merchants, err = v.server.queries.ListSubscriptionMerchants(c)
 	}
-	
+
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
