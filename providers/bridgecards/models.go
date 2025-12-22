@@ -255,8 +255,8 @@ type CardCreditSuccess struct {
 	CardTransactionType     string    `json:"card_transaction_type"`
 	TransactionDate         time.Time `json:"transaction_date"`
 	TransactionTimestamp    time.Time `json:"transaction_timestamp"`
-	SettledAvailableBalance string     `json:"settled_available_balance"`
-	SettledBookBalance      string     `json:"settled_book_balance"`
+	SettledAvailableBalance string    `json:"settled_available_balance"`
+	SettledBookBalance      string    `json:"settled_book_balance"`
 }
 
 type CardCreditFailed struct {
@@ -269,7 +269,7 @@ type CardCreditFailed struct {
 	IssuingAppID         string    `json:"issuing_app_id"`
 	CardTransactionType  string    `json:"card_transaction_type"`
 	TransactionDate      time.Time `json:"transaction_date"`
-	TransactionTimestamp time.Time     `json:"transaction_timestamp"`
+	TransactionTimestamp time.Time `json:"transaction_timestamp"`
 }
 
 type FundIssuingWalletRequest struct {
@@ -340,38 +340,40 @@ type ListCardsResponse struct {
 type CardDebitEventSuccessful struct {
 	Event string `json:"event"`
 	Data  struct {
-		CardID                  string    `json:"card_id"`
-		CardholderID            string    `json:"cardholder_id"`
-		Amount                  string    `json:"amount"`
-		Currency                string    `json:"currency"`
-		TransactionReference    string    `json:"transaction_reference"`
-		Livemode                bool      `json:"livemode"`
-		IssuingAppID            string    `json:"issuing_app_id"`
-		CardTransactionType     string    `json:"card_transaction_type"`
-		MerchantCategoryCode    string    `json:"merchant_category_code"`
-		TransactionDate         time.Time `json:"transaction_date"`
-		TransactionTimestamp    time.Time `json:"transaction_timestamp"`
-		SettledAvailableBalance string    `json:"settled_available_balance"`
-		SettledBookBalance      string    `json:"settled_book_balance"`
+		CardID                  string `json:"card_id"`
+		CardholderID            string `json:"cardholder_id"`
+		Amount                  string `json:"amount"`
+		Currency                string `json:"currency"`
+		Description             string `json:"description"`
+		TransactionReference    string `json:"transaction_reference"`
+		Livemode                bool   `json:"livemode"`
+		IssuingAppID            string `json:"issuing_app_id"`
+		CardTransactionType     string `json:"card_transaction_type"`
+		MerchantCategoryCode    string `json:"merchant_category_code"`
+		TransactionDate         string `json:"transaction_date"`
+		TransactionTimestamp    string `json:"transaction_timestamp"`
+		SettledAvailableBalance string `json:"settled_available_balance"`
+		SettledBookBalance      string `json:"settled_book_balance"`
 	} `json:"data"`
 }
 
 type CardDebitEventDeclined struct {
 	Event string `json:"event"`
 	Data  struct {
-		CardID                  string    `json:"card_id"`
-		CardholderID            string    `json:"cardholder_id"`
-		Amount                  string    `json:"amount"`
-		Currency                string    `json:"currency"`
-		TransactionReference    string    `json:"transaction_reference"`
-		Livemode                bool      `json:"livemode"`
-		IssuingAppID            string    `json:"issuing_app_id"`
-		CardTransactionType     string    `json:"card_transaction_type"`
-		MerchantCategoryCode    string    `json:"merchant_category_code"`
-		TransactionDate         time.Time `json:"transaction_date"`
-		TransactionTimestamp    int64     `json:"transaction_timestamp"`
-		SettledAvailableBalance int64     `json:"settled_available_balance"`
-		SettledBookBalance      int64     `json:"settled_book_balance"`
+		CardID                  string `json:"card_id"`
+		CardholderID            string `json:"cardholder_id"`
+		Amount                  string `json:"amount"`
+		Currency                string `json:"currency"`
+		Description             string `json:"description"`
+		TransactionReference    string `json:"transaction_reference"`
+		Livemode                bool   `json:"livemode"`
+		IssuingAppID            string `json:"issuing_app_id"`
+		CardTransactionType     string `json:"card_transaction_type"`
+		MerchantCategoryCode    string `json:"merchant_category_code"`
+		TransactionDate         string `json:"transaction_date"`
+		TransactionTimestamp    string `json:"transaction_timestamp"`
+		SettledAvailableBalance string `json:"settled_available_balance"`
+		SettledBookBalance      string `json:"settled_book_balance"`
 	} `json:"data"`
 }
 

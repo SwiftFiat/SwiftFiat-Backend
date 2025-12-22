@@ -27,10 +27,10 @@ func NewService(store *db.Store, logger *logging.Logger) *Service {
 // DetectAndLogSubscription analyzes a card transaction to detect if it's a subscription
 func (s *Service) DetectAndLogSubscription(ctx context.Context, transaction *db.CardTransaction) error {
 	// Only process approved debit transactions
-	if transaction.Status != "approved" || transaction.TransactionType != "debit" {
+	if transaction.Status != "successful" || transaction.TransactionType != "debit" {
 		return nil
 	}
-
+ 
 	// Check if merchant exists in our subscription database
 	merchant, err := s.store.FindSubscriptionMerchantByPattern(ctx, transaction.MerchantName.String)
 	var merchantID sql.NullInt64

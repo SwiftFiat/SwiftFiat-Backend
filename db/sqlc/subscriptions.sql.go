@@ -185,25 +185,23 @@ const createCardPlan = `-- name: CreateCardPlan :one
 INSERT INTO card_plans (
     name, description, creation_fee, monthly_maintenance_fee,
     monthly_spending_limit, transaction_limit, daily_spending_limit,
-    max_cards_per_user, supports_international, supports_online, supports_atm, card_limit
+    max_cards_per_user, failed_tx_count_before_block, card_limit
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-) RETURNING id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, supports_international, supports_online, supports_atm, created_at, updated_at, deleted_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+) RETURNING id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, failed_tx_count_before_block, created_at, updated_at, deleted_at
 `
 
 type CreateCardPlanParams struct {
-	Name                  string         `json:"name"`
-	Description           sql.NullString `json:"description"`
-	CreationFee           string         `json:"creation_fee"`
-	MonthlyMaintenanceFee string         `json:"monthly_maintenance_fee"`
-	MonthlySpendingLimit  string         `json:"monthly_spending_limit"`
-	TransactionLimit      string         `json:"transaction_limit"`
-	DailySpendingLimit    sql.NullString `json:"daily_spending_limit"`
-	MaxCardsPerUser       int32          `json:"max_cards_per_user"`
-	SupportsInternational bool           `json:"supports_international"`
-	SupportsOnline        bool           `json:"supports_online"`
-	SupportsAtm           bool           `json:"supports_atm"`
-	CardLimit             sql.NullString `json:"card_limit"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	CreationFee              string         `json:"creation_fee"`
+	MonthlyMaintenanceFee    string         `json:"monthly_maintenance_fee"`
+	MonthlySpendingLimit     string         `json:"monthly_spending_limit"`
+	TransactionLimit         string         `json:"transaction_limit"`
+	DailySpendingLimit       sql.NullString `json:"daily_spending_limit"`
+	MaxCardsPerUser          int32          `json:"max_cards_per_user"`
+	FailedTxCountBeforeBlock sql.NullInt32  `json:"failed_tx_count_before_block"`
+	CardLimit                sql.NullString `json:"card_limit"`
 }
 
 func (q *Queries) CreateCardPlan(ctx context.Context, arg CreateCardPlanParams) (CardPlan, error) {
@@ -216,9 +214,7 @@ func (q *Queries) CreateCardPlan(ctx context.Context, arg CreateCardPlanParams) 
 		arg.TransactionLimit,
 		arg.DailySpendingLimit,
 		arg.MaxCardsPerUser,
-		arg.SupportsInternational,
-		arg.SupportsOnline,
-		arg.SupportsAtm,
+		arg.FailedTxCountBeforeBlock,
 		arg.CardLimit,
 	)
 	var i CardPlan
@@ -234,9 +230,7 @@ func (q *Queries) CreateCardPlan(ctx context.Context, arg CreateCardPlanParams) 
 		&i.DailySpendingLimit,
 		&i.CardLimit,
 		&i.MaxCardsPerUser,
-		&i.SupportsInternational,
-		&i.SupportsOnline,
-		&i.SupportsAtm,
+		&i.FailedTxCountBeforeBlock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -248,13 +242,12 @@ const createCardTransaction = `-- name: CreateCardTransaction :one
 
 INSERT INTO card_transactions (
     card_id, user_id, bridgecard_transaction_id, transaction_type,
-    merchant_name, merchant_category, merchant_category_code,
-    merchant_country, merchant_city, amount, fee,
+    merchant_name, merchant_category, merchant_category_code, amount, fee,
     currency, billing_amount, billing_currency,
     status, balance_after, transaction_date, webhook_received_at, raw_webhook_data, transaction_id, mode, transaction_timestamp
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
-) RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20
+) RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
 `
 
 type CreateCardTransactionParams struct {
@@ -265,8 +258,6 @@ type CreateCardTransactionParams struct {
 	MerchantName            sql.NullString        `json:"merchant_name"`
 	MerchantCategory        sql.NullString        `json:"merchant_category"`
 	MerchantCategoryCode    sql.NullString        `json:"merchant_category_code"`
-	MerchantCountry         sql.NullString        `json:"merchant_country"`
-	MerchantCity            sql.NullString        `json:"merchant_city"`
 	Amount                  int64                 `json:"amount"`
 	Fee                     int64                 `json:"fee"`
 	Currency                string                `json:"currency"`
@@ -294,8 +285,6 @@ func (q *Queries) CreateCardTransaction(ctx context.Context, arg CreateCardTrans
 		arg.MerchantName,
 		arg.MerchantCategory,
 		arg.MerchantCategoryCode,
-		arg.MerchantCountry,
-		arg.MerchantCity,
 		arg.Amount,
 		arg.Fee,
 		arg.Currency,
@@ -321,8 +310,6 @@ func (q *Queries) CreateCardTransaction(ctx context.Context, arg CreateCardTrans
 		&i.MerchantName,
 		&i.MerchantCategory,
 		&i.MerchantCategoryCode,
-		&i.MerchantCountry,
-		&i.MerchantCity,
 		&i.Amount,
 		&i.Fee,
 		&i.Currency,
@@ -942,7 +929,7 @@ func (q *Queries) GetCardFundingHistory(ctx context.Context, arg GetCardFundingH
 }
 
 const getCardPlan = `-- name: GetCardPlan :one
-SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, supports_international, supports_online, supports_atm, created_at, updated_at, deleted_at FROM card_plans
+SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, failed_tx_count_before_block, created_at, updated_at, deleted_at FROM card_plans
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -961,9 +948,7 @@ func (q *Queries) GetCardPlan(ctx context.Context, id int64) (CardPlan, error) {
 		&i.DailySpendingLimit,
 		&i.CardLimit,
 		&i.MaxCardsPerUser,
-		&i.SupportsInternational,
-		&i.SupportsOnline,
-		&i.SupportsAtm,
+		&i.FailedTxCountBeforeBlock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -972,7 +957,7 @@ func (q *Queries) GetCardPlan(ctx context.Context, id int64) (CardPlan, error) {
 }
 
 const getCardPlanByName = `-- name: GetCardPlanByName :one
-SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, supports_international, supports_online, supports_atm, created_at, updated_at, deleted_at FROM card_plans
+SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, failed_tx_count_before_block, created_at, updated_at, deleted_at FROM card_plans
 WHERE name = $1 AND deleted_at IS NULL
 `
 
@@ -991,9 +976,7 @@ func (q *Queries) GetCardPlanByName(ctx context.Context, name string) (CardPlan,
 		&i.DailySpendingLimit,
 		&i.CardLimit,
 		&i.MaxCardsPerUser,
-		&i.SupportsInternational,
-		&i.SupportsOnline,
-		&i.SupportsAtm,
+		&i.FailedTxCountBeforeBlock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -1049,7 +1032,7 @@ func (q *Queries) GetCardSpendingByMonth(ctx context.Context, arg GetCardSpendin
 }
 
 const getCardTransaction = `-- name: GetCardTransaction :one
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions WHERE id = $1
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions WHERE id = $1
 `
 
 func (q *Queries) GetCardTransaction(ctx context.Context, id uuid.UUID) (CardTransaction, error) {
@@ -1065,8 +1048,6 @@ func (q *Queries) GetCardTransaction(ctx context.Context, id uuid.UUID) (CardTra
 		&i.MerchantName,
 		&i.MerchantCategory,
 		&i.MerchantCategoryCode,
-		&i.MerchantCountry,
-		&i.MerchantCity,
 		&i.Amount,
 		&i.Fee,
 		&i.Currency,
@@ -1088,7 +1069,7 @@ func (q *Queries) GetCardTransaction(ctx context.Context, id uuid.UUID) (CardTra
 }
 
 const getCardTransactionByBridgeCardID = `-- name: GetCardTransactionByBridgeCardID :one
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions WHERE bridgecard_transaction_id = $1
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions WHERE bridgecard_transaction_id = $1
 `
 
 func (q *Queries) GetCardTransactionByBridgeCardID(ctx context.Context, bridgecardTransactionID string) (CardTransaction, error) {
@@ -1104,8 +1085,6 @@ func (q *Queries) GetCardTransactionByBridgeCardID(ctx context.Context, bridgeca
 		&i.MerchantName,
 		&i.MerchantCategory,
 		&i.MerchantCategoryCode,
-		&i.MerchantCountry,
-		&i.MerchantCity,
 		&i.Amount,
 		&i.Fee,
 		&i.Currency,
@@ -1127,7 +1106,7 @@ func (q *Queries) GetCardTransactionByBridgeCardID(ctx context.Context, bridgeca
 }
 
 const getCardTransactions = `-- name: GetCardTransactions :many
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
 WHERE card_id = $1
 ORDER BY transaction_date DESC
 LIMIT $2 OFFSET $3
@@ -1158,8 +1137,6 @@ func (q *Queries) GetCardTransactions(ctx context.Context, arg GetCardTransactio
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -1191,7 +1168,7 @@ func (q *Queries) GetCardTransactions(ctx context.Context, arg GetCardTransactio
 }
 
 const getCardTransactionsByUser = `-- name: GetCardTransactionsByUser :many
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
 WHERE user_id = $1
 ORDER BY transaction_date DESC
 LIMIT $2 OFFSET $3
@@ -1222,8 +1199,6 @@ func (q *Queries) GetCardTransactionsByUser(ctx context.Context, arg GetCardTran
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -1462,7 +1437,7 @@ func (q *Queries) GetPendingReminders(ctx context.Context, limit int32) ([]GetPe
 }
 
 const getRecurringTransactions = `-- name: GetRecurringTransactions :many
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
 WHERE card_id = $1 AND is_recurring_merchant = TRUE
 ORDER BY transaction_date DESC
 LIMIT $2 OFFSET $3
@@ -1493,8 +1468,6 @@ func (q *Queries) GetRecurringTransactions(ctx context.Context, arg GetRecurring
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -1826,7 +1799,7 @@ func (q *Queries) GetTotalCardsByStatus(ctx context.Context) (GetTotalCardsBySta
 }
 
 const getTransactionsByMerchant = `-- name: GetTransactionsByMerchant :many
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
 WHERE card_id = $1 
   AND LOWER(merchant_name) = LOWER($2)
   AND status = 'approved'
@@ -1857,8 +1830,6 @@ func (q *Queries) GetTransactionsByMerchant(ctx context.Context, arg GetTransact
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -2067,7 +2038,7 @@ func (q *Queries) GetUserCardStats(ctx context.Context, userID int64) (GetUserCa
 }
 
 const getUserCardTransactions = `-- name: GetUserCardTransactions :many
-SELECT ct.id, ct.transaction_id, ct.card_id, ct.user_id, ct.bridgecard_transaction_id, ct.transaction_type, ct.merchant_name, ct.merchant_category, ct.merchant_category_code, ct.merchant_country, ct.merchant_city, ct.amount, ct.fee, ct.currency, ct.billing_amount, ct.billing_currency, ct.status, ct.decline_reason, ct.is_recurring_merchant, ct.subscription_id, ct.balance_after, ct.webhook_received_at, ct.raw_webhook_data, ct.mode, ct.transaction_date, ct.transaction_timestamp, ct.created_at, vc.card_name
+SELECT ct.id, ct.transaction_id, ct.card_id, ct.user_id, ct.bridgecard_transaction_id, ct.transaction_type, ct.merchant_name, ct.merchant_category, ct.merchant_category_code, ct.amount, ct.fee, ct.currency, ct.billing_amount, ct.billing_currency, ct.status, ct.decline_reason, ct.is_recurring_merchant, ct.subscription_id, ct.balance_after, ct.webhook_received_at, ct.raw_webhook_data, ct.mode, ct.transaction_date, ct.transaction_timestamp, ct.created_at, vc.card_name
 FROM card_transactions ct
 JOIN virtual_cards vc ON ct.card_id = vc.id
 WHERE ct.user_id = $1
@@ -2091,8 +2062,6 @@ type GetUserCardTransactionsRow struct {
 	MerchantName            sql.NullString        `json:"merchant_name"`
 	MerchantCategory        sql.NullString        `json:"merchant_category"`
 	MerchantCategoryCode    sql.NullString        `json:"merchant_category_code"`
-	MerchantCountry         sql.NullString        `json:"merchant_country"`
-	MerchantCity            sql.NullString        `json:"merchant_city"`
 	Amount                  int64                 `json:"amount"`
 	Fee                     int64                 `json:"fee"`
 	Currency                string                `json:"currency"`
@@ -2131,8 +2100,6 @@ func (q *Queries) GetUserCardTransactions(ctx context.Context, arg GetUserCardTr
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -2662,7 +2629,7 @@ func (q *Queries) GetVirtualCardByBridgeCardID(ctx context.Context, bridgecardCa
 }
 
 const getVirtualCardTransactionsByDateRange = `-- name: GetVirtualCardTransactionsByDateRange :many
-SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
 WHERE card_id = $1 
   AND transaction_date >= $2
   AND transaction_date <= $3
@@ -2694,8 +2661,6 @@ func (q *Queries) GetVirtualCardTransactionsByDateRange(ctx context.Context, arg
 			&i.MerchantName,
 			&i.MerchantCategory,
 			&i.MerchantCategoryCode,
-			&i.MerchantCountry,
-			&i.MerchantCity,
 			&i.Amount,
 			&i.Fee,
 			&i.Currency,
@@ -2732,7 +2697,7 @@ SET
     is_recurring_merchant = TRUE,
     subscription_id = $2
 WHERE id = $1
-RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
+RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
 `
 
 type LinkTransactionToSubscriptionParams struct {
@@ -2753,8 +2718,6 @@ func (q *Queries) LinkTransactionToSubscription(ctx context.Context, arg LinkTra
 		&i.MerchantName,
 		&i.MerchantCategory,
 		&i.MerchantCategoryCode,
-		&i.MerchantCountry,
-		&i.MerchantCity,
 		&i.Amount,
 		&i.Fee,
 		&i.Currency,
@@ -2775,14 +2738,14 @@ func (q *Queries) LinkTransactionToSubscription(ctx context.Context, arg LinkTra
 	return i, err
 }
 
-const listActiveCardPlans = `-- name: ListActiveCardPlans :many
-SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, supports_international, supports_online, supports_atm, created_at, updated_at, deleted_at FROM card_plans
-WHERE is_active = TRUE AND deleted_at IS NULL
+const listCardPlans = `-- name: ListCardPlans :many
+SELECT id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, failed_tx_count_before_block, created_at, updated_at, deleted_at FROM card_plans
+WHERE deleted_at IS NULL
 ORDER BY creation_fee ASC
 `
 
-func (q *Queries) ListActiveCardPlans(ctx context.Context) ([]CardPlan, error) {
-	rows, err := q.db.QueryContext(ctx, listActiveCardPlans)
+func (q *Queries) ListCardPlans(ctx context.Context) ([]CardPlan, error) {
+	rows, err := q.db.QueryContext(ctx, listCardPlans)
 	if err != nil {
 		return nil, err
 	}
@@ -2802,9 +2765,7 @@ func (q *Queries) ListActiveCardPlans(ctx context.Context) ([]CardPlan, error) {
 			&i.DailySpendingLimit,
 			&i.CardLimit,
 			&i.MaxCardsPerUser,
-			&i.SupportsInternational,
-			&i.SupportsOnline,
-			&i.SupportsAtm,
+			&i.FailedTxCountBeforeBlock,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
@@ -3287,22 +3248,24 @@ SET
     daily_spending_limit = COALESCE($8, daily_spending_limit),
     is_active = COALESCE($9, is_active),
     card_limit = COALESCE($10, card_limit),
+    failed_tx_count_before_block = COALESCE($11, failed_tx_count_before_block),
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, supports_international, supports_online, supports_atm, created_at, updated_at, deleted_at
+RETURNING id, name, description, is_active, creation_fee, monthly_maintenance_fee, monthly_spending_limit, transaction_limit, daily_spending_limit, card_limit, max_cards_per_user, failed_tx_count_before_block, created_at, updated_at, deleted_at
 `
 
 type UpdateCardPlanParams struct {
-	ID                    int64          `json:"id"`
-	Name                  sql.NullString `json:"name"`
-	Description           sql.NullString `json:"description"`
-	CreationFee           sql.NullString `json:"creation_fee"`
-	MonthlyMaintenanceFee sql.NullString `json:"monthly_maintenance_fee"`
-	MonthlySpendingLimit  sql.NullString `json:"monthly_spending_limit"`
-	TransactionLimit      sql.NullString `json:"transaction_limit"`
-	DailySpendingLimit    sql.NullString `json:"daily_spending_limit"`
-	IsActive              sql.NullBool   `json:"is_active"`
-	CardLimit             sql.NullString `json:"card_limit"`
+	ID                       int64          `json:"id"`
+	Name                     sql.NullString `json:"name"`
+	Description              sql.NullString `json:"description"`
+	CreationFee              sql.NullString `json:"creation_fee"`
+	MonthlyMaintenanceFee    sql.NullString `json:"monthly_maintenance_fee"`
+	MonthlySpendingLimit     sql.NullString `json:"monthly_spending_limit"`
+	TransactionLimit         sql.NullString `json:"transaction_limit"`
+	DailySpendingLimit       sql.NullString `json:"daily_spending_limit"`
+	IsActive                 sql.NullBool   `json:"is_active"`
+	CardLimit                sql.NullString `json:"card_limit"`
+	FailedTxCountBeforeBlock sql.NullInt32  `json:"failed_tx_count_before_block"`
 }
 
 func (q *Queries) UpdateCardPlan(ctx context.Context, arg UpdateCardPlanParams) (CardPlan, error) {
@@ -3317,6 +3280,7 @@ func (q *Queries) UpdateCardPlan(ctx context.Context, arg UpdateCardPlanParams) 
 		arg.DailySpendingLimit,
 		arg.IsActive,
 		arg.CardLimit,
+		arg.FailedTxCountBeforeBlock,
 	)
 	var i CardPlan
 	err := row.Scan(
@@ -3331,9 +3295,7 @@ func (q *Queries) UpdateCardPlan(ctx context.Context, arg UpdateCardPlanParams) 
 		&i.DailySpendingLimit,
 		&i.CardLimit,
 		&i.MaxCardsPerUser,
-		&i.SupportsInternational,
-		&i.SupportsOnline,
-		&i.SupportsAtm,
+		&i.FailedTxCountBeforeBlock,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,
@@ -3467,7 +3429,7 @@ SET
     status = $2,
     decline_reason = $3
 WHERE id = $1
-RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
+RETURNING id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at
 `
 
 type UpdateCardTransactionStatusParams struct {
@@ -3489,8 +3451,6 @@ func (q *Queries) UpdateCardTransactionStatus(ctx context.Context, arg UpdateCar
 		&i.MerchantName,
 		&i.MerchantCategory,
 		&i.MerchantCategoryCode,
-		&i.MerchantCountry,
-		&i.MerchantCity,
 		&i.Amount,
 		&i.Fee,
 		&i.Currency,

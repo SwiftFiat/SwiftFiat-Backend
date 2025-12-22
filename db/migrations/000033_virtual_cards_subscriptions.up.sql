@@ -36,9 +36,7 @@
      
     -- Additional features
     "max_cards_per_user" INT NOT NULL DEFAULT 1,
-    "supports_international" BOOLEAN NOT NULL DEFAULT TRUE,
-    "supports_online" BOOLEAN NOT NULL DEFAULT TRUE,
-    "supports_atm" BOOLEAN NOT NULL DEFAULT FALSE,
+    "failed_tx_count_before_block" INT DEFAULT 3,
     
     -- Audit
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -79,8 +77,8 @@ CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS 
     -- Spending tracking (resets monthly, for our limits enforcement)
     "current_month_spend" BIGINT DEFAULT 0, -- current_month_spend means 
     "current_day_spend" BIGINT DEFAULT 0,
-    "spending_month" VARCHAR(7), -- Format: YYYY-MM
-    "spending_day" VARCHAR(7), -- For daily limit reset
+    "spending_month" VARCHAR(20), -- Format: YYYY-MM
+    "spending_day" VARCHAR(20), -- For daily limit reset
     
     -- Status (mirrors BridgeCard status but cached for quick queries)
     "status" VARCHAR(20) NOT NULL DEFAULT 'active', 
@@ -180,8 +178,6 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "merchant_name" VARCHAR(255),
     "merchant_category" VARCHAR(100), -- MCC category
     "merchant_category_code" VARCHAR(10), -- MCC code
-    "merchant_country" VARCHAR(3), -- ISO country code
-    "merchant_city" VARCHAR(100),
     
     -- Amounts (in cents)
     "amount" BIGINT NOT NULL,
@@ -460,13 +456,13 @@ GROUP BY c.id, c.user_id, c.card_name;
 
 INSERT INTO card_plans (name, description, creation_fee, monthly_maintenance_fee, 
                         monthly_spending_limit, transaction_limit, daily_spending_limit,
-                        max_cards_per_user, supports_international, supports_online, supports_atm, card_limit)
+                        max_cards_per_user, card_limit)
 VALUES 
     ('Standard', 'Basic virtual card for everyday subscriptions', 
-     500, 100, 500000, 50000, 20000, 1, TRUE, TRUE, FALSE, 100000),
+     500, 100, 500000, 50000, 20000, 1, 100000),
     
     ('Platinum', 'Premium card with higher limits and no monthly fees', 
-     1000, 0, 2000000, 200000, 100000, 1, TRUE, TRUE, FALSE, 200000)
+     1000, 0, 2000000, 200000, 100000, 1, 200000)
 ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================

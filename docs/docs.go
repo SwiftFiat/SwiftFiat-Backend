@@ -5067,8 +5067,54 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/cards/admin-delete-card": {
+        "/api/v1/cards/admin/create-card-plan": {
             "post": {
+                "description": "Create card plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Create card plan",
+                "parameters": [
+                    {
+                        "description": "Create card plan",
+                        "name": "create_card_plan",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateCardPlanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CardPlanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/delete-card": {
+            "delete": {
                 "description": "Delete a virtual card with BridgeCard",
                 "consumes": [
                     "application/json"
@@ -5094,6 +5140,50 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.CardResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/delete/card-plan": {
+            "delete": {
+                "description": "Delete card plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Delete card plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Plan ID",
+                        "name": "plan_id",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     },
                     "400": {
@@ -5341,6 +5431,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/cards/admin/list-card-plans": {
+            "get": {
+                "description": "List card plans",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "List card plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.CardPlanResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/admin/list-card-transactions-by-user": {
             "get": {
                 "description": "List all virtual card transactions for a user with BridgeCard",
@@ -5514,50 +5642,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.CardResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/cards/delete-card-plan": {
-            "delete": {
-                "description": "Delete card plan",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "Delete card plan",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Plan ID",
-                        "name": "plan_id",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     },
                     "400": {
@@ -5824,44 +5908,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/api.CardPlanResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/cards/get-card-plans": {
-            "get": {
-                "description": "Get card plans",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "Get card plans",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/api.CardPlanResponse"
-                            }
                         }
                     },
                     "400": {
@@ -15307,6 +15353,49 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updated_at": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.CreateCardPlanRequest": {
+            "type": "object",
+            "required": [
+                "creation_fee",
+                "max_cards_per_user",
+                "monthly_maintenance_fee",
+                "monthly_spending_limit",
+                "name",
+                "transaction_limit"
+            ],
+            "properties": {
+                "card_limit": {
+                    "type": "string"
+                },
+                "creation_fee": {
+                    "type": "string"
+                },
+                "daily_spending_limit": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "failed_tx_count_before_block": {
+                    "type": "integer"
+                },
+                "max_cards_per_user": {
+                    "type": "integer"
+                },
+                "monthly_maintenance_fee": {
+                    "type": "string"
+                },
+                "monthly_spending_limit": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "transaction_limit": {
                     "type": "string"
                 }
             }

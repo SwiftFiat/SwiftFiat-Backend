@@ -14,6 +14,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/subscriptions"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -23,14 +24,15 @@ import (
 
 // VirtualCardService handles all virtual card business logic
 type Service struct {
-	store         *db.Store
-	bridgeCard    *bridgecards.BridgeCardProvider
-	walletService *wallet.WalletService
-	logger        *logging.Logger
-	streak        *streaks.StreakScheduler
-	notifySvc     *service.Notification
-	email         *service.Plunk
-	pushSvc       *service.PushNotificationService
+	store           *db.Store
+	bridgeCard      *bridgecards.BridgeCardProvider
+	walletService   *wallet.WalletService
+	logger          *logging.Logger
+	streak          *streaks.StreakScheduler
+	notifySvc       *service.Notification
+	email           *service.Plunk
+	pushSvc         *service.PushNotificationService
+	subscriptionSvc *subscriptions.Service
 }
 
 func NewService(
@@ -42,16 +44,18 @@ func NewService(
 	notifySvc *service.Notification,
 	email *service.Plunk,
 	pushSvc *service.PushNotificationService,
+	subscriptionSvc *subscriptions.Service,
 ) *Service {
 	return &Service{
-		store:         store,
-		logger:        logger,
-		bridgeCard:    bridgeCard,
-		walletService: walletService,
-		streak:        streak,
-		notifySvc:     notifySvc,
-		email:         email,
-		pushSvc:       pushSvc,
+		store:           store,
+		logger:          logger,
+		bridgeCard:      bridgeCard,
+		walletService:   walletService,
+		streak:          streak,
+		notifySvc:       notifySvc,
+		email:           email,
+		pushSvc:         pushSvc,
+		subscriptionSvc: subscriptionSvc,
 	}
 }
 
@@ -337,7 +341,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	// TODO: Send notification to user about card creation
-	go func ()  {
+	go func() {
 		if s.notifySvc != nil {
 			if _, err := s.notifySvc.Create(ctx, int32(params.UserID), "Virtual card created", "Your virtual card has been created successfully"); err != nil {
 				s.logger.Errorf("failed to create notification: %v", err)
@@ -692,8 +696,31 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		return "", fmt.Errorf("failed to create transaction: %w", err)
 	}
 
+	// Extract merchant name from webhook's "description" field
+	merchantName := success.Data.Description
+	if merchantName == "" {
+		merchantName = "Unknown Merchant"
+	}
+
+	// Parse transaction date from webhook format "2025-12-22 12:04:21"
+	transactionDate, err := time.Parse("2006-01-02 15:04:05", success.Data.TransactionDate)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse transaction date: %w", err)
+	}
+
+	// Parse transaction timestamp from string (Unix timestamp)
+	transactionTimestamp, err := time.Parse("2006-01-02 15:04:05", success.Data.TransactionTimestamp)
+	if err != nil {
+		// If parsing as datetime fails, try parsing as Unix timestamp
+		if timestampInt, parseErr := strconv.ParseInt(success.Data.TransactionTimestamp, 10, 64); parseErr == nil {
+			transactionTimestamp = time.Unix(timestampInt, 0)
+		} else {
+			return "", fmt.Errorf("failed to parse transaction timestamp: %w", err)
+		}
+	}
+
 	// create card transaction
-	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+	cardTx, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
 		CardID:                  card.ID,
 		UserID:                  user.ID,
 		BridgecardTransactionID: success.Data.TransactionReference,
@@ -701,14 +728,15 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		Currency:                success.Data.Currency,
 		Status:                  string(transaction.Success),
 		TransactionType:         success.Data.CardTransactionType,
-		TransactionDate:         success.Data.TransactionDate,
+		TransactionDate:         transactionDate,
 		MerchantCategoryCode:    sql.NullString{String: success.Data.MerchantCategoryCode, Valid: true},
 		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
 		BalanceAfter:            sql.NullString{String: success.Data.SettledBookBalance, Valid: true},
 		Mode:                    success.Data.Livemode,
-		TransactionTimestamp:    success.Data.TransactionTimestamp,
+		TransactionTimestamp:    transactionTimestamp,
 		RawWebhookData:          pqtype.NullRawMessage{RawMessage: rawWebhookData, Valid: true},
 		TransactionID:           txx.ID,
+		MerchantName:            sql.NullString{String: merchantName, Valid: true},
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create card transaction: %w", err)
@@ -728,6 +756,36 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 	// commit transaction
 	if err := tx.Commit(); err != nil {
 		return "", fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Detect and log subscription after transaction is committed
+	if s.subscriptionSvc != nil {
+		// Convert to proper CardTransaction struct for subscription detection
+		subscriptionCardTx := db.CardTransaction{
+			ID:                      cardTx.ID,
+			CardID:                  cardTx.CardID,
+			UserID:                  cardTx.UserID,
+			BridgecardTransactionID: cardTx.BridgecardTransactionID,
+			Amount:                  cardTx.Amount,
+			Currency:                cardTx.Currency,
+			Status:                  cardTx.Status,
+			TransactionType:         cardTx.TransactionType,
+			TransactionDate:         cardTx.TransactionDate,
+			MerchantName:            cardTx.MerchantName,
+			MerchantCategoryCode:    cardTx.MerchantCategoryCode,
+			TransactionTimestamp:    cardTx.TransactionTimestamp,
+		}
+		// Run subscription detection asynchronously to avoid blocking webhook response
+		go func() {
+			detectionCtx := context.Background()
+			if err := s.subscriptionSvc.DetectAndLogSubscription(detectionCtx, &subscriptionCardTx); err != nil {
+				s.logger.Error(fmt.Sprintf("Subscription detection failed for transaction %s: %v",
+					cardTx.BridgecardTransactionID, err))
+			} else {
+				s.logger.Info(fmt.Sprintf("Subscription detection completed for transaction %s",
+					cardTx.BridgecardTransactionID))
+			}
+		}()
 	}
 
 	// update streak
@@ -1107,14 +1165,14 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		return "", err
 	}
 
-	go func () {
+	go func() {
 		message := fmt.Sprintf("You have successfully credited your card with %s %s", success.Amount, success.Currency)
 		if s.notifySvc != nil {
 			if _, err := s.notifySvc.Create(ctx, int32(user.ID), "Virtual card credited", message); err != nil {
 				s.logger.Errorf("failed to create notification: %v", err)
 			}
 		}
-		
+
 		// TODO: email
 
 		// TODO: push notification

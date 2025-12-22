@@ -5,9 +5,17 @@ meta {
 }
 
 get {
-  url: 
+  url: {{BaseURl}}/cards/admin/list-card-transactions-by-user?user_id=1
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+params:query {
+  user_id: 1
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {

@@ -16,7 +16,7 @@ type Scheduler struct {
 	subscription  *Service
 	store         *db.Store
 	logger        *logging.Logger
-	checkInterval time.Duration // How often to check for due deposits
+	checkInterval time.Duration
 }
 
 func NewScheduler(
@@ -27,7 +27,7 @@ func NewScheduler(
 	checkInterval time.Duration,
 ) *Scheduler {
 	if checkInterval == 0 {
-		checkInterval = 1 * time.Minute // Default: check every minute
+		checkInterval = 1 * time.Minute
 	}
 
 	return &Scheduler{
@@ -40,7 +40,6 @@ func NewScheduler(
 }
 
 const (
-	// Task IDs
 	TaskRenewalReminders3Days   = "subscription_renewal_reminders_3d"
 	TaskRenewalReminders1Day    = "subscription_renewal_reminders_1d"
 	TaskRenewalRemindersSameDay = "subscription_renewal_reminders_0d"
@@ -53,17 +52,14 @@ const (
 func (s *Scheduler) Start() error {
 	s.logger.Info("Starting subscription scheduler...")
 
-	// Register all tasks
 	if err := s.registerTasks(); err != nil {
 		return fmt.Errorf("failed to register tasks: %w", err)
 	}
 
-	// Schedule recurring tasks
 	if err := s.scheduleRecurringTasks(); err != nil {
 		return fmt.Errorf("failed to schedule tasks: %w", err)
 	}
 
-	// Schedule one-time tasks (spend resets at specific times)
 	if err := s.scheduleDailySpendReset(); err != nil {
 		return fmt.Errorf("failed to schedule daily spend reset: %w", err)
 	}
@@ -72,20 +68,20 @@ func (s *Scheduler) Start() error {
 	return nil
 }
 
-// registerTasks registers all subscription tasks with the task scheduler
+// ✅ FIX: Register ALL tasks including same-day reminders
 func (s *Scheduler) registerTasks() error {
-	// Renewal Reminders - 3 days before
+	// 3-day reminders
 	_, err := s.taskScheduler.AddTask(
 		TaskRenewalReminders3Days,
 		"Subscription Renewal Reminders (3 days)",
 		s.processRenewalReminders3Days,
-		6*time.Hour, // Run every 6 hours
+		6*time.Hour,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to add 3-day reminder task: %w", err)
 	}
 
-	// Renewal Reminders - 1 day before
+	// 1-day reminders
 	_, err = s.taskScheduler.AddTask(
 		TaskRenewalReminders1Day,
 		"Subscription Renewal Reminders (1 day)",
@@ -96,12 +92,23 @@ func (s *Scheduler) registerTasks() error {
 		return fmt.Errorf("failed to add 1-day reminder task: %w", err)
 	}
 
+	// ✅ CRITICAL FIX: Register same-day reminders (was missing!)
+	_, err = s.taskScheduler.AddTask(
+		TaskRenewalRemindersSameDay,
+		"Subscription Renewal Reminders (same day)",
+		s.processRenewalRemindersSameDay,
+		6*time.Hour,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to add same-day reminder task: %w", err)
+	}
+
 	// Auto Top-up
 	_, err = s.taskScheduler.AddTask(
 		TaskAutoTopUp,
 		"Subscription Auto Top-up",
 		s.processAutoTopUp,
-		12*time.Hour, // Run every 12 hours
+		12*time.Hour,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to add auto top-up task: %w", err)
@@ -112,18 +119,18 @@ func (s *Scheduler) registerTasks() error {
 		TaskPendingReminders,
 		"Send Pending Subscription Reminders",
 		s.processPendingReminders,
-		5*time.Minute, // Run every 5 minutes
+		5*time.Minute,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to add pending reminders task: %w", err)
 	}
 
-	// Monthly Spend Reset (will be scheduled at month boundaries)
+	// Monthly Spend Reset
 	_, err = s.taskScheduler.AddTask(
 		TaskMonthlySpendReset,
 		"Reset Monthly Subscription Spending",
 		s.processMonthlySpendReset,
-		0, // Not recurring, will be scheduled at specific times
+		0,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to add monthly spend reset task: %w", err)
@@ -134,18 +141,16 @@ func (s *Scheduler) registerTasks() error {
 		TaskDailySpendReset,
 		"Reset Daily Subscription Spending",
 		s.processDailySpendReset,
-		24*time.Hour, // Run every 24 hours
+		24*time.Hour,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to add daily spend reset task: %w", err)
 	}
 
 	s.logger.Info("All subscription tasks registered successfully")
-
 	return nil
 }
 
-// scheduleRecurringTasks schedules all recurring tasks to start after 5 seconds
 func (s *Scheduler) scheduleRecurringTasks() error {
 	tasks := []string{
 		TaskRenewalReminders3Days,
@@ -166,7 +171,6 @@ func (s *Scheduler) scheduleRecurringTasks() error {
 	return nil
 }
 
-// scheduleDailySpendReset schedules daily spend reset at midnight UTC
 func (s *Scheduler) scheduleDailySpendReset() error {
 	now := time.Now().UTC()
 	nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, time.UTC)
@@ -182,11 +186,8 @@ func (s *Scheduler) scheduleDailySpendReset() error {
 	return nil
 }
 
-// scheduleNextMonthlyReset schedules the monthly reset for the next month
 func (s *Scheduler) scheduleNextMonthlyReset() error {
 	now := time.Now().UTC()
-
-	// Calculate first day of next month at 00:00:00 UTC
 	firstOfNextMonth := time.Date(now.Year(), now.Month()+1, 1, 0, 0, 0, 0, time.UTC)
 
 	if err := s.taskScheduler.RunAt(TaskMonthlySpendReset, firstOfNextMonth); err != nil {
@@ -199,7 +200,6 @@ func (s *Scheduler) scheduleNextMonthlyReset() error {
 	return nil
 }
 
-// processRenewalReminders3Days processes renewal reminders for subscriptions due in 3 days
 func (s *Scheduler) processRenewalReminders3Days(ctx context.Context) error {
 	s.logger.Info("Processing 3-day renewal reminders...")
 
@@ -212,7 +212,6 @@ func (s *Scheduler) processRenewalReminders3Days(ctx context.Context) error {
 	return nil
 }
 
-// processRenewalReminders1Day processes renewal reminders for subscriptions due in 1 day
 func (s *Scheduler) processRenewalReminders1Day(ctx context.Context) error {
 	s.logger.Info("Processing 1-day renewal reminders...")
 
@@ -225,7 +224,6 @@ func (s *Scheduler) processRenewalReminders1Day(ctx context.Context) error {
 	return nil
 }
 
-// processRenewalRemindersSameDay processes renewal reminders for subscriptions due today
 func (s *Scheduler) processRenewalRemindersSameDay(ctx context.Context) error {
 	s.logger.Info("Processing same-day renewal reminders...")
 
@@ -238,7 +236,6 @@ func (s *Scheduler) processRenewalRemindersSameDay(ctx context.Context) error {
 	return nil
 }
 
-// processAutoTopUp checks and performs auto top-up for cards with upcoming renewals
 func (s *Scheduler) processAutoTopUp(ctx context.Context) error {
 	s.logger.Info("Processing auto top-up checks...")
 
@@ -251,7 +248,6 @@ func (s *Scheduler) processAutoTopUp(ctx context.Context) error {
 	return nil
 }
 
-// processPendingReminders sends all pending reminder notifications
 func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 	reminders, err := s.store.GetPendingReminders(ctx, 50)
 	if err != nil {
@@ -260,7 +256,6 @@ func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 	}
 
 	if len(reminders) == 0 {
-		// No pending reminders, nothing to do
 		return nil
 	}
 
@@ -276,7 +271,6 @@ func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 			continue
 		}
 
-		// Update reminder status to sent
 		_, err := s.store.UpdateReminderStatus(ctx, db.UpdateReminderStatusParams{
 			ID:     reminder.ID,
 			Status: "sent",
@@ -294,27 +288,12 @@ func (s *Scheduler) processPendingReminders(ctx context.Context) error {
 	return nil
 }
 
-// sendReminder sends a reminder notification through configured channels
 func (s *Scheduler) sendReminder(ctx context.Context, reminder db.GetPendingRemindersRow) error {
-	// TODO: Integrate with actual notification service
-	// For now, just log the reminder
 	s.logger.Info(fmt.Sprintf("Sending reminder to user %d: %s - %s",
 		reminder.UserID, reminder.Title, reminder.Message))
-
-	// Example integration points:
-	// 1. Push Notifications (FCM/APNS)
-	// 2. Email Service (SendGrid/AWS SES)
-	// 3. SMS Service (Twilio)
-
-	// For channels in reminder.Channels:
-	// - "push" -> Send push notification
-	// - "email" -> Send email
-	// - "sms" -> Send SMS
-
 	return nil
 }
 
-// processMonthlySpendReset resets monthly spending counters
 func (s *Scheduler) processMonthlySpendReset(ctx context.Context) error {
 	now := time.Now().UTC()
 	currentMonth := now.Format("2006-01")
@@ -328,7 +307,6 @@ func (s *Scheduler) processMonthlySpendReset(ctx context.Context) error {
 
 	s.logger.Info("Monthly spending counters reset successfully")
 
-	// Schedule next month's reset
 	if err := s.scheduleNextMonthlyReset(); err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to schedule next monthly reset: %v", err))
 	}
@@ -336,7 +314,6 @@ func (s *Scheduler) processMonthlySpendReset(ctx context.Context) error {
 	return nil
 }
 
-// processDailySpendReset resets daily spending counters
 func (s *Scheduler) processDailySpendReset(ctx context.Context) error {
 	now := time.Now().UTC()
 	currentDay := now.Format("2006-01-02")
@@ -350,7 +327,6 @@ func (s *Scheduler) processDailySpendReset(ctx context.Context) error {
 
 	s.logger.Info("Daily spending counters reset successfully")
 
-	// Check if it's the first of the month, trigger monthly reset too
 	if now.Day() == 1 {
 		s.logger.Info("First day of month detected, triggering monthly spend reset")
 		if err := s.processMonthlySpendReset(ctx); err != nil {
@@ -361,7 +337,6 @@ func (s *Scheduler) processDailySpendReset(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops all scheduled subscription tasks
 func (s *Scheduler) Stop() error {
 	s.logger.Info("Stopping subscription scheduler...")
 
@@ -385,7 +360,6 @@ func (s *Scheduler) Stop() error {
 	return nil
 }
 
-// GetTaskStatus returns the status of all subscription tasks
 func (s *Scheduler) GetTaskStatus() map[string]interface{} {
 	status := make(map[string]interface{})
 
@@ -421,7 +395,6 @@ func (s *Scheduler) GetTaskStatus() map[string]interface{} {
 	return status
 }
 
-// HealthCheck returns health status of the subscription scheduler
 func (s *Scheduler) HealthCheck() map[string]any {
 	return map[string]any{
 		"status":    "running",
@@ -430,19 +403,16 @@ func (s *Scheduler) HealthCheck() map[string]any {
 	}
 }
 
-// RunTaskNow manually triggers a specific task to run immediately
 func (s *Scheduler) RunTaskNow(taskID string) error {
 	s.logger.Info(fmt.Sprintf("Manually triggering task: %s", taskID))
 	return s.taskScheduler.RunTask(taskID)
 }
 
-// RunRenewalRemindersNow manually triggers renewal reminder processing
 func (s *Scheduler) RunRenewalRemindersNow() error {
 	ctx := context.Background()
 
 	s.logger.Info("Manually triggering all renewal reminders...")
 
-	// Run all three reminder intervals
 	if err := s.processRenewalReminders3Days(ctx); err != nil {
 		s.logger.Error(fmt.Sprintf("3-day reminders failed: %v", err))
 	}
@@ -459,13 +429,11 @@ func (s *Scheduler) RunRenewalRemindersNow() error {
 	return nil
 }
 
-// RunAutoTopUpNow manually triggers auto top-up processing
 func (s *Scheduler) RunAutoTopUpNow() error {
 	s.logger.Info("Manually triggering auto top-up...")
 	return s.processAutoTopUp(context.Background())
 }
 
-// RunPendingRemindersNow manually triggers pending reminder sending
 func (s *Scheduler) RunPendingRemindersNow() error {
 	s.logger.Info("Manually triggering pending reminders...")
 	return s.processPendingReminders(context.Background())

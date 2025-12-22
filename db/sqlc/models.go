@@ -378,23 +378,21 @@ type CardFundingHistory struct {
 }
 
 type CardPlan struct {
-	ID                    int64          `json:"id"`
-	Name                  string         `json:"name"`
-	Description           sql.NullString `json:"description"`
-	IsActive              bool           `json:"is_active"`
-	CreationFee           string         `json:"creation_fee"`
-	MonthlyMaintenanceFee string         `json:"monthly_maintenance_fee"`
-	MonthlySpendingLimit  string         `json:"monthly_spending_limit"`
-	TransactionLimit      string         `json:"transaction_limit"`
-	DailySpendingLimit    sql.NullString `json:"daily_spending_limit"`
-	CardLimit             sql.NullString `json:"card_limit"`
-	MaxCardsPerUser       int32          `json:"max_cards_per_user"`
-	SupportsInternational bool           `json:"supports_international"`
-	SupportsOnline        bool           `json:"supports_online"`
-	SupportsAtm           bool           `json:"supports_atm"`
-	CreatedAt             time.Time      `json:"created_at"`
-	UpdatedAt             time.Time      `json:"updated_at"`
-	DeletedAt             sql.NullTime   `json:"deleted_at"`
+	ID                       int64          `json:"id"`
+	Name                     string         `json:"name"`
+	Description              sql.NullString `json:"description"`
+	IsActive                 bool           `json:"is_active"`
+	CreationFee              string         `json:"creation_fee"`
+	MonthlyMaintenanceFee    string         `json:"monthly_maintenance_fee"`
+	MonthlySpendingLimit     string         `json:"monthly_spending_limit"`
+	TransactionLimit         string         `json:"transaction_limit"`
+	DailySpendingLimit       sql.NullString `json:"daily_spending_limit"`
+	CardLimit                sql.NullString `json:"card_limit"`
+	MaxCardsPerUser          int32          `json:"max_cards_per_user"`
+	FailedTxCountBeforeBlock sql.NullInt32  `json:"failed_tx_count_before_block"`
+	CreatedAt                time.Time      `json:"created_at"`
+	UpdatedAt                time.Time      `json:"updated_at"`
+	DeletedAt                sql.NullTime   `json:"deleted_at"`
 }
 
 type CardSpendingSummary struct {
@@ -417,8 +415,6 @@ type CardTransaction struct {
 	MerchantName            sql.NullString        `json:"merchant_name"`
 	MerchantCategory        sql.NullString        `json:"merchant_category"`
 	MerchantCategoryCode    sql.NullString        `json:"merchant_category_code"`
-	MerchantCountry         sql.NullString        `json:"merchant_country"`
-	MerchantCity            sql.NullString        `json:"merchant_city"`
 	Amount                  int64                 `json:"amount"`
 	Fee                     int64                 `json:"fee"`
 	Currency                string                `json:"currency"`

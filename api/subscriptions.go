@@ -51,7 +51,7 @@ func (v Subscriptions) router(server *Server) {
 		v1.GET("/merchants", v.AdminGetMerchantInsights)
 		v1.GET("/merchants/:merchant_id", v.AdminGetMerchantDetails)
 
-		// User Story 11: System Health & Alerts
+		// User Story 11: System Health & Alerts 
 		v1.GET("/alerts", v.AdminGetSystemAlerts)
 		v1.GET("/stats", v.AdminGetPlatformStats)
 
