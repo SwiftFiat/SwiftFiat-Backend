@@ -5111,7 +5111,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/cards/admin-freeze-card": {
+        "/api/v1/cards/admin/freeze-card": {
             "post": {
                 "description": "Freeze a virtual card with BridgeCard",
                 "consumes": [

@@ -6902,7 +6902,7 @@ paths:
       summary: Delete virtual card
       tags:
       - Cards
-  /api/v1/cards/admin-freeze-card:
+  /api/v1/cards/admin/freeze-card:
     post:
       consumes:
       - application/json
