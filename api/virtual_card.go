@@ -582,7 +582,7 @@ func (v *Virtualcard) FreezeCard(c *gin.Context) {
 // @Success 200 {object} bridgecards.FreezeCardResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/admin-freeze-card [post]
+// @Router /api/v1/cards/admin/freeze-card [post]
 func (v *Virtualcard) AdminFreezeCard(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
