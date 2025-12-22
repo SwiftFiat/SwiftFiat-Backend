@@ -632,15 +632,6 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		return "", fmt.Errorf("failed to get user from cardholderID: %w", err)
 	}
 
-	// get wallet for debit
-	usdWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: user.ID,
-		Currency:   "USD",
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to get wallet for debit: %w", err)
-	}
-
 	amountString, err := utils.CentsStringToDollarString(success.Data.Amount)
 	if err != nil {
 		return "", fmt.Errorf("failed to convert amount from cent to dollars: %w", err)
@@ -651,10 +642,6 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		return "", fmt.Errorf("failed to convert amount from string to decimal: %w", err)
 	}
 
-	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
-	if err != nil {
-		return "", fmt.Errorf("failed to convert wallet balance from string to decimal: %w", err)
-	}
 	// start db transaction
 	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -663,16 +650,6 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 	defer tx.Rollback()
 
 	qtx := s.store.WithTx(tx)
-
-	// update wallet balance
-	newBalance := walletBalance.Sub(amount)
-	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		ID:     usdWallet.ID,
-		Amount: sql.NullString{String: newBalance.String(), Valid: true},
-	})
-	if err != nil {
-		return "", fmt.Errorf("failed to update wallet balance: %w", err)
-	}
 
 	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.Data.CardID)
 	if err != nil {
@@ -724,19 +701,23 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		CardID:                  card.ID,
 		UserID:                  user.ID,
 		BridgecardTransactionID: success.Data.TransactionReference,
-		Amount:                  amount.IntPart(),
-		Currency:                success.Data.Currency,
-		Status:                  string(transaction.Success),
 		TransactionType:         success.Data.CardTransactionType,
+		MerchantName:            sql.NullString{String: merchantName, Valid: true},
+		MerchantCategory:        sql.NullString{Valid: false}, // Not provided in webhook
+		MerchantCategoryCode:    sql.NullString{String: success.Data.MerchantCategoryCode, Valid: success.Data.MerchantCategoryCode != ""},
+		Amount:                  amount.IntPart(),
+		Fee:                     0, // Fee not provided in debit webhook
+		Currency:                success.Data.Currency,
+		BillingAmount:           sql.NullInt64{Valid: false},  // Not provided in webhook
+		BillingCurrency:         sql.NullString{Valid: false}, // Not provided in webhook
+		Status:                  string(transaction.Success),
+		BalanceAfter:            sql.NullString{String: success.Data.SettledBookBalance, Valid: success.Data.SettledBookBalance != ""},
 		TransactionDate:         transactionDate,
-		MerchantCategoryCode:    sql.NullString{String: success.Data.MerchantCategoryCode, Valid: true},
 		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
-		BalanceAfter:            sql.NullString{String: success.Data.SettledBookBalance, Valid: true},
-		Mode:                    success.Data.Livemode,
-		TransactionTimestamp:    transactionTimestamp,
 		RawWebhookData:          pqtype.NullRawMessage{RawMessage: rawWebhookData, Valid: true},
 		TransactionID:           txx.ID,
-		MerchantName:            sql.NullString{String: merchantName, Valid: true},
+		Mode:                    success.Data.Livemode,
+		TransactionTimestamp:    transactionTimestamp,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create card transaction: %w", err)

@@ -187,6 +187,10 @@ type QRTransactionStats struct {
 	FailedTransactions    int             `json:"failed_transactions"`
 	TotalCryptoReceived   decimal.Decimal `json:"total_crypto_received"`
 	TotalNetPayout        decimal.Decimal `json:"total_net_payout"`
+	SendingToBankTransactions int `json:"sending_to_bank_transactions"`
+	ConvertingTransactions int `json:"converting_transactions"`
+	ReceivedTransactions int `json:"received_transactions"`
+	PendingTransactions int `json:"pending_transactions"`
 }
 
 // ============================================================

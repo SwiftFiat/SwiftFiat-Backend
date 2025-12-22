@@ -421,6 +421,12 @@ LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.user_id = $1 AND us.status = 'active'
 ORDER BY us.next_estimated_charge_date ASC;
 
+-- name: ListAllSubscriptions :many
+SELECT us.*, sm.logo_url, sm.website
+FROM user_subscriptions us
+LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
+ORDER BY us.next_estimated_charge_date ASC;
+
 -- name: GetUserSubscriptionsByCard :many
 SELECT us.*, sm.logo_url, sm.website
 FROM user_subscriptions us
@@ -629,3 +635,52 @@ WHERE user_id = $1
 GROUP BY merchant_name
 ORDER BY total_spend_cents DESC
 LIMIT $2;
+
+-- ============================================================================
+-- SUBSCRIPTION ANALYTICS
+-- ============================================================================
+
+-- name: GetSubscriptionStats :one
+SELECT 
+    COUNT(*) as total_subscriptions,
+    COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
+    COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
+    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+FROM user_subscriptions
+WHERE user_id = $1;
+
+-- name: GetAutoTopupSuccessRate :one
+SELECT 
+    COUNT(*) FILTER (WHERE funding_type = 'auto_topup') as total_auto_topups,
+    COUNT(*) FILTER (WHERE funding_type = 'auto_topup' AND status = 'successful') as successful_auto_topups,
+    CASE 
+        WHEN COUNT(*) FILTER (WHERE funding_type = 'auto_topup') > 0 
+        THEN ROUND((COUNT(*) FILTER (WHERE funding_type = 'auto_topup' AND status = 'successful')::DECIMAL / 
+                    COUNT(*) FILTER (WHERE funding_type = 'auto_topup')::DECIMAL) * 100, 2)
+        ELSE 0
+    END as success_rate_percentage
+FROM card_funding_history
+WHERE user_id = $1;
+
+-- ============================================================================
+-- ADMIN OPERATIONS
+-- ============================================================================
+
+-- name: AdminToggleCardAutoTopup :one
+UPDATE virtual_cards
+SET 
+    auto_topup_enabled = $2,
+    updated_at = NOW()
+WHERE id = (
+    SELECT us.card_id FROM user_subscriptions us WHERE us.id = $1
+)
+RETURNING *;
+
+-- name: AdminUpdateSubscriptionStatus :one
+UPDATE user_subscriptions
+SET 
+    status = $2,
+    cancelled_at = CASE WHEN $2 IN ('cancelled', 'paused') THEN NOW() ELSE cancelled_at END,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;

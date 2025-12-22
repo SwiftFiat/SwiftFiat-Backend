@@ -1,0 +1,25 @@
+meta {
+  name: Admin update qrcode status
+  type: http
+  seq: 3
+}
+
+put {
+  url: {{BaseURl}}/qr-codes/admin/update-status?qr_id=0365f292-2c6c-4349-9f22-86caf958ac89&status=disabled
+  body: none
+  auth: bearer
+}
+
+params:query {
+  qr_id: 0365f292-2c6c-4349-9f22-86caf958ac89
+  status: disabled
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

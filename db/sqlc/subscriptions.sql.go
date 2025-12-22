@@ -62,6 +62,107 @@ func (q *Queries) ActivateCard(ctx context.Context, arg ActivateCardParams) (Vir
 	return i, err
 }
 
+const adminToggleCardAutoTopup = `-- name: AdminToggleCardAutoTopup :one
+
+UPDATE virtual_cards
+SET 
+    auto_topup_enabled = $2,
+    updated_at = NOW()
+WHERE id = (
+    SELECT us.card_id FROM user_subscriptions us WHERE us.id = $1
+)
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+`
+
+type AdminToggleCardAutoTopupParams struct {
+	ID               uuid.UUID `json:"id"`
+	AutoTopupEnabled bool      `json:"auto_topup_enabled"`
+}
+
+// ============================================================================
+// ADMIN OPERATIONS
+// ============================================================================
+func (q *Queries) AdminToggleCardAutoTopup(ctx context.Context, arg AdminToggleCardAutoTopupParams) (VirtualCard, error) {
+	row := q.db.QueryRowContext(ctx, adminToggleCardAutoTopup, arg.ID, arg.AutoTopupEnabled)
+	var i VirtualCard
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardPlanID,
+		&i.BridgecardCardID,
+		&i.CardName,
+		&i.CardColor,
+		&i.Currency,
+		&i.CurrentMonthSpend,
+		&i.CurrentDaySpend,
+		&i.SpendingMonth,
+		&i.SpendingDay,
+		&i.Status,
+		&i.StatusReason,
+		&i.AutoTopupEnabled,
+		&i.AutoTopupThresholdCents,
+		&i.AutoTopupAmountCents,
+		&i.AutoTopupSourceWalletID,
+		&i.NextBillingDate,
+		&i.LastBillingDate,
+		&i.LastTransactionAt,
+		&i.TotalTransactionsCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.TerminatedAt,
+	)
+	return i, err
+}
+
+const adminUpdateSubscriptionStatus = `-- name: AdminUpdateSubscriptionStatus :one
+UPDATE user_subscriptions
+SET 
+    status = $2,
+    cancelled_at = CASE WHEN $2 IN ('cancelled', 'paused') THEN NOW() ELSE cancelled_at END,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+`
+
+type AdminUpdateSubscriptionStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) AdminUpdateSubscriptionStatus(ctx context.Context, arg AdminUpdateSubscriptionStatusParams) (UserSubscription, error) {
+	row := q.db.QueryRowContext(ctx, adminUpdateSubscriptionStatus, arg.ID, arg.Status)
+	var i UserSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardID,
+		&i.MerchantID,
+		&i.MerchantName,
+		&i.DisplayName,
+		&i.Category,
+		&i.AmountCents,
+		&i.Currency,
+		&i.BillingIntervalDays,
+		&i.FirstChargeDate,
+		&i.LastChargeDate,
+		&i.NextEstimatedChargeDate,
+		&i.Status,
+		&i.ConfidenceScore,
+		&i.TotalCharges,
+		&i.FailedCharges,
+		&i.LastFailedDate,
+		&i.LastFailureReason,
+		&i.ReminderEnabled,
+		&i.ReminderDaysBefore,
+		&i.UserConfirmed,
+		&i.CustomName,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
 const createCardBilling = `-- name: CreateCardBilling :one
 
 INSERT INTO card_billing_history (
@@ -795,6 +896,33 @@ func (q *Queries) FreezeCard(ctx context.Context, arg FreezeCardParams) (Virtual
 		&i.UpdatedAt,
 		&i.TerminatedAt,
 	)
+	return i, err
+}
+
+const getAutoTopupSuccessRate = `-- name: GetAutoTopupSuccessRate :one
+SELECT 
+    COUNT(*) FILTER (WHERE funding_type = 'auto_topup') as total_auto_topups,
+    COUNT(*) FILTER (WHERE funding_type = 'auto_topup' AND status = 'successful') as successful_auto_topups,
+    CASE 
+        WHEN COUNT(*) FILTER (WHERE funding_type = 'auto_topup') > 0 
+        THEN ROUND((COUNT(*) FILTER (WHERE funding_type = 'auto_topup' AND status = 'successful')::DECIMAL / 
+                    COUNT(*) FILTER (WHERE funding_type = 'auto_topup')::DECIMAL) * 100, 2)
+        ELSE 0
+    END as success_rate_percentage
+FROM card_funding_history
+WHERE user_id = $1
+`
+
+type GetAutoTopupSuccessRateRow struct {
+	TotalAutoTopups       int64 `json:"total_auto_topups"`
+	SuccessfulAutoTopups  int64 `json:"successful_auto_topups"`
+	SuccessRatePercentage int32 `json:"success_rate_percentage"`
+}
+
+func (q *Queries) GetAutoTopupSuccessRate(ctx context.Context, userID int64) (GetAutoTopupSuccessRateRow, error) {
+	row := q.db.QueryRowContext(ctx, getAutoTopupSuccessRate, userID)
+	var i GetAutoTopupSuccessRateRow
+	err := row.Scan(&i.TotalAutoTopups, &i.SuccessfulAutoTopups, &i.SuccessRatePercentage)
 	return i, err
 }
 
@@ -1555,6 +1683,39 @@ func (q *Queries) GetSubscriptionMerchantByName(ctx context.Context, lower strin
 		&i.AutoDetect,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSubscriptionStats = `-- name: GetSubscriptionStats :one
+
+SELECT 
+    COUNT(*) as total_subscriptions,
+    COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
+    COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
+    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+FROM user_subscriptions
+WHERE user_id = $1
+`
+
+type GetSubscriptionStatsRow struct {
+	TotalSubscriptions    int64 `json:"total_subscriptions"`
+	ActiveSubscriptions   int64 `json:"active_subscriptions"`
+	InactiveSubscriptions int64 `json:"inactive_subscriptions"`
+	MonthlySpendCents     int64 `json:"monthly_spend_cents"`
+}
+
+// ============================================================================
+// SUBSCRIPTION ANALYTICS
+// ============================================================================
+func (q *Queries) GetSubscriptionStats(ctx context.Context, userID int64) (GetSubscriptionStatsRow, error) {
+	row := q.db.QueryRowContext(ctx, getSubscriptionStats, userID)
+	var i GetSubscriptionStatsRow
+	err := row.Scan(
+		&i.TotalSubscriptions,
+		&i.ActiveSubscriptions,
+		&i.InactiveSubscriptions,
+		&i.MonthlySpendCents,
 	)
 	return i, err
 }
@@ -2736,6 +2897,96 @@ func (q *Queries) LinkTransactionToSubscription(ctx context.Context, arg LinkTra
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const listAllSubscriptions = `-- name: ListAllSubscriptions :many
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+FROM user_subscriptions us
+LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
+ORDER BY us.next_estimated_charge_date ASC
+`
+
+type ListAllSubscriptionsRow struct {
+	ID                      uuid.UUID      `json:"id"`
+	UserID                  int64          `json:"user_id"`
+	CardID                  uuid.UUID      `json:"card_id"`
+	MerchantID              sql.NullInt64  `json:"merchant_id"`
+	MerchantName            string         `json:"merchant_name"`
+	DisplayName             string         `json:"display_name"`
+	Category                sql.NullString `json:"category"`
+	AmountCents             int64          `json:"amount_cents"`
+	Currency                string         `json:"currency"`
+	BillingIntervalDays     int32          `json:"billing_interval_days"`
+	FirstChargeDate         time.Time      `json:"first_charge_date"`
+	LastChargeDate          time.Time      `json:"last_charge_date"`
+	NextEstimatedChargeDate time.Time      `json:"next_estimated_charge_date"`
+	Status                  string         `json:"status"`
+	ConfidenceScore         string         `json:"confidence_score"`
+	TotalCharges            int32          `json:"total_charges"`
+	FailedCharges           int32          `json:"failed_charges"`
+	LastFailedDate          sql.NullTime   `json:"last_failed_date"`
+	LastFailureReason       sql.NullString `json:"last_failure_reason"`
+	ReminderEnabled         bool           `json:"reminder_enabled"`
+	ReminderDaysBefore      int32          `json:"reminder_days_before"`
+	UserConfirmed           bool           `json:"user_confirmed"`
+	CustomName              sql.NullString `json:"custom_name"`
+	CreatedAt               time.Time      `json:"created_at"`
+	UpdatedAt               time.Time      `json:"updated_at"`
+	CancelledAt             sql.NullTime   `json:"cancelled_at"`
+	LogoUrl                 sql.NullString `json:"logo_url"`
+	Website                 sql.NullString `json:"website"`
+}
+
+func (q *Queries) ListAllSubscriptions(ctx context.Context) ([]ListAllSubscriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllSubscriptions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllSubscriptionsRow{}
+	for rows.Next() {
+		var i ListAllSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CardID,
+			&i.MerchantID,
+			&i.MerchantName,
+			&i.DisplayName,
+			&i.Category,
+			&i.AmountCents,
+			&i.Currency,
+			&i.BillingIntervalDays,
+			&i.FirstChargeDate,
+			&i.LastChargeDate,
+			&i.NextEstimatedChargeDate,
+			&i.Status,
+			&i.ConfidenceScore,
+			&i.TotalCharges,
+			&i.FailedCharges,
+			&i.LastFailedDate,
+			&i.LastFailureReason,
+			&i.ReminderEnabled,
+			&i.ReminderDaysBefore,
+			&i.UserConfirmed,
+			&i.CustomName,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CancelledAt,
+			&i.LogoUrl,
+			&i.Website,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const listCardPlans = `-- name: ListCardPlans :many

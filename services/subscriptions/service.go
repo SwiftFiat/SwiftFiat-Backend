@@ -27,10 +27,10 @@ func NewService(store *db.Store, logger *logging.Logger) *Service {
 // DetectAndLogSubscription analyzes a card transaction to detect if it's a subscription
 func (s *Service) DetectAndLogSubscription(ctx context.Context, transaction *db.CardTransaction) error {
 	// Only process approved debit transactions
-	if transaction.Status != "successful" || transaction.TransactionType != "debit" {
+	if transaction.Status != "successful" || transaction.TransactionType != "DEBIT" {
 		return nil
 	}
- 
+
 	// Check if merchant exists in our subscription database
 	merchant, err := s.store.FindSubscriptionMerchantByPattern(ctx, transaction.MerchantName.String)
 	var merchantID sql.NullInt64
@@ -225,7 +225,7 @@ func (s *Service) ProcessRenewalReminders(ctx context.Context, daysBeforeStr str
 // createRenewalReminder creates a reminder notification for upcoming renewal
 func (s *Service) createRenewalReminder(ctx context.Context, subscription db.GetSubscriptionsDueForReminderRow) error {
 	daysUntilRenewal := int(time.Until(subscription.NextEstimatedChargeDate).Hours() / 24)
-	
+
 	title := fmt.Sprintf("%s Renewal Coming Up", subscription.DisplayName)
 	message := fmt.Sprintf("Your %s subscription ($%.2f) will renew in %d days. Make sure your card has sufficient balance.",
 		subscription.DisplayName, float64(subscription.AmountCents)/100, daysUntilRenewal)
@@ -330,13 +330,13 @@ func (s *Service) checkAndTopUpCard(ctx context.Context, subscription db.GetSubs
 
 	// TODO: Get current card balance from BridgeCard API
 	// For now, we'll assume we need to check against threshold
-	
+
 	if !card.AutoTopupThresholdCents.Valid || !card.AutoTopupAmountCents.Valid {
 		return fmt.Errorf("auto top-up configuration incomplete")
 	}
 
 	// If balance would be below threshold after subscription charge, top up
-	s.logger.Infof("Auto top-up triggered for card %s (subscription: %s)", 
+	s.logger.Infof("Auto top-up triggered for card %s (subscription: %s)",
 		card.ID, subscription.DisplayName)
 
 	// TODO: Implement actual top-up logic using wallet service
@@ -358,11 +358,11 @@ func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 	}
 
 	return &SubscriptionSummary{
-		ActiveCount:         int(summary.ActiveCount),
-		FailedCount:         int(summary.FailedCount),
-		TotalMonthlySpend:   summary.TotalMonthlySpendCents,
-		NextChargeDate:      summary.NextChargeDate,
-		CategoryBreakdown:   categoryBreakdown,
+		ActiveCount:       int(summary.ActiveCount),
+		FailedCount:       int(summary.FailedCount),
+		TotalMonthlySpend: summary.TotalMonthlySpendCents,
+		NextChargeDate:    summary.NextChargeDate,
+		CategoryBreakdown: categoryBreakdown,
 	}, nil
 }
 
@@ -412,9 +412,55 @@ func isAmountConsistent(amounts []int64, avg int64, allowedVariance float64) boo
 
 // SubscriptionSummary holds subscription statistics
 type SubscriptionSummary struct {
-	ActiveCount       int                                  `json:"active_count"`
-	FailedCount       int                                  `json:"failed_count"`
-	TotalMonthlySpend string                              `json:"total_monthly_spend"`
-	NextChargeDate    time.Time                            `json:"next_charge_date"`
-	CategoryBreakdown []db.GetSubscriptionsByCategoryRow   `json:"category_breakdown"`
+	ActiveCount       int                                `json:"active_count"`
+	FailedCount       int                                `json:"failed_count"`
+	TotalMonthlySpend string                             `json:"total_monthly_spend"`
+	NextChargeDate    time.Time                          `json:"next_charge_date"`
+	CategoryBreakdown []db.GetSubscriptionsByCategoryRow `json:"category_breakdown"`
+}
+
+// SubscriptionStats holds detailed subscription statistics
+type SubscriptionStats struct {
+	TotalSubscriptions    int64  `json:"total_subscriptions"`
+	ActiveSubscriptions   int64  `json:"active_subscriptions"`
+	InactiveSubscriptions int64  `json:"inactive_subscriptions"`
+	MonthlySpendCents     int64  `json:"monthly_spend_cents"`
+	MonthlySpend          string `json:"monthly_spend"`
+}
+
+// AutoTopupSuccessRate holds auto topup success metrics
+type AutoTopupSuccessRate struct {
+	TotalAutoTopups      int64   `json:"total_auto_topups"`
+	SuccessfulAutoTopups int64   `json:"successful_auto_topups"`
+	SuccessRatePercent   float64 `json:"success_rate_percent"`
+}
+
+// GetSubscriptionStats returns detailed subscription statistics for a user
+func (s *Service) GetSubscriptionStats(ctx context.Context, userID int64) (*SubscriptionStats, error) {
+	stats, err := s.store.GetSubscriptionStats(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription stats: %w", err)
+	}
+
+	return &SubscriptionStats{
+		TotalSubscriptions:    stats.TotalSubscriptions,
+		ActiveSubscriptions:   stats.ActiveSubscriptions,
+		InactiveSubscriptions: stats.InactiveSubscriptions,
+		MonthlySpendCents:     stats.MonthlySpendCents,
+		MonthlySpend:          fmt.Sprintf("%.2f", float64(stats.MonthlySpendCents)/100),
+	}, nil
+}
+
+// GetAutoTopupSuccessRate returns auto topup success rate metrics for a user
+func (s *Service) GetAutoTopupSuccessRate(ctx context.Context, userID int64) (*AutoTopupSuccessRate, error) {
+	rate, err := s.store.GetAutoTopupSuccessRate(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get auto topup success rate: %w", err)
+	}
+
+	return &AutoTopupSuccessRate{
+		TotalAutoTopups:      rate.TotalAutoTopups,
+		SuccessfulAutoTopups: rate.SuccessfulAutoTopups,
+		SuccessRatePercent:   float64(rate.SuccessRatePercentage),
+	}, nil
 }

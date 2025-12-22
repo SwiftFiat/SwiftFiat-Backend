@@ -159,7 +159,7 @@ func (s *BankAccountService) DeleteBankAccount(ctx context.Context, accountID uu
 
 	// Don't allow deleting the last bank account if it's linked to active QR codes
 	// Check for active QR codes using this account
-	qrCodes, err := s.store.GetActiveQRCodes(ctx, userID)
+	qrCodes, err := s.store.GetQRCodesByUser(ctx, userID)
 	if err == nil && len(qrCodes) > 0 {
 		// Check if any are active
 		for _, qr := range qrCodes {

@@ -1,0 +1,38 @@
+meta {
+  name: Card webhook
+  type: http
+  seq: 18
+}
+
+post {
+  url: https://68c97689ad4b.ngrok-free.app/api/v1/cards/webhook
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+      "event": "card_debit_event.successful",
+      "data" : {
+          "card_id": "17d6a02620aa49cca32173255cd3a4dd",
+          "cardholder_id": "99d9711765654dc5a8527952bc099860",
+          "amount": "100",
+          "description": "amazon",
+          "currency": "USD",
+          "transaction_reference":"1234567890",
+          "livemode": false, 
+          "issuing_app_id": "9ujinoncpsni3943198393939930ke",
+          "card_transaction_type": "DEBIT",
+          "merchant_category_code": "12345",
+          "transaction_date": "2022-09-28 23:10:45",
+          "transaction_timestamp": "1664406645",
+          "settled_available_balance":"500",
+          "settled_book_balance":"400"
+      }
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
