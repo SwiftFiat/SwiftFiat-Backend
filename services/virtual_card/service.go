@@ -11,8 +11,10 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/shopspring/decimal"
@@ -25,6 +27,10 @@ type Service struct {
 	bridgeCard    *bridgecards.BridgeCardProvider
 	walletService *wallet.WalletService
 	logger        *logging.Logger
+	streak        *streaks.StreakScheduler
+	notifySvc     *service.Notification
+	email         *service.Plunk
+	pushSvc       *service.PushNotificationService
 }
 
 func NewService(
@@ -32,12 +38,20 @@ func NewService(
 	logger *logging.Logger,
 	bridgeCard *bridgecards.BridgeCardProvider,
 	walletService *wallet.WalletService,
+	streak *streaks.StreakScheduler,
+	notifySvc *service.Notification,
+	email *service.Plunk,
+	pushSvc *service.PushNotificationService,
 ) *Service {
 	return &Service{
 		store:         store,
 		logger:        logger,
 		bridgeCard:    bridgeCard,
 		walletService: walletService,
+		streak:        streak,
+		notifySvc:     notifySvc,
+		email:         email,
+		pushSvc:       pushSvc,
 	}
 }
 
@@ -315,7 +329,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create card transaction error: %w", err)
-	}	
+	}
 
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
@@ -323,6 +337,13 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	// TODO: Send notification to user about card creation
+	go func ()  {
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.Create(ctx, int32(params.UserID), "Virtual card created", "Your virtual card has been created successfully"); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+	}()
 
 	s.logger.Info(fmt.Sprintf("Created virtual card %s for user %d", bridgeCardDetails.Data.CardID, params.UserID))
 
@@ -709,6 +730,11 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		return "", fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
+	// update streak
+	if err := s.streak.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, "card"); err != nil {
+		return "", err
+	}
+
 	return "card_debit_event.successful", nil
 }
 
@@ -746,7 +772,7 @@ func (s *Service) handleCardCreationEventFailed(ctx context.Context, failed *bri
 	return "card_creation_event.failed", nil
 }
 
-// handleCardholderVerificationSuccess handles successful cardholder verification
+// handleCardholderVerificationSuccess handles successful cardholder verification [deprecated]
 func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, success *bridgecards.CardholderVerificationSuccess) (string, error) {
 	s.logger.Info(fmt.Sprintf("Looking up user for cardholder_id: %s", success.CardholderID))
 
@@ -842,7 +868,7 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 	return "cardholder_verification.successful", nil
 }
 
-// handleCardholderVerificationFailed handles failed cardholder verification
+// handleCardholderVerificationFailed handles failed cardholder verification [deprecated]
 func (s *Service) handleCardholderVerificationFailed(ctx context.Context, failed *bridgecards.CardholderVerificationFailed) (string, error) {
 	// Look up user by cardholder_id
 	user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{
@@ -1033,18 +1059,42 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		return "", fmt.Errorf("create card funding error: %w", err)
 	}
 
-	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID: sql.NullInt64{
 			Int64: user.ID,
 			Valid: true,
 		},
-		Type:            "card",
+		Type:            string(transaction.Card),
 		TransactionFlow: sql.NullString{String: "card_funding", Valid: true},
 		Description:     sql.NullString{String: "Card credit", Valid: true},
-		Status:          "successful",
+		Status:          string(transaction.Success),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)
+	}
+
+	amount, err := strconv.Atoi(success.Amount)
+	if err != nil {
+		return "", fmt.Errorf("convert amount to int error: %w", err)
+	}
+
+	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  card.ID,
+		UserID:                  user.ID,
+		BridgecardTransactionID: success.TransactionReference,
+		Amount:                  int64(amount),
+		Currency:                success.Currency,
+		TransactionType:         "credit",
+		Fee:                     0,
+		Status:                  string(transaction.Success),
+		Mode:                    success.Livemode,
+		TransactionDate:         success.TransactionDate,
+		TransactionTimestamp:    success.TransactionTimestamp,
+		BalanceAfter:            sql.NullString{String: success.SettledBookBalance, Valid: true},
+		TransactionID:           txx.ID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create card transaction error: %w", err)
 	}
 
 	// Commit transaction
@@ -1052,7 +1102,23 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		return "", fmt.Errorf("commit transaction: %w", err)
 	}
 
-	// TODO: notification
+	// update streak
+	if err := s.streak.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, "card"); err != nil {
+		return "", err
+	}
+
+	go func () {
+		message := fmt.Sprintf("You have successfully credited your card with %s %s", success.Amount, success.Currency)
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.Create(ctx, int32(user.ID), "Virtual card credited", message); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		
+		// TODO: email
+
+		// TODO: push notification
+	}()
 	return "card_credit.success", nil
 }
 

@@ -51,17 +51,18 @@ func (v Virtualcard) router(server *Server) {
 		v1.GET("/get-card-plan-by-id", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlanById)
 		v1.GET("/get-card", server.authMiddleware.AuthenticatedMiddleware(), v.GetVirtualCard)
 		v1.GET("/get-user-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetUserCards)
-		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)             //done
-		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                      //one
-		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus)    //done
-		v1.PUT("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPlan)                    //done
-		v1.DELETE("/admin/delete-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCardPlan)                 //done
-		v1.POST("/admin/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminFreezeCard)                       //done
-		v1.POST("/admin/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUnfreezeCard)                   //done
-		v1.POST("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                       //done
-		v1.POST("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)              //done
-		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance) //done
-		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)             //done
+		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)                    //done
+		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                             //one
+		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus)           //done
+		v1.PUT("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPlan)                           //done
+		v1.DELETE("/admin/delete-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCardPlan)                        //done
+		v1.POST("/admin/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminFreezeCard)                              //done
+		v1.POST("/admin/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUnfreezeCard)                          //done
+		v1.POST("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                              //done
+		v1.POST("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)                     //done
+		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance)        //done
+		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)                    //done
+		v1.GET("/admin/list-card-transactions-by-user", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactionsByUser) //done
 	}
 
 }
@@ -1012,38 +1013,94 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Param card_id query string true "Card ID"
-// @Param page query int true "Page number"
+// @Param limit query int true "Limit"
+// @Param offset query int true "Offset"
 // @Success 200 {object} bridgecards.ListCardTransactionsResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-card-transactions [get]
 func (v *Virtualcard) ListCardTransactions(c *gin.Context) {
-	cardID := c.Query("card_id")
-	page, _ := strconv.Atoi(c.Query("page"))
-
-	if cardID == "" {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	var req bridgecards.ListCardTransactionsRequest
-	req.CardID = cardID
-	req.Page = page
-
-	// Check if card belongs to user
-	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
 	if err != nil {
-		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing limit query parameter"))
+		return
+	}
+
+	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing offset query parameter"))
+		return
+	}
+
+	response, err := v.server.queries.GetCardTransactionsByUser(c, db.GetCardTransactionsByUserParams{
+		UserID: activeUser.UserID,
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	if cardID != card.BridgecardCardID {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError("card_id does not belong to user"))
+	c.JSON(http.StatusOK, response)
+}
+
+// ListCardTransactionsByUser godoc
+// @Summary List virtual card transactions by user
+// @Description List all virtual card transactions for a user with BridgeCard
+// @Tags Cards
+// @Accept json
+// @Produce json
+// @Param user_id query int true "User ID"
+// @Param limit query int true "Limit"
+// @Param offset query int true "Offset"
+// @Success 200 {object} bridgecards.ListCardTransactionsResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/cards/admin/list-card-transactions-by-user [get]
+func (v *Virtualcard) ListCardTransactionsByUser(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	response, err := v.virtualCardSvc.ListCardTransactions(c, req)
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized access"))
+		return
+	}
+
+	user_id, err := strconv.Atoi(c.Query("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing user_id query parameter"))
+		return
+	}
+
+	limit, err := strconv.Atoi(c.DefaultQuery("limit", "10"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing limit query parameter"))
+		return
+	}
+
+	offset, err := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("missing offset query parameter"))
+		return
+	}
+
+	response, err := v.server.queries.GetCardTransactionsByUser(c, db.GetCardTransactionsByUserParams{
+		UserID: int64(user_id),
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return

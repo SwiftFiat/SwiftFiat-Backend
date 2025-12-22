@@ -238,7 +238,7 @@ func NewServer(envPath string) *Server {
 	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
 
 	// virtual card service
-	vcs := virtualcard.NewService(q, l, bridgecard, ws)
+	vcs := virtualcard.NewService(q, l, bridgecard, ws, streakScheduler, ns, email, pn)
 
 	// subscription scheduler
 	ssScheduler := subscriptions.NewScheduler(t, ss, q, l, 1*time.Hour)

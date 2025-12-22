@@ -254,9 +254,9 @@ type CardCreditSuccess struct {
 	IssuingAppID            string    `json:"issuing_app_id"`
 	CardTransactionType     string    `json:"card_transaction_type"`
 	TransactionDate         time.Time `json:"transaction_date"`
-	TransactionTimestamp    int64     `json:"transaction_timestamp"`
-	SettledAvailableBalance int64     `json:"settled_available_balance"`
-	SettledBookBalance      int64     `json:"settled_book_balance"`
+	TransactionTimestamp    time.Time `json:"transaction_timestamp"`
+	SettledAvailableBalance string     `json:"settled_available_balance"`
+	SettledBookBalance      string     `json:"settled_book_balance"`
 }
 
 type CardCreditFailed struct {
@@ -269,7 +269,7 @@ type CardCreditFailed struct {
 	IssuingAppID         string    `json:"issuing_app_id"`
 	CardTransactionType  string    `json:"card_transaction_type"`
 	TransactionDate      time.Time `json:"transaction_date"`
-	TransactionTimestamp int64     `json:"transaction_timestamp"`
+	TransactionTimestamp time.Time     `json:"transaction_timestamp"`
 }
 
 type FundIssuingWalletRequest struct {
@@ -541,10 +541,10 @@ type GetAllIssuedcardResponse struct {
 			Pin3DSActivated   bool   `json:"pin_3ds_activated"`
 		} `json:"cards"`
 		Meta struct {
-			Total  int `json:"total"`
-			Pages  int `json:"pages"`
-			Prev   string `json:"prev"`
-			Next   string `json:"next"`
+			Total int    `json:"total"`
+			Pages int    `json:"pages"`
+			Prev  string `json:"prev"`
+			Next  string `json:"next"`
 		} `json:"meta"`
 	} `json:"data"`
 }

@@ -7082,6 +7082,45 @@ paths:
       summary: Get issuing wallet balance [admin - sandbox only]
       tags:
       - Cards
+  /api/v1/cards/admin/list-card-transactions-by-user:
+    get:
+      consumes:
+      - application/json
+      description: List all virtual card transactions for a user with BridgeCard
+      parameters:
+      - description: User ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: Limit
+        in: query
+        name: limit
+        required: true
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/bridgecards.ListCardTransactionsResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List virtual card transactions by user
+      tags:
+      - Cards
   /api/v1/cards/debit-card:
     patch:
       consumes:
@@ -7434,14 +7473,14 @@ paths:
       - application/json
       description: List all virtual card transactions for a cardholder with BridgeCard
       parameters:
-      - description: Card ID
+      - description: Limit
         in: query
-        name: card_id
+        name: limit
         required: true
-        type: string
-      - description: Page number
+        type: integer
+      - description: Offset
         in: query
-        name: page
+        name: offset
         required: true
         type: integer
       produces:
@@ -11724,6 +11763,61 @@ paths:
       summary: Get Vault Transactions By User
       tags:
       - vault
+  /api/v1/vault/admin/withdraw:
+    post:
+      consumes:
+      - application/json
+      description: Admin withdraw from vault
+      parameters:
+      - description: Vault ID
+        in: query
+        name: vault_id
+        required: true
+        type: string
+      - description: User ID
+        in: query
+        name: user_id
+        required: true
+        type: integer
+      - description: Amount
+        in: query
+        name: amount
+        required: true
+        type: string
+      - description: Description
+        in: query
+        name: description
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Admin withdraw from vault
+      tags:
+      - vault
   /api/v1/vault/admin/yield-configs:
     get:
       consumes:
@@ -13205,61 +13299,6 @@ paths:
       summary: Get user VIP status
       tags:
       - Rate Manager - VIP Assignments
-  /vault/admin/withdraw:
-    post:
-      consumes:
-      - application/json
-      description: Admin withdraw from vault
-      parameters:
-      - description: Vault ID
-        in: query
-        name: vault_id
-        required: true
-        type: string
-      - description: User ID
-        in: query
-        name: user_id
-        required: true
-        type: integer
-      - description: Amount
-        in: query
-        name: amount
-        required: true
-        type: string
-      - description: Description
-        in: query
-        name: description
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Admin withdraw from vault
-      tags:
-      - vault
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

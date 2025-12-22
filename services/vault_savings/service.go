@@ -1224,7 +1224,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	}
 
 	// Update user streak
-	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "savings"); err != nil {
+	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
 		return nil, err
 	}
 
@@ -1391,6 +1391,11 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	// Update user streak
+	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
+		return nil, err
 	}
 
 	// Get user for notifications
