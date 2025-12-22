@@ -1190,6 +1190,70 @@ func (q *Queries) GetCardTransactions(ctx context.Context, arg GetCardTransactio
 	return items, nil
 }
 
+const getCardTransactionsByUser = `-- name: GetCardTransactionsByUser :many
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, merchant_country, merchant_city, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+WHERE user_id = $1
+ORDER BY transaction_date DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetCardTransactionsByUserParams struct {
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) GetCardTransactionsByUser(ctx context.Context, arg GetCardTransactionsByUserParams) ([]CardTransaction, error) {
+	rows, err := q.db.QueryContext(ctx, getCardTransactionsByUser, arg.UserID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CardTransaction{}
+	for rows.Next() {
+		var i CardTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.CardID,
+			&i.UserID,
+			&i.BridgecardTransactionID,
+			&i.TransactionType,
+			&i.MerchantName,
+			&i.MerchantCategory,
+			&i.MerchantCategoryCode,
+			&i.MerchantCountry,
+			&i.MerchantCity,
+			&i.Amount,
+			&i.Fee,
+			&i.Currency,
+			&i.BillingAmount,
+			&i.BillingCurrency,
+			&i.Status,
+			&i.DeclineReason,
+			&i.IsRecurringMerchant,
+			&i.SubscriptionID,
+			&i.BalanceAfter,
+			&i.WebhookReceivedAt,
+			&i.RawWebhookData,
+			&i.Mode,
+			&i.TransactionDate,
+			&i.TransactionTimestamp,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getCardsForAutoTopup = `-- name: GetCardsForAutoTopup :many
 SELECT vc.id, vc.user_id, vc.card_plan_id, vc.bridgecard_card_id, vc.card_name, vc.card_color, vc.currency, vc.current_month_spend, vc.current_day_spend, vc.spending_month, vc.spending_day, vc.status, vc.status_reason, vc.auto_topup_enabled, vc.auto_topup_threshold_cents, vc.auto_topup_amount_cents, vc.auto_topup_source_wallet_id, vc.next_billing_date, vc.last_billing_date, vc.last_transaction_at, vc.total_transactions_count, vc.created_at, vc.updated_at, vc.terminated_at, cp.monthly_spending_limit
 FROM virtual_cards vc

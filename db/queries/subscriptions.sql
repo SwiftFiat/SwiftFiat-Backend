@@ -305,6 +305,12 @@ WHERE card_id = $1
 ORDER BY transaction_date DESC
 LIMIT $2 OFFSET $3;
 
+-- name: GetCardTransactionsByUser :many
+SELECT * FROM card_transactions
+WHERE user_id = $1
+ORDER BY transaction_date DESC
+LIMIT $2 OFFSET $3;
+
 -- name: GetUserCardTransactions :many
 SELECT ct.*, vc.card_name
 FROM card_transactions ct

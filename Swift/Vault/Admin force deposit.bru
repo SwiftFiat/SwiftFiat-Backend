@@ -5,9 +5,14 @@ meta {
 }
 
 post {
-  url: {{BaseURl}}/vault/goals/admin-deposit
+  url: {{BaseURl}}/vault/admin/goals/deposit?vault_id=6397c870-a6a1-4fc0-a39e-1f1172535a56&user_id=1
   body: json
   auth: bearer
+}
+
+params:query {
+  vault_id: 6397c870-a6a1-4fc0-a39e-1f1172535a56
+  user_id: 1
 }
 
 auth:bearer {
