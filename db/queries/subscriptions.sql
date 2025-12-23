@@ -388,7 +388,7 @@ SET
     subcategory = COALESCE(sqlc.narg('subcategory'), subcategory),
     logo_url = COALESCE(sqlc.narg('logo_url'), logo_url),
     typical_intervals = COALESCE(sqlc.narg('typical_intervals'), typical_intervals),
-    typical_amounts_cents = COALESCE(sqlc.narg('typical_amounts_cents'), typical_amounts_cents),
+    typical_amounts = COALESCE(sqlc.narg('typical_amounts'), typical_amounts),
     auto_detect = COALESCE(sqlc.narg('auto_detect'), auto_detect),
     updated_at = NOW()
 WHERE id = $1

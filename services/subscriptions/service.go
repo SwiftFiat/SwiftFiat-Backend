@@ -31,8 +31,8 @@ type SystemSettings struct {
 	AllowDailyBilling             bool
 	AllowYearlyBilling            bool
 	DefaultAutoTopupBufferPercent decimal.Decimal
-	MaxAutoTopupAmountCents       int64
-	MinAutoTopupAmountCents       int64
+	MaxAutoTopupAmount            int64
+	MinAutoTopupAmount            int64
 	AutoTopupEnabledByDefault     bool
 	DefaultReminderDaysBefore     int
 	EnableSameDayReminders        bool
@@ -48,7 +48,7 @@ type CreateCustomSubscriptionRequest struct {
 	MerchantName           string
 	DisplayName            string
 	Category               string
-	AmountCents            int64
+	Amount                 int64
 	Currency               string
 	BillingCycle           string // 'daily', 'monthly', 'yearly'
 	FirstChargeDate        time.Time
@@ -62,7 +62,7 @@ type CreateCustomSubscriptionRequest struct {
 // UpdateCustomSubscriptionRequest defines parameters for updating custom subscription
 type UpdateCustomSubscriptionRequest struct {
 	DisplayName            *string
-	AmountCents            *int64
+	Amount            *int64
 	BillingCycle           *string
 	ReminderEnabled        *bool
 	CustomReminderTiming   *int
@@ -91,8 +91,8 @@ func (s *Service) LoadSystemSettings(ctx context.Context) (*SystemSettings, erro
 		settings.DefaultAutoTopupBufferPercent = decimal.NewFromFloat(10.0)
 	}
 
-	settings.MaxAutoTopupAmountCents, _ = s.getSettingInt64(ctx, "max_auto_topup_amount_cents")
-	settings.MinAutoTopupAmountCents, _ = s.getSettingInt64(ctx, "min_auto_topup_amount_cents")
+	settings.MaxAutoTopupAmount, _ = s.getSettingInt64(ctx, "max_auto_topup_amount_cents")
+	settings.MinAutoTopupAmount, _ = s.getSettingInt64(ctx, "min_auto_topup_amount_cents")
 	settings.AutoTopupEnabledByDefault, _ = s.getSettingBool(ctx, "auto_topup_enabled_by_default")
 
 	// Load reminder settings
@@ -169,7 +169,7 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 	}
 
 	// validate amount
-	if req.AmountCents < settings.MinSubscriptionAmountCents || req.AmountCents > settings.MaxSubscriptionAmountCents {
+	if req.Amount < settings.MinSubscriptionAmountCents || req.Amount > settings.MaxSubscriptionAmountCents {
 		return nil, fmt.Errorf("amount must be between %d and %d", settings.MinSubscriptionAmountCents, settings.MaxSubscriptionAmountCents)
 	}
 
@@ -213,7 +213,7 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 		MerchantName:            req.MerchantName,
 		DisplayName:             req.DisplayName,
 		Category:                sql.NullString{String: req.Category, Valid: req.Category != ""},
-		AmountCents:             req.AmountCents,
+		Amount:             req.Amount,
 		Currency:                req.Currency,
 		BillingIntervalDays:     billingIntervalDays,
 		FirstChargeDate:         req.FirstChargeDate,
@@ -233,6 +233,111 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 		return nil, fmt.Errorf("failed to create custom subscription: %v", err)
 	}
 	return &subscription, nil
+}
+
+// UpdateCustomSubscription updates a user-defined subscription
+func (s *Service) UpdateCustomSubscription(ctx context.Context, userID int64, subscriptionID uuid.UUID, req *UpdateCustomSubscriptionRequest) (*db.UserSubscription, error) {
+	// Get existing subscription
+	existing, err := s.store.GetUserSubscription(ctx, subscriptionID)
+	if err != nil {
+		return nil, fmt.Errorf("get subscription: %w", err)
+	}
+
+	if existing.UserID != userID {
+		return nil, fmt.Errorf("subscription does not belong to user")
+	}
+
+	if !existing.IsCustom {
+		return nil, fmt.Errorf("cannot update automatically detected subscription")
+	}
+
+	// Load system settings for validation
+	settings, err := s.LoadSystemSettings(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("load system settings: %w", err)
+	}
+
+	// Validate amount if being updated
+	if req.Amount != nil {
+		if *req.Amount < settings.MinSubscriptionAmountCents {
+			return nil, fmt.Errorf("amount must be at least $%.2f", float64(settings.MinSubscriptionAmountCents)/100)
+		}
+		if *req.Amount > settings.MaxSubscriptionAmountCents {
+			return nil, fmt.Errorf("amount cannot exceed $%.2f", float64(settings.MaxSubscriptionAmountCents)/100)
+		}
+	}
+
+	// Calculate new billing interval if cycle is being updated
+	var newBillingInterval *int32
+	if req.BillingCycle != nil {
+		switch *req.BillingCycle {
+		case "daily":
+			if !settings.AllowDailyBilling {
+				return nil, fmt.Errorf("daily billing is not allowed")
+			}
+			interval := int32(1)
+			newBillingInterval = &interval
+		case "monthly":
+			interval := int32(30)
+			newBillingInterval = &interval
+		case "yearly":
+			if !settings.AllowYearlyBilling {
+				return nil, fmt.Errorf("yearly billing is not allowed")
+			}
+			interval := int32(365)
+			newBillingInterval = &interval
+		default:
+			return nil, fmt.Errorf("invalid billing cycle: %s", *req.BillingCycle)
+		}
+	}
+
+	// Build update params
+	updateParams := db.UpdateCustomSubscriptionParams{
+		ID:     subscriptionID,
+		UserID: userID,
+	}
+
+	if req.DisplayName != nil {
+		updateParams.DisplayName = sql.NullString{String: *req.DisplayName, Valid: true}
+	}
+
+	if req.Amount != nil {
+		updateParams.Amount = sql.NullInt64{Int64: *req.Amount, Valid: true}
+	}
+
+	if newBillingInterval != nil {
+		updateParams.BillingIntervalDays = sql.NullInt32{Int32: *newBillingInterval, Valid: true}
+	}
+
+	if req.BillingCycle != nil {
+		updateParams.CustomBillingCycle = sql.NullString{String: *req.BillingCycle, Valid: true}
+	}
+
+	if req.ReminderEnabled != nil {
+		updateParams.ReminderEnabled = sql.NullBool{Bool: *req.ReminderEnabled, Valid: true}
+	}
+
+	if req.CustomReminderTiming != nil {
+		updateParams.CustomReminderTiming = sql.NullInt32{Int32: int32(*req.CustomReminderTiming), Valid: true}
+	}
+
+	if req.AutoTopupBufferPercent != nil {
+		updateParams.AutoTopupBufferPercent = sql.NullString{String: req.AutoTopupBufferPercent.String(), Valid: true}
+	}
+
+	if req.Notes != nil {
+		updateParams.Notes = sql.NullString{String: *req.Notes, Valid: true}
+	}
+
+	// Update subscription
+	updated, err := s.store.UpdateCustomSubscription(ctx, updateParams)
+	if err != nil {
+		return nil, fmt.Errorf("update custom subscription: %w", err)
+	}
+
+	s.logger.Infof("Updated custom subscription %s for user %d", subscriptionID, userID)
+
+	return &updated, nil
 }
 
 // DetectAndLogSubscription analyzes a card transaction to detect if it's a subscription
@@ -341,7 +446,7 @@ func (s *Service) createNewSubscription(
 		MerchantName:            transaction.MerchantName.String,
 		DisplayName:             displayName,
 		Category:                sql.NullString{String: category, Valid: true},
-		AmountCents:             transaction.Amount,
+		Amount:             transaction.Amount,
 		Currency:                transaction.Currency,
 		BillingIntervalDays:     billingInterval,
 		FirstChargeDate:         transaction.TransactionDate,
@@ -386,7 +491,7 @@ func (s *Service) updateExistingSubscription(
 		ID:                      subscription.ID,
 		LastChargeDate:          transaction.TransactionDate,
 		NextEstimatedChargeDate: nextChargeDate,
-		AmountCents:             transaction.Amount,
+		Amount:             transaction.Amount,
 	})
 
 	if err != nil {
@@ -439,7 +544,7 @@ func (s *Service) createRenewalReminder(ctx context.Context, subscription db.Get
 
 	title := fmt.Sprintf("%s Renewal Coming Up", subscription.DisplayName)
 	message := fmt.Sprintf("Your %s subscription ($%.2f) will renew in %d days. Make sure your card has sufficient balance.",
-		subscription.DisplayName, float64(subscription.AmountCents)/100, daysUntilRenewal)
+		subscription.DisplayName, float64(subscription.Amount)/100, daysUntilRenewal)
 
 	_, err := s.store.CreateSubscriptionReminder(ctx, db.CreateSubscriptionReminderParams{
 		SubscriptionID: subscription.ID,
@@ -482,7 +587,7 @@ func (s *Service) HandleFailedRenewal(ctx context.Context, subscriptionID uuid.U
 	// Create failure notification
 	title := fmt.Sprintf("%s Payment Failed", subscription.DisplayName)
 	message := fmt.Sprintf("Your %s subscription payment of $%.2f failed. Reason: %s. Please fund your card to avoid service interruption.",
-		subscription.DisplayName, float64(subscription.AmountCents)/100, reason)
+		subscription.DisplayName, float64(subscription.Amount)/100, reason)
 
 	_, err = s.store.CreateSubscriptionReminder(ctx, db.CreateSubscriptionReminderParams{
 		SubscriptionID: subscription.ID,
@@ -542,7 +647,7 @@ func (s *Service) checkAndTopUpCard(ctx context.Context, subscription db.GetSubs
 	// TODO: Get current card balance from BridgeCard API
 	// For now, we'll assume we need to check against threshold
 
-	if !card.AutoTopupThresholdCents.Valid || !card.AutoTopupAmountCents.Valid {
+	if !card.AutoTopupThreshold.Valid || !card.AutoTopupAmount.Valid {
 		return fmt.Errorf("auto top-up configuration incomplete")
 	}
 
@@ -575,6 +680,61 @@ func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 		NextChargeDate:    summary.NextChargeDate,
 		CategoryBreakdown: categoryBreakdown,
 	}, nil
+}
+
+// CalculateAutoTopupAmount calculates the auto topup amount based on subscription and buffer
+func (s *Service) CalculateAutoTopupAmount(ctx context.Context, subscription *db.UserSubscription) (int64, error) {
+	settings, err := s.LoadSystemSettings(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("load system settings: %w", err)
+	}
+
+	// Get buffer percent
+	bufferPercent := settings.DefaultAutoTopupBufferPercent
+	if subscription.AutoTopupBufferPercent.Valid {
+		bufferPercent, _ = decimal.NewFromString(subscription.AutoTopupBufferPercent.String)
+	}
+
+	// Calculate amount with buffer
+	baseAmount := decimal.NewFromInt(subscription.Amount)
+	bufferMultiplier := decimal.NewFromInt(100).Add(bufferPercent).Div(decimal.NewFromInt(100))
+	topupAmount := baseAmount.Mul(bufferMultiplier)
+
+	// Enforce limits
+	topupAmountInt := topupAmount.IntPart()
+	if topupAmountInt < settings.MinAutoTopupAmount {
+		topupAmountInt = settings.MinAutoTopupAmount
+	}
+	if topupAmountInt > settings.MaxAutoTopupAmount {
+		topupAmountInt = settings.MaxAutoTopupAmount
+	}
+
+	return topupAmountInt, nil
+}
+
+// ValidateBillingCycle validates if a billing cycle is allowed
+func (s *Service) ValidateBillingCycle(ctx context.Context, cycle string) error {
+	settings, err := s.LoadSystemSettings(ctx)
+	if err != nil {
+		return fmt.Errorf("load system settings: %w", err)
+	}
+
+	switch cycle {
+	case "daily":
+		if !settings.AllowDailyBilling {
+			return fmt.Errorf("daily billing is not enabled")
+		}
+	case "monthly":
+		return nil
+	case "yearly":
+		if !settings.AllowYearlyBilling {
+			return fmt.Errorf("yearly billing is not enabled")
+		}
+	default:
+		return fmt.Errorf("invalid billing cycle: %s", cycle)
+	}
+
+	return nil
 }
 
 // Helper functions

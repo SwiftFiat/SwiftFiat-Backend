@@ -203,6 +203,13 @@ const (
 	EventUpdateAutoTopup = "subscriptions.auto_topup.updated"
 	EventUpdateSubscriptionStatus = "subscriptions.status.updated"
 	EventUpdateSubscriptionPreferences = "subscriptions.preferences.updated"
+	EventCreateCustomSubscription = "subscriptions.custom.created"
+	EventUpdateCustomSubscription = "subscriptions.custom.updated"
+	EventDeleteCustomSubscription = "subscriptions.custom.deleted"
+	EventCreateSubscription = "subscriptions.created"
+	EventUpdateSubscription = "subscriptions.updated"
+	EventDeleteSubscription = "subscriptions.deleted"
+	EventUpdateSubscriptionSystemSetting = "subscriptions.system_setting.updated"
 
 	EventUpdateQrCodeStatus = "rapid-ramp.qr-code.status.updated"
 )

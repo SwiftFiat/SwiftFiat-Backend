@@ -22,7 +22,7 @@ SET
     terminated_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type ActivateCardParams struct {
@@ -48,8 +48,8 @@ func (q *Queries) ActivateCard(ctx context.Context, arg ActivateCardParams) (Vir
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -71,7 +71,7 @@ SET
 WHERE id = (
     SELECT us.card_id FROM user_subscriptions us WHERE us.id = $1
 )
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type AdminToggleCardAutoTopupParams struct {
@@ -100,8 +100,8 @@ func (q *Queries) AdminToggleCardAutoTopup(ctx context.Context, arg AdminToggleC
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -121,7 +121,7 @@ SET
     cancelled_at = CASE WHEN $2 IN ('cancelled', 'paused') THEN NOW() ELSE cancelled_at END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type AdminUpdateSubscriptionStatusParams struct {
@@ -140,7 +140,7 @@ func (q *Queries) AdminUpdateSubscriptionStatus(ctx context.Context, arg AdminUp
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -441,14 +441,14 @@ const createCustomSubscription = `-- name: CreateCustomSubscription :one
 
 INSERT INTO user_subscriptions (
     user_id, card_id, merchant_name, display_name, category,
-    amount_cents, currency, billing_interval_days,
+    amount, currency, billing_interval_days,
     first_charge_date, last_charge_date, next_estimated_charge_date,
     status, confidence_score, reminder_enabled, reminder_days_before,
     is_custom, custom_billing_cycle, custom_amount_override,
     auto_topup_buffer_percent, custom_reminder_timing, notes
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
-) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type CreateCustomSubscriptionParams struct {
@@ -457,7 +457,7 @@ type CreateCustomSubscriptionParams struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -485,7 +485,7 @@ func (q *Queries) CreateCustomSubscription(ctx context.Context, arg CreateCustom
 		arg.MerchantName,
 		arg.DisplayName,
 		arg.Category,
-		arg.AmountCents,
+		arg.Amount,
 		arg.Currency,
 		arg.BillingIntervalDays,
 		arg.FirstChargeDate,
@@ -511,7 +511,7 @@ func (q *Queries) CreateCustomSubscription(ctx context.Context, arg CreateCustom
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -545,26 +545,26 @@ const createSubscriptionMerchant = `-- name: CreateSubscriptionMerchant :one
 INSERT INTO subscription_merchants (
     merchant_name, display_name, aliases, category, subcategory,
     logo_url, website, description, typical_intervals,
-    typical_amounts_cents, mcc_codes, match_confidence, auto_detect
+    typical_amounts, mcc_codes, match_confidence, auto_detect
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
-) RETURNING id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at
+) RETURNING id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at
 `
 
 type CreateSubscriptionMerchantParams struct {
-	MerchantName        string         `json:"merchant_name"`
-	DisplayName         string         `json:"display_name"`
-	Aliases             []string       `json:"aliases"`
-	Category            string         `json:"category"`
-	Subcategory         sql.NullString `json:"subcategory"`
-	LogoUrl             sql.NullString `json:"logo_url"`
-	Website             sql.NullString `json:"website"`
-	Description         sql.NullString `json:"description"`
-	TypicalIntervals    []int32        `json:"typical_intervals"`
-	TypicalAmountsCents []int64        `json:"typical_amounts_cents"`
-	MccCodes            []string       `json:"mcc_codes"`
-	MatchConfidence     string         `json:"match_confidence"`
-	AutoDetect          bool           `json:"auto_detect"`
+	MerchantName     string         `json:"merchant_name"`
+	DisplayName      string         `json:"display_name"`
+	Aliases          []string       `json:"aliases"`
+	Category         string         `json:"category"`
+	Subcategory      sql.NullString `json:"subcategory"`
+	LogoUrl          sql.NullString `json:"logo_url"`
+	Website          sql.NullString `json:"website"`
+	Description      sql.NullString `json:"description"`
+	TypicalIntervals []int32        `json:"typical_intervals"`
+	TypicalAmounts   []int64        `json:"typical_amounts"`
+	MccCodes         []string       `json:"mcc_codes"`
+	MatchConfidence  string         `json:"match_confidence"`
+	AutoDetect       bool           `json:"auto_detect"`
 }
 
 // ============================================================================
@@ -581,7 +581,7 @@ func (q *Queries) CreateSubscriptionMerchant(ctx context.Context, arg CreateSubs
 		arg.Website,
 		arg.Description,
 		pq.Array(arg.TypicalIntervals),
-		pq.Array(arg.TypicalAmountsCents),
+		pq.Array(arg.TypicalAmounts),
 		pq.Array(arg.MccCodes),
 		arg.MatchConfidence,
 		arg.AutoDetect,
@@ -599,7 +599,7 @@ func (q *Queries) CreateSubscriptionMerchant(ctx context.Context, arg CreateSubs
 		&i.Description,
 		&i.MerchantCountry,
 		pq.Array(&i.TypicalIntervals),
-		pq.Array(&i.TypicalAmountsCents),
+		pq.Array(&i.TypicalAmounts),
 		pq.Array(&i.MccCodes),
 		&i.MatchConfidence,
 		&i.IsActive,
@@ -669,12 +669,12 @@ const createUserSubscription = `-- name: CreateUserSubscription :one
 
 INSERT INTO user_subscriptions (
     user_id, card_id, merchant_id, merchant_name, display_name,
-    category, amount_cents, currency, billing_interval_days,
+    category, amount, currency, billing_interval_days,
     first_charge_date, last_charge_date, next_estimated_charge_date,
     status, confidence_score, reminder_enabled, reminder_days_before
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type CreateUserSubscriptionParams struct {
@@ -684,7 +684,7 @@ type CreateUserSubscriptionParams struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -707,7 +707,7 @@ func (q *Queries) CreateUserSubscription(ctx context.Context, arg CreateUserSubs
 		arg.MerchantName,
 		arg.DisplayName,
 		arg.Category,
-		arg.AmountCents,
+		arg.Amount,
 		arg.Currency,
 		arg.BillingIntervalDays,
 		arg.FirstChargeDate,
@@ -727,7 +727,7 @@ func (q *Queries) CreateUserSubscription(ctx context.Context, arg CreateUserSubs
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -763,7 +763,7 @@ INSERT INTO virtual_cards (
     currency, status, next_billing_date, spending_month
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9
-) RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+) RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type CreateVirtualCardParams struct {
@@ -809,8 +809,8 @@ func (q *Queries) CreateVirtualCard(ctx context.Context, arg CreateVirtualCardPa
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -830,7 +830,7 @@ SET
     terminated_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type DeactivateCardParams struct {
@@ -856,8 +856,8 @@ func (q *Queries) DeactivateCard(ctx context.Context, arg DeactivateCardParams) 
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -882,7 +882,7 @@ func (q *Queries) DeleteCardPlan(ctx context.Context, id int64) error {
 }
 
 const findExistingSubscription = `-- name: FindExistingSubscription :one
-SELECT id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at FROM user_subscriptions
+SELECT id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at FROM user_subscriptions
 WHERE user_id = $1 
   AND card_id = $2
   AND LOWER(merchant_name) = LOWER($3)
@@ -907,7 +907,7 @@ func (q *Queries) FindExistingSubscription(ctx context.Context, arg FindExisting
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -937,7 +937,7 @@ func (q *Queries) FindExistingSubscription(ctx context.Context, arg FindExisting
 }
 
 const findSubscriptionMerchantByPattern = `-- name: FindSubscriptionMerchantByPattern :one
-SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
+SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
 WHERE is_active = TRUE 
   AND auto_detect = TRUE
   AND (
@@ -962,7 +962,7 @@ func (q *Queries) FindSubscriptionMerchantByPattern(ctx context.Context, lower s
 		&i.Description,
 		&i.MerchantCountry,
 		pq.Array(&i.TypicalIntervals),
-		pq.Array(&i.TypicalAmountsCents),
+		pq.Array(&i.TypicalAmounts),
 		pq.Array(&i.MccCodes),
 		&i.MatchConfidence,
 		&i.IsActive,
@@ -980,7 +980,7 @@ SET
     terminated_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type FreezeCardParams struct {
@@ -1006,8 +1006,8 @@ func (q *Queries) FreezeCard(ctx context.Context, arg FreezeCardParams) (Virtual
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -1237,7 +1237,7 @@ const getCardSpendingByMonth = `-- name: GetCardSpendingByMonth :many
 SELECT 
     DATE_TRUNC('month', transaction_date) as month,
     COUNT(*) as transaction_count,
-    SUM(amount_cents) as total_spend_cents
+    SUM(amount) as total_spend_cents
 FROM card_transactions
 WHERE card_id = $1 
   AND status = 'approved'
@@ -1479,7 +1479,7 @@ func (q *Queries) GetCardTransactionsByUser(ctx context.Context, arg GetCardTran
 }
 
 const getCardsForAutoTopup = `-- name: GetCardsForAutoTopup :many
-SELECT vc.id, vc.user_id, vc.card_plan_id, vc.bridgecard_card_id, vc.card_name, vc.card_color, vc.currency, vc.current_month_spend, vc.current_day_spend, vc.spending_month, vc.spending_day, vc.status, vc.status_reason, vc.auto_topup_enabled, vc.auto_topup_threshold_cents, vc.auto_topup_amount_cents, vc.auto_topup_source_wallet_id, vc.next_billing_date, vc.last_billing_date, vc.last_transaction_at, vc.total_transactions_count, vc.created_at, vc.updated_at, vc.terminated_at, cp.monthly_spending_limit
+SELECT vc.id, vc.user_id, vc.card_plan_id, vc.bridgecard_card_id, vc.card_name, vc.card_color, vc.currency, vc.current_month_spend, vc.current_day_spend, vc.spending_month, vc.spending_day, vc.status, vc.status_reason, vc.auto_topup_enabled, vc.auto_topup_threshold, vc.auto_topup_amount, vc.auto_topup_source_wallet_id, vc.next_billing_date, vc.last_billing_date, vc.last_transaction_at, vc.total_transactions_count, vc.created_at, vc.updated_at, vc.terminated_at, cp.monthly_spending_limit
 FROM virtual_cards vc
 JOIN card_plans cp ON vc.card_plan_id = cp.id
 WHERE vc.status = 'active'
@@ -1502,8 +1502,8 @@ type GetCardsForAutoTopupRow struct {
 	Status                  string         `json:"status"`
 	StatusReason            sql.NullString `json:"status_reason"`
 	AutoTopupEnabled        bool           `json:"auto_topup_enabled"`
-	AutoTopupThresholdCents sql.NullInt64  `json:"auto_topup_threshold_cents"`
-	AutoTopupAmountCents    sql.NullInt64  `json:"auto_topup_amount_cents"`
+	AutoTopupThreshold      sql.NullInt64  `json:"auto_topup_threshold"`
+	AutoTopupAmount         sql.NullInt64  `json:"auto_topup_amount"`
 	AutoTopupSourceWalletID uuid.NullUUID  `json:"auto_topup_source_wallet_id"`
 	NextBillingDate         sql.NullTime   `json:"next_billing_date"`
 	LastBillingDate         sql.NullTime   `json:"last_billing_date"`
@@ -1539,8 +1539,8 @@ func (q *Queries) GetCardsForAutoTopup(ctx context.Context) ([]GetCardsForAutoTo
 			&i.Status,
 			&i.StatusReason,
 			&i.AutoTopupEnabled,
-			&i.AutoTopupThresholdCents,
-			&i.AutoTopupAmountCents,
+			&i.AutoTopupThreshold,
+			&i.AutoTopupAmount,
 			&i.AutoTopupSourceWalletID,
 			&i.NextBillingDate,
 			&i.LastBillingDate,
@@ -1565,7 +1565,7 @@ func (q *Queries) GetCardsForAutoTopup(ctx context.Context) ([]GetCardsForAutoTo
 }
 
 const getCardsForBilling = `-- name: GetCardsForBilling :many
-SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
+SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
 WHERE status = 'active' 
   AND next_billing_date <= NOW()
   AND terminated_at IS NULL
@@ -1597,8 +1597,8 @@ func (q *Queries) GetCardsForBilling(ctx context.Context, limit int32) ([]Virtua
 			&i.Status,
 			&i.StatusReason,
 			&i.AutoTopupEnabled,
-			&i.AutoTopupThresholdCents,
-			&i.AutoTopupAmountCents,
+			&i.AutoTopupThreshold,
+			&i.AutoTopupAmount,
 			&i.AutoTopupSourceWalletID,
 			&i.NextBillingDate,
 			&i.LastBillingDate,
@@ -1634,7 +1634,7 @@ func (q *Queries) GetCustomSubscriptionCount(ctx context.Context, userID int64) 
 }
 
 const getPendingReminders = `-- name: GetPendingReminders :many
-SELECT sr.id, sr.subscription_id, sr.user_id, sr.reminder_type, sr.scheduled_for, sr.sent_at, sr.title, sr.message, sr.action_url, sr.channels, sr.status, sr.created_at, us.merchant_name, us.amount_cents
+SELECT sr.id, sr.subscription_id, sr.user_id, sr.reminder_type, sr.scheduled_for, sr.sent_at, sr.title, sr.message, sr.action_url, sr.channels, sr.status, sr.created_at, us.merchant_name, us.amount
 FROM subscription_reminders sr
 JOIN user_subscriptions us ON sr.subscription_id = us.id
 WHERE sr.status = 'pending' AND sr.scheduled_for <= NOW()
@@ -1656,7 +1656,7 @@ type GetPendingRemindersRow struct {
 	Status         string         `json:"status"`
 	CreatedAt      time.Time      `json:"created_at"`
 	MerchantName   string         `json:"merchant_name"`
-	AmountCents    int64          `json:"amount_cents"`
+	Amount         int64          `json:"amount"`
 }
 
 func (q *Queries) GetPendingReminders(ctx context.Context, limit int32) ([]GetPendingRemindersRow, error) {
@@ -1682,7 +1682,7 @@ func (q *Queries) GetPendingReminders(ctx context.Context, limit int32) ([]GetPe
 			&i.Status,
 			&i.CreatedAt,
 			&i.MerchantName,
-			&i.AmountCents,
+			&i.Amount,
 		); err != nil {
 			return nil, err
 		}
@@ -1760,7 +1760,7 @@ func (q *Queries) GetRecurringTransactions(ctx context.Context, arg GetRecurring
 }
 
 const getSubscriptionMerchant = `-- name: GetSubscriptionMerchant :one
-SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants WHERE id = $1
+SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants WHERE id = $1
 `
 
 func (q *Queries) GetSubscriptionMerchant(ctx context.Context, id int64) (SubscriptionMerchant, error) {
@@ -1778,7 +1778,7 @@ func (q *Queries) GetSubscriptionMerchant(ctx context.Context, id int64) (Subscr
 		&i.Description,
 		&i.MerchantCountry,
 		pq.Array(&i.TypicalIntervals),
-		pq.Array(&i.TypicalAmountsCents),
+		pq.Array(&i.TypicalAmounts),
 		pq.Array(&i.MccCodes),
 		&i.MatchConfidence,
 		&i.IsActive,
@@ -1790,7 +1790,7 @@ func (q *Queries) GetSubscriptionMerchant(ctx context.Context, id int64) (Subscr
 }
 
 const getSubscriptionMerchantByName = `-- name: GetSubscriptionMerchantByName :one
-SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants 
+SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants 
 WHERE LOWER(merchant_name) = LOWER($1) AND is_active = TRUE
 `
 
@@ -1809,7 +1809,7 @@ func (q *Queries) GetSubscriptionMerchantByName(ctx context.Context, lower strin
 		&i.Description,
 		&i.MerchantCountry,
 		pq.Array(&i.TypicalIntervals),
-		pq.Array(&i.TypicalAmountsCents),
+		pq.Array(&i.TypicalAmounts),
 		pq.Array(&i.MccCodes),
 		&i.MatchConfidence,
 		&i.IsActive,
@@ -1826,7 +1826,7 @@ SELECT
     COUNT(*) as total_subscriptions,
     COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
     COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
 FROM user_subscriptions
 WHERE user_id = $1
 `
@@ -1857,7 +1857,7 @@ const getSubscriptionsByCategory = `-- name: GetSubscriptionsByCategory :many
 SELECT 
     category,
     COUNT(*) as subscription_count,
-    SUM(amount_cents) as total_spend_cents
+    SUM(amount) as total_spend_cents
 FROM user_subscriptions
 WHERE user_id = $1 AND status = 'active'
 GROUP BY category
@@ -1894,7 +1894,7 @@ func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID int64) 
 }
 
 const getSubscriptionsDueForReminder = `-- name: GetSubscriptionsDueForReminder :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.status = 'active'
@@ -1924,7 +1924,7 @@ type GetSubscriptionsDueForReminderRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -1969,7 +1969,7 @@ func (q *Queries) GetSubscriptionsDueForReminder(ctx context.Context, arg GetSub
 			&i.MerchantName,
 			&i.DisplayName,
 			&i.Category,
-			&i.AmountCents,
+			&i.Amount,
 			&i.Currency,
 			&i.BillingIntervalDays,
 			&i.FirstChargeDate,
@@ -2036,7 +2036,7 @@ const getTopMerchantsBySpend = `-- name: GetTopMerchantsBySpend :many
 SELECT 
     merchant_name,
     COUNT(*) as transaction_count,
-    SUM(amount_cents) as total_spend_cents,
+    SUM(amount) as total_spend_cents,
     MAX(transaction_date) as last_transaction_date
 FROM card_transactions
 WHERE user_id = $1 
@@ -2334,7 +2334,7 @@ SELECT
     COUNT(DISTINCT vc.id) as total_cards,
     COUNT(DISTINCT vc.id) FILTER (WHERE vc.status = 'active') as active_cards,
     COUNT(DISTINCT ct.id) as total_transactions,
-    COALESCE(SUM(ct.amount_cents) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
+    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
     COUNT(DISTINCT us.id) FILTER (WHERE us.status = 'active') as active_subscriptions
 FROM virtual_cards vc
 LEFT JOIN card_transactions ct ON vc.id = ct.card_id
@@ -2461,7 +2461,7 @@ func (q *Queries) GetUserCardTransactions(ctx context.Context, arg GetUserCardTr
 }
 
 const getUserCards = `-- name: GetUserCards :many
-SELECT vc.id, vc.user_id, vc.card_plan_id, vc.bridgecard_card_id, vc.card_name, vc.card_color, vc.currency, vc.current_month_spend, vc.current_day_spend, vc.spending_month, vc.spending_day, vc.status, vc.status_reason, vc.auto_topup_enabled, vc.auto_topup_threshold_cents, vc.auto_topup_amount_cents, vc.auto_topup_source_wallet_id, vc.next_billing_date, vc.last_billing_date, vc.last_transaction_at, vc.total_transactions_count, vc.created_at, vc.updated_at, vc.terminated_at, cp.name as plan_name, cp.monthly_spending_limit, cp.transaction_limit
+SELECT vc.id, vc.user_id, vc.card_plan_id, vc.bridgecard_card_id, vc.card_name, vc.card_color, vc.currency, vc.current_month_spend, vc.current_day_spend, vc.spending_month, vc.spending_day, vc.status, vc.status_reason, vc.auto_topup_enabled, vc.auto_topup_threshold, vc.auto_topup_amount, vc.auto_topup_source_wallet_id, vc.next_billing_date, vc.last_billing_date, vc.last_transaction_at, vc.total_transactions_count, vc.created_at, vc.updated_at, vc.terminated_at, cp.name as plan_name, cp.monthly_spending_limit, cp.transaction_limit
 FROM virtual_cards vc
 JOIN card_plans cp ON vc.card_plan_id = cp.id
 WHERE vc.user_id = $1 AND vc.terminated_at IS NULL
@@ -2483,8 +2483,8 @@ type GetUserCardsRow struct {
 	Status                  string         `json:"status"`
 	StatusReason            sql.NullString `json:"status_reason"`
 	AutoTopupEnabled        bool           `json:"auto_topup_enabled"`
-	AutoTopupThresholdCents sql.NullInt64  `json:"auto_topup_threshold_cents"`
-	AutoTopupAmountCents    sql.NullInt64  `json:"auto_topup_amount_cents"`
+	AutoTopupThreshold      sql.NullInt64  `json:"auto_topup_threshold"`
+	AutoTopupAmount         sql.NullInt64  `json:"auto_topup_amount"`
 	AutoTopupSourceWalletID uuid.NullUUID  `json:"auto_topup_source_wallet_id"`
 	NextBillingDate         sql.NullTime   `json:"next_billing_date"`
 	LastBillingDate         sql.NullTime   `json:"last_billing_date"`
@@ -2522,8 +2522,8 @@ func (q *Queries) GetUserCards(ctx context.Context, userID int64) ([]GetUserCard
 			&i.Status,
 			&i.StatusReason,
 			&i.AutoTopupEnabled,
-			&i.AutoTopupThresholdCents,
-			&i.AutoTopupAmountCents,
+			&i.AutoTopupThreshold,
+			&i.AutoTopupAmount,
 			&i.AutoTopupSourceWalletID,
 			&i.NextBillingDate,
 			&i.LastBillingDate,
@@ -2550,7 +2550,7 @@ func (q *Queries) GetUserCards(ctx context.Context, userID int64) ([]GetUserCard
 }
 
 const getUserCustomSubscriptions = `-- name: GetUserCustomSubscriptions :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.user_id = $1 AND us.is_custom = TRUE AND us.status = 'active'
@@ -2565,7 +2565,7 @@ type GetUserCustomSubscriptionsRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -2611,7 +2611,7 @@ func (q *Queries) GetUserCustomSubscriptions(ctx context.Context, userID int64) 
 			&i.MerchantName,
 			&i.DisplayName,
 			&i.Category,
-			&i.AmountCents,
+			&i.Amount,
 			&i.Currency,
 			&i.BillingIntervalDays,
 			&i.FirstChargeDate,
@@ -2702,7 +2702,7 @@ func (q *Queries) GetUserReminders(ctx context.Context, arg GetUserRemindersPara
 }
 
 const getUserSubscription = `-- name: GetUserSubscription :one
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.id = $1
@@ -2716,7 +2716,7 @@ type GetUserSubscriptionRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -2756,7 +2756,7 @@ func (q *Queries) GetUserSubscription(ctx context.Context, id uuid.UUID) (GetUse
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -2791,7 +2791,7 @@ const getUserSubscriptionSummary = `-- name: GetUserSubscriptionSummary :one
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1
@@ -2817,7 +2817,7 @@ func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 }
 
 const getUserSubscriptions = `-- name: GetUserSubscriptions :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.user_id = $1 AND us.status = 'active'
@@ -2832,7 +2832,7 @@ type GetUserSubscriptionsRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -2878,7 +2878,7 @@ func (q *Queries) GetUserSubscriptions(ctx context.Context, userID int64) ([]Get
 			&i.MerchantName,
 			&i.DisplayName,
 			&i.Category,
-			&i.AmountCents,
+			&i.Amount,
 			&i.Currency,
 			&i.BillingIntervalDays,
 			&i.FirstChargeDate,
@@ -2920,7 +2920,7 @@ func (q *Queries) GetUserSubscriptions(ctx context.Context, userID int64) ([]Get
 }
 
 const getUserSubscriptionsByCard = `-- name: GetUserSubscriptionsByCard :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.card_id = $1 AND us.status = 'active'
@@ -2935,7 +2935,7 @@ type GetUserSubscriptionsByCardRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -2981,7 +2981,7 @@ func (q *Queries) GetUserSubscriptionsByCard(ctx context.Context, cardID uuid.UU
 			&i.MerchantName,
 			&i.DisplayName,
 			&i.Category,
-			&i.AmountCents,
+			&i.Amount,
 			&i.Currency,
 			&i.BillingIntervalDays,
 			&i.FirstChargeDate,
@@ -3023,7 +3023,7 @@ func (q *Queries) GetUserSubscriptionsByCard(ctx context.Context, cardID uuid.UU
 }
 
 const getVirtualCard = `-- name: GetVirtualCard :one
-SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
+SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
 WHERE id = $1 AND terminated_at IS NULL
 `
 
@@ -3045,8 +3045,8 @@ func (q *Queries) GetVirtualCard(ctx context.Context, id uuid.UUID) (VirtualCard
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3060,7 +3060,7 @@ func (q *Queries) GetVirtualCard(ctx context.Context, id uuid.UUID) (VirtualCard
 }
 
 const getVirtualCardByBridgeCardID = `-- name: GetVirtualCardByBridgeCardID :one
-SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
+SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
 WHERE bridgecard_card_id = $1 AND terminated_at IS NULL
 `
 
@@ -3082,8 +3082,8 @@ func (q *Queries) GetVirtualCardByBridgeCardID(ctx context.Context, bridgecardCa
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3207,7 +3207,7 @@ func (q *Queries) LinkTransactionToSubscription(ctx context.Context, arg LinkTra
 }
 
 const listAllSubscriptions = `-- name: ListAllSubscriptions :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 ORDER BY us.next_estimated_charge_date ASC
@@ -3221,7 +3221,7 @@ type ListAllSubscriptionsRow struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -3267,7 +3267,7 @@ func (q *Queries) ListAllSubscriptions(ctx context.Context) ([]ListAllSubscripti
 			&i.MerchantName,
 			&i.DisplayName,
 			&i.Category,
-			&i.AmountCents,
+			&i.Amount,
 			&i.Currency,
 			&i.BillingIntervalDays,
 			&i.FirstChargeDate,
@@ -3354,7 +3354,7 @@ func (q *Queries) ListCardPlans(ctx context.Context) ([]CardPlan, error) {
 }
 
 const listSubscriptionMerchants = `-- name: ListSubscriptionMerchants :many
-SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
+SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
 WHERE is_active = TRUE
 ORDER BY display_name ASC
 `
@@ -3380,7 +3380,7 @@ func (q *Queries) ListSubscriptionMerchants(ctx context.Context) ([]Subscription
 			&i.Description,
 			&i.MerchantCountry,
 			pq.Array(&i.TypicalIntervals),
-			pq.Array(&i.TypicalAmountsCents),
+			pq.Array(&i.TypicalAmounts),
 			pq.Array(&i.MccCodes),
 			&i.MatchConfidence,
 			&i.IsActive,
@@ -3402,7 +3402,7 @@ func (q *Queries) ListSubscriptionMerchants(ctx context.Context) ([]Subscription
 }
 
 const listSubscriptionMerchantsByCategory = `-- name: ListSubscriptionMerchantsByCategory :many
-SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
+SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
 WHERE category = $1 AND is_active = TRUE
 ORDER BY display_name ASC
 `
@@ -3428,7 +3428,7 @@ func (q *Queries) ListSubscriptionMerchantsByCategory(ctx context.Context, categ
 			&i.Description,
 			&i.MerchantCountry,
 			pq.Array(&i.TypicalIntervals),
-			pq.Array(&i.TypicalAmountsCents),
+			pq.Array(&i.TypicalAmounts),
 			pq.Array(&i.MccCodes),
 			&i.MatchConfidence,
 			&i.IsActive,
@@ -3522,7 +3522,7 @@ SET
     terminated_at = NOW(),
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type TerminateCardParams struct {
@@ -3548,8 +3548,8 @@ func (q *Queries) TerminateCard(ctx context.Context, arg TerminateCardParams) (V
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3569,7 +3569,7 @@ SET
     terminated_at = NULL,
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UnfreezeCardParams struct {
@@ -3595,8 +3595,8 @@ func (q *Queries) UnfreezeCard(ctx context.Context, arg UnfreezeCardParams) (Vir
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3613,19 +3613,19 @@ const updateCardAutoTopup = `-- name: UpdateCardAutoTopup :one
 UPDATE virtual_cards
 SET 
     auto_topup_enabled = $2,
-    auto_topup_threshold_cents = $3,
-    auto_topup_amount_cents = $4,
+    auto_topup_threshold = $3,
+    auto_topup_amount = $4,
     auto_topup_source_wallet_id = $5,
     updated_at = NOW()
 WHERE id = $1 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UpdateCardAutoTopupParams struct {
 	ID                      uuid.UUID     `json:"id"`
 	AutoTopupEnabled        bool          `json:"auto_topup_enabled"`
-	AutoTopupThresholdCents sql.NullInt64 `json:"auto_topup_threshold_cents"`
-	AutoTopupAmountCents    sql.NullInt64 `json:"auto_topup_amount_cents"`
+	AutoTopupThreshold      sql.NullInt64 `json:"auto_topup_threshold"`
+	AutoTopupAmount         sql.NullInt64 `json:"auto_topup_amount"`
 	AutoTopupSourceWalletID uuid.NullUUID `json:"auto_topup_source_wallet_id"`
 }
 
@@ -3633,8 +3633,8 @@ func (q *Queries) UpdateCardAutoTopup(ctx context.Context, arg UpdateCardAutoTop
 	row := q.db.QueryRowContext(ctx, updateCardAutoTopup,
 		arg.ID,
 		arg.AutoTopupEnabled,
-		arg.AutoTopupThresholdCents,
-		arg.AutoTopupAmountCents,
+		arg.AutoTopupThreshold,
+		arg.AutoTopupAmount,
 		arg.AutoTopupSourceWalletID,
 	)
 	var i VirtualCard
@@ -3653,8 +3653,8 @@ func (q *Queries) UpdateCardAutoTopup(ctx context.Context, arg UpdateCardAutoTop
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3674,7 +3674,7 @@ SET
     last_billing_date = $3,
     updated_at = NOW()
 WHERE id = $1 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UpdateCardBillingParams struct {
@@ -3701,8 +3701,8 @@ func (q *Queries) UpdateCardBilling(ctx context.Context, arg UpdateCardBillingPa
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3805,7 +3805,7 @@ SET
     card_color = COALESCE($3, card_color),
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UpdateCardNameParams struct {
@@ -3832,8 +3832,8 @@ func (q *Queries) UpdateCardName(ctx context.Context, arg UpdateCardNameParams) 
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3938,7 +3938,7 @@ SET
     updated_at = NOW()
 WHERE id = $4
   AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UpdateCardSpendingParams struct {
@@ -3971,8 +3971,8 @@ func (q *Queries) UpdateCardSpending(ctx context.Context, arg UpdateCardSpending
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -3992,7 +3992,7 @@ SET
     status_reason = $3,
     updated_at = NOW()
 WHERE id = $1 AND terminated_at IS NULL
-RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold_cents, auto_topup_amount_cents, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
+RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at
 `
 
 type UpdateCardStatusParams struct {
@@ -4019,8 +4019,8 @@ func (q *Queries) UpdateCardStatus(ctx context.Context, arg UpdateCardStatusPara
 		&i.Status,
 		&i.StatusReason,
 		&i.AutoTopupEnabled,
-		&i.AutoTopupThresholdCents,
-		&i.AutoTopupAmountCents,
+		&i.AutoTopupThreshold,
+		&i.AutoTopupAmount,
 		&i.AutoTopupSourceWalletID,
 		&i.NextBillingDate,
 		&i.LastBillingDate,
@@ -4085,7 +4085,7 @@ const updateCustomSubscription = `-- name: UpdateCustomSubscription :one
 UPDATE user_subscriptions
 SET 
     display_name = COALESCE($3, display_name),
-    amount_cents = COALESCE($4, amount_cents),
+    amount = COALESCE($4, amount),
     billing_interval_days = COALESCE($5, billing_interval_days),
     custom_billing_cycle = COALESCE($6, custom_billing_cycle),
     reminder_enabled = COALESCE($7, reminder_enabled),
@@ -4094,14 +4094,14 @@ SET
     notes = COALESCE($10, notes),
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2 AND is_custom = TRUE
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateCustomSubscriptionParams struct {
 	ID                     uuid.UUID      `json:"id"`
 	UserID                 int64          `json:"user_id"`
 	DisplayName            sql.NullString `json:"display_name"`
-	AmountCents            sql.NullInt64  `json:"amount_cents"`
+	Amount                 sql.NullInt64  `json:"amount"`
 	BillingIntervalDays    sql.NullInt32  `json:"billing_interval_days"`
 	CustomBillingCycle     sql.NullString `json:"custom_billing_cycle"`
 	ReminderEnabled        sql.NullBool   `json:"reminder_enabled"`
@@ -4115,7 +4115,7 @@ func (q *Queries) UpdateCustomSubscription(ctx context.Context, arg UpdateCustom
 		arg.ID,
 		arg.UserID,
 		arg.DisplayName,
-		arg.AmountCents,
+		arg.Amount,
 		arg.BillingIntervalDays,
 		arg.CustomBillingCycle,
 		arg.ReminderEnabled,
@@ -4132,7 +4132,7 @@ func (q *Queries) UpdateCustomSubscription(ctx context.Context, arg UpdateCustom
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -4201,18 +4201,18 @@ SET
     last_charge_date = $2,
     next_estimated_charge_date = $3,
     total_charges = total_charges + 1,
-    amount_cents = COALESCE($4, amount_cents),
+    amount = COALESCE($4, amount),
     confidence_score = LEAST(confidence_score + 0.1, 1.0),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionChargeParams struct {
 	ID                      uuid.UUID `json:"id"`
 	LastChargeDate          time.Time `json:"last_charge_date"`
 	NextEstimatedChargeDate time.Time `json:"next_estimated_charge_date"`
-	AmountCents             int64     `json:"amount_cents"`
+	Amount                  int64     `json:"amount"`
 }
 
 func (q *Queries) UpdateSubscriptionCharge(ctx context.Context, arg UpdateSubscriptionChargeParams) (UserSubscription, error) {
@@ -4220,7 +4220,7 @@ func (q *Queries) UpdateSubscriptionCharge(ctx context.Context, arg UpdateSubscr
 		arg.ID,
 		arg.LastChargeDate,
 		arg.NextEstimatedChargeDate,
-		arg.AmountCents,
+		arg.Amount,
 	)
 	var i UserSubscription
 	err := row.Scan(
@@ -4231,7 +4231,7 @@ func (q *Queries) UpdateSubscriptionCharge(ctx context.Context, arg UpdateSubscr
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -4272,7 +4272,7 @@ SET
     END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionFailureParams struct {
@@ -4292,7 +4292,7 @@ func (q *Queries) UpdateSubscriptionFailure(ctx context.Context, arg UpdateSubsc
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -4330,23 +4330,23 @@ SET
     subcategory = COALESCE($5, subcategory),
     logo_url = COALESCE($6, logo_url),
     typical_intervals = COALESCE($7, typical_intervals),
-    typical_amounts_cents = COALESCE($8, typical_amounts_cents),
+    typical_amounts = COALESCE($8, typical_amounts),
     auto_detect = COALESCE($9, auto_detect),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts_cents, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at
+RETURNING id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at
 `
 
 type UpdateSubscriptionMerchantParams struct {
-	ID                  int64          `json:"id"`
-	DisplayName         sql.NullString `json:"display_name"`
-	Aliases             []string       `json:"aliases"`
-	Category            sql.NullString `json:"category"`
-	Subcategory         sql.NullString `json:"subcategory"`
-	LogoUrl             sql.NullString `json:"logo_url"`
-	TypicalIntervals    []int32        `json:"typical_intervals"`
-	TypicalAmountsCents []int64        `json:"typical_amounts_cents"`
-	AutoDetect          sql.NullBool   `json:"auto_detect"`
+	ID               int64          `json:"id"`
+	DisplayName      sql.NullString `json:"display_name"`
+	Aliases          []string       `json:"aliases"`
+	Category         sql.NullString `json:"category"`
+	Subcategory      sql.NullString `json:"subcategory"`
+	LogoUrl          sql.NullString `json:"logo_url"`
+	TypicalIntervals []int32        `json:"typical_intervals"`
+	TypicalAmounts   []int64        `json:"typical_amounts"`
+	AutoDetect       sql.NullBool   `json:"auto_detect"`
 }
 
 func (q *Queries) UpdateSubscriptionMerchant(ctx context.Context, arg UpdateSubscriptionMerchantParams) (SubscriptionMerchant, error) {
@@ -4358,7 +4358,7 @@ func (q *Queries) UpdateSubscriptionMerchant(ctx context.Context, arg UpdateSubs
 		arg.Subcategory,
 		arg.LogoUrl,
 		pq.Array(arg.TypicalIntervals),
-		pq.Array(arg.TypicalAmountsCents),
+		pq.Array(arg.TypicalAmounts),
 		arg.AutoDetect,
 	)
 	var i SubscriptionMerchant
@@ -4374,7 +4374,7 @@ func (q *Queries) UpdateSubscriptionMerchant(ctx context.Context, arg UpdateSubs
 		&i.Description,
 		&i.MerchantCountry,
 		pq.Array(&i.TypicalIntervals),
-		pq.Array(&i.TypicalAmountsCents),
+		pq.Array(&i.TypicalAmounts),
 		pq.Array(&i.MccCodes),
 		&i.MatchConfidence,
 		&i.IsActive,
@@ -4394,7 +4394,7 @@ SET
     user_confirmed = COALESCE($6, user_confirmed),
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionPreferencesParams struct {
@@ -4424,7 +4424,7 @@ func (q *Queries) UpdateSubscriptionPreferences(ctx context.Context, arg UpdateS
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -4460,7 +4460,7 @@ SET
     cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE cancelled_at END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionStatusParams struct {
@@ -4479,7 +4479,7 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 		&i.MerchantName,
 		&i.DisplayName,
 		&i.Category,
-		&i.AmountCents,
+		&i.Amount,
 		&i.Currency,
 		&i.BillingIntervalDays,
 		&i.FirstChargeDate,
@@ -4547,11 +4547,11 @@ SELECT
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
      WHERE setting_key = 'max_custom_subscriptions_per_user' AND is_active = TRUE) as max_subscriptions,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'min_subscription_amount_cents' AND is_active = TRUE) as min_amount,
+     WHERE setting_key = 'min_subscription_amount' AND is_active = TRUE) as min_amount,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'max_subscription_amount_cents' AND is_active = TRUE) as max_amount,
+     WHERE setting_key = 'max_subscription_amount' AND is_active = TRUE) as max_amount,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'max_auto_topup_amount_cents' AND is_active = TRUE) as max_topup
+     WHERE setting_key = 'max_auto_topup_amount' AND is_active = TRUE) as max_topup
 `
 
 type ValidateSubscriptionLimitsRow struct {

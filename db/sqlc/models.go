@@ -122,7 +122,9 @@ type ActiveSubscriptionSetting struct {
 	SettingType  string         `json:"setting_type"`
 	Description  sql.NullString `json:"description"`
 	Category     string         `json:"category"`
-	TypedValue   interface{}    `json:"typed_value"`
+	IntValue     interface{}    `json:"int_value"`
+	DecimalValue interface{}    `json:"decimal_value"`
+	BoolValue    interface{}    `json:"bool_value"`
 }
 
 type AgentMetric struct {
@@ -409,7 +411,7 @@ type CardSpendingSummary struct {
 	UserID                   int64     `json:"user_id"`
 	CardName                 string    `json:"card_name"`
 	Transactions30d          int64     `json:"transactions_30d"`
-	Spend30dCents            int64     `json:"spend_30d_cents"`
+	Spend30d                 int64     `json:"spend_30d"`
 	UniqueMerchants30d       int64     `json:"unique_merchants_30d"`
 	SubscriptionTransactions int64     `json:"subscription_transactions"`
 }
@@ -589,7 +591,7 @@ type CustomSubscriptionsSummary struct {
 	UserID                  int64 `json:"user_id"`
 	CustomSubscriptionCount int64 `json:"custom_subscription_count"`
 	ActiveCustomCount       int64 `json:"active_custom_count"`
-	TotalCustomSpendCents   int64 `json:"total_custom_spend_cents"`
+	TotalCustomSpend        int64 `json:"total_custom_spend"`
 	DailySubscriptions      int64 `json:"daily_subscriptions"`
 	MonthlySubscriptions    int64 `json:"monthly_subscriptions"`
 	YearlySubscriptions     int64 `json:"yearly_subscriptions"`
@@ -1032,24 +1034,24 @@ type ServicesMetadatum struct {
 }
 
 type SubscriptionMerchant struct {
-	ID                  int64          `json:"id"`
-	MerchantName        string         `json:"merchant_name"`
-	DisplayName         string         `json:"display_name"`
-	Aliases             []string       `json:"aliases"`
-	Category            string         `json:"category"`
-	Subcategory         sql.NullString `json:"subcategory"`
-	LogoUrl             sql.NullString `json:"logo_url"`
-	Website             sql.NullString `json:"website"`
-	Description         sql.NullString `json:"description"`
-	MerchantCountry     sql.NullString `json:"merchant_country"`
-	TypicalIntervals    []int32        `json:"typical_intervals"`
-	TypicalAmountsCents []int64        `json:"typical_amounts_cents"`
-	MccCodes            []string       `json:"mcc_codes"`
-	MatchConfidence     string         `json:"match_confidence"`
-	IsActive            bool           `json:"is_active"`
-	AutoDetect          bool           `json:"auto_detect"`
-	CreatedAt           time.Time      `json:"created_at"`
-	UpdatedAt           time.Time      `json:"updated_at"`
+	ID               int64          `json:"id"`
+	MerchantName     string         `json:"merchant_name"`
+	DisplayName      string         `json:"display_name"`
+	Aliases          []string       `json:"aliases"`
+	Category         string         `json:"category"`
+	Subcategory      sql.NullString `json:"subcategory"`
+	LogoUrl          sql.NullString `json:"logo_url"`
+	Website          sql.NullString `json:"website"`
+	Description      sql.NullString `json:"description"`
+	MerchantCountry  sql.NullString `json:"merchant_country"`
+	TypicalIntervals []int32        `json:"typical_intervals"`
+	TypicalAmounts   []int64        `json:"typical_amounts"`
+	MccCodes         []string       `json:"mcc_codes"`
+	MatchConfidence  string         `json:"match_confidence"`
+	IsActive         bool           `json:"is_active"`
+	AutoDetect       bool           `json:"auto_detect"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 type SubscriptionReminder struct {
@@ -1265,7 +1267,7 @@ type UserSubscription struct {
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
 	Category                sql.NullString `json:"category"`
-	AmountCents             int64          `json:"amount_cents"`
+	Amount                  int64          `json:"amount"`
 	Currency                string         `json:"currency"`
 	BillingIntervalDays     int32          `json:"billing_interval_days"`
 	FirstChargeDate         time.Time      `json:"first_charge_date"`
@@ -1293,12 +1295,12 @@ type UserSubscription struct {
 }
 
 type UserSubscriptionSummary struct {
-	UserID                 int64       `json:"user_id"`
-	ActiveSubscriptions    int64       `json:"active_subscriptions"`
-	FailedSubscriptions    int64       `json:"failed_subscriptions"`
-	TotalMonthlySpendCents int64       `json:"total_monthly_spend_cents"`
-	Categories             interface{} `json:"categories"`
-	NextChargeDate         interface{} `json:"next_charge_date"`
+	UserID              int64       `json:"user_id"`
+	ActiveSubscriptions int64       `json:"active_subscriptions"`
+	FailedSubscriptions int64       `json:"failed_subscriptions"`
+	TotalMonthlySpend   int64       `json:"total_monthly_spend"`
+	Categories          interface{} `json:"categories"`
+	NextChargeDate      interface{} `json:"next_charge_date"`
 }
 
 type UserToken struct {
@@ -1438,8 +1440,8 @@ type VirtualCard struct {
 	Status                  string         `json:"status"`
 	StatusReason            sql.NullString `json:"status_reason"`
 	AutoTopupEnabled        bool           `json:"auto_topup_enabled"`
-	AutoTopupThresholdCents sql.NullInt64  `json:"auto_topup_threshold_cents"`
-	AutoTopupAmountCents    sql.NullInt64  `json:"auto_topup_amount_cents"`
+	AutoTopupThreshold      sql.NullInt64  `json:"auto_topup_threshold"`
+	AutoTopupAmount         sql.NullInt64  `json:"auto_topup_amount"`
 	AutoTopupSourceWalletID uuid.NullUUID  `json:"auto_topup_source_wallet_id"`
 	NextBillingDate         sql.NullTime   `json:"next_billing_date"`
 	LastBillingDate         sql.NullTime   `json:"last_billing_date"`
