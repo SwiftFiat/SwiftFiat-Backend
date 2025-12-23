@@ -61,7 +61,7 @@ func (v Subscriptions) router(server *Server) {
 
 		// User Story 11: System Health & Alerts
 		v1.GET("/admin/alerts", v.AdminGetSystemAlerts)
-		v1.GET("/admin/stats", v.AdminGetPlatformStats)
+		// v1.GET("/admin/stats", v.AdminGetPlatformStats)
 
 		// Merchant management
 		v1.POST("/admin/merchants", v.AdminCreateMerchant)

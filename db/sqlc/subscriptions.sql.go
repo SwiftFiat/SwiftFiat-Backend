@@ -121,7 +121,7 @@ SET
     cancelled_at = CASE WHEN $2 IN ('cancelled', 'paused') THEN NOW() ELSE cancelled_at END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type AdminUpdateSubscriptionStatusParams struct {
@@ -156,6 +156,12 @@ func (q *Queries) AdminUpdateSubscriptionStatus(ctx context.Context, arg AdminUp
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -431,6 +437,109 @@ func (q *Queries) CreateCardTransaction(ctx context.Context, arg CreateCardTrans
 	return i, err
 }
 
+const createCustomSubscription = `-- name: CreateCustomSubscription :one
+
+INSERT INTO user_subscriptions (
+    user_id, card_id, merchant_name, display_name, category,
+    amount_cents, currency, billing_interval_days,
+    first_charge_date, last_charge_date, next_estimated_charge_date,
+    status, confidence_score, reminder_enabled, reminder_days_before,
+    is_custom, custom_billing_cycle, custom_amount_override,
+    auto_topup_buffer_percent, custom_reminder_timing, notes
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+`
+
+type CreateCustomSubscriptionParams struct {
+	UserID                  int64          `json:"user_id"`
+	CardID                  uuid.UUID      `json:"card_id"`
+	MerchantName            string         `json:"merchant_name"`
+	DisplayName             string         `json:"display_name"`
+	Category                sql.NullString `json:"category"`
+	AmountCents             int64          `json:"amount_cents"`
+	Currency                string         `json:"currency"`
+	BillingIntervalDays     int32          `json:"billing_interval_days"`
+	FirstChargeDate         time.Time      `json:"first_charge_date"`
+	LastChargeDate          time.Time      `json:"last_charge_date"`
+	NextEstimatedChargeDate time.Time      `json:"next_estimated_charge_date"`
+	Status                  string         `json:"status"`
+	ConfidenceScore         string         `json:"confidence_score"`
+	ReminderEnabled         bool           `json:"reminder_enabled"`
+	ReminderDaysBefore      int32          `json:"reminder_days_before"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
+}
+
+// =============================================
+// CUSTOM SUBSCRIPTIONS
+// =============================================
+func (q *Queries) CreateCustomSubscription(ctx context.Context, arg CreateCustomSubscriptionParams) (UserSubscription, error) {
+	row := q.db.QueryRowContext(ctx, createCustomSubscription,
+		arg.UserID,
+		arg.CardID,
+		arg.MerchantName,
+		arg.DisplayName,
+		arg.Category,
+		arg.AmountCents,
+		arg.Currency,
+		arg.BillingIntervalDays,
+		arg.FirstChargeDate,
+		arg.LastChargeDate,
+		arg.NextEstimatedChargeDate,
+		arg.Status,
+		arg.ConfidenceScore,
+		arg.ReminderEnabled,
+		arg.ReminderDaysBefore,
+		arg.IsCustom,
+		arg.CustomBillingCycle,
+		arg.CustomAmountOverride,
+		arg.AutoTopupBufferPercent,
+		arg.CustomReminderTiming,
+		arg.Notes,
+	)
+	var i UserSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardID,
+		&i.MerchantID,
+		&i.MerchantName,
+		&i.DisplayName,
+		&i.Category,
+		&i.AmountCents,
+		&i.Currency,
+		&i.BillingIntervalDays,
+		&i.FirstChargeDate,
+		&i.LastChargeDate,
+		&i.NextEstimatedChargeDate,
+		&i.Status,
+		&i.ConfidenceScore,
+		&i.TotalCharges,
+		&i.FailedCharges,
+		&i.LastFailedDate,
+		&i.LastFailureReason,
+		&i.ReminderEnabled,
+		&i.ReminderDaysBefore,
+		&i.UserConfirmed,
+		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
 const createSubscriptionMerchant = `-- name: CreateSubscriptionMerchant :one
 
 INSERT INTO subscription_merchants (
@@ -565,7 +674,7 @@ INSERT INTO user_subscriptions (
     status, confidence_score, reminder_enabled, reminder_days_before
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16
-) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+) RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type CreateUserSubscriptionParams struct {
@@ -634,6 +743,12 @@ func (q *Queries) CreateUserSubscription(ctx context.Context, arg CreateUserSubs
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -767,7 +882,7 @@ func (q *Queries) DeleteCardPlan(ctx context.Context, id int64) error {
 }
 
 const findExistingSubscription = `-- name: FindExistingSubscription :one
-SELECT id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at FROM user_subscriptions
+SELECT id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at FROM user_subscriptions
 WHERE user_id = $1 
   AND card_id = $2
   AND LOWER(merchant_name) = LOWER($3)
@@ -808,6 +923,12 @@ func (q *Queries) FindExistingSubscription(ctx context.Context, arg FindExisting
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -1500,6 +1621,18 @@ func (q *Queries) GetCardsForBilling(ctx context.Context, limit int32) ([]Virtua
 	return items, nil
 }
 
+const getCustomSubscriptionCount = `-- name: GetCustomSubscriptionCount :one
+SELECT COUNT(*) FROM user_subscriptions
+WHERE user_id = $1 AND is_custom = TRUE AND status = 'active'
+`
+
+func (q *Queries) GetCustomSubscriptionCount(ctx context.Context, userID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getCustomSubscriptionCount, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getPendingReminders = `-- name: GetPendingReminders :many
 SELECT sr.id, sr.subscription_id, sr.user_id, sr.reminder_type, sr.scheduled_for, sr.sent_at, sr.title, sr.message, sr.action_url, sr.channels, sr.status, sr.created_at, us.merchant_name, us.amount_cents
 FROM subscription_reminders sr
@@ -1761,7 +1894,7 @@ func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID int64) 
 }
 
 const getSubscriptionsDueForReminder = `-- name: GetSubscriptionsDueForReminder :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.status = 'active'
@@ -1807,6 +1940,12 @@ type GetSubscriptionsDueForReminderRow struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
@@ -1846,6 +1985,12 @@ func (q *Queries) GetSubscriptionsDueForReminder(ctx context.Context, arg GetSub
 			&i.ReminderDaysBefore,
 			&i.UserConfirmed,
 			&i.CustomName,
+			&i.IsCustom,
+			&i.CustomBillingCycle,
+			&i.CustomAmountOverride,
+			&i.AutoTopupBufferPercent,
+			&i.CustomReminderTiming,
+			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CancelledAt,
@@ -1862,6 +2007,29 @@ func (q *Queries) GetSubscriptionsDueForReminder(ctx context.Context, arg GetSub
 		return nil, err
 	}
 	return items, nil
+}
+
+const getSystemSetting = `-- name: GetSystemSetting :one
+SELECT id, setting_key, setting_value, setting_type, description, category, is_active, updated_by, created_at, updated_at FROM subscription_system_settings
+WHERE setting_key = $1 AND is_active = TRUE
+`
+
+func (q *Queries) GetSystemSetting(ctx context.Context, settingKey string) (SubscriptionSystemSetting, error) {
+	row := q.db.QueryRowContext(ctx, getSystemSetting, settingKey)
+	var i SubscriptionSystemSetting
+	err := row.Scan(
+		&i.ID,
+		&i.SettingKey,
+		&i.SettingValue,
+		&i.SettingType,
+		&i.Description,
+		&i.Category,
+		&i.IsActive,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const getTopMerchantsBySpend = `-- name: GetTopMerchantsBySpend :many
@@ -2381,6 +2549,109 @@ func (q *Queries) GetUserCards(ctx context.Context, userID int64) ([]GetUserCard
 	return items, nil
 }
 
+const getUserCustomSubscriptions = `-- name: GetUserCustomSubscriptions :many
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+FROM user_subscriptions us
+LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
+WHERE us.user_id = $1 AND us.is_custom = TRUE AND us.status = 'active'
+ORDER BY us.next_estimated_charge_date ASC
+`
+
+type GetUserCustomSubscriptionsRow struct {
+	ID                      uuid.UUID      `json:"id"`
+	UserID                  int64          `json:"user_id"`
+	CardID                  uuid.UUID      `json:"card_id"`
+	MerchantID              sql.NullInt64  `json:"merchant_id"`
+	MerchantName            string         `json:"merchant_name"`
+	DisplayName             string         `json:"display_name"`
+	Category                sql.NullString `json:"category"`
+	AmountCents             int64          `json:"amount_cents"`
+	Currency                string         `json:"currency"`
+	BillingIntervalDays     int32          `json:"billing_interval_days"`
+	FirstChargeDate         time.Time      `json:"first_charge_date"`
+	LastChargeDate          time.Time      `json:"last_charge_date"`
+	NextEstimatedChargeDate time.Time      `json:"next_estimated_charge_date"`
+	Status                  string         `json:"status"`
+	ConfidenceScore         string         `json:"confidence_score"`
+	TotalCharges            int32          `json:"total_charges"`
+	FailedCharges           int32          `json:"failed_charges"`
+	LastFailedDate          sql.NullTime   `json:"last_failed_date"`
+	LastFailureReason       sql.NullString `json:"last_failure_reason"`
+	ReminderEnabled         bool           `json:"reminder_enabled"`
+	ReminderDaysBefore      int32          `json:"reminder_days_before"`
+	UserConfirmed           bool           `json:"user_confirmed"`
+	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
+	CreatedAt               time.Time      `json:"created_at"`
+	UpdatedAt               time.Time      `json:"updated_at"`
+	CancelledAt             sql.NullTime   `json:"cancelled_at"`
+	LogoUrl                 sql.NullString `json:"logo_url"`
+	Website                 sql.NullString `json:"website"`
+}
+
+func (q *Queries) GetUserCustomSubscriptions(ctx context.Context, userID int64) ([]GetUserCustomSubscriptionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserCustomSubscriptions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUserCustomSubscriptionsRow{}
+	for rows.Next() {
+		var i GetUserCustomSubscriptionsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CardID,
+			&i.MerchantID,
+			&i.MerchantName,
+			&i.DisplayName,
+			&i.Category,
+			&i.AmountCents,
+			&i.Currency,
+			&i.BillingIntervalDays,
+			&i.FirstChargeDate,
+			&i.LastChargeDate,
+			&i.NextEstimatedChargeDate,
+			&i.Status,
+			&i.ConfidenceScore,
+			&i.TotalCharges,
+			&i.FailedCharges,
+			&i.LastFailedDate,
+			&i.LastFailureReason,
+			&i.ReminderEnabled,
+			&i.ReminderDaysBefore,
+			&i.UserConfirmed,
+			&i.CustomName,
+			&i.IsCustom,
+			&i.CustomBillingCycle,
+			&i.CustomAmountOverride,
+			&i.AutoTopupBufferPercent,
+			&i.CustomReminderTiming,
+			&i.Notes,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.CancelledAt,
+			&i.LogoUrl,
+			&i.Website,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserReminders = `-- name: GetUserReminders :many
 SELECT id, subscription_id, user_id, reminder_type, scheduled_for, sent_at, title, message, action_url, channels, status, created_at FROM subscription_reminders
 WHERE user_id = $1
@@ -2431,7 +2702,7 @@ func (q *Queries) GetUserReminders(ctx context.Context, arg GetUserRemindersPara
 }
 
 const getUserSubscription = `-- name: GetUserSubscription :one
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.id = $1
@@ -2461,6 +2732,12 @@ type GetUserSubscriptionRow struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
@@ -2495,6 +2772,12 @@ func (q *Queries) GetUserSubscription(ctx context.Context, id uuid.UUID) (GetUse
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -2534,7 +2817,7 @@ func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 }
 
 const getUserSubscriptions = `-- name: GetUserSubscriptions :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.user_id = $1 AND us.status = 'active'
@@ -2565,6 +2848,12 @@ type GetUserSubscriptionsRow struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
@@ -2605,6 +2894,12 @@ func (q *Queries) GetUserSubscriptions(ctx context.Context, userID int64) ([]Get
 			&i.ReminderDaysBefore,
 			&i.UserConfirmed,
 			&i.CustomName,
+			&i.IsCustom,
+			&i.CustomBillingCycle,
+			&i.CustomAmountOverride,
+			&i.AutoTopupBufferPercent,
+			&i.CustomReminderTiming,
+			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CancelledAt,
@@ -2625,7 +2920,7 @@ func (q *Queries) GetUserSubscriptions(ctx context.Context, userID int64) ([]Get
 }
 
 const getUserSubscriptionsByCard = `-- name: GetUserSubscriptionsByCard :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 WHERE us.card_id = $1 AND us.status = 'active'
@@ -2656,6 +2951,12 @@ type GetUserSubscriptionsByCardRow struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
@@ -2696,6 +2997,12 @@ func (q *Queries) GetUserSubscriptionsByCard(ctx context.Context, cardID uuid.UU
 			&i.ReminderDaysBefore,
 			&i.UserConfirmed,
 			&i.CustomName,
+			&i.IsCustom,
+			&i.CustomBillingCycle,
+			&i.CustomAmountOverride,
+			&i.AutoTopupBufferPercent,
+			&i.CustomReminderTiming,
+			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CancelledAt,
@@ -2900,7 +3207,7 @@ func (q *Queries) LinkTransactionToSubscription(ctx context.Context, arg LinkTra
 }
 
 const listAllSubscriptions = `-- name: ListAllSubscriptions :many
-SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
+SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount_cents, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
 LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
 ORDER BY us.next_estimated_charge_date ASC
@@ -2930,6 +3237,12 @@ type ListAllSubscriptionsRow struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
@@ -2970,6 +3283,12 @@ func (q *Queries) ListAllSubscriptions(ctx context.Context) ([]ListAllSubscripti
 			&i.ReminderDaysBefore,
 			&i.UserConfirmed,
 			&i.CustomName,
+			&i.IsCustom,
+			&i.CustomBillingCycle,
+			&i.CustomAmountOverride,
+			&i.AutoTopupBufferPercent,
+			&i.CustomReminderTiming,
+			&i.Notes,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CancelledAt,
@@ -3114,6 +3433,46 @@ func (q *Queries) ListSubscriptionMerchantsByCategory(ctx context.Context, categ
 			&i.MatchConfidence,
 			&i.IsActive,
 			&i.AutoDetect,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSystemSettings = `-- name: ListSystemSettings :many
+SELECT id, setting_key, setting_value, setting_type, description, category, is_active, updated_by, created_at, updated_at FROM subscription_system_settings
+WHERE is_active = TRUE
+ORDER BY category, setting_key
+`
+
+func (q *Queries) ListSystemSettings(ctx context.Context) ([]SubscriptionSystemSetting, error) {
+	rows, err := q.db.QueryContext(ctx, listSystemSettings)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []SubscriptionSystemSetting{}
+	for rows.Next() {
+		var i SubscriptionSystemSetting
+		if err := rows.Scan(
+			&i.ID,
+			&i.SettingKey,
+			&i.SettingValue,
+			&i.SettingType,
+			&i.Description,
+			&i.Category,
+			&i.IsActive,
+			&i.UpdatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 		); err != nil {
@@ -3722,6 +4081,86 @@ func (q *Queries) UpdateCardTransactionStatus(ctx context.Context, arg UpdateCar
 	return i, err
 }
 
+const updateCustomSubscription = `-- name: UpdateCustomSubscription :one
+UPDATE user_subscriptions
+SET 
+    display_name = COALESCE($3, display_name),
+    amount_cents = COALESCE($4, amount_cents),
+    billing_interval_days = COALESCE($5, billing_interval_days),
+    custom_billing_cycle = COALESCE($6, custom_billing_cycle),
+    reminder_enabled = COALESCE($7, reminder_enabled),
+    custom_reminder_timing = COALESCE($8, custom_reminder_timing),
+    auto_topup_buffer_percent = COALESCE($9, auto_topup_buffer_percent),
+    notes = COALESCE($10, notes),
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND is_custom = TRUE
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
+`
+
+type UpdateCustomSubscriptionParams struct {
+	ID                     uuid.UUID      `json:"id"`
+	UserID                 int64          `json:"user_id"`
+	DisplayName            sql.NullString `json:"display_name"`
+	AmountCents            sql.NullInt64  `json:"amount_cents"`
+	BillingIntervalDays    sql.NullInt32  `json:"billing_interval_days"`
+	CustomBillingCycle     sql.NullString `json:"custom_billing_cycle"`
+	ReminderEnabled        sql.NullBool   `json:"reminder_enabled"`
+	CustomReminderTiming   sql.NullInt32  `json:"custom_reminder_timing"`
+	AutoTopupBufferPercent sql.NullString `json:"auto_topup_buffer_percent"`
+	Notes                  sql.NullString `json:"notes"`
+}
+
+func (q *Queries) UpdateCustomSubscription(ctx context.Context, arg UpdateCustomSubscriptionParams) (UserSubscription, error) {
+	row := q.db.QueryRowContext(ctx, updateCustomSubscription,
+		arg.ID,
+		arg.UserID,
+		arg.DisplayName,
+		arg.AmountCents,
+		arg.BillingIntervalDays,
+		arg.CustomBillingCycle,
+		arg.ReminderEnabled,
+		arg.CustomReminderTiming,
+		arg.AutoTopupBufferPercent,
+		arg.Notes,
+	)
+	var i UserSubscription
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.CardID,
+		&i.MerchantID,
+		&i.MerchantName,
+		&i.DisplayName,
+		&i.Category,
+		&i.AmountCents,
+		&i.Currency,
+		&i.BillingIntervalDays,
+		&i.FirstChargeDate,
+		&i.LastChargeDate,
+		&i.NextEstimatedChargeDate,
+		&i.Status,
+		&i.ConfidenceScore,
+		&i.TotalCharges,
+		&i.FailedCharges,
+		&i.LastFailedDate,
+		&i.LastFailureReason,
+		&i.ReminderEnabled,
+		&i.ReminderDaysBefore,
+		&i.UserConfirmed,
+		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CancelledAt,
+	)
+	return i, err
+}
+
 const updateReminderStatus = `-- name: UpdateReminderStatus :one
 UPDATE subscription_reminders
 SET 
@@ -3766,7 +4205,7 @@ SET
     confidence_score = LEAST(confidence_score + 0.1, 1.0),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionChargeParams struct {
@@ -3808,6 +4247,12 @@ func (q *Queries) UpdateSubscriptionCharge(ctx context.Context, arg UpdateSubscr
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -3827,7 +4272,7 @@ SET
     END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionFailureParams struct {
@@ -3863,6 +4308,12 @@ func (q *Queries) UpdateSubscriptionFailure(ctx context.Context, arg UpdateSubsc
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -3943,7 +4394,7 @@ SET
     user_confirmed = COALESCE($6, user_confirmed),
     updated_at = NOW()
 WHERE id = $1 AND user_id = $2
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionPreferencesParams struct {
@@ -3989,6 +4440,12 @@ func (q *Queries) UpdateSubscriptionPreferences(ctx context.Context, arg UpdateS
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
@@ -4003,7 +4460,7 @@ SET
     cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE cancelled_at END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, created_at, updated_at, cancelled_at
+RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount_cents, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at
 `
 
 type UpdateSubscriptionStatusParams struct {
@@ -4038,9 +4495,80 @@ func (q *Queries) UpdateSubscriptionStatus(ctx context.Context, arg UpdateSubscr
 		&i.ReminderDaysBefore,
 		&i.UserConfirmed,
 		&i.CustomName,
+		&i.IsCustom,
+		&i.CustomBillingCycle,
+		&i.CustomAmountOverride,
+		&i.AutoTopupBufferPercent,
+		&i.CustomReminderTiming,
+		&i.Notes,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CancelledAt,
+	)
+	return i, err
+}
+
+const updateSystemSetting = `-- name: UpdateSystemSetting :one
+UPDATE subscription_system_settings
+SET 
+    setting_value = $2,
+    updated_by = $3,
+    updated_at = NOW()
+WHERE setting_key = $1
+RETURNING id, setting_key, setting_value, setting_type, description, category, is_active, updated_by, created_at, updated_at
+`
+
+type UpdateSystemSettingParams struct {
+	SettingKey   string        `json:"setting_key"`
+	SettingValue string        `json:"setting_value"`
+	UpdatedBy    sql.NullInt64 `json:"updated_by"`
+}
+
+func (q *Queries) UpdateSystemSetting(ctx context.Context, arg UpdateSystemSettingParams) (SubscriptionSystemSetting, error) {
+	row := q.db.QueryRowContext(ctx, updateSystemSetting, arg.SettingKey, arg.SettingValue, arg.UpdatedBy)
+	var i SubscriptionSystemSetting
+	err := row.Scan(
+		&i.ID,
+		&i.SettingKey,
+		&i.SettingValue,
+		&i.SettingType,
+		&i.Description,
+		&i.Category,
+		&i.IsActive,
+		&i.UpdatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const validateSubscriptionLimits = `-- name: ValidateSubscriptionLimits :one
+SELECT 
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_custom_subscriptions_per_user' AND is_active = TRUE) as max_subscriptions,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'min_subscription_amount_cents' AND is_active = TRUE) as min_amount,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_subscription_amount_cents' AND is_active = TRUE) as max_amount,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_auto_topup_amount_cents' AND is_active = TRUE) as max_topup
+`
+
+type ValidateSubscriptionLimitsRow struct {
+	MaxSubscriptions int32 `json:"max_subscriptions"`
+	MinAmount        int32 `json:"min_amount"`
+	MaxAmount        int32 `json:"max_amount"`
+	MaxTopup         int32 `json:"max_topup"`
+}
+
+func (q *Queries) ValidateSubscriptionLimits(ctx context.Context) (ValidateSubscriptionLimitsRow, error) {
+	row := q.db.QueryRowContext(ctx, validateSubscriptionLimits)
+	var i ValidateSubscriptionLimitsRow
+	err := row.Scan(
+		&i.MaxSubscriptions,
+		&i.MinAmount,
+		&i.MaxAmount,
+		&i.MaxTopup,
 	)
 	return i, err
 }

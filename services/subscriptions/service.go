@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -22,6 +23,216 @@ func NewService(store *db.Store, logger *logging.Logger) *Service {
 		store:  store,
 		logger: logger,
 	}
+}
+
+// SystemSettings holds cached system settings
+type SystemSettings struct {
+	DefaultRenewalIntervalDays    int
+	AllowDailyBilling             bool
+	AllowYearlyBilling            bool
+	DefaultAutoTopupBufferPercent decimal.Decimal
+	MaxAutoTopupAmountCents       int64
+	MinAutoTopupAmountCents       int64
+	AutoTopupEnabledByDefault     bool
+	DefaultReminderDaysBefore     int
+	EnableSameDayReminders        bool
+	EnableMultiReminderSchedule   bool
+	MaxCustomSubscriptionsPerUser int
+	MinSubscriptionAmountCents    int64
+	MaxSubscriptionAmountCents    int64
+}
+
+// CreateCustomSubscriptionRequest defines parameters for creating custom subscription
+type CreateCustomSubscriptionRequest struct {
+	CardID                 uuid.UUID
+	MerchantName           string
+	DisplayName            string
+	Category               string
+	AmountCents            int64
+	Currency               string
+	BillingCycle           string // 'daily', 'monthly', 'yearly'
+	FirstChargeDate        time.Time
+	ReminderEnabled        bool
+	CustomReminderTiming   *int // Optional override
+	AutoTopupEnabled       bool
+	AutoTopupBufferPercent *decimal.Decimal // Optional override
+	Notes                  string
+}
+
+// UpdateCustomSubscriptionRequest defines parameters for updating custom subscription
+type UpdateCustomSubscriptionRequest struct {
+	DisplayName            *string
+	AmountCents            *int64
+	BillingCycle           *string
+	ReminderEnabled        *bool
+	CustomReminderTiming   *int
+	AutoTopupBufferPercent *decimal.Decimal
+	Notes                  *string
+}
+
+// LoadSystemSettings loads and caches system settings
+func (s *Service) LoadSystemSettings(ctx context.Context) (*SystemSettings, error) {
+	settings := &SystemSettings{}
+
+	// Load renewal settings
+	if val, err := s.getSettingInt(ctx, "default_renewal_interval_days"); err == nil {
+		settings.DefaultRenewalIntervalDays = val
+	} else {
+		settings.DefaultRenewalIntervalDays = 30
+	}
+
+	settings.AllowDailyBilling, _ = s.getSettingBool(ctx, "allow_daily_billing")
+	settings.AllowYearlyBilling, _ = s.getSettingBool(ctx, "allow_yearly_billing")
+
+	// Load auto topup settings
+	if val, err := s.getSettingDecimal(ctx, "default_auto_topup_buffer_percent"); err == nil {
+		settings.DefaultAutoTopupBufferPercent = val
+	} else {
+		settings.DefaultAutoTopupBufferPercent = decimal.NewFromFloat(10.0)
+	}
+
+	settings.MaxAutoTopupAmountCents, _ = s.getSettingInt64(ctx, "max_auto_topup_amount_cents")
+	settings.MinAutoTopupAmountCents, _ = s.getSettingInt64(ctx, "min_auto_topup_amount_cents")
+	settings.AutoTopupEnabledByDefault, _ = s.getSettingBool(ctx, "auto_topup_enabled_by_default")
+
+	// Load reminder settings
+	if val, err := s.getSettingInt(ctx, "default_reminder_days_before"); err == nil {
+		settings.DefaultReminderDaysBefore = val
+	} else {
+		settings.DefaultReminderDaysBefore = 3
+	}
+
+	settings.EnableSameDayReminders, _ = s.getSettingBool(ctx, "enable_same_day_reminders")
+	settings.EnableMultiReminderSchedule, _ = s.getSettingBool(ctx, "enable_multi_reminder_schedule")
+
+	// Load limits
+	if val, err := s.getSettingInt(ctx, "max_custom_subscriptions_per_user"); err == nil {
+		settings.MaxCustomSubscriptionsPerUser = val
+	} else {
+		settings.MaxCustomSubscriptionsPerUser = 50
+	}
+
+	settings.MinSubscriptionAmountCents, _ = s.getSettingInt64(ctx, "min_subscription_amount_cents")
+	settings.MaxSubscriptionAmountCents, _ = s.getSettingInt64(ctx, "max_subscription_amount_cents")
+
+	s.logger.Infof("Loaded system settings: %+v", settings)
+	return settings, nil
+}
+
+// Helper functions to get settings
+func (s *Service) getSettingInt(ctx context.Context, key string) (int, error) {
+	setting, err := s.store.GetSystemSetting(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(setting.SettingValue)
+}
+
+func (s *Service) getSettingInt64(ctx context.Context, key string) (int64, error) {
+	setting, err := s.store.GetSystemSetting(ctx, key)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.ParseInt(setting.SettingValue, 10, 64)
+}
+
+func (s *Service) getSettingBool(ctx context.Context, key string) (bool, error) {
+	setting, err := s.store.GetSystemSetting(ctx, key)
+	if err != nil {
+		return false, err
+	}
+	return strconv.ParseBool(setting.SettingValue)
+}
+
+func (s *Service) getSettingDecimal(ctx context.Context, key string) (decimal.Decimal, error) {
+	setting, err := s.store.GetSystemSetting(ctx, key)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	return decimal.NewFromString(setting.SettingValue)
+}
+
+func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, req CreateCustomSubscriptionRequest) (*db.UserSubscription, error) {
+	// load system settings
+	settings, err := s.LoadSystemSettings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Valdate user has not exceeded imit
+	count, err := s.store.GetCustomSubscriptionCount(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get custom subscription count: %v", err)
+	}
+	if count >= int64(settings.MaxCustomSubscriptionsPerUser) {
+		return nil, fmt.Errorf("user has exceeded maximum number of subscriptions: %d", settings.MaxCustomSubscriptionsPerUser)
+	}
+
+	// validate amount
+	if req.AmountCents < settings.MinSubscriptionAmountCents || req.AmountCents > settings.MaxSubscriptionAmountCents {
+		return nil, fmt.Errorf("amount must be between %d and %d", settings.MinSubscriptionAmountCents, settings.MaxSubscriptionAmountCents)
+	}
+
+	// Validate billing cycle
+	var billingIntervalDays int32
+	switch req.BillingCycle {
+	case "daily":
+		if !settings.AllowDailyBilling {
+			return nil, fmt.Errorf("daily billing is not allowed")
+		}
+		billingIntervalDays = 1
+	case "monthly":
+		billingIntervalDays = 30
+	case "yearly":
+		if !settings.AllowYearlyBilling {
+			return nil, fmt.Errorf("yearly billing is not allowed")
+		}
+		billingIntervalDays = 365
+	default:
+		return nil, fmt.Errorf("invalid billing cycle: %s (must be 'daily', 'monthly', or 'yearly')", req.BillingCycle)
+	}
+
+	// calculate dates
+	nextChargeDate := req.FirstChargeDate.AddDate(0, 0, int(billingIntervalDays))
+
+	// set reminder timimg
+	reminderDays := settings.DefaultReminderDaysBefore
+	if req.CustomReminderTiming != nil {
+		reminderDays = *req.CustomReminderTiming
+	}
+
+	// set auto topup buffer
+	autoTopupBufferPercent := settings.DefaultAutoTopupBufferPercent
+	if req.AutoTopupBufferPercent != nil {
+		autoTopupBufferPercent = *req.AutoTopupBufferPercent
+	}
+
+	subscription, err := s.store.CreateCustomSubscription(ctx, db.CreateCustomSubscriptionParams{
+		UserID:                  userID,
+		CardID:                  req.CardID,
+		MerchantName:            req.MerchantName,
+		DisplayName:             req.DisplayName,
+		Category:                sql.NullString{String: req.Category, Valid: req.Category != ""},
+		AmountCents:             req.AmountCents,
+		Currency:                req.Currency,
+		BillingIntervalDays:     billingIntervalDays,
+		FirstChargeDate:         req.FirstChargeDate,
+		NextEstimatedChargeDate: nextChargeDate,
+		Status:                  "active",
+		ConfidenceScore:         decimal.NewFromFloat(1.0).String(),
+		ReminderEnabled:         req.ReminderEnabled,
+		ReminderDaysBefore:      int32(reminderDays),
+		IsCustom:                true,
+		CustomBillingCycle:      sql.NullString{String: req.BillingCycle, Valid: true},
+		CustomAmountOverride:    true,
+		AutoTopupBufferPercent:  sql.NullString{String: autoTopupBufferPercent.String(), Valid: true},
+		CustomReminderTiming:    sql.NullInt32{Int32: int32(reminderDays), Valid: true},
+		Notes:                   sql.NullString{String: req.Notes, Valid: req.Notes != ""},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create custom subscription: %v", err)
+	}
+	return &subscription, nil
 }
 
 // DetectAndLogSubscription analyzes a card transaction to detect if it's a subscription

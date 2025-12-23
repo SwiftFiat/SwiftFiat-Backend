@@ -316,6 +316,13 @@ CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_acti
     "reminder_days_before" INT NOT NULL DEFAULT 3,
     "user_confirmed" BOOLEAN NOT NULL DEFAULT FALSE, -- User acknowledged subscription
     "custom_name" VARCHAR(255), -- User can override display name
+
+    "is_custom" BOOLEAN NOT NULL DEFAULT FALSE,
+    "custom_billing_cycle" VARCHAR(20), -- 'daily', 'monthly', 'yearly'
+    "custom_amount_override" BOOLEAN NOT NULL DEFAULT FALSE,
+    "auto_topup_buffer_percent" DECIMAL(5,2), -- percentage buffer for auto topup
+    "custom_reminder_timing" INT, -- 'same_day', '3_days_before', '1_day_before'
+    "notes" TEXT, -- User notes
     
     -- Audit
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -329,6 +336,9 @@ CREATE INDEX idx_user_subscriptions_merchant ON user_subscriptions(merchant_id);
 CREATE INDEX idx_user_subscriptions_next_charge ON user_subscriptions(next_estimated_charge_date) 
     WHERE status = 'active';
 CREATE INDEX idx_user_subscriptions_status ON user_subscriptions(status);
+ALTER TABLE user_subscriptions ADD CONSTRAINT chk_custom_billing_cycle 
+CHECK (custom_billing_cycle IS NULL OR custom_billing_cycle IN ('daily', 'monthly', 'yearly'));
+
 
 -- ============================================================================
 -- SUBSCRIPTION REMINDERS
@@ -413,6 +423,40 @@ CREATE INDEX idx_card_billing_user ON card_billing_history(user_id);
 CREATE INDEX idx_card_billing_status ON card_billing_history(status);
 CREATE INDEX idx_card_billing_period ON card_billing_history(billing_period_start DESC);
 
+
+CREATE TABLE IF NOT EXISTS "subscription_system_settings" (
+    "id" BIGSERIAL PRIMARY KEY,
+    "setting_key" VARCHAR(100) NOT NULL UNIQUE,
+    "setting_value" TEXT NOT NULL,
+    "setting_type" VARCHAR(50) NOT NULL, -- 'integer', 'decimal', 'boolean', 'string'
+    "description" TEXT,
+    "category" VARCHAR(50) NOT NULL, -- 'renewal', 'auto_topup', 'reminder', 'limits'
+    "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
+    "updated_by" BIGINT REFERENCES users(id),
+    "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_subscription_settings_key ON subscription_system_settings(setting_key) WHERE is_active = TRUE;
+CREATE INDEX idx_subscription_settings_category ON subscription_system_settings(category);
+
+-- View for easy access to active settings
+CREATE OR REPLACE VIEW active_subscription_settings AS
+SELECT 
+    setting_key,
+    setting_value,
+    setting_type,
+    description,
+    category,
+    CASE setting_type
+        WHEN 'integer' THEN setting_value::INTEGER
+        WHEN 'decimal' THEN setting_value::DECIMAL
+        WHEN 'boolean' THEN setting_value::BOOLEAN
+        ELSE NULL
+    END as typed_value
+FROM subscription_system_settings
+WHERE is_active = TRUE;
+
 -- ============================================================================
 -- ANALYTICS VIEWS
 -- ============================================================================
@@ -464,6 +508,20 @@ VALUES
     ('Platinum', 'Premium card with higher limits and no monthly fees', 
      1000, 0, 2000000, 200000, 100000, 1, 200000)
 ON CONFLICT (name) DO NOTHING;
+
+-- View for custom subscriptions summary
+CREATE OR REPLACE VIEW custom_subscriptions_summary AS
+SELECT 
+    us.user_id,
+    COUNT(*) FILTER (WHERE us.is_custom = TRUE) as custom_subscription_count,
+    COUNT(*) FILTER (WHERE us.is_custom = TRUE AND us.status = 'active') as active_custom_count,
+    SUM(us.amount_cents) FILTER (WHERE us.is_custom = TRUE AND us.status = 'active') as total_custom_spend_cents,
+    COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'daily') as daily_subscriptions,
+    COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'monthly') as monthly_subscriptions,
+    COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'yearly') as yearly_subscriptions
+FROM user_subscriptions us
+WHERE us.is_custom = TRUE
+GROUP BY us.user_id;
 
 -- ============================================================================
 -- SEED DATA: Common Subscription Merchants
