@@ -108,8 +108,8 @@ RETURNING *;
 UPDATE virtual_cards
 SET 
     auto_topup_enabled = $2,
-    auto_topup_threshold_cents = $3,
-    auto_topup_amount_cents = $4,
+    auto_topup_threshold = $3,
+    auto_topup_amount = $4,
     auto_topup_source_wallet_id = $5,
     updated_at = NOW()
 WHERE id = $1 AND terminated_at IS NULL
@@ -347,7 +347,7 @@ ORDER BY transaction_date DESC;
 INSERT INTO subscription_merchants (
     merchant_name, display_name, aliases, category, subcategory,
     logo_url, website, description, typical_intervals,
-    typical_amounts_cents, mcc_codes, match_confidence, auto_detect
+    typical_amounts, mcc_codes, match_confidence, auto_detect
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
 ) RETURNING *;
@@ -401,7 +401,7 @@ RETURNING *;
 -- name: CreateUserSubscription :one
 INSERT INTO user_subscriptions (
     user_id, card_id, merchant_id, merchant_name, display_name,
-    category, amount_cents, currency, billing_interval_days,
+    category, amount, currency, billing_interval_days,
     first_charge_date, last_charge_date, next_estimated_charge_date,
     status, confidence_score, reminder_enabled, reminder_days_before
 ) VALUES (
@@ -448,7 +448,7 @@ SET
     last_charge_date = $2,
     next_estimated_charge_date = $3,
     total_charges = total_charges + 1,
-    amount_cents = COALESCE($4, amount_cents),
+    amount = COALESCE($4, amount),
     confidence_score = LEAST(confidence_score + 0.1, 1.0),
     updated_at = NOW()
 WHERE id = $1
@@ -509,7 +509,7 @@ LIMIT $2;
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1;
@@ -518,7 +518,7 @@ WHERE user_id = $1;
 SELECT 
     category,
     COUNT(*) as subscription_count,
-    SUM(amount_cents) as total_spend_cents
+    SUM(amount) as total_spend_cents
 FROM user_subscriptions
 WHERE user_id = $1 AND status = 'active'
 GROUP BY category
@@ -537,7 +537,7 @@ INSERT INTO subscription_reminders (
 ) RETURNING *;
 
 -- name: GetPendingReminders :many
-SELECT sr.*, us.merchant_name, us.amount_cents
+SELECT sr.*, us.merchant_name, us.amount
 FROM subscription_reminders sr
 JOIN user_subscriptions us ON sr.subscription_id = us.id
 WHERE sr.status = 'pending' AND sr.scheduled_for <= NOW()
@@ -603,7 +603,7 @@ SELECT
     COUNT(DISTINCT vc.id) as total_cards,
     COUNT(DISTINCT vc.id) FILTER (WHERE vc.status = 'active') as active_cards,
     COUNT(DISTINCT ct.id) as total_transactions,
-    COALESCE(SUM(ct.amount_cents) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
+    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
     COUNT(DISTINCT us.id) FILTER (WHERE us.status = 'active') as active_subscriptions
 FROM virtual_cards vc
 LEFT JOIN card_transactions ct ON vc.id = ct.card_id
@@ -614,7 +614,7 @@ WHERE vc.user_id = $1 AND vc.terminated_at IS NULL;
 SELECT 
     DATE_TRUNC('month', transaction_date) as month,
     COUNT(*) as transaction_count,
-    SUM(amount_cents) as total_spend_cents
+    SUM(amount) as total_spend_cents
 FROM card_transactions
 WHERE card_id = $1 
   AND status = 'approved'
@@ -626,7 +626,7 @@ ORDER BY month DESC;
 SELECT 
     merchant_name,
     COUNT(*) as transaction_count,
-    SUM(amount_cents) as total_spend_cents,
+    SUM(amount) as total_spend_cents,
     MAX(transaction_date) as last_transaction_date
 FROM card_transactions
 WHERE user_id = $1 
@@ -645,7 +645,7 @@ SELECT
     COUNT(*) as total_subscriptions,
     COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
     COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
-    COALESCE(SUM(amount_cents) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
 FROM user_subscriptions
 WHERE user_id = $1;
 
@@ -692,7 +692,7 @@ RETURNING *;
 -- name: CreateCustomSubscription :one
 INSERT INTO user_subscriptions (
     user_id, card_id, merchant_name, display_name, category,
-    amount_cents, currency, billing_interval_days,
+    amount, currency, billing_interval_days,
     first_charge_date, last_charge_date, next_estimated_charge_date,
     status, confidence_score, reminder_enabled, reminder_days_before,
     is_custom, custom_billing_cycle, custom_amount_override,
@@ -727,7 +727,7 @@ RETURNING *;
 UPDATE user_subscriptions
 SET 
     display_name = COALESCE(sqlc.narg('display_name'), display_name),
-    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    amount = COALESCE(sqlc.narg('amount'), amount),
     billing_interval_days = COALESCE(sqlc.narg('billing_interval_days'), billing_interval_days),
     custom_billing_cycle = COALESCE(sqlc.narg('custom_billing_cycle'), custom_billing_cycle),
     reminder_enabled = COALESCE(sqlc.narg('reminder_enabled'), reminder_enabled),
@@ -750,8 +750,8 @@ SELECT
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
      WHERE setting_key = 'max_custom_subscriptions_per_user' AND is_active = TRUE) as max_subscriptions,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'min_subscription_amount_cents' AND is_active = TRUE) as min_amount,
+     WHERE setting_key = 'min_subscription_amount' AND is_active = TRUE) as min_amount,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'max_subscription_amount_cents' AND is_active = TRUE) as max_amount,
+     WHERE setting_key = 'max_subscription_amount' AND is_active = TRUE) as max_amount,
     (SELECT setting_value::INTEGER FROM subscription_system_settings 
-     WHERE setting_key = 'max_auto_topup_amount_cents' AND is_active = TRUE) as max_topup;
+     WHERE setting_key = 'max_auto_topup_amount' AND is_active = TRUE) as max_topup;

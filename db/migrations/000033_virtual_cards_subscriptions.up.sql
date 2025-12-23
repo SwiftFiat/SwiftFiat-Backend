@@ -24,7 +24,7 @@
     "description" TEXT,
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     
-    -- Fees (in USD cents to avoid floating point issues)
+    -- Fees 
     "creation_fee" DECIMAL(10,2) NOT NULL DEFAULT 0, -- One-time card creation fee
     "monthly_maintenance_fee" DECIMAL(10,2) NOT NULL DEFAULT 0, -- Recurring monthly fee
     
@@ -87,8 +87,8 @@ CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS 
      
     -- Auto top-up feature (our business logic)
     "auto_topup_enabled" BOOLEAN NOT NULL DEFAULT FALSE,
-    "auto_topup_threshold_cents" BIGINT, -- Top up when balance falls below
-    "auto_topup_amount_cents" BIGINT, -- Amount to add
+    "auto_topup_threshold" BIGINT, -- Top up when balance falls below
+    "auto_topup_amount" BIGINT, -- Amount to add
     "auto_topup_source_wallet_id" UUID, -- Which wallet to pull funds from
     
     -- Billing cycle (for monthly maintenance fee)
@@ -179,7 +179,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "merchant_category" VARCHAR(100), -- MCC category
     "merchant_category_code" VARCHAR(10), -- MCC code
     
-    -- Amounts (in cents)
+    -- Amounts
     "amount" BIGINT NOT NULL,
     "fee" BIGINT NOT NULL DEFAULT 0,
     "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
@@ -250,7 +250,7 @@ CREATE INDEX idx_card_transactions_subscription ON card_transactions(subscriptio
     
     -- Pattern detection
     "typical_intervals" INT[], -- Common billing intervals in days [30, 365]
-    "typical_amounts_cents" BIGINT[], -- Common charge amounts
+    "typical_amounts" BIGINT[], -- Common charge amounts
     "mcc_codes" VARCHAR(10)[], -- Merchant Category Codes
     
     -- Confidence scoring
@@ -291,7 +291,7 @@ CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_acti
     "category" VARCHAR(100),
     
     -- Billing information
-    "amount_cents" BIGINT NOT NULL,
+    "amount" BIGINT NOT NULL,
     "currency" VARCHAR(3) NOT NULL DEFAULT 'USD',
     "billing_interval_days" INT NOT NULL, -- Typically 30, 365, etc.
     
@@ -470,7 +470,7 @@ SELECT
     user_id,
     COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_subscriptions,
-    SUM(amount_cents) FILTER (WHERE status = 'active') as total_monthly_spend_cents,
+    SUM(amount) FILTER (WHERE status = 'active') as total_monthly_spend,
     ARRAY_AGG(DISTINCT category) FILTER (WHERE status = 'active') as categories,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active') as next_charge_date
 FROM user_subscriptions
@@ -486,7 +486,7 @@ SELECT
     c.user_id,
     c.card_name,
     COUNT(t.id) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as transactions_30d,
-    SUM(t.amount) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as spend_30d_cents,
+    SUM(t.amount) FILTER (WHERE t.status = 'approved' AND t.transaction_date >= NOW() - INTERVAL '30 days') as spend_30d,
     COUNT(DISTINCT t.merchant_name) FILTER (WHERE t.transaction_date >= NOW() - INTERVAL '30 days') as unique_merchants_30d,
     COUNT(t.id) FILTER (WHERE t.is_recurring_merchant = TRUE) as subscription_transactions
 FROM virtual_cards c
@@ -503,10 +503,10 @@ INSERT INTO card_plans (name, description, creation_fee, monthly_maintenance_fee
                         max_cards_per_user, card_limit)
 VALUES 
     ('Standard', 'Basic virtual card for everyday subscriptions', 
-     500, 100, 500000, 50000, 20000, 1, 100000),
+     5, 100, 5000, 500, 200, 1, 1000),
     
     ('Platinum', 'Premium card with higher limits and no monthly fees', 
-     1000, 0, 2000000, 200000, 100000, 1, 200000)
+     10, 0, 20000, 2000, 1000, 1, 2000)
 ON CONFLICT (name) DO NOTHING;
 
 -- View for custom subscriptions summary
@@ -515,7 +515,7 @@ SELECT
     us.user_id,
     COUNT(*) FILTER (WHERE us.is_custom = TRUE) as custom_subscription_count,
     COUNT(*) FILTER (WHERE us.is_custom = TRUE AND us.status = 'active') as active_custom_count,
-    SUM(us.amount_cents) FILTER (WHERE us.is_custom = TRUE AND us.status = 'active') as total_custom_spend_cents,
+    SUM(us.amount) FILTER (WHERE us.is_custom = TRUE AND us.status = 'active') as total_custom_spend,
     COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'daily') as daily_subscriptions,
     COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'monthly') as monthly_subscriptions,
     COUNT(*) FILTER (WHERE us.custom_billing_cycle = 'yearly') as yearly_subscriptions
@@ -528,7 +528,7 @@ GROUP BY us.user_id;
 -- ============================================================================
 
 INSERT INTO subscription_merchants (merchant_name, display_name, aliases, category, subcategory, 
-                                   typical_intervals, typical_amounts_cents, auto_detect)
+                                   typical_intervals, typical_amounts, auto_detect)
 VALUES 
     ('netflix', 'Netflix', ARRAY['netflix.com', 'nflx'], 'streaming', 'video', ARRAY[30], ARRAY[999, 1999, 2499], TRUE),
     ('spotify', 'Spotify', ARRAY['spotify.com', 'spotifyab'], 'streaming', 'music', ARRAY[30], ARRAY[999, 1999], TRUE),
