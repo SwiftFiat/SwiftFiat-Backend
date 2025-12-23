@@ -23,6 +23,15 @@ definitions:
     required:
     - status
     type: object
+  api.BulkUpdateSettingsRequest:
+    properties:
+      settings:
+        additionalProperties:
+          type: string
+        type: object
+    required:
+    - settings
+    type: object
   api.CardPlanResponse:
     properties:
       card_limit:
@@ -79,6 +88,7 @@ definitions:
       transaction_limit:
         type: string
     required:
+    - card_limit
     - creation_fee
     - max_cards_per_user
     - monthly_maintenance_fee
@@ -103,6 +113,65 @@ definitions:
     - card_name
     - card_plan_id
     - funding_amount
+    type: object
+  api.CreateCustomSubscriptionRequest:
+    properties:
+      amount:
+        description: Dollar amount as string
+        type: integer
+      auto_topup_buffer_percent:
+        type: number
+      billing_cycle:
+        enum:
+        - daily
+        - monthly
+        - yearly
+        type: string
+      card_id:
+        type: string
+      category:
+        enum:
+        - streaming
+        - cloud_storage
+        - gaming
+        - music
+        - productivity
+        - fitness
+        - news
+        - utilities
+        - other
+        type: string
+      currency:
+        enum:
+        - USD
+        type: string
+      custom_reminder_days:
+        description: Optional override
+        type: integer
+      display_name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      first_charge_date:
+        description: ISO 8601 format
+        type: string
+      merchant_name:
+        maxLength: 255
+        minLength: 1
+        type: string
+      notes:
+        type: string
+      reminder_enabled:
+        type: boolean
+    required:
+    - amount
+    - billing_cycle
+    - card_id
+    - category
+    - currency
+    - display_name
+    - first_charge_date
+    - merchant_name
     type: object
   api.CreateMerchantRequest:
     properties:
@@ -130,7 +199,7 @@ definitions:
         type: string
       subcategory:
         type: string
-      typical_amounts_cents:
+      typical_amounts:
         items:
           type: integer
         type: array
@@ -237,13 +306,13 @@ definitions:
     type: object
   api.GetUserCardsRowResponse:
     properties:
-      auto_topup_amount_cents:
+      auto_topup_amount:
         type: integer
       auto_topup_enabled:
         type: boolean
       auto_topup_source_wallet_id:
         type: string
-      auto_topup_threshold_cents:
+      auto_topup_threshold:
         type: integer
       bridgecard_card_id:
         type: string
@@ -257,9 +326,9 @@ definitions:
         type: string
       currency:
         type: string
-      current_day_spend_cents:
+      current_day_spend:
         type: integer
-      current_month_spend_cents:
+      current_month_spend:
         type: integer
       id:
         type: string
@@ -471,10 +540,29 @@ definitions:
         type: string
       name:
         type: string
-      plan_id:
-        type: integer
       transaction_limit:
         type: string
+    type: object
+  api.UpdateCustomSubscriptionRequest:
+    properties:
+      amount:
+        type: string
+      auto_topup_buffer_percent:
+        type: number
+      billing_cycle:
+        enum:
+        - daily
+        - monthly
+        - yearly
+        type: string
+      custom_reminder_days:
+        type: integer
+      display_name:
+        type: string
+      notes:
+        type: string
+      reminder_enabled:
+        type: boolean
     type: object
   api.UpdateMerchantRequest:
     properties:
@@ -492,7 +580,7 @@ definitions:
         type: string
       subcategory:
         type: string
-      typical_amounts_cents:
+      typical_amounts:
         items:
           type: integer
         type: array
@@ -523,6 +611,13 @@ definitions:
         type: boolean
       user_confirmed:
         type: boolean
+    type: object
+  api.UpdateSystemSettingRequest:
+    properties:
+      value:
+        type: string
+    required:
+    - value
     type: object
   api.UpdateWalletBalanceRequest:
     properties:
@@ -6903,6 +6998,31 @@ paths:
       summary: Get all issued cards [admin]
       tags:
       - Cards
+  /api/v1/cards/admin/get-card-plans:
+    get:
+      consumes:
+      - application/json
+      description: List card plans
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/api.CardPlanResponse'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List card plans
+      tags:
+      - Cards
   /api/v1/cards/admin/get-total-cards:
     get:
       consumes:
@@ -6972,31 +7092,6 @@ paths:
       summary: Get issuing wallet balance [admin - sandbox only]
       tags:
       - Cards
-  /api/v1/cards/admin/list-card-plans:
-    get:
-      consumes:
-      - application/json
-      description: List card plans
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/api.CardPlanResponse'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: List card plans
-      tags:
-      - Cards
   /api/v1/cards/admin/list-card-transactions-by-user:
     get:
       consumes:
@@ -7063,6 +7158,49 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Unfreeze virtual card
+      tags:
+      - Cards
+  /api/v1/cards/admin/update-card-plan/{plan_id}:
+    post:
+      consumes:
+      - application/json
+      description: Update card plan
+      parameters:
+      - description: Card plan ID
+        in: path
+        name: plan_id
+        required: true
+        type: integer
+      - description: Update card plan request
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateCardPlanRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.CardPlanResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update card plan
       tags:
       - Cards
   /api/v1/cards/debit-card:
@@ -7507,36 +7645,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update virtual card pin
-      tags:
-      - Cards
-  /api/v1/cards/update-card-plan:
-    put:
-      consumes:
-      - application/json
-      description: Update card plan
-      parameters:
-      - description: Update card plan request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.UpdateCardPlanRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.CardPlanResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Update card plan
       tags:
       - Cards
   /api/v1/cards/withdraw-card:
@@ -10127,6 +10235,114 @@ paths:
       summary: List all merchants (Admin)
       tags:
       - Subscriptions
+  /api/v1/subscriptions/admin/settings:
+    get:
+      description: Get all subscription system settings
+      parameters:
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: List system settings (Admin)
+      tags:
+      - Admin
+  /api/v1/subscriptions/admin/settings/{key}:
+    get:
+      description: Get a specific system setting by key
+      parameters:
+      - description: Setting Key
+        in: path
+        name: key
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Get system setting (Admin)
+      tags:
+      - Admin
+    put:
+      consumes:
+      - application/json
+      description: Update a subscription system setting
+      parameters:
+      - description: Setting Key
+        in: path
+        name: key
+        required: true
+        type: string
+      - description: New Value
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateSystemSettingRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Update system setting (Admin)
+      tags:
+      - Admin
+  /api/v1/subscriptions/admin/settings/bulk:
+    post:
+      consumes:
+      - application/json
+      description: Update multiple system settings at once
+      parameters:
+      - description: Settings to update
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.BulkUpdateSettingsRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Bulk update settings (Admin)
+      tags:
+      - Admin
+  /api/v1/subscriptions/admin/settings/validate/billing-cycle/{cycle}:
+    get:
+      description: Check if a billing cycle is currently allowed
+      parameters:
+      - description: Billing Cycle
+        enum:
+        - daily
+        - monthly
+        - yearly
+        in: path
+        name: cycle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+      summary: Validate billing cycle (Admin)
+      tags:
+      - Admin
   /api/v1/subscriptions/admin/stats:
     get:
       description: Total subscriptions, active/inactive count, monthly spend
@@ -10210,6 +10426,83 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get spending analytics
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/custom:
+    get:
+      description: Get all user-created custom subscriptions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get custom subscriptions
+      tags:
+      - Subscriptions
+    post:
+      consumes:
+      - application/json
+      description: Create a user-defined subscription with custom billing cycle
+      parameters:
+      - description: Subscription details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateCustomSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create custom subscription
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/custom/{id}:
+    patch:
+      consumes:
+      - application/json
+      description: Update a user-created custom subscription
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Update details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateCustomSubscriptionRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update custom subscription
       tags:
       - Subscriptions
   /api/v1/subscriptions/reminders:

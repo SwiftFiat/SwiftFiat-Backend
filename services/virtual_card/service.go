@@ -201,18 +201,25 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	s.logger.Infof("funding amount in request %s", params.FundingAmount)
 	s.logger.Infof("creation fee $%s", creationFee.String())
 
+	cardLimitCents, err := utils.DollarStringToCentsString(plan.CardLimit.String)
+	if err != nil {
+		return nil, fmt.Errorf("card limit dollar to cent error: %v", err)
+	}
+
 	// enforce minimum depending on card limit
 	var minFundingCents decimal.Decimal
-	switch plan.CardLimit.String {
-	case "5000":
+	switch cardLimitCents {
+	case "500000":
 		minFundingCents = decimal.NewFromInt(300) // $3 → 300 cents
-	case "10000":
+	case "1000000":
 		minFundingCents = decimal.NewFromInt(400) // $4 → 400 cents
+	default:
+		return nil, fmt.Errorf("invalid card limit: %s, card limit must be '50000' or '100000'", plan.CardLimit.String)
 	}
 
 	fundingCentsDecimal := decimal.RequireFromString(fundingCentsStr)
 	if fundingCentsDecimal.LessThan(minFundingCents) {
-		return nil, fmt.Errorf("funding amount must be at least %s cents", minFundingCents.String())
+		return nil, fmt.Errorf("funding amount must be at least %s cents for card limit %s", minFundingCents.String(), plan.CardLimit.String)
 	}
 
 	totalCost := creationFee.Add(fundingAmountDecimal)
@@ -228,7 +235,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		CardType:             "virtual",
 		Brand:                "Mastercard", //Visa is not supported yet
 		Currency:             "USD",
-		CardLimit:            plan.CardLimit.String,        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
+		CardLimit:            cardLimitCents,        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
 		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
 		TransactionReference: utils.NewTxRef("swiift_card"),
 		SourceWalletID:       usdWallet.ID,
