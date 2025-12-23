@@ -50,23 +50,23 @@ func (v Subscriptions) router(server *Server) {
 
 		// admin
 		// User Story 9: User Subscription Monitoring
-		v1.GET("/all", v.AdminGetAllSubscriptions)
-		v1.GET("/users/:user_id", v.AdminGetUserSubscriptions)
+		v1.GET("/admin/all", v.AdminGetAllSubscriptions)
+		v1.GET("/admin/users/:user_id", v.AdminGetUserSubscriptions)
 		v1.PATCH("/admin/:id/auto-topup", v.AdminToggleAutoTopup)
 		v1.PATCH("/admin/:id/status", v.AdminSetSubscriptionStatus)
 
 		// User Story 10: Merchant Insights
-		v1.GET("/merchants", v.AdminGetMerchantInsights)
-		v1.GET("/merchants/:merchant_id", v.AdminGetMerchantDetails)
+		v1.GET("/admin/merchants", v.AdminGetMerchantInsights)
+		v1.GET("/admin/merchants/:merchant_id", v.AdminGetMerchantDetails)
 
 		// User Story 11: System Health & Alerts
-		v1.GET("/alerts", v.AdminGetSystemAlerts)
-		v1.GET("/stats", v.AdminGetPlatformStats)
+		v1.GET("/admin/alerts", v.AdminGetSystemAlerts)
+		v1.GET("/admin/stats", v.AdminGetPlatformStats)
 
 		// Merchant management
-		v1.POST("/merchants", v.AdminCreateMerchant)
-		v1.PATCH("/merchants/:id", v.AdminUpdateMerchant)
-		v1.GET("/merchants/list", v.AdminListMerchants)
+		v1.POST("/admin/merchants", v.AdminCreateMerchant)
+		v1.PUT("/admin/merchants/:id", v.AdminUpdateMerchant)
+		v1.GET("/admin/merchants/list", v.AdminListMerchants)
 		// Analytics (extended)
 		v1.GET("/admin/stats", v.GetSubscriptionStats)
 		v1.GET("/admin/auto-topup/success-rate", v.GetAutoTopupSuccessRate)
@@ -195,7 +195,7 @@ type AdminUpdateStatusRequest struct {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /subscriptions/admin/{id}/auto-topup [post]
+// @Router /api/v1/subscriptions/admin/{id}/auto-topup [post]
 func (v *Subscriptions) AdminToggleAutoTopup(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -269,7 +269,7 @@ func (v *Subscriptions) AdminToggleAutoTopup(c *gin.Context) {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /subscriptions/admin/{id}/status [post]
+// @Router /api/v1/subscriptions/admin/{id}/status [post]
 func (v *Subscriptions) AdminSetSubscriptionStatus(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -756,7 +756,7 @@ func (v *Subscriptions) GetUserReminders(c *gin.Context) {
 // @Param limit query int false "Items per page"
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/all [get]
+// @Router /api/v1/subscriptions/admin/all [get]
 func (h *Subscriptions) AdminGetAllSubscriptions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -794,7 +794,7 @@ func (h *Subscriptions) AdminGetAllSubscriptions(c *gin.Context) {
 // @Param user_id path int true "User ID"
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/users/{user_id} [get]
+// @Router /api/v1/subscriptions/admin/users/{user_id} [get]
 func (v *Subscriptions) AdminGetUserSubscriptions(c *gin.Context) {
 	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
@@ -824,7 +824,7 @@ func (v *Subscriptions) AdminGetUserSubscriptions(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/merchants [get]
+// @Router /api/v1/subscriptions/admin/merchants [get]
 func (v *Subscriptions) AdminGetMerchantInsights(c *gin.Context) {
 	merchants, err := v.server.queries.ListSubscriptionMerchants(c)
 	if err != nil {
@@ -848,7 +848,7 @@ func (v *Subscriptions) AdminGetMerchantInsights(c *gin.Context) {
 // @Param merchant_id path int true "Merchant ID"
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/merchants/{merchant_id} [get]
+// @Router /api/v1/subscriptions/admin/merchants/{merchant_id} [get]
 func (v *Subscriptions) AdminGetMerchantDetails(c *gin.Context) {
 	merchantID, err := strconv.ParseInt(c.Param("merchant_id"), 10, 64)
 	if err != nil {
@@ -873,7 +873,7 @@ func (v *Subscriptions) AdminGetMerchantDetails(c *gin.Context) {
 // @Produce json
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/alerts [get]
+// @Router /api/v1/subscriptions/admin/alerts [get]
 func (v *Subscriptions) AdminGetSystemAlerts(c *gin.Context) {
 	// Get failed reminders
 	failedReminders, _ := v.server.queries.GetPendingReminders(c, 100)
@@ -901,7 +901,7 @@ func (v *Subscriptions) AdminGetPlatformStats(c *gin.Context) {
 // @Success 201 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/merchants [post]
+// @Router /api/v1/subscriptions/admin/merchants [post]
 func (v *Subscriptions) AdminCreateMerchant(c *gin.Context) {
 	var req CreateMerchantRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -944,7 +944,7 @@ func (v *Subscriptions) AdminCreateMerchant(c *gin.Context) {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/merchants/{id} [patch]
+// @Router /api/v1/subscriptions/admin/merchants/{id} [put]
 func (v *Subscriptions) AdminUpdateMerchant(c *gin.Context) {
 	merchantID, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
@@ -987,7 +987,7 @@ func (v *Subscriptions) AdminUpdateMerchant(c *gin.Context) {
 // @Param category query string false "Filter by category"
 // @Success 200 {object} basemodels.SuccessResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/subscriptions/merchants/list [get]
+// @Router /api/v1/subscriptions/admin/merchants/list [get]
 func (v *Subscriptions) AdminListMerchants(c *gin.Context) {
 	category := c.Query("category")
 
