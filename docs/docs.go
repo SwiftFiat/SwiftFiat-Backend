@@ -4980,6 +4980,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/cards/admin/get-card-plans": {
+            "get": {
+                "description": "List card plans",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "List card plans",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.CardPlanResponse"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/cards/admin/get-total-cards": {
             "get": {
                 "description": "Get total number of virtual cards",
@@ -5068,44 +5106,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/cards/admin/list-card-plans": {
-            "get": {
-                "description": "List card plans",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "List card plans",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "array",
-                            "items": {
-                                "$ref": "#/definitions/api.CardPlanResponse"
-                            }
                         }
                     },
                     "400": {
@@ -5212,6 +5212,71 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/cards/admin/update-card-plan/{plan_id}": {
+            "post": {
+                "description": "Update card plan",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Cards"
+                ],
+                "summary": "Update card plan",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Card plan ID",
+                        "name": "plan_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update card plan request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateCardPlanRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.CardPlanResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -5882,52 +5947,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/bridgecards.CardResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/cards/update-card-plan": {
-            "put": {
-                "description": "Update card plan",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Cards"
-                ],
-                "summary": "Update card plan",
-                "parameters": [
-                    {
-                        "description": "Update card plan request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api.UpdateCardPlanRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/api.CardPlanResponse"
                         }
                     },
                     "400": {
@@ -9735,6 +9754,170 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/subscriptions/admin/settings": {
+            "get": {
+                "description": "Get all subscription system settings",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "List system settings (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Filter by category",
+                        "name": "category",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/admin/settings/bulk": {
+            "post": {
+                "description": "Update multiple system settings at once",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Bulk update settings (Admin)",
+                "parameters": [
+                    {
+                        "description": "Settings to update",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.BulkUpdateSettingsRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/admin/settings/validate/billing-cycle/{cycle}": {
+            "get": {
+                "description": "Check if a billing cycle is currently allowed",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Validate billing cycle (Admin)",
+                "parameters": [
+                    {
+                        "enum": [
+                            "daily",
+                            "monthly",
+                            "yearly"
+                        ],
+                        "type": "string",
+                        "description": "Billing Cycle",
+                        "name": "cycle",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/admin/settings/{key}": {
+            "get": {
+                "description": "Get a specific system setting by key",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Get system setting (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Update a subscription system setting",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Admin"
+                ],
+                "summary": "Update system setting (Admin)",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Setting Key",
+                        "name": "key",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New Value",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateSystemSettingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/subscriptions/admin/stats": {
             "get": {
                 "description": "Total subscriptions, active/inactive count, monthly spend",
@@ -9964,6 +10147,123 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/custom": {
+            "get": {
+                "description": "Get all user-created custom subscriptions",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Get custom subscriptions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "description": "Create a user-defined subscription with custom billing cycle",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Create custom subscription",
+                "parameters": [
+                    {
+                        "description": "Subscription details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.CreateCustomSubscriptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/subscriptions/custom/{id}": {
+            "patch": {
+                "description": "Update a user-created custom subscription",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Subscriptions"
+                ],
+                "summary": "Update custom subscription",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Subscription ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Update details",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.UpdateCustomSubscriptionRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -15562,6 +15862,20 @@ const docTemplate = `{
                 }
             }
         },
+        "api.BulkUpdateSettingsRequest": {
+            "type": "object",
+            "required": [
+                "settings"
+            ],
+            "properties": {
+                "settings": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "api.CardPlanResponse": {
             "type": "object",
             "properties": {
@@ -15615,6 +15929,7 @@ const docTemplate = `{
         "api.CreateCardPlanRequest": {
             "type": "object",
             "required": [
+                "card_limit",
                 "creation_fee",
                 "max_cards_per_user",
                 "monthly_maintenance_fee",
@@ -15681,6 +15996,83 @@ const docTemplate = `{
                 }
             }
         },
+        "api.CreateCustomSubscriptionRequest": {
+            "type": "object",
+            "required": [
+                "amount",
+                "billing_cycle",
+                "card_id",
+                "category",
+                "currency",
+                "display_name",
+                "first_charge_date",
+                "merchant_name"
+            ],
+            "properties": {
+                "amount": {
+                    "description": "Dollar amount as string",
+                    "type": "integer"
+                },
+                "auto_topup_buffer_percent": {
+                    "type": "number"
+                },
+                "billing_cycle": {
+                    "type": "string",
+                    "enum": [
+                        "daily",
+                        "monthly",
+                        "yearly"
+                    ]
+                },
+                "card_id": {
+                    "type": "string"
+                },
+                "category": {
+                    "type": "string",
+                    "enum": [
+                        "streaming",
+                        "cloud_storage",
+                        "gaming",
+                        "music",
+                        "productivity",
+                        "fitness",
+                        "news",
+                        "utilities",
+                        "other"
+                    ]
+                },
+                "currency": {
+                    "type": "string",
+                    "enum": [
+                        "USD"
+                    ]
+                },
+                "custom_reminder_days": {
+                    "description": "Optional override",
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "first_charge_date": {
+                    "description": "ISO 8601 format",
+                    "type": "string"
+                },
+                "merchant_name": {
+                    "type": "string",
+                    "maxLength": 255,
+                    "minLength": 1
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "reminder_enabled": {
+                    "type": "boolean"
+                }
+            }
+        },
         "api.CreateMerchantRequest": {
             "type": "object",
             "required": [
@@ -15725,7 +16117,7 @@ const docTemplate = `{
                 "subcategory": {
                     "type": "string"
                 },
-                "typical_amounts_cents": {
+                "typical_amounts": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -15882,7 +16274,7 @@ const docTemplate = `{
         "api.GetUserCardsRowResponse": {
             "type": "object",
             "properties": {
-                "auto_topup_amount_cents": {
+                "auto_topup_amount": {
                     "type": "integer"
                 },
                 "auto_topup_enabled": {
@@ -15891,7 +16283,7 @@ const docTemplate = `{
                 "auto_topup_source_wallet_id": {
                     "type": "string"
                 },
-                "auto_topup_threshold_cents": {
+                "auto_topup_threshold": {
                     "type": "integer"
                 },
                 "bridgecard_card_id": {
@@ -15912,10 +16304,10 @@ const docTemplate = `{
                 "currency": {
                     "type": "string"
                 },
-                "current_day_spend_cents": {
+                "current_day_spend": {
                     "type": "integer"
                 },
-                "current_month_spend_cents": {
+                "current_month_spend": {
                     "type": "integer"
                 },
                 "id": {
@@ -16238,11 +16630,39 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "plan_id": {
-                    "type": "integer"
-                },
                 "transaction_limit": {
                     "type": "string"
+                }
+            }
+        },
+        "api.UpdateCustomSubscriptionRequest": {
+            "type": "object",
+            "properties": {
+                "amount": {
+                    "type": "string"
+                },
+                "auto_topup_buffer_percent": {
+                    "type": "number"
+                },
+                "billing_cycle": {
+                    "type": "string",
+                    "enum": [
+                        "daily",
+                        "monthly",
+                        "yearly"
+                    ]
+                },
+                "custom_reminder_days": {
+                    "type": "integer"
+                },
+                "display_name": {
+                    "type": "string"
+                },
+                "notes": {
+                    "type": "string"
+                },
+                "reminder_enabled": {
+                    "type": "boolean"
                 }
             }
         },
@@ -16270,7 +16690,7 @@ const docTemplate = `{
                 "subcategory": {
                     "type": "string"
                 },
-                "typical_amounts_cents": {
+                "typical_amounts": {
                     "type": "array",
                     "items": {
                         "type": "integer"
@@ -16315,6 +16735,17 @@ const docTemplate = `{
                 },
                 "user_confirmed": {
                     "type": "boolean"
+                }
+            }
+        },
+        "api.UpdateSystemSettingRequest": {
+            "type": "object",
+            "required": [
+                "value"
+            ],
+            "properties": {
+                "value": {
+                    "type": "string"
                 }
             }
         },

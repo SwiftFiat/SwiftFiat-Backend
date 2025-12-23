@@ -1,0 +1,24 @@
+meta {
+  name: Admin freeze card
+  type: http
+  seq: 23
+}
+
+post {
+  url: {{BaseURl}}/cards/admin/freeze-card?card_id=04b94f2b15d54a3da93525971c9ef706
+  body: none
+  auth: bearer
+}
+
+params:query {
+  card_id: 04b94f2b15d54a3da93525971c9ef706
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

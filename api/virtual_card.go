@@ -93,7 +93,7 @@ type UpdateCardPlanParams struct {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router api/v1/cards/admin/update-card-plan/{plan_id} [post]
+// @Router /api/v1/cards/admin/update-card-plan/{plan_id} [post]
 func (v *Virtualcard) AdminUpdateCardPlan(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1417,7 +1417,7 @@ type CreateCardPlanRequest struct {
 	TransactionLimit         string  `json:"transaction_limit" binding:"required"`
 	DailySpendingLimit       *string `json:"daily_spending_limit"`
 	MaxCardsPerUser          int32   `json:"max_cards_per_user" binding:"required"`
-	CardLimit                *string `json:"card_limit"`
+	CardLimit                *string `json:"card_limit" binding:"required" enum:"5000,10000"`
 	FailedTxCountBeforeBlock *int32  `json:"failed_tx_count_before_block"`
 }
 
@@ -1557,116 +1557,6 @@ type UpdateCardPlanRequest struct {
 	DailySpendingLimit    string `json:"daily_spending_limit"`
 	IsActive              bool   `json:"is_active"`
 	CardLimit             string `json:"card_limit"`
-}
-
-// UpdateCardPlan godoc
-// @Summary Update card plan
-// @Description Update card plan
-// @Tags Cards
-// @Accept json
-// @Produce json
-// @Param plan_id path int true "Card plan ID"
-// @Param request body UpdateCardPlanRequest true "Update card plan request"
-// @Success 200 {object} CardPlanResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/admin/update-card-plan/{plan_id} [put]
-func (v *Virtualcard) UpdateCardPlan(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		v.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
-
-	planID, err := strconv.Atoi(c.Param("plan_id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	var req UpdateCardPlanRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	plan, err := v.server.queries.GetCardPlan(c.Request.Context(), int64(planID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to get card plan"))
-		return
-	}
-
-	params := db.UpdateCardPlanParams{
-		Name:                  sql.NullString{String: req.Name, Valid: req.Name != ""},
-		Description:           sql.NullString{String: req.Description, Valid: req.Description != ""},
-		MonthlySpendingLimit:  sql.NullString{String: req.MonthlySpendingLimit, Valid: req.MonthlySpendingLimit != ""},
-		MonthlyMaintenanceFee: sql.NullString{String: req.MonthlyMaintenanceFee, Valid: req.MonthlyMaintenanceFee != ""},
-		TransactionLimit:      sql.NullString{String: req.TransactionLimit, Valid: req.TransactionLimit != ""},
-		DailySpendingLimit:    sql.NullString{String: req.DailySpendingLimit, Valid: req.DailySpendingLimit != ""},
-		IsActive:              sql.NullBool{Bool: req.IsActive, Valid: req.IsActive},
-		CardLimit:             sql.NullString{String: req.CardLimit, Valid: req.CardLimit != ""},
-	}
-	_, err = v.server.queries.UpdateCardPlan(c.Request.Context(), params)
-	if err != nil {
-		errMsg := err.Error()
-		// audit log
-		entry := audit.NewLog(
-			c,
-			audit.CategoryCard,
-			audit.EventUpdateCardPlan,
-			fmt.Sprint(plan.ID),
-			fmt.Sprintf("user %d updated card plan %s", activeUser.UserID, plan.Name),
-			&activeUser.UserID,
-			activeUser.Role,
-			false,
-			&errMsg,
-		)
-		v.audit.Log(entry)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	// audit log
-	entry := audit.NewLog(
-		c,
-		audit.CategoryCard,
-		audit.EventUpdateCardPlan,
-		fmt.Sprint(plan.ID),
-		fmt.Sprintf("user %d updated card plan %s", activeUser.UserID, plan.Name),
-		&activeUser.UserID,
-		activeUser.Role,
-		true,
-		nil,
-	)
-	entry.OldValues = map[string]any{
-		"name":                    plan.Name,
-		"description":             plan.Description,
-		"monthly_spending_limit":  plan.MonthlySpendingLimit,
-		"monthly_maintenance_fee": plan.MonthlyMaintenanceFee,
-		"transaction_limit":       plan.TransactionLimit,
-		"daily_spending_limit":    plan.DailySpendingLimit,
-		"is_active":               plan.IsActive,
-		"card_limit":              plan.CardLimit,
-	}
-
-	entry.NewValues = map[string]any{
-		"name":                    req.Name,
-		"description":             req.Description,
-		"monthly_spending_limit":  req.MonthlySpendingLimit,
-		"monthly_maintenance_fee": req.MonthlyMaintenanceFee,
-		"transaction_limit":       req.TransactionLimit,
-		"daily_spending_limit":    req.DailySpendingLimit,
-		"is_active":               req.IsActive,
-		"card_limit":              req.CardLimit,
-	}
-	v.audit.Log(entry)
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Card plan updated successfully", mapCardPlanToCardPlanResponse(plan)))
 }
 
 // DeleteCardPlan godoc

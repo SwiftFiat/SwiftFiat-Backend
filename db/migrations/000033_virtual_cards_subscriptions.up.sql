@@ -538,3 +538,27 @@ VALUES
     ('microsoft', 'Microsoft 365', ARRAY['microsoft.com', 'office365', 'ms'], 'productivity', 'office', ARRAY[30, 365], ARRAY[699, 9999], TRUE),
     ('disney', 'Disney+', ARRAY['disneyplus', 'disney+'], 'streaming', 'video', ARRAY[30], ARRAY[799, 1099], TRUE)
 ON CONFLICT (merchant_name) DO NOTHING;
+
+INSERT INTO subscription_system_settings (setting_key, setting_value, setting_type, description, category)
+VALUES 
+    -- Renewal Settings
+    ('default_renewal_interval_days', '30', 'integer', 'Default billing interval for custom subscriptions (days)', 'renewal'),
+    ('allow_daily_billing', 'true', 'boolean', 'Allow users to create daily billing subscriptions', 'renewal'),
+    ('allow_yearly_billing', 'true', 'boolean', 'Allow users to create yearly billing subscriptions', 'renewal'),
+    
+    -- Auto Top-up Settings
+    ('default_auto_topup_buffer_percent', '10', 'decimal', 'Default buffer percentage for auto top-up calculations', 'auto_topup'),
+    ('max_auto_topup_amount', '50000', 'integer', 'Maximum allowed auto top-up amount', 'auto_topup'),
+    ('min_auto_topup_amount', '500', 'integer', 'Minimum auto top-up amount', 'auto_topup'),
+    ('auto_topup_enabled_by_default', 'false', 'boolean', 'Enable auto top-up by default for new subscriptions', 'auto_topup'),
+    
+    -- Reminder Settings
+    ('default_reminder_days_before', '3', 'integer', 'Default days before renewal to send reminder', 'reminder'),
+    ('enable_same_day_reminders', 'true', 'boolean', 'Send reminders on the day of renewal', 'reminder'),
+    ('enable_multi_reminder_schedule', 'true', 'boolean', 'Send reminders at multiple intervals (3d, 1d, same day)', 'reminder'),
+    
+    -- Limits
+    ('max_custom_subscriptions_per_user', '50', 'integer', 'Maximum custom subscriptions a user can create', 'limits'),
+    ('min_subscription_amount', '100', 'integer', 'Minimum subscription amount', 'limits'),
+    ('max_subscription_amount', '1000', 'integer', 'Maximum subscription amount', 'limits')
+ON CONFLICT (setting_key) DO NOTHING;
