@@ -442,18 +442,15 @@ CREATE INDEX idx_subscription_settings_category ON subscription_system_settings(
 
 -- View for easy access to active settings
 CREATE OR REPLACE VIEW active_subscription_settings AS
-SELECT 
+SELECT
     setting_key,
     setting_value,
     setting_type,
     description,
     category,
-    CASE setting_type
-        WHEN 'integer' THEN setting_value::INTEGER
-        WHEN 'decimal' THEN setting_value::DECIMAL
-        WHEN 'boolean' THEN setting_value::BOOLEAN
-        ELSE NULL
-    END as typed_value
+    CASE WHEN setting_type = 'integer' THEN setting_value::INTEGER END AS int_value,
+    CASE WHEN setting_type = 'decimal' THEN setting_value::DECIMAL END AS decimal_value,
+    CASE WHEN setting_type = 'boolean' THEN setting_value::BOOLEAN END AS bool_value
 FROM subscription_system_settings
 WHERE is_active = TRUE;
 

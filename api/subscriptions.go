@@ -16,6 +16,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/shopspring/decimal"
 )
 
 type Subscriptions struct {
@@ -33,6 +34,8 @@ func (v Subscriptions) router(server *Server) {
 	v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
 		// User Story 5 & 6: Subscription Overview & Details
+		v1.POST("/", v.CreateCustomSubscription)
+		v1.PATCH("/custom/:id", v.UpdateCustomSubscription)
 		v1.GET("/", v.GetUserSubscriptions)
 		v1.GET("/:id", v.GetSubscriptionDetails)
 
@@ -70,9 +73,441 @@ func (v Subscriptions) router(server *Server) {
 		// Analytics (extended)
 		v1.GET("/admin/stats", v.GetSubscriptionStats)
 		v1.GET("/admin/auto-topup/success-rate", v.GetAutoTopupSuccessRate)
+		v1.GET("/admin/settings", v.AdminListSystemSettings)
+		v1.GET("/admin/settings/:key", v.AdminGetSystemSetting)
+		v1.PUT("/admin/settings/:key", v.AdminUpdateSystemSetting)
+		v1.POST("/admin/settings/bulk", v.AdminBulkUpdateSettings)
+		v1.GET("/admin/settings/validate/billing-cycle/:cycle", v.AdminValidateBillingCycle)
 
 	}
 }
+
+type CreateCustomSubscriptionRequest struct {
+	CardID                 string   `json:"card_id" binding:"required"`
+	MerchantName           string   `json:"merchant_name" binding:"required,min=1,max=255"`
+	DisplayName            string   `json:"display_name" binding:"required,min=1,max=255"`
+	Category               string   `json:"category" binding:"required,oneof=streaming cloud_storage gaming music productivity fitness news utilities other"`
+	Amount                 int64    `json:"amount" binding:"required"` // Dollar amount as string
+	Currency               string   `json:"currency" binding:"required,oneof=USD"`
+	BillingCycle           string   `json:"billing_cycle" binding:"required,oneof=daily monthly yearly"`
+	FirstChargeDate        string   `json:"first_charge_date" binding:"required"` // ISO 8601 format
+	ReminderEnabled        bool     `json:"reminder_enabled"`
+	CustomReminderDays     *int     `json:"custom_reminder_days,omitempty"` // Optional override
+	AutoTopupBufferPercent *float64 `json:"auto_topup_buffer_percent,omitempty"`
+	Notes                  string   `json:"notes,omitempty"`
+}
+
+// CreateCustomSubscription godoc
+// @Summary Create custom subscription
+// @Description Create a user-defined subscription with custom billing cycle
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param request body CreateCustomSubscriptionRequest true "Subscription details"
+// @Success 201 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/subscriptions/custom [post]
+func (v *Subscriptions) CreateCustomSubscription(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var req CreateCustomSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// Parse card ID
+	cardID, err := uuid.Parse(req.CardID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid card id"))
+		return
+	}
+
+	// Verify card belongs to user
+	card, err := v.server.queries.GetVirtualCard(c, cardID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, basemodels.NewError("card not found"))
+		return
+	}
+
+	if card.UserID != activeUser.UserID {
+		c.JSON(http.StatusForbidden, basemodels.NewError("card does not belong to user"))
+		return
+	}
+
+	// Parse first charge date
+	firstChargeDate, err := time.Parse(time.RFC3339, req.FirstChargeDate)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid first_charge_date format (use ISO 8601)"))
+		return
+	}
+
+	// Build service request
+	serviceReq := &subscriptions.CreateCustomSubscriptionRequest{
+		CardID:          cardID,
+		MerchantName:    req.MerchantName,
+		DisplayName:     req.DisplayName,
+		Category:        req.Category,
+		Amount:          req.Amount,
+		Currency:        req.Currency,
+		BillingCycle:    req.BillingCycle,
+		FirstChargeDate: firstChargeDate,
+		ReminderEnabled: req.ReminderEnabled,
+		Notes:           req.Notes,
+	}
+
+	if req.CustomReminderDays != nil {
+		serviceReq.CustomReminderTiming = req.CustomReminderDays
+	}
+
+	if req.AutoTopupBufferPercent != nil {
+		bufferDecimal := decimal.NewFromFloat(*req.AutoTopupBufferPercent)
+		serviceReq.AutoTopupBufferPercent = &bufferDecimal
+	}
+
+	// Create subscription
+	subscription, err := v.Subscriptions.CreateCustomSubscription(c, activeUser.UserID, *serviceReq)
+	if err != nil {
+		errMsg := err.Error()
+		entry := audit.NewLog(
+			c,
+			audit.CategorySubscription,
+			audit.EventCreateCustomSubscription,
+			"",
+			"custom subscription creation failed",
+			&activeUser.UserID,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		v.audit.Log(entry)
+
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventCreateCustomSubscription,
+		subscription.ID.String(),
+		fmt.Sprintf("custom subscription created: %s", req.DisplayName),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.NewValues = map[string]any{
+		"merchant_name":     req.MerchantName,
+		"display_name":      req.DisplayName,
+		"category":          req.Category,
+		"amount":            req.Amount,
+		"currency":          req.Currency,
+		"billing_cycle":     req.BillingCycle,
+		"first_charge_date": firstChargeDate,
+		"reminder_enabled":  req.ReminderEnabled,
+		"notes":             req.Notes,
+	}
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusCreated, basemodels.NewSuccess("custom subscription created", subscription))
+}
+
+// GetCustomSubscriptions godoc
+// @Summary Get custom subscriptions
+// @Description Get all user-created custom subscriptions
+// @Tags Subscriptions
+// @Produce json
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/subscriptions/custom [get]
+func (v *Subscriptions) GetCustomSubscriptions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	subscriptions, err := v.server.queries.GetUserCustomSubscriptions(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("custom subscriptions retrieved", gin.H{
+		"subscriptions": subscriptions,
+		"count":         len(subscriptions),
+	}))
+}
+
+type UpdateCustomSubscriptionRequest struct {
+	DisplayName            *string  `json:"display_name,omitempty"`
+	Amount                 *string  `json:"amount,omitempty"`
+	BillingCycle           *string  `json:"billing_cycle,omitempty" binding:"omitempty,oneof=daily monthly yearly"`
+	ReminderEnabled        *bool    `json:"reminder_enabled,omitempty"`
+	CustomReminderDays     *int     `json:"custom_reminder_days,omitempty"`
+	AutoTopupBufferPercent *float64 `json:"auto_topup_buffer_percent,omitempty"`
+	Notes                  *string  `json:"notes,omitempty"`
+}
+
+type UpdateSystemSettingRequest struct {
+	Value string `json:"value" binding:"required"`
+}
+
+type BulkUpdateSettingsRequest struct {
+	Settings map[string]string `json:"settings" binding:"required"`
+}
+// UpdateCustomSubscription godoc
+// @Summary Update custom subscription
+// @Description Update a user-created custom subscription
+// @Tags Subscriptions
+// @Accept json
+// @Produce json
+// @Param id path string true "Subscription ID"
+// @Param request body UpdateCustomSubscriptionRequest true "Update details"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Router /api/v1/subscriptions/custom/{id} [patch]
+func (v *Subscriptions) UpdateCustomSubscription(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	subscriptionID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid subscription id"))
+		return
+	}
+
+	var req UpdateCustomSubscriptionRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// Build service request
+	serviceReq := &subscriptions.UpdateCustomSubscriptionRequest{
+		DisplayName:          req.DisplayName,
+		BillingCycle:         req.BillingCycle,
+		ReminderEnabled:      req.ReminderEnabled,
+		CustomReminderTiming: req.CustomReminderDays,
+		Notes:                req.Notes,
+	}
+
+	// Convert buffer percent if provided
+	if req.AutoTopupBufferPercent != nil {
+		bufferDecimal := decimal.NewFromFloat(*req.AutoTopupBufferPercent)
+		serviceReq.AutoTopupBufferPercent = &bufferDecimal
+	}
+
+	// Update subscription
+	updated, err := v.Subscriptions.UpdateCustomSubscription(c, activeUser.UserID, subscriptionID, serviceReq)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateCustomSubscription,
+		updated.ID.String(),
+		"custom subscription updated",
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("subscription updated", updated))
+}
+
+// AdminListSystemSettings godoc
+// @Summary List system settings (Admin)
+// @Description Get all subscription system settings
+// @Tags Admin
+// @Produce json
+// @Param category query string false "Filter by category"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/settings [get]
+func (v *Subscriptions) AdminListSystemSettings(c *gin.Context) {
+	category := c.Query("category")
+
+	settings, err := v.server.queries.ListSystemSettings(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// Filter by category if provided
+	if category != "" {
+		var filtered []db.SubscriptionSystemSetting
+		for _, s := range settings {
+			if s.Category == category {
+				filtered = append(filtered, s)
+			}
+		}
+		settings = filtered
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("system settings", gin.H{
+		"settings": settings,
+		"count":    len(settings),
+	}))
+}
+
+// AdminGetSystemSetting godoc
+// @Summary Get system setting (Admin)
+// @Description Get a specific system setting by key
+// @Tags Admin
+// @Produce json
+// @Param key path string true "Setting Key"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/settings/{key} [get]
+func (v *Subscriptions) AdminGetSystemSetting(c *gin.Context) {
+	key := c.Param("key")
+
+	setting, err := v.server.queries.GetSystemSetting(c, key)
+	if err != nil {
+		c.JSON(http.StatusNotFound, basemodels.NewError("setting not found"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("setting retrieved", setting))
+}
+
+// AdminUpdateSystemSetting godoc
+// @Summary Update system setting (Admin)
+// @Description Update a subscription system setting
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param key path string true "Setting Key"
+// @Param request body UpdateSystemSettingRequest true "New Value"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/settings/{key} [put]
+func (v *Subscriptions) AdminUpdateSystemSetting(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	key := c.Param("key")
+
+	var req UpdateSystemSettingRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updated, err := v.server.queries.UpdateSystemSetting(c, db.UpdateSystemSettingParams{
+		SettingKey:   key,
+		SettingValue: req.Value,
+		UpdatedBy:    sql.NullInt64{Int64: activeUser.UserID, Valid: true},
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySubscription,
+		audit.EventUpdateSubscriptionSystemSetting,
+		key,
+		fmt.Sprintf("system setting updated: %s", key),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	v.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("setting updated", updated))
+}
+
+// AdminBulkUpdateSettings godoc
+// @Summary Bulk update settings (Admin)
+// @Description Update multiple system settings at once
+// @Tags Admin
+// @Accept json
+// @Produce json
+// @Param request body BulkUpdateSettingsRequest true "Settings to update"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/settings/bulk [post]
+func (v *Subscriptions) AdminBulkUpdateSettings(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var req BulkUpdateSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	updated := make(map[string]interface{})
+	failed := make(map[string]string)
+
+	for key, value := range req.Settings {
+		result, err := v.server.queries.UpdateSystemSetting(c, db.UpdateSystemSettingParams{
+			SettingKey:   key,
+			SettingValue: value,
+			UpdatedBy:    sql.NullInt64{Int64: activeUser.UserID, Valid: true},
+		})
+
+		if err != nil {
+			failed[key] = err.Error()
+		} else {
+			updated[key] = result
+		}
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("bulk update completed", gin.H{
+		"updated": updated,
+		"failed":  failed,
+	}))
+}
+
+// AdminValidateBillingCycle godoc
+// @Summary Validate billing cycle (Admin)
+// @Description Check if a billing cycle is currently allowed
+// @Tags Admin
+// @Produce json
+// @Param cycle path string true "Billing Cycle" Enums(daily, monthly, yearly)
+// @Success 200 {object} basemodels.SuccessResponse
+// @Router /api/v1/subscriptions/admin/settings/validate/billing-cycle/{cycle} [get]
+func (v *Subscriptions) AdminValidateBillingCycle(c *gin.Context) {
+	cycle := c.Param("cycle")
+
+	err := v.Subscriptions.ValidateBillingCycle(c, cycle)
+	if err != nil {
+		c.JSON(http.StatusOK, basemodels.NewSuccess("validation result", gin.H{
+			"cycle":   cycle,
+			"allowed": false,
+			"reason":  err.Error(),
+		}))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("validation result", gin.H{
+		"cycle":   cycle,
+		"allowed": true,
+	}))
+}
+
+
 
 type UpdateSubscriptionPreferencesRequest struct {
 	ReminderEnabled    *bool  `json:"reminder_enabled"`
@@ -86,61 +521,67 @@ type UpdateStatusRequest struct {
 }
 
 type CreateMerchantRequest struct {
-	MerchantName        string   `json:"merchant_name" binding:"required"`
-	DisplayName         string   `json:"display_name" binding:"required"`
-	Aliases             []string `json:"aliases"`
-	Category            string   `json:"category" binding:"required"`
-	Subcategory         string   `json:"subcategory"`
-	LogoURL             string   `json:"logo_url"`
-	Website             string   `json:"website"`
-	Description         string   `json:"description"`
-	TypicalIntervals    []int32  `json:"typical_intervals"`
-	TypicalAmountsCents []int64  `json:"typical_amounts_cents"`
-	MCCCodes            []string `json:"mcc_codes"`
-	MatchConfidence     string   `json:"match_confidence"`
-	AutoDetect          bool     `json:"auto_detect"`
+	MerchantName     string   `json:"merchant_name" binding:"required"`
+	DisplayName      string   `json:"display_name" binding:"required"`
+	Aliases          []string `json:"aliases"`
+	Category         string   `json:"category" binding:"required"`
+	Subcategory      string   `json:"subcategory"`
+	LogoURL          string   `json:"logo_url"`
+	Website          string   `json:"website"`
+	Description      string   `json:"description"`
+	TypicalIntervals []int32  `json:"typical_intervals"`
+	TypicalAmounts   []int64  `json:"typical_amounts"`
+	MCCCodes         []string `json:"mcc_codes"`
+	MatchConfidence  string   `json:"match_confidence"`
+	AutoDetect       bool     `json:"auto_detect"`
 }
 
 type UpdateMerchantRequest struct {
-	DisplayName         string   `json:"display_name"`
-	Aliases             []string `json:"aliases"`
-	Category            string   `json:"category"`
-	Subcategory         string   `json:"subcategory"`
-	LogoURL             string   `json:"logo_url"`
-	TypicalIntervals    []int32  `json:"typical_intervals"`
-	TypicalAmountsCents []int64  `json:"typical_amounts_cents"`
-	AutoDetect          bool     `json:"auto_detect"`
+	DisplayName      string   `json:"display_name"`
+	Aliases          []string `json:"aliases"`
+	Category         string   `json:"category"`
+	Subcategory      string   `json:"subcategory"`
+	LogoURL          string   `json:"logo_url"`
+	TypicalIntervals []int32  `json:"typical_intervals"`
+	TypicalAmounts   []int64  `json:"typical_amounts"`
+	AutoDetect       bool     `json:"auto_detect"`
 }
 
 type UserSubscriptionsByCardRow struct {
-	ID                      uuid.UUID  `json:"id"`
-	UserID                  int64      `json:"user_id"`
-	CardID                  uuid.UUID  `json:"card_id"`
-	MerchantID              *int64     `json:"merchant_id"`
-	MerchantName            string     `json:"merchant_name"`
-	DisplayName             string     `json:"display_name"`
-	Category                *string    `json:"category"`
-	AmountCents             int64      `json:"amount_cents"`
-	Currency                string     `json:"currency"`
-	BillingIntervalDays     int32      `json:"billing_interval_days"`
-	FirstChargeDate         time.Time  `json:"first_charge_date"`
-	LastChargeDate          time.Time  `json:"last_charge_date"`
-	NextEstimatedChargeDate time.Time  `json:"next_estimated_charge_date"`
-	Status                  string     `json:"status"`
-	ConfidenceScore         string     `json:"confidence_score"`
-	TotalCharges            int32      `json:"total_charges"`
-	FailedCharges           int32      `json:"failed_charges"`
-	LastFailedDate          *time.Time `json:"last_failed_date"`
-	LastFailureReason       *string    `json:"last_failure_reason"`
-	ReminderEnabled         bool       `json:"reminder_enabled"`
-	ReminderDaysBefore      int32      `json:"reminder_days_before"`
-	UserConfirmed           bool       `json:"user_confirmed"`
-	CustomName              *string    `json:"custom_name"`
-	CreatedAt               time.Time  `json:"created_at"`
-	UpdatedAt               time.Time  `json:"updated_at"`
-	CancelledAt             *time.Time `json:"cancelled_at"`
-	LogoUrl                 *string    `json:"logo_url"`
-	Website                 *string    `json:"website"`
+	ID                      uuid.UUID      `json:"id"`
+	UserID                  int64          `json:"user_id"`
+	CardID                  uuid.UUID      `json:"card_id"`
+	MerchantID              sql.NullInt64  `json:"merchant_id"`
+	MerchantName            string         `json:"merchant_name"`
+	DisplayName             string         `json:"display_name"`
+	Category                sql.NullString `json:"category"`
+	Amount                  int64          `json:"amount"`
+	Currency                string         `json:"currency"`
+	BillingIntervalDays     int32          `json:"billing_interval_days"`
+	FirstChargeDate         time.Time      `json:"first_charge_date"`
+	LastChargeDate          time.Time      `json:"last_charge_date"`
+	NextEstimatedChargeDate time.Time      `json:"next_estimated_charge_date"`
+	Status                  string         `json:"status"`
+	ConfidenceScore         string         `json:"confidence_score"`
+	TotalCharges            int32          `json:"total_charges"`
+	FailedCharges           int32          `json:"failed_charges"`
+	LastFailedDate          sql.NullTime   `json:"last_failed_date"`
+	LastFailureReason       sql.NullString `json:"last_failure_reason"`
+	ReminderEnabled         bool           `json:"reminder_enabled"`
+	ReminderDaysBefore      int32          `json:"reminder_days_before"`
+	UserConfirmed           bool           `json:"user_confirmed"`
+	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
+	CreatedAt               time.Time      `json:"created_at"`
+	UpdatedAt               time.Time      `json:"updated_at"`
+	CancelledAt             sql.NullTime   `json:"cancelled_at"`
+	LogoUrl                 sql.NullString `json:"logo_url"`
+	Website                 sql.NullString `json:"website"`
 }
 
 func mapUserSubscriptionsByCardRow(row db.GetUserSubscriptionsByCardRow) UserSubscriptionsByCardRow {
@@ -148,11 +589,11 @@ func mapUserSubscriptionsByCardRow(row db.GetUserSubscriptionsByCardRow) UserSub
 		ID:                      row.ID,
 		UserID:                  row.UserID,
 		CardID:                  row.CardID,
-		MerchantID:              &row.MerchantID.Int64,
+		MerchantID:              sql.NullInt64{Int64: row.MerchantID.Int64, Valid: row.MerchantID.Valid},
 		MerchantName:            row.MerchantName,
 		DisplayName:             row.DisplayName,
-		Category:                &row.Category.String,
-		AmountCents:             row.AmountCents,
+		Category:                sql.NullString{String: row.Category.String, Valid: row.Category.Valid},
+		Amount:                  row.Amount,
 		Currency:                row.Currency,
 		BillingIntervalDays:     row.BillingIntervalDays,
 		FirstChargeDate:         row.FirstChargeDate,
@@ -162,17 +603,18 @@ func mapUserSubscriptionsByCardRow(row db.GetUserSubscriptionsByCardRow) UserSub
 		ConfidenceScore:         row.ConfidenceScore,
 		TotalCharges:            row.TotalCharges,
 		FailedCharges:           row.FailedCharges,
-		LastFailedDate:          &row.LastFailedDate.Time,
-		LastFailureReason:       &row.LastFailureReason.String,
+		LastFailedDate:          sql.NullTime{Time: row.LastFailedDate.Time, Valid: row.LastFailedDate.Valid},
+		LastFailureReason:       sql.NullString{String: row.LastFailureReason.String, Valid: row.LastFailureReason.Valid},
 		ReminderEnabled:         row.ReminderEnabled,
 		ReminderDaysBefore:      row.ReminderDaysBefore,
 		UserConfirmed:           row.UserConfirmed,
-		CustomName:              &row.CustomName.String,
+		IsCustom:                row.IsCustom,
+		CustomName:              sql.NullString{String: row.CustomName.String, Valid: row.CustomName.Valid},
 		CreatedAt:               row.CreatedAt,
 		UpdatedAt:               row.UpdatedAt,
-		CancelledAt:             &row.CancelledAt.Time,
-		LogoUrl:                 &row.LogoUrl.String,
-		Website:                 &row.Website.String,
+		CancelledAt:             sql.NullTime{Time: row.CancelledAt.Time, Valid: row.CancelledAt.Valid},
+		LogoUrl:                 sql.NullString{String: row.LogoUrl.String, Valid: row.LogoUrl.Valid},
+		Website:                 sql.NullString{String: row.Website.String, Valid: row.Website.Valid},
 	}
 }
 
@@ -391,8 +833,6 @@ func (v *Subscriptions) GetUserSubscriptions(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
-	// cardIDStr := c.Query("card_id")
 
 	subscriptions, err := v.server.queries.GetUserSubscriptions(c, activeUser.UserID)
 	if err != nil {
@@ -884,13 +1324,6 @@ func (v *Subscriptions) AdminGetSystemAlerts(c *gin.Context) {
 	}))
 }
 
-func (v *Subscriptions) AdminGetPlatformStats(c *gin.Context) {
-	// TODO: Implement comprehensive platform stats
-	c.JSON(http.StatusOK, basemodels.NewSuccess("platform stats", gin.H{
-		"message": "Stats endpoint - implementation pending",
-	}))
-}
-
 // AdminCreateMerchant godoc
 // @Summary Create subscription merchant (Admin)
 // @Description Add a new subscription merchant to the database
@@ -910,19 +1343,19 @@ func (v *Subscriptions) AdminCreateMerchant(c *gin.Context) {
 	}
 
 	merchant, err := v.server.queries.CreateSubscriptionMerchant(c, db.CreateSubscriptionMerchantParams{
-		MerchantName:        req.MerchantName,
-		DisplayName:         req.DisplayName,
-		Aliases:             req.Aliases,
-		Category:            req.Category,
-		Subcategory:         sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
-		LogoUrl:             sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
-		Website:             sql.NullString{String: req.Website, Valid: req.Website != ""},
-		Description:         sql.NullString{String: req.Description, Valid: req.Description != ""},
-		TypicalIntervals:    req.TypicalIntervals,
-		TypicalAmountsCents: req.TypicalAmountsCents,
-		MccCodes:            req.MCCCodes,
-		MatchConfidence:     req.MatchConfidence,
-		AutoDetect:          req.AutoDetect,
+		MerchantName:     req.MerchantName,
+		DisplayName:      req.DisplayName,
+		Aliases:          req.Aliases,
+		Category:         req.Category,
+		Subcategory:      sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
+		LogoUrl:          sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
+		Website:          sql.NullString{String: req.Website, Valid: req.Website != ""},
+		Description:      sql.NullString{String: req.Description, Valid: req.Description != ""},
+		TypicalIntervals: req.TypicalIntervals,
+		TypicalAmounts:   req.TypicalAmounts,
+		MccCodes:         req.MCCCodes,
+		MatchConfidence:  req.MatchConfidence,
+		AutoDetect:       req.AutoDetect,
 	})
 
 	if err != nil {
@@ -959,15 +1392,15 @@ func (v *Subscriptions) AdminUpdateMerchant(c *gin.Context) {
 	}
 
 	merchant, err := v.server.queries.UpdateSubscriptionMerchant(c, db.UpdateSubscriptionMerchantParams{
-		ID:                  merchantID,
-		DisplayName:         sql.NullString{String: req.DisplayName, Valid: req.DisplayName != ""},
-		Aliases:             req.Aliases,
-		Category:            sql.NullString{String: req.Category, Valid: req.Category != ""},
-		Subcategory:         sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
-		LogoUrl:             sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
-		TypicalIntervals:    req.TypicalIntervals,
-		TypicalAmountsCents: req.TypicalAmountsCents,
-		AutoDetect:          sql.NullBool{Bool: req.AutoDetect, Valid: true},
+		ID:               merchantID,
+		DisplayName:      sql.NullString{String: req.DisplayName, Valid: req.DisplayName != ""},
+		Aliases:          req.Aliases,
+		Category:         sql.NullString{String: req.Category, Valid: req.Category != ""},
+		Subcategory:      sql.NullString{String: req.Subcategory, Valid: req.Subcategory != ""},
+		LogoUrl:          sql.NullString{String: req.LogoURL, Valid: req.LogoURL != ""},
+		TypicalIntervals: req.TypicalIntervals,
+		TypicalAmounts:   req.TypicalAmounts,
+		AutoDetect:       sql.NullBool{Bool: req.AutoDetect, Valid: true},
 	})
 
 	if err != nil {

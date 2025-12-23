@@ -52,15 +52,15 @@ func (v Virtualcard) router(server *Server) {
 		v1.GET("/get-card-plan-by-id", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardPlanById)
 		v1.GET("/get-card", server.authMiddleware.AuthenticatedMiddleware(), v.GetVirtualCard)
 		v1.GET("/get-user-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetUserCards)
-		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)                    //done
-		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                             //one
-		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus)           //done
+		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)          //done
+		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                   //one
+		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus) //done
 		// v1.PUT("/admin/update-card-plan/:plan_id", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPlan)                           //done
 		v1.DELETE("/admin/delete-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCardPlan)                        //done
 		v1.POST("/admin/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminFreezeCard)                              //done
 		v1.POST("/admin/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUnfreezeCard)                          //done
 		v1.DELETE("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                            //done
-		v1.POST("/admin/update-card-plan/:plan_id", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)                     //done
+		v1.POST("/admin/update-card-plan/:plan_id", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)            //done
 		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance)        //done
 		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)                    //done
 		v1.GET("/admin/list-card-transactions-by-user", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactionsByUser) //done
@@ -126,46 +126,45 @@ func (v *Virtualcard) AdminUpdateCardPlan(c *gin.Context) {
 	}
 
 	params := db.UpdateCardPlanParams{
-	ID: int64(id),
+		ID: int64(id),
 
-	Name: sql.NullString{
-		String: derefString(req.Name),
-		Valid:  req.Name != nil,
-	},
-	Description: sql.NullString{
-		String: derefString(req.Description),
-		Valid:  req.Description != nil,
-	},
-	CreationFee: sql.NullString{
-		String: derefString(req.CreationFee),
-		Valid:  req.CreationFee != nil,
-	},
-	MonthlyMaintenanceFee: sql.NullString{
-		String: derefString(req.MonthlyMaintenanceFee),
-		Valid:  req.MonthlyMaintenanceFee != nil,
-	},
-	MonthlySpendingLimit: sql.NullString{
-		String: derefString(req.MonthlySpendingLimit),
-		Valid:  req.MonthlySpendingLimit != nil,
-	},
-	TransactionLimit: sql.NullString{
-		String: derefString(req.TransactionLimit),
-		Valid:  req.TransactionLimit != nil,
-	},
-	DailySpendingLimit: sql.NullString{
-		String: derefString(req.DailySpendingLimit),
-		Valid:  req.DailySpendingLimit != nil,
-	},
-	CardLimit: sql.NullString{
-		String: derefString(req.CardLimit),
-		Valid:  req.CardLimit != nil,
-	},
-	IsActive: sql.NullBool{
-		Bool:  derefBool(req.IsActive),
-		Valid: req.IsActive != nil,
-	},
-}
-
+		Name: sql.NullString{
+			String: derefString(req.Name),
+			Valid:  req.Name != nil,
+		},
+		Description: sql.NullString{
+			String: derefString(req.Description),
+			Valid:  req.Description != nil,
+		},
+		CreationFee: sql.NullString{
+			String: derefString(req.CreationFee),
+			Valid:  req.CreationFee != nil,
+		},
+		MonthlyMaintenanceFee: sql.NullString{
+			String: derefString(req.MonthlyMaintenanceFee),
+			Valid:  req.MonthlyMaintenanceFee != nil,
+		},
+		MonthlySpendingLimit: sql.NullString{
+			String: derefString(req.MonthlySpendingLimit),
+			Valid:  req.MonthlySpendingLimit != nil,
+		},
+		TransactionLimit: sql.NullString{
+			String: derefString(req.TransactionLimit),
+			Valid:  req.TransactionLimit != nil,
+		},
+		DailySpendingLimit: sql.NullString{
+			String: derefString(req.DailySpendingLimit),
+			Valid:  req.DailySpendingLimit != nil,
+		},
+		CardLimit: sql.NullString{
+			String: derefString(req.CardLimit),
+			Valid:  req.CardLimit != nil,
+		},
+		IsActive: sql.NullBool{
+			Bool:  derefBool(req.IsActive),
+			Valid: req.IsActive != nil,
+		},
+	}
 
 	plan, err := v.server.queries.UpdateCardPlan(c, params)
 	if err != nil {
@@ -1468,29 +1467,29 @@ func (v *Virtualcard) createCardPlan(c *gin.Context) {
 	if err != nil {
 		errMsg := err.Error()
 		entry := audit.NewLog(
-		c,
-		audit.CategoryCard,
-		audit.EventCreateCardPlan,
-		fmt.Sprint(plan.ID),
-		fmt.Sprintf("Card plan %s created successfully by admin %d", plan.Name, activeUser.UserID),
-		&activeUser.UserID,
-		activeUser.Role,
-		false,
-		&errMsg,
-	)
-	entry.NewValues = map[string]any{
-		"name":                     plan.Name,
-		"description":              plan.Description.String,
-		"creation_fee":             plan.CreationFee,
-		"monthly_maintenance_fee":  plan.MonthlyMaintenanceFee,
-		"monthly_spending_limit":   plan.MonthlySpendingLimit,
-		"transaction_limit":        plan.TransactionLimit,
-		"daily_spending_limit":     plan.DailySpendingLimit.String,
-		"max_cards_per_user":       plan.MaxCardsPerUser,
-		"card_limit":               plan.CardLimit.String,
-		"failed_tx_count_before_block": plan.FailedTxCountBeforeBlock.Int32,
-	}
-	v.audit.Log(entry)
+			c,
+			audit.CategoryCard,
+			audit.EventCreateCardPlan,
+			fmt.Sprint(plan.ID),
+			fmt.Sprintf("Card plan %s created successfully by admin %d", plan.Name, activeUser.UserID),
+			&activeUser.UserID,
+			activeUser.Role,
+			false,
+			&errMsg,
+		)
+		entry.NewValues = map[string]any{
+			"name":                         plan.Name,
+			"description":                  plan.Description.String,
+			"creation_fee":                 plan.CreationFee,
+			"monthly_maintenance_fee":      plan.MonthlyMaintenanceFee,
+			"monthly_spending_limit":       plan.MonthlySpendingLimit,
+			"transaction_limit":            plan.TransactionLimit,
+			"daily_spending_limit":         plan.DailySpendingLimit.String,
+			"max_cards_per_user":           plan.MaxCardsPerUser,
+			"card_limit":                   plan.CardLimit.String,
+			"failed_tx_count_before_block": plan.FailedTxCountBeforeBlock.Int32,
+		}
+		v.audit.Log(entry)
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
@@ -1508,15 +1507,15 @@ func (v *Virtualcard) createCardPlan(c *gin.Context) {
 		nil,
 	)
 	entry.NewValues = map[string]any{
-		"name":                     plan.Name,
-		"description":              plan.Description.String,
-		"creation_fee":             plan.CreationFee,
-		"monthly_maintenance_fee":  plan.MonthlyMaintenanceFee,
-		"monthly_spending_limit":   plan.MonthlySpendingLimit,
-		"transaction_limit":        plan.TransactionLimit,
-		"daily_spending_limit":     plan.DailySpendingLimit.String,
-		"max_cards_per_user":       plan.MaxCardsPerUser,
-		"card_limit":               plan.CardLimit.String,
+		"name":                         plan.Name,
+		"description":                  plan.Description.String,
+		"creation_fee":                 plan.CreationFee,
+		"monthly_maintenance_fee":      plan.MonthlyMaintenanceFee,
+		"monthly_spending_limit":       plan.MonthlySpendingLimit,
+		"transaction_limit":            plan.TransactionLimit,
+		"daily_spending_limit":         plan.DailySpendingLimit.String,
+		"max_cards_per_user":           plan.MaxCardsPerUser,
+		"card_limit":                   plan.CardLimit.String,
 		"failed_tx_count_before_block": plan.FailedTxCountBeforeBlock.Int32,
 	}
 	v.audit.Log(entry)
@@ -1813,15 +1812,15 @@ type GetUserCardsRowResponse struct {
 	CardName                string     `json:"card_name"`
 	CardColor               *string    `json:"card_color"`
 	Currency                string     `json:"currency"`
-	CurrentMonthSpendCents  int64      `json:"current_month_spend_cents"`
-	CurrentDaySpendCents    int64      `json:"current_day_spend_cents"`
+	CurrentMonthSpend       int64      `json:"current_month_spend"`
+	CurrentDaySpend         int64      `json:"current_day_spend"`
 	SpendingMonth           *string    `json:"spending_month"`
 	SpendingDay             *string    `json:"spending_day"`
 	Status                  string     `json:"status"`
 	StatusReason            *string    `json:"status_reason"`
 	AutoTopupEnabled        bool       `json:"auto_topup_enabled"`
-	AutoTopupThresholdCents *int64     `json:"auto_topup_threshold_cents"`
-	AutoTopupAmountCents    *int64     `json:"auto_topup_amount_cents"`
+	AutoTopupThreshold      *int64     `json:"auto_topup_threshold"`
+	AutoTopupAmount         *int64     `json:"auto_topup_amount"`
 	AutoTopupSourceWalletID *uuid.UUID `json:"auto_topup_source_wallet_id"`
 	NextBillingDate         *time.Time `json:"next_billing_date"`
 	LastBillingDate         *time.Time `json:"last_billing_date"`
@@ -1844,15 +1843,15 @@ func mapGetUserCardsRowToResponse(row db.GetUserCardsRow) GetUserCardsRowRespons
 		CardName:                row.CardName,
 		CardColor:               &row.CardColor.String,
 		Currency:                row.Currency,
-		CurrentMonthSpendCents:  row.CurrentMonthSpend.Int64,
-		CurrentDaySpendCents:    row.CurrentDaySpend.Int64,
+		CurrentMonthSpend:       row.CurrentMonthSpend.Int64,
+		CurrentDaySpend:         row.CurrentDaySpend.Int64,
 		SpendingMonth:           &row.SpendingMonth.String,
 		SpendingDay:             &row.SpendingDay.String,
 		Status:                  row.Status,
 		StatusReason:            &row.StatusReason.String,
 		AutoTopupEnabled:        row.AutoTopupEnabled,
-		AutoTopupThresholdCents: &row.AutoTopupThresholdCents.Int64,
-		AutoTopupAmountCents:    &row.AutoTopupAmountCents.Int64,
+		AutoTopupThreshold:      &row.AutoTopupThreshold.Int64,
+		AutoTopupAmount:         &row.AutoTopupAmount.Int64,
 		AutoTopupSourceWalletID: &row.AutoTopupSourceWalletID.UUID,
 		NextBillingDate:         &row.NextBillingDate.Time,
 		LastBillingDate:         &row.LastBillingDate.Time,
@@ -1910,8 +1909,8 @@ func mapVirtualCardToResponse(card *db.VirtualCard) VirtualCardResponse {
 		Status:                  card.Status,
 		StatusReason:            &card.StatusReason.String,
 		AutoTopupEnabled:        card.AutoTopupEnabled,
-		AutoTopupThresholdCents: &card.AutoTopupThresholdCents.Int64,
-		AutoTopupAmountCents:    &card.AutoTopupAmountCents.Int64,
+		AutoTopupThresholdCents: &card.AutoTopupThreshold.Int64,
+		AutoTopupAmountCents:    &card.AutoTopupAmount.Int64,
 		AutoTopupSourceWalletID: &card.AutoTopupSourceWalletID.UUID,
 		NextBillingDate:         &card.NextBillingDate.Time,
 		LastBillingDate:         &card.LastBillingDate.Time,
