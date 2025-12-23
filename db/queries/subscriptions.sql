@@ -684,3 +684,74 @@ SET
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+-- =============================================
+-- CUSTOM SUBSCRIPTIONS
+-- =============================================
+
+-- name: CreateCustomSubscription :one
+INSERT INTO user_subscriptions (
+    user_id, card_id, merchant_name, display_name, category,
+    amount_cents, currency, billing_interval_days,
+    first_charge_date, last_charge_date, next_estimated_charge_date,
+    status, confidence_score, reminder_enabled, reminder_days_before,
+    is_custom, custom_billing_cycle, custom_amount_override,
+    auto_topup_buffer_percent, custom_reminder_timing, notes
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21
+) RETURNING *;
+
+-- name: GetCustomSubscriptionCount :one
+SELECT COUNT(*) FROM user_subscriptions
+WHERE user_id = $1 AND is_custom = TRUE AND status = 'active';
+
+-- name: GetSystemSetting :one
+SELECT * FROM subscription_system_settings
+WHERE setting_key = $1 AND is_active = TRUE;
+
+-- name: ListSystemSettings :many
+SELECT * FROM subscription_system_settings
+WHERE is_active = TRUE
+ORDER BY category, setting_key;
+
+-- name: UpdateSystemSetting :one
+UPDATE subscription_system_settings
+SET 
+    setting_value = $2,
+    updated_by = $3,
+    updated_at = NOW()
+WHERE setting_key = $1
+RETURNING *;
+
+-- name: UpdateCustomSubscription :one
+UPDATE user_subscriptions
+SET 
+    display_name = COALESCE(sqlc.narg('display_name'), display_name),
+    amount_cents = COALESCE(sqlc.narg('amount_cents'), amount_cents),
+    billing_interval_days = COALESCE(sqlc.narg('billing_interval_days'), billing_interval_days),
+    custom_billing_cycle = COALESCE(sqlc.narg('custom_billing_cycle'), custom_billing_cycle),
+    reminder_enabled = COALESCE(sqlc.narg('reminder_enabled'), reminder_enabled),
+    custom_reminder_timing = COALESCE(sqlc.narg('custom_reminder_timing'), custom_reminder_timing),
+    auto_topup_buffer_percent = COALESCE(sqlc.narg('auto_topup_buffer_percent'), auto_topup_buffer_percent),
+    notes = COALESCE(sqlc.narg('notes'), notes),
+    updated_at = NOW()
+WHERE id = $1 AND user_id = $2 AND is_custom = TRUE
+RETURNING *;
+
+-- name: GetUserCustomSubscriptions :many
+SELECT us.*, sm.logo_url, sm.website
+FROM user_subscriptions us
+LEFT JOIN subscription_merchants sm ON us.merchant_id = sm.id
+WHERE us.user_id = $1 AND us.is_custom = TRUE AND us.status = 'active'
+ORDER BY us.next_estimated_charge_date ASC;
+
+-- name: ValidateSubscriptionLimits :one
+SELECT 
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_custom_subscriptions_per_user' AND is_active = TRUE) as max_subscriptions,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'min_subscription_amount_cents' AND is_active = TRUE) as min_amount,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_subscription_amount_cents' AND is_active = TRUE) as max_amount,
+    (SELECT setting_value::INTEGER FROM subscription_system_settings 
+     WHERE setting_key = 'max_auto_topup_amount_cents' AND is_active = TRUE) as max_topup;

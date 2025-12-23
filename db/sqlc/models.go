@@ -116,6 +116,15 @@ func (ns NullAuditSeverity) Value() (driver.Value, error) {
 	return string(ns.AuditSeverity), nil
 }
 
+type ActiveSubscriptionSetting struct {
+	SettingKey   string         `json:"setting_key"`
+	SettingValue string         `json:"setting_value"`
+	SettingType  string         `json:"setting_type"`
+	Description  sql.NullString `json:"description"`
+	Category     string         `json:"category"`
+	TypedValue   interface{}    `json:"typed_value"`
+}
+
 type AgentMetric struct {
 	ID                        int64          `json:"id"`
 	SupportAdminID            int64          `json:"support_admin_id"`
@@ -574,6 +583,16 @@ type CryptomusAddress struct {
 	Status      string         `json:"status"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   sql.NullTime   `json:"updated_at"`
+}
+
+type CustomSubscriptionsSummary struct {
+	UserID                  int64 `json:"user_id"`
+	CustomSubscriptionCount int64 `json:"custom_subscription_count"`
+	ActiveCustomCount       int64 `json:"active_custom_count"`
+	TotalCustomSpendCents   int64 `json:"total_custom_spend_cents"`
+	DailySubscriptions      int64 `json:"daily_subscriptions"`
+	MonthlySubscriptions    int64 `json:"monthly_subscriptions"`
+	YearlySubscriptions     int64 `json:"yearly_subscriptions"`
 }
 
 type ExchangeRate struct {
@@ -1048,6 +1067,19 @@ type SubscriptionReminder struct {
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
+type SubscriptionSystemSetting struct {
+	ID           int64          `json:"id"`
+	SettingKey   string         `json:"setting_key"`
+	SettingValue string         `json:"setting_value"`
+	SettingType  string         `json:"setting_type"`
+	Description  sql.NullString `json:"description"`
+	Category     string         `json:"category"`
+	IsActive     bool           `json:"is_active"`
+	UpdatedBy    sql.NullInt64  `json:"updated_by"`
+	CreatedAt    time.Time      `json:"created_at"`
+	UpdatedAt    time.Time      `json:"updated_at"`
+}
+
 type SupportAdmin struct {
 	ID                   int64     `json:"id"`
 	UserID               int64     `json:"user_id"`
@@ -1249,6 +1281,12 @@ type UserSubscription struct {
 	ReminderDaysBefore      int32          `json:"reminder_days_before"`
 	UserConfirmed           bool           `json:"user_confirmed"`
 	CustomName              sql.NullString `json:"custom_name"`
+	IsCustom                bool           `json:"is_custom"`
+	CustomBillingCycle      sql.NullString `json:"custom_billing_cycle"`
+	CustomAmountOverride    bool           `json:"custom_amount_override"`
+	AutoTopupBufferPercent  sql.NullString `json:"auto_topup_buffer_percent"`
+	CustomReminderTiming    sql.NullInt32  `json:"custom_reminder_timing"`
+	Notes                   sql.NullString `json:"notes"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 	CancelledAt             sql.NullTime   `json:"cancelled_at"`
