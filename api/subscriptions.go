@@ -34,7 +34,7 @@ func (v Subscriptions) router(server *Server) {
 	v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
 		// User Story 5 & 6: Subscription Overview & Details
-		v1.POST("/", v.CreateCustomSubscription)
+		v1.POST("/custom", v.CreateCustomSubscription)
 		v1.PATCH("/custom/:id", v.UpdateCustomSubscription)
 		v1.GET("/", v.GetUserSubscriptions)
 		v1.GET("/:id", v.GetSubscriptionDetails)
