@@ -455,6 +455,27 @@ definitions:
         description: Secret is the secret key used for generating TOTP codes
         type: string
     type: object
+  api.UpdateCardPlanRequest:
+    properties:
+      card_limit:
+        type: string
+      daily_spending_limit:
+        type: string
+      description:
+        type: string
+      is_active:
+        type: boolean
+      monthly_maintenance_fee:
+        type: string
+      monthly_spending_limit:
+        type: string
+      name:
+        type: string
+      plan_id:
+        type: integer
+      transaction_limit:
+        type: string
+    type: object
   api.UpdateMerchantRequest:
     properties:
       aliases:
@@ -4569,214 +4590,6 @@ paths:
       summary: Reset broken streaks (Admin)
       tags:
       - Streaks/Admin
-  /api/v1/admin/subscriptions/alerts:
-    get:
-      consumes:
-      - application/json
-      description: Get system health alerts and failed renewals
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get system alerts (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/all:
-    get:
-      consumes:
-      - application/json
-      description: Get all subscriptions across the platform
-      parameters:
-      - description: Filter by status
-        in: query
-        name: status
-        type: string
-      - description: Page number
-        in: query
-        name: page
-        type: integer
-      - description: Items per page
-        in: query
-        name: limit
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get all subscriptions (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/merchants:
-    get:
-      consumes:
-      - application/json
-      description: Get spending analytics per merchant
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get merchant insights (Admin)
-      tags:
-      - Subscriptions
-    post:
-      consumes:
-      - application/json
-      description: Add a new subscription merchant to the database
-      parameters:
-      - description: Merchant details
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.CreateMerchantRequest'
-      produces:
-      - application/json
-      responses:
-        "201":
-          description: Created
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Create subscription merchant (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/merchants/{id}:
-    patch:
-      consumes:
-      - application/json
-      description: Update an existing subscription merchant
-      parameters:
-      - description: Merchant ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      - description: Merchant updates
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.UpdateMerchantRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Update subscription merchant (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/merchants/{merchant_id}:
-    get:
-      consumes:
-      - application/json
-      description: Get detailed information about a specific merchant
-      parameters:
-      - description: Merchant ID
-        in: path
-        name: merchant_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get merchant details (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/merchants/list:
-    get:
-      consumes:
-      - application/json
-      description: Get list of all subscription merchants
-      parameters:
-      - description: Filter by category
-        in: query
-        name: category
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: List all merchants (Admin)
-      tags:
-      - Subscriptions
-  /api/v1/admin/subscriptions/users/{user_id}:
-    get:
-      consumes:
-      - application/json
-      description: Get all subscriptions for a specific user
-      parameters:
-      - description: User ID
-        in: path
-        name: user_id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get user subscriptions (Admin)
-      tags:
-      - Subscriptions
   /api/v1/analytics/crypto-transactions:
     get:
       consumes:
@@ -7702,51 +7515,12 @@ paths:
       - application/json
       description: Update card plan
       parameters:
-      - description: Plan ID
-        in: query
-        name: plan_id
+      - description: Update card plan request
+        in: body
+        name: request
         required: true
-        type: integer
-      - description: Name
-        in: query
-        name: name
-        required: true
-        type: string
-      - description: Description
-        in: query
-        name: description
-        required: true
-        type: string
-      - description: Monthly Spending Limit
-        in: query
-        name: monthly_spending_limit
-        required: true
-        type: string
-      - description: Monthly Maintenance Fee
-        in: query
-        name: monthly_maintenance_fee
-        required: true
-        type: string
-      - description: Transaction Limit
-        in: query
-        name: transaction_limit
-        required: true
-        type: string
-      - description: Daily Spending Limit
-        in: query
-        name: daily_spending_limit
-        required: true
-        type: string
-      - description: Is Active
-        in: query
-        name: is_active
-        required: true
-        type: boolean
-      - description: Card Limit
-        in: query
-        name: card_limit
-        required: true
-        type: string
+        schema:
+          $ref: '#/definitions/api.UpdateCardPlanRequest'
       produces:
       - application/json
       responses:
@@ -10087,6 +9861,127 @@ paths:
       summary: Update subscription status
       tags:
       - Subscriptions
+  /api/v1/subscriptions/admin/{id}/auto-topup:
+    post:
+      consumes:
+      - application/json
+      description: Toggle subscription auto topup
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Toggle auto topup
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.ToggleAutoTopupRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Toggle subscription auto topup
+      tags:
+      - subscriptions
+  /api/v1/subscriptions/admin/{id}/status:
+    post:
+      consumes:
+      - application/json
+      description: Set subscription status
+      parameters:
+      - description: Subscription ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Set subscription status
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.AdminUpdateStatusRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Set subscription status
+      tags:
+      - subscriptions
+  /api/v1/subscriptions/admin/alerts:
+    get:
+      consumes:
+      - application/json
+      description: Get system health alerts and failed renewals
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get system alerts (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/all:
+    get:
+      consumes:
+      - application/json
+      description: Get all subscriptions across the platform
+      parameters:
+      - description: Filter by status
+        in: query
+        name: status
+        type: string
+      - description: Page number
+        in: query
+        name: page
+        type: integer
+      - description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get all subscriptions (Admin)
+      tags:
+      - Subscriptions
   /api/v1/subscriptions/admin/auto-topup/success-rate:
     get:
       description: Auto topup success metrics
@@ -10100,6 +9995,138 @@ paths:
       summary: Get auto topup success rate
       tags:
       - Subscriptions
+  /api/v1/subscriptions/admin/merchants:
+    get:
+      consumes:
+      - application/json
+      description: Get spending analytics per merchant
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get merchant insights (Admin)
+      tags:
+      - Subscriptions
+    post:
+      consumes:
+      - application/json
+      description: Add a new subscription merchant to the database
+      parameters:
+      - description: Merchant details
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.CreateMerchantRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create subscription merchant (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/merchants/{id}:
+    put:
+      consumes:
+      - application/json
+      description: Update an existing subscription merchant
+      parameters:
+      - description: Merchant ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Merchant updates
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/api.UpdateMerchantRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update subscription merchant (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/merchants/{merchant_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get detailed information about a specific merchant
+      parameters:
+      - description: Merchant ID
+        in: path
+        name: merchant_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get merchant details (Admin)
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/merchants/list:
+    get:
+      consumes:
+      - application/json
+      description: Get list of all subscription merchants
+      parameters:
+      - description: Filter by category
+        in: query
+        name: category
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List all merchants (Admin)
+      tags:
+      - Subscriptions
   /api/v1/subscriptions/admin/stats:
     get:
       description: Total subscriptions, active/inactive count, monthly spend
@@ -10111,6 +10138,31 @@ paths:
           schema:
             $ref: '#/definitions/models.SuccessResponse'
       summary: Get subscription stats
+      tags:
+      - Subscriptions
+  /api/v1/subscriptions/admin/users/{user_id}:
+    get:
+      consumes:
+      - application/json
+      description: Get all subscriptions for a specific user
+      parameters:
+      - description: User ID
+        in: path
+        name: user_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get user subscriptions (Admin)
       tags:
       - Subscriptions
   /api/v1/subscriptions/analytics/category:
@@ -13519,76 +13571,6 @@ paths:
       summary: Get user VIP status
       tags:
       - Rate Manager - VIP Assignments
-  /subscriptions/admin/{id}/auto-topup:
-    post:
-      consumes:
-      - application/json
-      description: Toggle subscription auto topup
-      parameters:
-      - description: Subscription ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Toggle auto topup
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.ToggleAutoTopupRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Toggle subscription auto topup
-      tags:
-      - subscriptions
-  /subscriptions/admin/{id}/status:
-    post:
-      consumes:
-      - application/json
-      description: Set subscription status
-      parameters:
-      - description: Subscription ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Set subscription status
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/api.AdminUpdateStatusRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Set subscription status
-      tags:
-      - subscriptions
 securityDefinitions:
   BearerAuth:
     description: Type "Bearer" followed by a space and JWT token.

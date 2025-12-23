@@ -1545,15 +1545,7 @@ type UpdateCardPlanRequest struct {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Param plan_id query int true "Plan ID"
-// @Param name query string true "Name"
-// @Param description query string true "Description"
-// @Param monthly_spending_limit query string true "Monthly Spending Limit"
-// @Param monthly_maintenance_fee query string true "Monthly Maintenance Fee"
-// @Param transaction_limit query string true "Transaction Limit"
-// @Param daily_spending_limit query string true "Daily Spending Limit"
-// @Param is_active query bool true "Is Active"
-// @Param card_limit query string true "Card Limit"
+// @Param request body UpdateCardPlanRequest true "Update card plan request"
 // @Success 200 {object} CardPlanResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
