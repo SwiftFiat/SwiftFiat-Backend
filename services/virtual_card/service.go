@@ -166,11 +166,12 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, ErrPlanLimitExceeded
 	}
 
-	creationFeeCents, err := utils.ToDecimal(plan.CreationFee)
+	creationFee, err := utils.ToDecimal(plan.CreationFee)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert CreationFee to decimal")
 	}
-	creationFee := creationFeeCents.Div(decimal.NewFromInt(100))
+
+	// createFeeCents := creationFee.Mul(decimal.NewFromInt(100))
 
 	usdWallet, err := s.store.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
 		CustomerID: params.UserID,
@@ -227,7 +228,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		CardType:             "virtual",
 		Brand:                "Mastercard", //Visa is not supported yet
 		Currency:             "USD",
-		CardLimit:            "500000",        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
+		CardLimit:            plan.CardLimit.String,        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
 		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
 		TransactionReference: utils.NewTxRef("swiift_card"),
 		SourceWalletID:       usdWallet.ID,

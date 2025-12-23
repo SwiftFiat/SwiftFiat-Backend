@@ -55,12 +55,12 @@ func (v Virtualcard) router(server *Server) {
 		v1.POST("/admin/fund-issuing-wallet", server.authMiddleware.AuthenticatedMiddleware(), v.FundIssuingWallet)                    //done
 		v1.GET("/admin/get-total-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCards)                             //one
 		v1.GET("/admin/get-total-cards-by-status", server.authMiddleware.AuthenticatedMiddleware(), v.GetTotalCardsByStatus)           //done
-		v1.PUT("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPlan)                           //done
+		// v1.PUT("/admin/update-card-plan/:plan_id", server.authMiddleware.AuthenticatedMiddleware(), v.UpdateCardPlan)                           //done
 		v1.DELETE("/admin/delete-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.DeleteCardPlan)                        //done
 		v1.POST("/admin/freeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminFreezeCard)                              //done
 		v1.POST("/admin/unfreeze-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUnfreezeCard)                          //done
 		v1.DELETE("/admin/delete-card", server.authMiddleware.AuthenticatedMiddleware(), v.AdminDeleteCard)                            //done
-		v1.POST("/admin/update-card-plan", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)                     //done
+		v1.POST("/admin/update-card-plan/:plan_id", server.authMiddleware.AuthenticatedMiddleware(), v.AdminUpdateCardPlan)                     //done
 		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance)        //done
 		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)                    //done
 		v1.GET("/admin/list-card-transactions-by-user", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactionsByUser) //done
@@ -86,21 +86,14 @@ type UpdateCardPlanParams struct {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Param id query int true "Card plan ID"
-// @Param name query string false "Card plan name"
-// @Param description query string false "Card plan description"
-// @Param creation_fee query string false "Card plan creation fee"
-// @Param monthly_maintenance_fee query string false "Card plan monthly maintenance fee"
-// @Param monthly_spending_limit query string false "Card plan monthly spending limit"
-// @Param transaction_limit query string false "Card plan transaction limit"
-// @Param daily_spending_limit query string false "Card plan daily spending limit"
-// @Param is_active query bool false "Card plan is active"
-// @Param card_limit query string false "Card plan card limit"
+// @Param plan_id path int true "Card plan ID"
+// @Param request body UpdateCardPlanRequest true "Update card plan request"
 // @Success 200 {object} CardPlanResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
+// @Router api/v1/cards/admin/update-card-plan/{plan_id} [post]
 func (v *Virtualcard) AdminUpdateCardPlan(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -109,12 +102,12 @@ func (v *Virtualcard) AdminUpdateCardPlan(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
-	id, err := strconv.Atoi(c.Query("id"))
+	id, err := strconv.Atoi(c.Param("plan_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid id"))
 		return
@@ -133,17 +126,46 @@ func (v *Virtualcard) AdminUpdateCardPlan(c *gin.Context) {
 	}
 
 	params := db.UpdateCardPlanParams{
-		ID:                    int64(id),
-		Name:                  sql.NullString{String: *req.Name, Valid: req.Name != nil},
-		Description:           sql.NullString{String: *req.Description, Valid: req.Description != nil},
-		CreationFee:           sql.NullString{String: *req.CreationFee, Valid: req.CreationFee != nil},
-		MonthlyMaintenanceFee: sql.NullString{String: *req.MonthlyMaintenanceFee, Valid: req.MonthlyMaintenanceFee != nil},
-		MonthlySpendingLimit:  sql.NullString{String: *req.MonthlySpendingLimit, Valid: req.MonthlySpendingLimit != nil},
-		TransactionLimit:      sql.NullString{String: *req.TransactionLimit, Valid: req.TransactionLimit != nil},
-		DailySpendingLimit:    sql.NullString{String: *req.DailySpendingLimit, Valid: req.DailySpendingLimit != nil},
-		IsActive:              sql.NullBool{Bool: *req.IsActive, Valid: req.IsActive != nil},
-		CardLimit:             sql.NullString{String: *req.CardLimit, Valid: req.CardLimit != nil},
-	}
+	ID: int64(id),
+
+	Name: sql.NullString{
+		String: derefString(req.Name),
+		Valid:  req.Name != nil,
+	},
+	Description: sql.NullString{
+		String: derefString(req.Description),
+		Valid:  req.Description != nil,
+	},
+	CreationFee: sql.NullString{
+		String: derefString(req.CreationFee),
+		Valid:  req.CreationFee != nil,
+	},
+	MonthlyMaintenanceFee: sql.NullString{
+		String: derefString(req.MonthlyMaintenanceFee),
+		Valid:  req.MonthlyMaintenanceFee != nil,
+	},
+	MonthlySpendingLimit: sql.NullString{
+		String: derefString(req.MonthlySpendingLimit),
+		Valid:  req.MonthlySpendingLimit != nil,
+	},
+	TransactionLimit: sql.NullString{
+		String: derefString(req.TransactionLimit),
+		Valid:  req.TransactionLimit != nil,
+	},
+	DailySpendingLimit: sql.NullString{
+		String: derefString(req.DailySpendingLimit),
+		Valid:  req.DailySpendingLimit != nil,
+	},
+	CardLimit: sql.NullString{
+		String: derefString(req.CardLimit),
+		Valid:  req.CardLimit != nil,
+	},
+	IsActive: sql.NullBool{
+		Bool:  derefBool(req.IsActive),
+		Valid: req.IsActive != nil,
+	},
+}
+
 
 	plan, err := v.server.queries.UpdateCardPlan(c, params)
 	if err != nil {
@@ -1511,7 +1533,7 @@ func (v *Virtualcard) createCardPlan(c *gin.Context) {
 // @Success 200 {object} []CardPlanResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/admin/list-card-plans [get]
+// @Router /api/v1/cards/admin/get-card-plans [get]
 func (v *Virtualcard) ListCardPlans(c *gin.Context) {
 	plans, err := v.server.queries.ListCardPlans(c.Request.Context())
 	if err != nil {
@@ -1528,7 +1550,6 @@ func (v *Virtualcard) ListCardPlans(c *gin.Context) {
 }
 
 type UpdateCardPlanRequest struct {
-	PlanID                int64  `json:"plan_id"`
 	Name                  string `json:"name"`
 	Description           string `json:"description"`
 	MonthlySpendingLimit  string `json:"monthly_spending_limit"`
@@ -1545,11 +1566,12 @@ type UpdateCardPlanRequest struct {
 // @Tags Cards
 // @Accept json
 // @Produce json
+// @Param plan_id path int true "Card plan ID"
 // @Param request body UpdateCardPlanRequest true "Update card plan request"
 // @Success 200 {object} CardPlanResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/cards/update-card-plan [put]
+// @Router /api/v1/cards/admin/update-card-plan/{plan_id} [put]
 func (v *Virtualcard) UpdateCardPlan(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1557,8 +1579,14 @@ func (v *Virtualcard) UpdateCardPlan(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	planID, err := strconv.Atoi(c.Param("plan_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -1568,9 +1596,9 @@ func (v *Virtualcard) UpdateCardPlan(c *gin.Context) {
 		return
 	}
 
-	plan, err := v.server.queries.GetCardPlan(c.Request.Context(), req.PlanID)
+	plan, err := v.server.queries.GetCardPlan(c.Request.Context(), int64(planID))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to get card plan"))
 		return
 	}
 
@@ -1931,4 +1959,18 @@ func mapCardPlanToCardPlanResponse(cardPlan db.CardPlan) CardPlanResponse {
 		UpdatedAt:                cardPlan.UpdatedAt,
 		DeletedAt:                &cardPlan.DeletedAt.Time,
 	}
+}
+
+func derefString(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+func derefBool(b *bool) bool {
+	if b == nil {
+		return false
+	}
+	return *b
 }
