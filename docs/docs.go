@@ -7989,7 +7989,7 @@ const docTemplate = `{
         },
         "/api/v1/referral/admin/update-withdrawal": {
             "put": {
-                "description": "Retrieves the referral earnings for the authenticated user",
+                "description": "Updates the withdrawal request for the authenticated user",
                 "consumes": [
                     "application/json"
                 ],
@@ -7999,7 +7999,7 @@ const docTemplate = `{
                 "tags": [
                     "Referral"
                 ],
-                "summary": "Get Referral Earnings",
+                "summary": "Update Withdrawal Request",
                 "parameters": [
                     {
                         "type": "integer",
@@ -8208,7 +8208,7 @@ const docTemplate = `{
         },
         "/api/v1/request-withdrawal": {
             "post": {
-                "description": "Retrieves the referral earnings for the authenticated user",
+                "description": "Requests a withdrawal for the authenticated user",
                 "consumes": [
                     "application/json"
                 ],
@@ -8218,7 +8218,7 @@ const docTemplate = `{
                 "tags": [
                     "Referral"
                 ],
-                "summary": "Get Referral Earnings",
+                "summary": "Request Withdrawal",
                 "responses": {
                     "200": {
                         "description": "OK",

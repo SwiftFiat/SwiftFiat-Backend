@@ -229,9 +229,9 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 	})
 }
 
-// GetEarnings godoc
-// @Summary      Get Referral Earnings
-// @Description  Retrieves the referral earnings for the authenticated user
+// RequestWithdrawal godoc
+// @Summary      Request Withdrawal
+// @Description  Requests a withdrawal for the authenticated user
 // @Tags         Referral
 // @Accept       json
 // @Produce      json
@@ -284,9 +284,9 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 	})
 }
 
-// GetEarnings godoc
-// @Summary      Get Referral Earnings
-// @Description  Retrieves the referral earnings for the authenticated user
+// UpdateWithdrawalRequest godoc
+// @Summary      Update Withdrawal Request
+// @Description  Updates the withdrawal request for the authenticated user
 // @Tags         Referral
 // @Accept       json
 // @Produce      json
@@ -303,11 +303,11 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	}
 
 	//	check if active user is admin
-	// if activeUser.Role == models.USER {
-	// 	r.logger.Error(fmt.Errorf("unauthorized access"))
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	var req struct {
 		ID     int64                            `json:"id" binding:"required"`
