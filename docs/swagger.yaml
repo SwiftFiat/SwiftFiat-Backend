@@ -8933,7 +8933,7 @@ paths:
     put:
       consumes:
       - application/json
-      description: Retrieves the referral earnings for the authenticated user
+      description: Updates the withdrawal request for the authenticated user
       parameters:
       - description: Withdrawal ID
         in: query
@@ -8957,7 +8957,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get Referral Earnings
+      summary: Update Withdrawal Request
       tags:
       - Referral
   /api/v1/referral/earnings:
@@ -9075,7 +9075,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Retrieves the referral earnings for the authenticated user
+      description: Requests a withdrawal for the authenticated user
       produces:
       - application/json
       responses:
@@ -9088,7 +9088,7 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get Referral Earnings
+      summary: Request Withdrawal
       tags:
       - Referral
   /api/v1/rewards/activity:
