@@ -175,7 +175,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     -- Types: 'debit', 'credit', 'reversal', 'refund'
     
     -- Merchant details (from BridgeCard webhook) 
-    "merchant_name" VARCHAR(255),
+    "merchant_name" VARCHAR(255), 
     "merchant_category" VARCHAR(100), -- MCC category
     "merchant_category_code" VARCHAR(10), -- MCC code
     

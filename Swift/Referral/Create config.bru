@@ -1,0 +1,27 @@
+meta {
+  name: Create config
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BaseURl}}/referral/admin/create-referral-config
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "minimum_withdrawal_threshold": "5000",
+    "referral_amount": "1000"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

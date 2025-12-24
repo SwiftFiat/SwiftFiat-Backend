@@ -12,8 +12,6 @@ INSERT INTO vip_levels (
     level_code,
     level_rank,
     min_transaction_volume,
-    min_monthly_volume,
-    min_conversion_count,
     description,
     benefits_description,
     badge_color,
@@ -22,7 +20,7 @@ INSERT INTO vip_levels (
     created_by,
     updated_by
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetVIPLevelByID :one
@@ -67,8 +65,6 @@ SET
     level_code = COALESCE(sqlc.narg('level_code'), level_code),
     level_rank = COALESCE(sqlc.narg('level_rank'), level_rank),
     min_transaction_volume = COALESCE(sqlc.narg('min_transaction_volume'), min_transaction_volume),
-    min_monthly_volume = COALESCE(sqlc.narg('min_monthly_volume'), min_monthly_volume),
-    min_conversion_count = COALESCE(sqlc.narg('min_conversion_count'), min_conversion_count),
     description = COALESCE(sqlc.narg('description'), description),
     benefits_description = COALESCE(sqlc.narg('benefits_description'), benefits_description),
     badge_color = COALESCE(sqlc.narg('badge_color'), badge_color),
@@ -148,6 +144,10 @@ WHERE r.deleted_at IS NULL
 ORDER BY r.priority DESC, r.created_at DESC
 LIMIT $1 OFFSET $2;
 
+-- name: CountRateAdjustmentRules :one
+SELECT COUNT(*) FROM rate_adjustment_rules
+WHERE deleted_at IS NULL;
+
 -- name: ListActiveRateAdjustmentRules :many
 SELECT 
     r.*,
@@ -160,6 +160,11 @@ WHERE r.deleted_at IS NULL
   AND (r.valid_from IS NULL OR r.valid_from <= NOW())
   AND (r.valid_until IS NULL OR r.valid_until > NOW())
 ORDER BY r.priority DESC, r.created_at DESC;
+
+-- name: CountActiveRateAdjustmentRules :one
+SELECT COUNT(*) FROM rate_adjustment_rules
+WHERE is_active = TRUE 
+    AND deleted_at IS NULL;
 
 -- name: GetActiveGlobalRule :one
 SELECT * FROM rate_adjustment_rules
@@ -245,6 +250,25 @@ RETURNING *;
 SELECT COUNT(*) FROM rate_adjustment_rules
 WHERE vip_level_id = $1 AND deleted_at IS NULL;
 
+-- name: GetNextVIPLevel :one
+SELECT * FROM vip_levels
+WHERE level_rank > $1
+    AND is_active = TRUE
+    AND deleted_at IS NULL
+ORDER BY level_rank ASC
+LIMIT 1;
+
+-- name: GetActiveRulesForUser :many
+SELECT rar.*
+FROM rate_adjustment_rules rar
+JOIN user_vip_assignments uva ON uva.vip_level_id = rar.vip_level_id
+WHERE uva.vip_level_id = $1
+    AND uva.is_active = TRUE
+    AND rar.is_active = TRUE
+    AND rar.deleted_at IS NULL
+    AND (rar.valid_from IS NULL OR rar.valid_from <= NOW())
+    AND (rar.valid_until IS NULL OR rar.valid_until >= NOW());
+
 -- =====================================================
 -- USER VIP ASSIGNMENTS QUERIES
 -- =====================================================
@@ -256,10 +280,9 @@ INSERT INTO user_vip_assignments (
     assigned_by,
     assignment_type,
     total_transaction_volume,
-    total_conversion_count,
     expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6
 )
 ON CONFLICT (user_id) WHERE is_active = TRUE
 DO UPDATE SET
@@ -272,6 +295,13 @@ DO UPDATE SET
     expires_at = EXCLUDED.expires_at,
     updated_at = NOW()
 RETURNING *;
+
+-- name: GetActiveVIPAssignment :one
+SELECT * FROM user_vip_assignments
+WHERE user_id = $1
+    AND is_active = TRUE
+    AND (expires_at IS NULL OR expires_at > NOW())
+LIMIT 1;
 
 -- name: GetUserVIPAssignment :one
 SELECT 
@@ -332,13 +362,6 @@ SELECT * FROM user_vip_assignments
 WHERE is_active = TRUE 
   AND expires_at IS NOT NULL 
   AND expires_at <= NOW();
-
--- name: GetUserTransactionMetrics :one
-SELECT 
-    COALESCE(SUM(source_amount), 0)::string as total_volume,
-    COUNT(*) as conversion_count
-FROM conversion_history
-WHERE user_id = $1 AND status = 'success';
 
 -- =====================================================
 -- RATE CHANGE HISTORY QUERIES
@@ -489,7 +512,6 @@ SELECT
     u.first_name,
     u.last_name,
     uva.total_transaction_volume,
-    uva.total_conversion_count,
     v.level_name as vip_level
 FROM user_vip_assignments uva
 JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
@@ -497,3 +519,9 @@ JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
 WHERE uva.is_active = TRUE
 ORDER BY uva.total_transaction_volume DESC
 LIMIT $1;
+
+-- name: DeactivateVIPAssignment :one
+UPDATE user_vip_assignments
+SET is_active = FALSE, updated_at = NOW()
+WHERE id = $1
+RETURNING *;

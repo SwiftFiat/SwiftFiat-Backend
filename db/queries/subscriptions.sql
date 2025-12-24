@@ -36,7 +36,7 @@ SET
     updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
-
+ 
 -- name: DeleteCardPlan :exec
 UPDATE card_plans
 SET deleted_at = NOW(), updated_at = NOW()
@@ -509,7 +509,7 @@ LIMIT $2;
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1;
@@ -518,11 +518,11 @@ WHERE user_id = $1;
 SELECT 
     category,
     COUNT(*) as subscription_count,
-    SUM(amount) as total_spend_cents
+    SUM(amount) as total_spend
 FROM user_subscriptions
 WHERE user_id = $1 AND status = 'active'
 GROUP BY category
-ORDER BY total_spend_cents DESC;
+ORDER BY total_spend DESC;
 
 -- ============================================================================
 -- SUBSCRIPTION REMINDERS
@@ -603,7 +603,7 @@ SELECT
     COUNT(DISTINCT vc.id) as total_cards,
     COUNT(DISTINCT vc.id) FILTER (WHERE vc.status = 'active') as active_cards,
     COUNT(DISTINCT ct.id) as total_transactions,
-    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
+    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend,
     COUNT(DISTINCT us.id) FILTER (WHERE us.status = 'active') as active_subscriptions
 FROM virtual_cards vc
 LEFT JOIN card_transactions ct ON vc.id = ct.card_id
@@ -614,7 +614,7 @@ WHERE vc.user_id = $1 AND vc.terminated_at IS NULL;
 SELECT 
     DATE_TRUNC('month', transaction_date) as month,
     COUNT(*) as transaction_count,
-    SUM(amount) as total_spend_cents
+    SUM(amount) as total_spend
 FROM card_transactions
 WHERE card_id = $1 
   AND status = 'approved'
@@ -626,14 +626,14 @@ ORDER BY month DESC;
 SELECT 
     merchant_name,
     COUNT(*) as transaction_count,
-    SUM(amount) as total_spend_cents,
+    SUM(amount) as total_spend,
     MAX(transaction_date) as last_transaction_date
 FROM card_transactions
 WHERE user_id = $1 
   AND status = 'approved'
   AND merchant_name IS NOT NULL
 GROUP BY merchant_name
-ORDER BY total_spend_cents DESC
+ORDER BY total_spend DESC
 LIMIT $2;
 
 -- ============================================================================
@@ -645,7 +645,7 @@ SELECT
     COUNT(*) as total_subscriptions,
     COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
     COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
-    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend
 FROM user_subscriptions
 WHERE user_id = $1;
 

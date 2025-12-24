@@ -1,13 +1,17 @@
 meta {
-  name: get banks
+  name: Admin list user referals
   type: http
-  seq: 19
+  seq: 2
 }
 
 get {
-  url: {{BaseURl}}/wallets/banks
+  url: {{BaseURl}}/referral/admin/list?user_id=1
   body: none
   auth: bearer
+}
+
+params:query {
+  user_id: 1
 }
 
 auth:bearer {

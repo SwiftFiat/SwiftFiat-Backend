@@ -235,7 +235,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		CardType:             "virtual",
 		Brand:                "Mastercard", //Visa is not supported yet
 		Currency:             "USD",
-		CardLimit:            cardLimitCents,        // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
+		CardLimit:            cardLimitCents,  // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
 		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
 		TransactionReference: utils.NewTxRef("swiift_card"),
 		SourceWalletID:       usdWallet.ID,
@@ -314,9 +314,12 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 
 	// create generic tx record
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:      sql.NullInt64{Int64: params.UserID, Valid: true},
+		UserID:      params.UserID,
 		Type:        string(transaction.Card),
 		Description: sql.NullString{String: "Card creation fee", Valid: true},
+		Amount:      creationFee.String(),
+		Currency:    "USD",
+		AmountUsd:   creationFee.String(),
 		Status:      string(transaction.Success),
 	})
 	if err != nil {
@@ -1051,21 +1054,21 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 		return "", fmt.Errorf("get wallet by user id and currency error: %w", err)
 	}
 
-	// walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
-	// if err != nil {
-	// 	return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
-	// }
+	walletBalance, err := utils.ToDecimal(usdWallet.Balance.String)
+	if err != nil {
+		return "", fmt.Errorf("convert wallet balance to decimal error: %w", err)
+	}
 
-	// amount, err := utils.ToDecimal(success.Amount)
-	// if err != nil {
-	// 	return "", fmt.Errorf("convert amount to decimal error: %w", err)
-	// }
+	amount, err := utils.ToDecimal(success.Amount)
+	if err != nil {
+		return "", fmt.Errorf("convert amount to decimal error: %w", err)
+	}
 
-	// if walletBalance.LessThan(amount) {
-	// 	return "", fmt.Errorf("insufficient balance")
-	// }
+	if walletBalance.LessThan(amount) {
+		return "", fmt.Errorf("insufficient balance")
+	}
 
-	// newBalance := walletBalance.Sub(amount)
+	newBalance := walletBalance.Sub(amount)
 
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -1075,16 +1078,16 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 
 	qtx := s.store.WithTx(dbTx)
 
-	// _, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-	// 	ID: usdWallet.ID,
-	// 	Amount: sql.NullString{
-	// 		String: newBalance.String(),
-	// 		Valid:  true,
-	// 	},
-	// })
-	// if err != nil {
-	// 	return "", fmt.Errorf("update wallet balance error: %w", err)
-	// }
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID: usdWallet.ID,
+		Amount: sql.NullString{
+			String: newBalance.String(),
+			Valid:  true,
+		},
+	})
+	if err != nil {
+		return "", fmt.Errorf("update wallet balance error: %w", err)
+	}
 
 	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.CardID)
 	if err != nil {
@@ -1107,31 +1110,26 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 	}
 
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID: sql.NullInt64{
-			Int64: user.ID,
-			Valid: true,
-		},
+		UserID:          user.ID,
 		Type:            string(transaction.Card),
 		TransactionFlow: sql.NullString{String: "card_funding", Valid: true},
-		Description:     sql.NullString{String: "Card credit", Valid: true},
+		Description:     sql.NullString{String: "Card funding", Valid: true},
+		Amount:          amount.String(),
+		Currency:        "USD",
+		AmountUsd:       amount.String(),
 		Status:          string(transaction.Success),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)
 	}
 
-	amount, err := strconv.Atoi(success.Amount)
-	if err != nil {
-		return "", fmt.Errorf("convert amount to int error: %w", err)
-	}
-
 	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
 		CardID:                  card.ID,
 		UserID:                  user.ID,
 		BridgecardTransactionID: success.TransactionReference,
-		Amount:                  int64(amount),
+		Amount:                  amount.IntPart(),
 		Currency:                success.Currency,
-		TransactionType:         "credit",
+		TransactionType:         success.CardTransactionType,
 		Fee:                     0,
 		Status:                  string(transaction.Success),
 		Mode:                    success.Livemode,
@@ -1223,14 +1221,14 @@ func (s *Service) handleCardUnloadEventSuccess(ctx context.Context, success *bri
 	}
 
 	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID: sql.NullInt64{
-			Int64: user.ID,
-			Valid: true,
-		},
+		UserID:          user.ID,
 		Type:            "card",
 		TransactionFlow: sql.NullString{String: "card_withdrawal", Valid: true},
 		Description:     sql.NullString{String: "Card withdrawal", Valid: true},
-		Status:          "successful",
+		Amount:          withdrawAmount.String(),
+		Currency:        "USD",
+		AmountUsd:       withdrawAmount.String(),
+		Status:          string(transaction.Success),
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)

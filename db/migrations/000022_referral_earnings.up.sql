@@ -51,13 +51,35 @@ CREATE TABLE referral_earnings (
                                    "created_at" timestamptz NOT NULL DEFAULT (now()),
                                    "updated_at" timestamptz NOT NULL DEFAULT (now())
 );
+ALTER TABLE referral_earnings
+ADD CONSTRAINT referral_earnings_user_unique UNIQUE (user_id);
+ALTER TABLE referral_earnings
+ADD CONSTRAINT available_balance_non_negative
+CHECK (available_balance >= 0);
+
+ALTER TABLE referral_earnings
+ADD CONSTRAINT withdrawn_balance_non_negative
+CHECK (withdrawn_balance >= 0);
 
 CREATE TABLE withdrawal_requests (
                                      "id" BIGSERIAL PRIMARY KEY,
                                      "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                      "amount" DECIMAL(10, 2) NOT NULL,
-                                     "wallet_id" UUID NOT NULL REFERENCES swift_wallets(id) ON DELETE CASCADE,
-                                     "status" VARCHAR(20) NOT NULL DEFAULT 'pending',
+                                     "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'completed', 'rejected')),
                                      "created_at" timestamptz NOT NULL DEFAULT (now()),
                                      "updated_at" timestamptz NOT NULL DEFAULT (now())
 ); 
+
+CREATE TABLE referral_configs (
+      "id" BIGSERIAL PRIMARY KEY,
+      "referral_amount" DECIMAL(10, 2) NOT NULL CHECK (referral_amount > 0),
+      "minimum_withdrawal_threshold" DECIMAL(10, 2) NOT NULL CHECK (minimum_withdrawal_threshold > 0),
+      "singleton" BOOLEAN NOT NULL DEFAULT TRUE,
+      "created_at" timestamptz NOT NULL DEFAULT (now()),
+      "updated_at" timestamptz NOT NULL DEFAULT (now())
+);
+CREATE UNIQUE INDEX referral_configs_singleton_idx
+ON referral_configs (singleton);
+
+-- seed referral configs
+INSERT INTO referral_configs (referral_amount, minimum_withdrawal_threshold) VALUES (1000, 5000);

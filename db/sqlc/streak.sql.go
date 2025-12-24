@@ -1375,7 +1375,7 @@ RETURNING ts.id, ts.user_id, ts.current_streak, ts.best_streak, ts.total_transac
 // ADMIN/MAINTENANCE QUERIES
 // ===============================================
 // Recalculate streak from transaction history (recovery/fix tool)
-func (q *Queries) RecalculateUserStreak(ctx context.Context, userID sql.NullInt64) (TransactionStreak, error) {
+func (q *Queries) RecalculateUserStreak(ctx context.Context, userID int64) (TransactionStreak, error) {
 	row := q.db.QueryRowContext(ctx, recalculateUserStreak, userID)
 	var i TransactionStreak
 	err := row.Scan(

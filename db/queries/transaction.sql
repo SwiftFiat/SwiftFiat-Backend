@@ -4,12 +4,15 @@ INSERT INTO transactions (
     type,
     description,
     transaction_flow,
+    amount,
+    currency,
+    amount_usd,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5
+    $1, $2, $3, $4, $5, $6, $7, $8
 ) RETURNING *;
 
--- name: CreateSwapTransferMetadata :one
+-- name: CreateSwapTransferMetadata :one 
 INSERT INTO swap_transfer_metadata (
     currency,
     transaction_id,
@@ -992,14 +995,11 @@ JOIN transactions t ON gtm.transaction_id = t.id
 ORDER BY t.created_at DESC;
 
 -- name: GetTotalTransactionVolume :one
-SELECT
-    COALESCE(SUM(
-        COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount, st.sent_amount)
-    ), 0)::BIGINT AS total_volume
-FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-WHERE t.status = 'successful';
+SELECT SUM(amount_usd) AS total_volume
+FROM transactions  
+WHERE status = 'successful';
+
+-- name: GetTotalTransactionVolumeForUser :one
+SELECT SUM(amount_usd) AS total_volume
+FROM transactions  
+WHERE user_id = $1 AND status = 'successful';

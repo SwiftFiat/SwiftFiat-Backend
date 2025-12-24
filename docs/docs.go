@@ -7808,6 +7808,75 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/referral/admin/create-referral-config": {
+            "post": {
+                "description": "Creates a new referral config",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referral"
+                ],
+                "summary": "Create Referral Config",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/referral/admin/get-withdrawal-request": {
+            "get": {
+                "description": "Retrieves the withdrawal request for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referral"
+                ],
+                "summary": "Get Withdrawal Request",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Withdrawal Request ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/referral/admin/list": {
             "get": {
                 "description": "Retrieves the list of referrals for a specific user",
@@ -7838,6 +7907,121 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/referral.Referral"
                             }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/referral/admin/list-withdrawal-requests": {
+            "get": {
+                "description": "Retrieves the withdrawal requests for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referral"
+                ],
+                "summary": "List Withdrawal Requests",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/referral/admin/update-referral-config": {
+            "put": {
+                "description": "Updates the referral config",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referral"
+                ],
+                "summary": "Update Referral Config",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Referral Config ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/referral/admin/update-withdrawal": {
+            "put": {
+                "description": "Retrieves the referral earnings for the authenticated user",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Referral"
+                ],
+                "summary": "Get Referral Earnings",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Withdrawal ID",
+                        "name": "id",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Withdrawal Status",
+                        "name": "status",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "401": {
@@ -7992,36 +8176,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/referral/update-withdrawal": {
-            "post": {
-                "description": "Retrieves the referral earnings for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Referral"
-                ],
-                "summary": "Get Referral Earnings",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/reminder/:id": {
             "get": {
                 "description": "Retrieves the referral earnings for the authenticated user",
@@ -8053,7 +8207,7 @@ const docTemplate = `{
             }
         },
         "/api/v1/request-withdrawal": {
-            "get": {
+            "post": {
                 "description": "Retrieves the referral earnings for the authenticated user",
                 "consumes": [
                     "application/json"
@@ -16010,7 +16164,7 @@ const docTemplate = `{
             ],
             "properties": {
                 "amount": {
-                    "description": "Dollar amount as string",
+                    "description": "Amount is provided and stored as whole dollars",
                     "type": "integer"
                 },
                 "auto_topup_buffer_percent": {
@@ -16639,7 +16793,8 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "string"
+                    "description": "Amount is specified in whole dollars",
+                    "type": "integer"
                 },
                 "auto_topup_buffer_percent": {
                     "type": "number"

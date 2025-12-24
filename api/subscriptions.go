@@ -87,7 +87,8 @@ type CreateCustomSubscriptionRequest struct {
 	MerchantName           string   `json:"merchant_name" binding:"required,min=1,max=255"`
 	DisplayName            string   `json:"display_name" binding:"required,min=1,max=255"`
 	Category               string   `json:"category" binding:"required,oneof=streaming cloud_storage gaming music productivity fitness news utilities other"`
-	Amount                 int64    `json:"amount" binding:"required"` // Dollar amount as string
+	// Amount is provided and stored as whole dollars
+	Amount                 int64    `json:"amount" binding:"required"`
 	Currency               string   `json:"currency" binding:"required,oneof=USD"`
 	BillingCycle           string   `json:"billing_cycle" binding:"required,oneof=daily monthly yearly"`
 	FirstChargeDate        string   `json:"first_charge_date" binding:"required"` // ISO 8601 format
@@ -247,7 +248,8 @@ func (v *Subscriptions) GetCustomSubscriptions(c *gin.Context) {
 
 type UpdateCustomSubscriptionRequest struct {
 	DisplayName            *string  `json:"display_name,omitempty"`
-	Amount                 *string  `json:"amount,omitempty"`
+	// Amount is specified in whole dollars
+	Amount                 *int64   `json:"amount,omitempty"`
 	BillingCycle           *string  `json:"billing_cycle,omitempty" binding:"omitempty,oneof=daily monthly yearly"`
 	ReminderEnabled        *bool    `json:"reminder_enabled,omitempty"`
 	CustomReminderDays     *int     `json:"custom_reminder_days,omitempty"`
@@ -295,6 +297,7 @@ func (v *Subscriptions) UpdateCustomSubscription(c *gin.Context) {
 	// Build service request
 	serviceReq := &subscriptions.UpdateCustomSubscriptionRequest{
 		DisplayName:          req.DisplayName,
+		Amount:               req.Amount,
 		BillingCycle:         req.BillingCycle,
 		ReminderEnabled:      req.ReminderEnabled,
 		CustomReminderTiming: req.CustomReminderDays,
@@ -932,14 +935,25 @@ func (v *Subscriptions) UpdateSubscriptionPreferences(c *gin.Context) {
 		return
 	}
 
-	updated, err := v.server.queries.UpdateSubscriptionPreferences(c, db.UpdateSubscriptionPreferencesParams{
-		ID:                 subscriptionID,
-		UserID:             activeUser.UserID,
-		ReminderEnabled:    sql.NullBool{Bool: *req.ReminderEnabled, Valid: req.ReminderEnabled != nil},
-		ReminderDaysBefore: sql.NullInt32{Int32: int32(*req.ReminderDaysBefore), Valid: req.ReminderDaysBefore != nil},
-		CustomName:         sql.NullString{String: req.CustomName, Valid: req.CustomName != ""},
-		UserConfirmed:      sql.NullBool{Bool: *req.UserConfirmed, Valid: req.UserConfirmed != nil},
-	})
+	params := db.UpdateSubscriptionPreferencesParams{
+		ID:     subscriptionID,
+		UserID: activeUser.UserID,
+	}
+
+	if req.ReminderEnabled != nil {
+		params.ReminderEnabled = sql.NullBool{Bool: *req.ReminderEnabled, Valid: true}
+	}
+	if req.ReminderDaysBefore != nil {
+		params.ReminderDaysBefore = sql.NullInt32{Int32: int32(*req.ReminderDaysBefore), Valid: true}
+	}
+	if req.CustomName != "" {
+		params.CustomName = sql.NullString{String: req.CustomName, Valid: true}
+	}
+	if req.UserConfirmed != nil {
+		params.UserConfirmed = sql.NullBool{Bool: *req.UserConfirmed, Valid: true}
+	}
+
+	updated, err := v.server.queries.UpdateSubscriptionPreferences(c, params)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -1114,9 +1128,9 @@ func (v *Subscriptions) GetSpendingAnalytics(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("spending analytics", gin.H{
-		"total_spending_cents": totalSpending,
-		"total_spending":       float64(totalSpending) / 100,
-		"card_breakdown":       cardSpending,
+		// All amounts are in dollars
+		"total_spending": totalSpending,
+		"card_breakdown": cardSpending,
 	}))
 }
 

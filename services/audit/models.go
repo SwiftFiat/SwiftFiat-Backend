@@ -212,6 +212,10 @@ const (
 	EventUpdateSubscriptionSystemSetting = "subscriptions.system_setting.updated"
 
 	EventUpdateQrCodeStatus = "rapid-ramp.qr-code.status.updated"
+
+	EventCreateReferralConfig = "referral.config.created"
+	EventUpdateReferralConfig = "referral.config.updated"
+	EventDeleteReferralConfig = "referral.config.deleted"
 )
 
 // LogEntry represents the input for creating an audit log

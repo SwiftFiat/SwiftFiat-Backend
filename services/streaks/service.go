@@ -341,7 +341,7 @@ func (s *StreakService) GetUserBadgesWithProgress(ctx context.Context, userID in
 func (s *StreakService) RecalculateUserStreak(ctx context.Context, userID int64) (*db.TransactionStreak, error) {
 	s.logger.Info(fmt.Sprintf("recalculating streak for user: %d", userID))
 
-	streak, err := s.store.RecalculateUserStreak(ctx, sql.NullInt64{Int64: userID, Valid: true})
+	streak, err := s.store.RecalculateUserStreak(ctx, userID)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("error recalculating streak: %v", err))
 		return nil, fmt.Errorf("failed to recalculate streak: %w", err)

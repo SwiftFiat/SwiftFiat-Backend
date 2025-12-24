@@ -405,11 +405,19 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		return nil, fmt.Errorf("failed to update target wallet: %w", err)
 	}
 
+	amountUsd, err := utils.ConvertToUSD(ctx, params.sourceAmount, params.sourceCurrency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
 	mainTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          sql.NullInt64{Int64: params.userID, Valid: true},
+		UserID:          params.userID,
 		Type:            string(transaction.Swap),
 		Description:     sql.NullString{String: "Conversion from " + params.sourceCurrency + " to " + params.targetCurrency, Valid: true},
 		TransactionFlow: sql.NullString{String: fmt.Sprintf("%s to %s", params.sourceCurrency, params.targetCurrency), Valid: true},
+		Amount:          params.sourceAmount.String(),
+		Currency:        params.sourceCurrency,
+		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Success),
 	})
 	if err != nil {

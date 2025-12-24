@@ -8,20 +8,24 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
 type Service struct {
-	store  *db.Store
-	logger *logging.Logger
+	store      *db.Store
+	logger     *logging.Logger
+	bridgeCard *bridgecards.BridgeCardProvider
 }
 
-func NewService(store *db.Store, logger *logging.Logger) *Service {
+func NewService(store *db.Store, logger *logging.Logger, bridgeCard *bridgecards.BridgeCardProvider) *Service {
 	return &Service{
-		store:  store,
-		logger: logger,
+		store:      store,
+		logger:     logger,
+		bridgeCard: bridgeCard,
 	}
 }
 
@@ -38,8 +42,8 @@ type SystemSettings struct {
 	EnableSameDayReminders        bool
 	EnableMultiReminderSchedule   bool
 	MaxCustomSubscriptionsPerUser int
-	MinSubscriptionAmountCents    int64
-	MaxSubscriptionAmountCents    int64
+	MinSubscriptionAmount         int64
+	MaxSubscriptionAmount         int64
 }
 
 // CreateCustomSubscriptionRequest defines parameters for creating custom subscription
@@ -62,7 +66,7 @@ type CreateCustomSubscriptionRequest struct {
 // UpdateCustomSubscriptionRequest defines parameters for updating custom subscription
 type UpdateCustomSubscriptionRequest struct {
 	DisplayName            *string
-	Amount            *int64
+	Amount                 *int64
 	BillingCycle           *string
 	ReminderEnabled        *bool
 	CustomReminderTiming   *int
@@ -91,8 +95,9 @@ func (s *Service) LoadSystemSettings(ctx context.Context) (*SystemSettings, erro
 		settings.DefaultAutoTopupBufferPercent = decimal.NewFromFloat(10.0)
 	}
 
-	settings.MaxAutoTopupAmount, _ = s.getSettingInt64(ctx, "max_auto_topup_amount_cents")
-	settings.MinAutoTopupAmount, _ = s.getSettingInt64(ctx, "min_auto_topup_amount_cents")
+	// All monetary settings are stored in dollars (integer units)
+	settings.MaxAutoTopupAmount, _ = s.getSettingInt64(ctx, "max_auto_topup_amount")
+	settings.MinAutoTopupAmount, _ = s.getSettingInt64(ctx, "min_auto_topup_amount")
 	settings.AutoTopupEnabledByDefault, _ = s.getSettingBool(ctx, "auto_topup_enabled_by_default")
 
 	// Load reminder settings
@@ -112,8 +117,8 @@ func (s *Service) LoadSystemSettings(ctx context.Context) (*SystemSettings, erro
 		settings.MaxCustomSubscriptionsPerUser = 50
 	}
 
-	settings.MinSubscriptionAmountCents, _ = s.getSettingInt64(ctx, "min_subscription_amount_cents")
-	settings.MaxSubscriptionAmountCents, _ = s.getSettingInt64(ctx, "max_subscription_amount_cents")
+	settings.MinSubscriptionAmount, _ = s.getSettingInt64(ctx, "min_subscription_amount")
+	settings.MaxSubscriptionAmount, _ = s.getSettingInt64(ctx, "max_subscription_amount")
 
 	s.logger.Infof("Loaded system settings: %+v", settings)
 	return settings, nil
@@ -168,9 +173,9 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 		return nil, fmt.Errorf("user has exceeded maximum number of subscriptions: %d", settings.MaxCustomSubscriptionsPerUser)
 	}
 
-	// validate amount
-	if req.Amount < settings.MinSubscriptionAmountCents || req.Amount > settings.MaxSubscriptionAmountCents {
-		return nil, fmt.Errorf("amount must be between %d and %d", settings.MinSubscriptionAmountCents, settings.MaxSubscriptionAmountCents)
+	// validate amount (all amounts are in whole dollars)
+	if req.Amount < settings.MinSubscriptionAmount || req.Amount > settings.MaxSubscriptionAmount {
+		return nil, fmt.Errorf("amount must be between %d and %d dollars", settings.MinSubscriptionAmount, settings.MaxSubscriptionAmount)
 	}
 
 	// Validate billing cycle
@@ -213,7 +218,7 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 		MerchantName:            req.MerchantName,
 		DisplayName:             req.DisplayName,
 		Category:                sql.NullString{String: req.Category, Valid: req.Category != ""},
-		Amount:             req.Amount,
+		Amount:                  req.Amount,
 		Currency:                req.Currency,
 		BillingIntervalDays:     billingIntervalDays,
 		FirstChargeDate:         req.FirstChargeDate,
@@ -259,11 +264,11 @@ func (s *Service) UpdateCustomSubscription(ctx context.Context, userID int64, su
 
 	// Validate amount if being updated
 	if req.Amount != nil {
-		if *req.Amount < settings.MinSubscriptionAmountCents {
-			return nil, fmt.Errorf("amount must be at least $%.2f", float64(settings.MinSubscriptionAmountCents)/100)
+		if *req.Amount < settings.MinSubscriptionAmount {
+			return nil, fmt.Errorf("amount must be at least $%d", settings.MinSubscriptionAmount)
 		}
-		if *req.Amount > settings.MaxSubscriptionAmountCents {
-			return nil, fmt.Errorf("amount cannot exceed $%.2f", float64(settings.MaxSubscriptionAmountCents)/100)
+		if *req.Amount > settings.MaxSubscriptionAmount {
+			return nil, fmt.Errorf("amount cannot exceed $%d", settings.MaxSubscriptionAmount)
 		}
 	}
 
@@ -446,7 +451,7 @@ func (s *Service) createNewSubscription(
 		MerchantName:            transaction.MerchantName.String,
 		DisplayName:             displayName,
 		Category:                sql.NullString{String: category, Valid: true},
-		Amount:             transaction.Amount,
+		Amount:                  transaction.Amount,
 		Currency:                transaction.Currency,
 		BillingIntervalDays:     billingInterval,
 		FirstChargeDate:         transaction.TransactionDate,
@@ -463,7 +468,7 @@ func (s *Service) createNewSubscription(
 	}
 
 	s.logger.Infof("Created new subscription for user %d: %s ($%.2f every %d days)",
-		transaction.UserID, displayName, float64(transaction.Amount)/100, billingInterval)
+		transaction.UserID, displayName, float64(transaction.Amount), billingInterval)
 
 	return nil
 }
@@ -491,7 +496,7 @@ func (s *Service) updateExistingSubscription(
 		ID:                      subscription.ID,
 		LastChargeDate:          transaction.TransactionDate,
 		NextEstimatedChargeDate: nextChargeDate,
-		Amount:             transaction.Amount,
+		Amount:                  transaction.Amount,
 	})
 
 	if err != nil {
@@ -544,7 +549,7 @@ func (s *Service) createRenewalReminder(ctx context.Context, subscription db.Get
 
 	title := fmt.Sprintf("%s Renewal Coming Up", subscription.DisplayName)
 	message := fmt.Sprintf("Your %s subscription ($%.2f) will renew in %d days. Make sure your card has sufficient balance.",
-		subscription.DisplayName, float64(subscription.Amount)/100, daysUntilRenewal)
+		subscription.DisplayName, float64(subscription.Amount), daysUntilRenewal)
 
 	_, err := s.store.CreateSubscriptionReminder(ctx, db.CreateSubscriptionReminderParams{
 		SubscriptionID: subscription.ID,
@@ -587,7 +592,7 @@ func (s *Service) HandleFailedRenewal(ctx context.Context, subscriptionID uuid.U
 	// Create failure notification
 	title := fmt.Sprintf("%s Payment Failed", subscription.DisplayName)
 	message := fmt.Sprintf("Your %s subscription payment of $%.2f failed. Reason: %s. Please fund your card to avoid service interruption.",
-		subscription.DisplayName, float64(subscription.Amount)/100, reason)
+		subscription.DisplayName, float64(subscription.Amount), reason)
 
 	_, err = s.store.CreateSubscriptionReminder(ctx, db.CreateSubscriptionReminderParams{
 		SubscriptionID: subscription.ID,
@@ -631,32 +636,156 @@ func (s *Service) CheckAndAutoTopUp(ctx context.Context) error {
 	return nil
 }
 
-// checkAndTopUpCard checks if card needs top-up and performs it if enabled
+// checkAndTopUpCard checks if card needs top-up and performs it if enabled.
+// It uses live BridgeCard balances and triggers funding via the BridgeCard provider.
 func (s *Service) checkAndTopUpCard(ctx context.Context, subscription db.GetSubscriptionsDueForReminderRow) error {
-	// Get card details
+	// Get card details (contains auto-topup config and BridgeCard ID)
 	card, err := s.store.GetVirtualCard(ctx, subscription.CardID)
 	if err != nil {
 		return fmt.Errorf("get card: %w", err)
 	}
 
-	// Check if auto top-up is enabled
+	// get user wallet
+	wallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: subscription.UserID,
+		Currency:   subscription.Currency,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to get user usd wallet: %v", err)
+	}
+
+	// Check if auto top-up is enabled at card level
 	if !card.AutoTopupEnabled {
 		return nil
 	}
 
-	// TODO: Get current card balance from BridgeCard API
-	// For now, we'll assume we need to check against threshold
-
+	// Ensure auto top-up configuration is complete
 	if !card.AutoTopupThreshold.Valid || !card.AutoTopupAmount.Valid {
 		return fmt.Errorf("auto top-up configuration incomplete")
 	}
 
-	// If balance would be below threshold after subscription charge, top up
-	s.logger.Infof("Auto top-up triggered for card %s (subscription: %s)",
-		card.ID, subscription.DisplayName)
+	if s.bridgeCard == nil {
+		return fmt.Errorf("bridge card provider is not configured")
+	}
 
-	// TODO: Implement actual top-up logic using wallet service
-	// This would call FundCard with the configured auto_topup_amount
+	// Get current card balance from BridgeCard (book balance is the most conservative)
+	balanceResp, err := s.bridgeCard.GetCardBalance(ctx, card.BridgecardCardID)
+	if err != nil {
+		return fmt.Errorf("get card balance from bridgecard: %w", err)
+	}
+
+	currentBalanceCents, err := strconv.Atoi(balanceResp.Data.SettledBookBalance)
+	if err != nil {
+		// Fallback to generic balance field if book balance cannot be parsed
+		currentBalanceCents, err = strconv.Atoi(balanceResp.Data.Balance)
+		if err != nil {
+			return fmt.Errorf("parse card balance: %w", err)
+		}
+	}
+
+	thresholdCents := card.AutoTopupThreshold.Int64
+
+	// Subscription amount is stored in whole dollars; convert to cents
+	subscriptionAmountCents := subscription.Amount * 100
+
+	// Project balance after upcoming subscription charge
+	projectedBalance := int64(currentBalanceCents) - subscriptionAmountCents
+	if projectedBalance >= thresholdCents {
+		// No top-up needed
+		return nil
+	}
+
+	// Determine top-up amount in cents from card configuration
+	autoTopupAmountCents := card.AutoTopupAmount.Int64
+	if autoTopupAmountCents <= 0 {
+		return fmt.Errorf("invalid auto top-up amount: %d", autoTopupAmountCents)
+	}
+
+	// Convert cents to dollar string for logging only (funding call uses cents)
+	autoTopupAmountDollars, err := utils.CentsStringToDollarString(strconv.FormatInt(autoTopupAmountCents, 10))
+	if err != nil {
+		return fmt.Errorf("convert auto top-up amount to dollars: %w", err)
+	}
+
+	s.logger.Infof(
+		"Auto top-up triggered for card %s (subscription: %s, current_balance_cents=%d, projected_balance_cents=%d, threshold_cents=%d, topup_cents=%d [$%s])",
+		card.ID, subscription.DisplayName, currentBalanceCents, projectedBalance, thresholdCents, autoTopupAmountCents, autoTopupAmountDollars,
+	)
+
+	walletbalance, err := utils.ToDecimal(wallet.Balance.String)
+	if err != nil {
+		return fmt.Errorf("wallet balance conversion error: %v", err)
+	}
+
+	topupAmount, err := utils.ToDecimal(autoTopupAmountDollars)
+	if err != nil {
+		return fmt.Errorf("topup amount conversion error: %v", err)
+	}
+
+	if walletbalance.LessThan(topupAmount) {
+		return fmt.Errorf("insufficient funds to make auto topup")
+	}
+
+	// Trigger asynchronous card funding via BridgeCard.
+	// NOTE: This funds the issuing wallet-backed card directly; wallet and ledger
+	// debits should be handled separately if required by business rules.
+	_, err = s.bridgeCard.FundCard(ctx, bridgecards.FundCardRequest{
+		CardID:               card.BridgecardCardID,
+		Amount:               strconv.FormatInt(autoTopupAmountCents, 10), // cents
+		TransactionReference: utils.NewTxRef("auto_topup"),
+		Currency:             "USD",
+	})
+	if err != nil {
+		return fmt.Errorf("bridgecard auto top-up failed: %w", err)
+	}
+
+	// // start db transaction
+	// tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	// if err != nil {
+	// 	return fmt.Errorf("failed to start transaction: %w", err)
+	// }
+	// defer tx.Rollback()
+
+	// qtx := s.store.WithTx(tx)
+
+	// newWalletbalance := walletbalance.Sub(topupAmount)
+	// _, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+	// 	Amount: sql.NullString{String: newWalletbalance.String(), Valid: true},
+	// 	ID:     wallet.ID,
+	// })
+	// if err != nil {
+	// 	return fmt.Errorf("wallet update error: %v", err)
+	// }
+
+	// _, err = qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
+	// 	CardID:         card.ID,
+	// 	UserID:         subscription.UserID,
+	// 	SourceWalletID: wallet.ID,
+	// 	Currency:       subscription.Currency,
+	// 	FundingType:    "auto_topup",
+	// 	InitiatedBy:    "system",
+	// 	Status:         "successful",
+	// })
+
+	// maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+	// 	UserID:      sql.NullInt64{Int64: subscription.UserID, Valid: true},
+	// 	Type:        string(transaction.Card),
+	// 	Description: sql.NullString{String: "card auto_top_up", Valid: true},
+	// 	Status:      string(transaction.Success),
+	// })
+
+	// _, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+	// 	CardID: subscription.CardID,
+	// 	UserID: card.UserID,
+	// 	BridgecardTransactionID: fundResponse.Data.TransactionReference,
+	// 	TransactionType: "CREDIT",
+
+	// })
+
+	// // commit transaction
+	// if err := tx.Commit(); err != nil {
+	// 	return fmt.Errorf("failed to commit transaction: %w", err)
+	// }
 
 	return nil
 }
@@ -674,9 +803,10 @@ func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 	}
 
 	return &SubscriptionSummary{
-		ActiveCount:       int(summary.ActiveCount),
-		FailedCount:       int(summary.FailedCount),
-		TotalMonthlySpend: summary.TotalMonthlySpendCents,
+		ActiveCount: int(summary.ActiveCount),
+		FailedCount: int(summary.FailedCount),
+		// SQL already returns total in dollars; keep as string but treat as dollars
+		TotalMonthlySpend: summary.TotalMonthlySpend,
 		NextChargeDate:    summary.NextChargeDate,
 		CategoryBreakdown: categoryBreakdown,
 	}, nil
@@ -795,7 +925,7 @@ type SubscriptionStats struct {
 	TotalSubscriptions    int64  `json:"total_subscriptions"`
 	ActiveSubscriptions   int64  `json:"active_subscriptions"`
 	InactiveSubscriptions int64  `json:"inactive_subscriptions"`
-	MonthlySpendCents     int64  `json:"monthly_spend_cents"`
+	MonthlySpendCents     int64  `json:"monthly_spend_dollars"`
 	MonthlySpend          string `json:"monthly_spend"`
 }
 
@@ -817,8 +947,9 @@ func (s *Service) GetSubscriptionStats(ctx context.Context, userID int64) (*Subs
 		TotalSubscriptions:    stats.TotalSubscriptions,
 		ActiveSubscriptions:   stats.ActiveSubscriptions,
 		InactiveSubscriptions: stats.InactiveSubscriptions,
-		MonthlySpendCents:     stats.MonthlySpendCents,
-		MonthlySpend:          fmt.Sprintf("%.2f", float64(stats.MonthlySpendCents)/100),
+		// MonthlySpendCents and MonthlySpend are now in dollars
+		MonthlySpendCents: stats.MonthlySpend,
+		MonthlySpend:      fmt.Sprintf("%.2f", float64(stats.MonthlySpend)),
 	}, nil
 }
 
