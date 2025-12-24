@@ -1,0 +1,26 @@
+meta {
+  name: Withdrawal request
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{BaseURl}}/referral/request-withdrawal
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount": "10000"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

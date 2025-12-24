@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -20,6 +21,7 @@ type Service struct {
 	exchangeRateService *exchangerate.ExchangeRateService
 	auditService        *audit.Service
 	logger              *logging.Logger
+	push                service.PushNotificationService
 }
 
 func NewService(
@@ -93,12 +95,6 @@ func (s *Service) CreateVIPLevel(ctx context.Context, req *CreateVIPLevelRequest
 		UpdatedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
 	}
 
-	if req.MinMonthlyVolume != nil {
-		params.MinMonthlyVolume = sql.NullString{String: *req.MinMonthlyVolume, Valid: true}
-	}
-	if req.MinConversionCount != nil {
-		params.MinConversionCount = sql.NullInt32{Int32: *req.MinConversionCount, Valid: true}
-	}
 	if req.Description != nil {
 		params.Description = sql.NullString{String: *req.Description, Valid: true}
 	}
@@ -507,6 +503,372 @@ func (s *Service) GetRateAdjustmentRule(ctx context.Context, id uuid.UUID) (*Rat
 	return toRateAdjustmentRuleResponse(&rule, impact.TotalAdjustments, fmt.Sprintf("%d", impact.TotalAdjustmentValue)), nil
 }
 
+// UpdateRateAdjustmentRule updates an existing rate adjustment rule
+func (s *Service) UpdateRateAdjustmentRule(ctx context.Context, id uuid.UUID, req *UpdateRateAdjustmentRuleRequest, user *db.User) (*RateAdjustmentRule, error) {
+	s.logger.Info(fmt.Sprintf("Updating rate adjustment rule: %s", id))
+
+	// Get existing rule for audit
+	existing, err := s.store.GetRateAdjustmentRuleByID(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrRuleNotFound
+		}
+		return nil, fmt.Errorf("failed to get rate adjustment rule: %w", err)
+	}
+
+	// Build update params
+	params := db.UpdateRateAdjustmentRuleParams{
+		ID:        id,
+		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+	}
+
+	oldValues := make(map[string]any)
+	newValues := make(map[string]any)
+
+	if req.RuleName != nil {
+		params.RuleName = sql.NullString{String: *req.RuleName, Valid: true}
+		oldValues["rule_name"] = existing.RuleName
+		newValues["rule_name"] = *req.RuleName
+	}
+
+	if req.AdjustmentType != nil {
+		params.AdjustmentType = sql.NullString{String: string(*req.AdjustmentType), Valid: true}
+		oldValues["adjustment_type"] = existing.AdjustmentType
+		newValues["adjustment_type"] = string(*req.AdjustmentType)
+	}
+
+	if req.AdjustmentValue != nil {
+		params.AdjustmentValue = sql.NullString{String: *req.AdjustmentValue, Valid: true}
+		oldValues["adjustment_value"] = existing.AdjustmentValue
+		newValues["adjustment_value"] = *req.AdjustmentValue
+	}
+
+	if req.AdjustmentDirection != nil {
+		params.AdjustmentDirection = sql.NullString{String: string(*req.AdjustmentDirection), Valid: true}
+		oldValues["adjustment_direction"] = existing.AdjustmentDirection
+		newValues["adjustment_direction"] = string(*req.AdjustmentDirection)
+	}
+
+	if req.Priority != nil {
+		params.Priority = sql.NullInt32{Int32: *req.Priority, Valid: true}
+		oldValues["priority"] = existing.Priority
+		newValues["priority"] = *req.Priority
+	}
+
+	if req.MinConversionAmount != nil {
+		params.MinConversionAmount = sql.NullString{String: *req.MinConversionAmount, Valid: true}
+		oldValues["min_conversion_amount"] = existing.MinConversionAmount
+		newValues["min_conversion_amount"] = *req.MinConversionAmount
+	}
+
+	if req.MaxConversionAmount != nil {
+		params.MaxConversionAmount = sql.NullString{String: *req.MaxConversionAmount, Valid: true}
+		oldValues["max_conversion_amount"] = existing.MaxConversionAmount
+		newValues["max_conversion_amount"] = *req.MaxConversionAmount
+	}
+
+	if req.ValidFrom != nil {
+		params.ValidFrom = sql.NullTime{Time: *req.ValidFrom, Valid: true}
+		oldValues["valid_from"] = existing.ValidFrom
+		newValues["valid_from"] = *req.ValidFrom
+	}
+
+	if req.ValidUntil != nil {
+		params.ValidUntil = sql.NullTime{Time: *req.ValidUntil, Valid: true}
+		oldValues["valid_until"] = existing.ValidUntil
+		newValues["valid_until"] = *req.ValidUntil
+	}
+
+	if req.IsActive != nil {
+		params.IsActive = sql.NullBool{Bool: *req.IsActive, Valid: true}
+		oldValues["is_active"] = existing.IsActive
+		newValues["is_active"] = *req.IsActive
+	}
+
+	// Update the rule
+	updated, err := s.store.UpdateRateAdjustmentRule(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update rate adjustment rule: %w", err)
+	}
+
+	// Audit log
+	s.auditService.Log(&audit.LogEntry{
+		EventCategory: audit.CategoryRateManager,
+		EventType:     "rate_rule_updated",
+		Severity:      audit.SeverityInfo,
+		ActorType:     user.Role,
+		ActorID:       &user.ID,
+		ActorEmail:    &user.Email,
+		EntityType:    "rate_adjustment_rule",
+		EntityID:      id.String(),
+		Action:        audit.ActionUpdate,
+		Description:   fmt.Sprintf("Updated rate adjustment rule: %s", existing.RuleName),
+		OldValues:     oldValues,
+		NewValues:     newValues,
+		Success:       true,
+	})
+
+	return toRateAdjustmentRuleModel(&updated), nil
+}
+
+// DeleteRateAdjustmentRule soft deletes a rate adjustment rule
+func (s *Service) DeleteRateAdjustmentRule(ctx context.Context, id uuid.UUID, user *db.User) error {
+	s.logger.Info(fmt.Sprintf("Deleting rate adjustment rule: %s", id))
+
+	// Get rule for audit
+	rule, err := s.store.GetRateAdjustmentRuleByID(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrRuleNotFound
+		}
+		return fmt.Errorf("failed to get rate adjustment rule: %w", err)
+	}
+
+	// Delete
+	_, err = s.store.DeleteRateAdjustmentRule(ctx, db.DeleteRateAdjustmentRuleParams{
+		ID:        id,
+		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete rate adjustment rule: %w", err)
+	}
+
+	// Audit log
+	s.auditService.Log(&audit.LogEntry{
+		EventCategory: audit.CategoryRateManager,
+		EventType:     "rate_rule_deleted",
+		Severity:      audit.SeverityWarning,
+		ActorType:     user.Role,
+		ActorID:       &user.ID,
+		ActorEmail:    &user.Email,
+		EntityType:    "rate_adjustment_rule",
+		EntityID:      id.String(),
+		Action:        audit.ActionDelete,
+		Description:   fmt.Sprintf("Deleted rate adjustment rule: %s", rule.RuleName),
+		OldValues: map[string]any{
+			"rule_name":        rule.RuleName,
+			"adjustment_type":  rule.AdjustmentType,
+			"adjustment_value": rule.AdjustmentValue,
+		},
+		Success: true,
+	})
+
+	return nil
+}
+
+// ToggleRateAdjustmentRule enables or disables a rate adjustment rule
+func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, enabled bool, user *db.User) error {
+	s.logger.Info(fmt.Sprintf("Toggling rate adjustment rule: %s to %v", id, enabled))
+
+	// Get existing rule
+	existing, err := s.store.GetRateAdjustmentRuleByID(ctx, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ErrRuleNotFound
+		}
+		return fmt.Errorf("failed to get rate adjustment rule: %w", err)
+	}
+
+	// Update status
+	_, err = s.store.ToggleRateAdjustmentRule(ctx, db.ToggleRateAdjustmentRuleParams{
+		ID:        id,
+		IsActive:  enabled,
+		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to toggle rate adjustment rule: %w", err)
+	}
+
+	// Audit log
+	action := "disabled"
+	if enabled {
+		action = "enabled"
+	}
+
+	s.auditService.Log(&audit.LogEntry{
+		EventCategory: audit.CategoryRateManager,
+		EventType:     "rate_rule_toggled",
+		Severity:      audit.SeverityInfo,
+		ActorType:     user.Role,
+		ActorID:       &user.ID,
+		ActorEmail:    &user.Email,
+		EntityType:    "rate_adjustment_rule",
+		EntityID:      id.String(),
+		Action:        audit.ActionUpdate,
+		Description:   fmt.Sprintf("Rate adjustment rule %s: %s", action, existing.RuleName),
+		OldValues: map[string]any{
+			"is_active": existing.IsActive,
+		},
+		NewValues: map[string]any{
+			"is_active": enabled,
+		},
+		Success: true,
+	})
+
+	return nil
+}
+
+// ListRateAdjustmentRules lists all rate adjustment rules with pagination
+// func (s *Service) ListRateAdjustmentRules(ctx context.Context, params *PaginationParams, activeOnly bool) (*PaginatedResponse, error) {
+// 	s.logger.Info("Listing rate adjustment rules")
+
+// 		rules, err := s.store.ListRateAdjustmentRules(ctx, db.ListRateAdjustmentRulesParams{
+// 			Limit: params.GetLimit(),
+// 			Offset: params.GetOffset(),
+// 		})
+// 		if err != nil {
+// 			return nil, fmt.Errorf("failed to list rules: %w", err)
+// 		}
+
+// 	// 	totalCount, err = s.store.CountRateAdjustmentRules(ctx)
+// 	// 	if err != nil {
+// 	// 		return nil, fmt.Errorf("failed to count rules: %w", err)
+// 	// 	}
+
+// 	// // Convert to response format
+// 	// responses := make([]*RateAdjustmentRuleResponse, len(rules))
+// 	// for i, rule := range rules {
+// 	// 	// Get impact statistics for each rule
+// 	// 	impact, _ := s.store.GetRateAdjustmentImpact(ctx, db.GetRateAdjustmentImpactParams{
+// 	// 		RuleID:      uuid.NullUUID{UUID: rule.ID, Valid: true},
+// 	// 		CreatedAt:   time.Now().AddDate(0, -1, 0), // Last month
+// 	// 		CreatedAt_2: time.Now(),
+// 	// 	})
+
+// 	// 	responses[i] = toRateAdjustmentRuleResponse(&rule, impact.TotalAdjustments, fmt.Sprintf("%d", impact.TotalAdjustmentValue))
+// 	// }
+
+// 	// Calculate total pages
+// 	// totalPages := int32(0)
+// 	// if params.GetLimit() > 0 {
+// 	// 	totalPages = int32((totalCount + int64(params.GetLimit()) - 1) / int64(params.GetLimit()))
+// 	// }
+
+// 	// return &PaginatedResponse{
+// 	// 	Data:       responses,
+// 	// 	Page:       params.Page,
+// 	// 	PageSize:   params.GetLimit(),
+// 	// 	TotalCount: totalCount,
+// 	// 	TotalPages: totalPages,
+// 	// }, nil
+// }
+
+
+
+func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPStatusResponse, error) {
+	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %d", userID))
+
+	// Get active assignment
+	assignment, err := s.store.GetActiveVIPAssignment(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			// User has no VIP level, return default
+			defaultLevel, err := s.store.GetDefaultVIPLevel(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get default VIP level: %w", err)
+			}
+
+			return &UserVIPStatusResponse{
+				UserID:           userID,
+				VIPLevelID:       defaultLevel.ID,
+				VIPLevelName:     defaultLevel.LevelName,
+				VIPLevelCode:     defaultLevel.LevelCode,
+				VIPLevelRank:     defaultLevel.LevelRank,
+				IsActive:         true,
+				AssignmentType:   "automatic",
+				BadgeColor:       &defaultLevel.BadgeColor.String,
+				BenefitsDesc:     &defaultLevel.BenefitsDescription.String,
+				HasActiveBenefits: true,
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to get VIP assignment: %w", err)
+	}
+
+	// Get VIP level details
+	vipLevel, err := s.store.GetVIPLevelByID(ctx, assignment.VipLevelID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get VIP level: %w", err)
+	}
+
+	// Get user metrics
+	txVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, userID)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
+	}
+
+	// Get next VIP level (if any)
+	var nextLevel *VIPLevel
+	nextLevelInfo, err := s.store.GetNextVIPLevel(ctx, vipLevel.LevelRank)
+	if err == nil {
+		nextLevel = toVIPLevelModel(&nextLevelInfo)
+	}
+
+	// Get active rate rules for this user
+	activeRules, err := s.store.GetActiveRulesForUser(ctx, assignment.VipLevelID)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get active rules: %v", err))
+	}
+
+	totalTransactionVolume := decimal.NewFromInt(txVolume)
+
+	// Calculate progress to next level
+	var progressPercentage float64
+	var volumeToNextLevel string
+
+	if nextLevel != nil {
+		nextVolume, _ := decimal.NewFromString(nextLevel.MinTransactionVolume)
+		remaining := nextVolume.Sub(totalTransactionVolume)
+		
+		if remaining.IsPositive() {
+			volumeToNextLevel = remaining.String()
+			progressPercentage = totalTransactionVolume.Div(nextVolume).Mul(decimal.NewFromInt(100)).InexactFloat64()
+		}
+	}
+
+	return &UserVIPStatusResponse{
+		UserID:                   userID,
+		VIPLevelID:               vipLevel.ID,
+		VIPLevelName:             vipLevel.LevelName,
+		VIPLevelCode:             vipLevel.LevelCode,
+		VIPLevelRank:             vipLevel.LevelRank,
+		AssignedAt:               assignment.AssignedAt,
+		AssignmentType:           AssignmentType(assignment.AssignmentType),
+		IsActive:                 assignment.IsActive,
+		ExpiresAt:                assignment.ExpiresAt,
+		BadgeColor:               &vipLevel.BadgeColor.String,
+		BenefitsDesc:             &vipLevel.BenefitsDescription.String,
+		TotalTransactionVolume:   totalTransactionVolume.String(),
+		ActiveRulesCount:         int64(len(activeRules)),
+		NextLevel:                nextLevel,
+		ProgressToNextLevel:      progressPercentage,
+		VolumeToNextLevel:        volumeToNextLevel,
+		HasActiveBenefits:        assignment.IsActive && (assignment.ExpiresAt.Time.IsZero() || assignment.ExpiresAt.Time.After(time.Now())),
+	}, nil
+}
+
+type UserVIPStatusResponse struct {
+	UserID                 int64           `json:"user_id"`
+	VIPLevelID             uuid.UUID       `json:"vip_level_id"`
+	VIPLevelName           string          `json:"vip_level_name"`
+	VIPLevelCode           string          `json:"vip_level_code"`
+	VIPLevelRank           int32           `json:"vip_level_rank"`
+	AssignedAt             time.Time       `json:"assigned_at,omitempty"`
+	AssignmentType         AssignmentType  `json:"assignment_type"`
+	IsActive               bool            `json:"is_active"`
+	ExpiresAt              sql.NullTime    `json:"expires_at,omitempty"`
+	BadgeColor             *string         `json:"badge_color,omitempty"`
+	BenefitsDesc           *string         `json:"benefits_description,omitempty"`
+	TotalTransactionVolume string          `json:"total_transaction_volume"`
+	TotalConversionCount   int64           `json:"total_conversion_count"`
+	MonthlyVolume          string          `json:"monthly_volume"`
+	ActiveRulesCount       int64           `json:"active_rules_count"`
+	NextLevel              *VIPLevel       `json:"next_level,omitempty"`
+	ProgressToNextLevel    float64         `json:"progress_to_next_level"`
+	VolumeToNextLevel      string          `json:"volume_to_next_level,omitempty"`
+	HasActiveBenefits      bool            `json:"has_active_benefits"`
+}
+
+
 // =====================================================
 // RATE CALCULATION WITH ADJUSTMENTS
 // =====================================================
@@ -695,14 +1057,12 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 	}
 
 	// Get user transaction metrics
-	metrics, err := s.store.GetUserTransactionMetrics(ctx, req.UserID)
+	totalTxVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, req.UserID)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
-		metrics.TotalVolume = decimal.Zero.String()
-		metrics.ConversionCount = 0
 	}
 
-	totalVolume, _ := decimal.NewFromString(metrics.TotalVolume)
+	totalVolume := decimal.NewFromInt(totalTxVolume)
 
 	params := db.AssignUserToVIPLevelParams{
 		UserID:                 req.UserID,
@@ -710,7 +1070,6 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		AssignedBy:             sql.NullInt64{Int64: user.ID, Valid: true},
 		AssignmentType:         string(AssignmentTypeManual),
 		TotalTransactionVolume: totalVolume.String(),
-		TotalConversionCount:   int32(metrics.ConversionCount),
 	}
 
 	if req.ExpiresAt != nil {
@@ -766,12 +1125,12 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 // AutoAssignUserVIPLevel automatically assigns VIP level based on user metrics
 func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) error {
 	// Get user transaction metrics
-	metrics, err := s.store.GetUserTransactionMetrics(ctx, userID)
+	volume, err := s.store.GetTotalTransactionVolumeForUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user metrics: %w", err)
 	}
 
-	totalVolume, _ := decimal.NewFromString(metrics.TotalVolume)
+	totalVolume := decimal.NewFromInt(volume)
 
 	// Find appropriate VIP level
 	vipLevel, err := s.store.GetVIPLevelForVolume(ctx, totalVolume.String())
@@ -790,7 +1149,6 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 		VipLevelID:             vipLevel.ID,
 		AssignmentType:         string(AssignmentTypeAutomatic),
 		TotalTransactionVolume: totalVolume.String(),
-		TotalConversionCount:   int32(metrics.ConversionCount),
 	}
 
 	_, err = s.store.AssignUserToVIPLevel(ctx, params)

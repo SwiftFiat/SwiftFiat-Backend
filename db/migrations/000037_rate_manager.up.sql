@@ -24,10 +24,7 @@
     "level_rank" INTEGER UNIQUE NOT NULL,     -- Ordering: 1, 2, 3... (higher = better)
     
     -- Eligibility criteria
-    "min_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0, -- Lifetime transaction volume in NGN
-    "min_monthly_volume" DECIMAL(20, 2),                        -- Optional monthly threshold
-    "min_conversion_count" INTEGER,                             -- Optional: minimum number of conversions
-    
+    "min_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0, -- Lifetime transaction volume in USD    
     -- Metadata
     "description" TEXT,
     "benefits_description" TEXT,  -- User-facing benefits text
@@ -154,9 +151,7 @@ CREATE TABLE IF NOT EXISTS "user_vip_assignments" (
     "assignment_type" VARCHAR(20) NOT NULL DEFAULT 'automatic', -- 'automatic' or 'manual'
     
     -- Metrics at time of assignment
-    "total_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0,
-    "total_conversion_count" INTEGER NOT NULL DEFAULT 0,
-    
+    "total_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0,    
     -- Status
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     "expires_at" TIMESTAMPTZ, -- Optional expiration for temporary VIP status

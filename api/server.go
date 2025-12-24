@@ -194,8 +194,11 @@ func NewServer(envPath string) *Server {
 	// qrcode service
 	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
 
+	// bridgecard service (needs config and logger)
+	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
+
 	// subscriptons service
-	ss := subscriptions.NewService(q, l)
+	ss := subscriptions.NewService(q, l, bridgecard)
 
 	qrScheduler := rapidramp.NewRapidRampScheduler(
 		t,
@@ -233,9 +236,6 @@ func NewServer(envPath string) *Server {
 
 	// smart conversion scheduler
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)
-
-	// bridgecard service
-	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
 
 	// virtual card service
 	vcs := virtualcard.NewService(q, l, bridgecard, ws, streakScheduler, ns, email, pn, ss)

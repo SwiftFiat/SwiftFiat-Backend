@@ -127,7 +127,7 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -257,7 +257,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	tx.ReceivedAmount = amount
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, walletAddress.CustomerID.Int64)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -411,7 +411,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, order
 	tx.Coin = coinSym
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, walletAddress.CustomerID.Int64)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -545,7 +545,7 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	tx.SentAmount = sentAmount
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -637,7 +637,7 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -735,7 +735,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, BillOutflowTransaction, &tx, currFlow)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, BillOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -765,7 +765,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	return tObj, nil
 }
 
-func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string) (interface{}, error) {
+func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string, userID int64) (interface{}, error) {
 
 	if platform == WalletTransaction {
 		tx, ok := txx.(*IntraTransaction)
@@ -773,11 +773,20 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
 		}
 
+		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.Currency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		}
+
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
 			Status:          string(Success),
+			AmountUsd:       amountUsd.String(),
+			Amount:          tx.SentAmount.String(),
+			Currency:        tx.Currency,
+			UserID:          userID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -835,11 +844,20 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
 		}
 
+		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.Coin)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		}
+
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
 			Status:          string(Success),
+			AmountUsd:       amountUsd.String(),
+			Amount:          tx.SentAmount.String(),
+			Currency:        tx.Coin,
+			UserID:          userID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -916,11 +934,20 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
 		}
 
+		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.WalletCurrency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		}
+
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
 			Status:          string(Success),
+			AmountUsd:       amountUsd.String(),
+			Amount:          tx.SentAmount.String(),
+			Currency:        tx.WalletCurrency,
+			UserID:          userID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -975,11 +1002,20 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
 		}
 
+		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.WalletCurrency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		}
+
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
 			Status:          string(Success),
+			AmountUsd:       amountUsd.String(),
+			Amount:          tx.SentAmount.String(),
+			Currency:        "NGN",
+			UserID:          userID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -1067,11 +1103,20 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
 		}
 
+		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.WalletCurrency)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		}
+
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
 			Status:          string(Success),
+			AmountUsd:       amountUsd.String(),
+			Amount:          tx.SentAmount.String(),
+			Currency:        "NGN",
+			UserID:          userID,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -1529,7 +1574,7 @@ func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID in
 // UpdateStreakAfterBillPayment updates streak after successful bill payment
 func (s *TransactionService) UpdateStreakAfterBillPayment(
 	ctx context.Context,
-	userID int64, 
+	userID int64,
 	transactionID uuid.UUID,
 	transactionType TransactionType,
 ) error {

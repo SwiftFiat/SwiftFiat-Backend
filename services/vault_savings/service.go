@@ -1144,11 +1144,19 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		reference = utils.NewTxRef("vault_deposit")
 	}
 
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, vault.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
 	// Create main Transaction record
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          sql.NullInt64{Int64: req.UserID, Valid: true},
+		UserID:          req.UserID,
 		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
+		Amount:          amount.String(),
+		Currency:        vault.Currency,
+		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Success),
 		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
 	})
@@ -1327,12 +1335,20 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		status = string(transaction.Pending)
 	}
 
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, vault.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
 	// Create main Transaction
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
 		Status:          status,
 		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
+		Amount:          req.Amount,
+		Currency:        vault.Currency,
+		AmountUsd:       amountUsd.String(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)

@@ -1237,7 +1237,7 @@ const getCardSpendingByMonth = `-- name: GetCardSpendingByMonth :many
 SELECT 
     DATE_TRUNC('month', transaction_date) as month,
     COUNT(*) as transaction_count,
-    SUM(amount) as total_spend_cents
+    SUM(amount) as total_spend
 FROM card_transactions
 WHERE card_id = $1 
   AND status = 'approved'
@@ -1254,7 +1254,7 @@ type GetCardSpendingByMonthParams struct {
 type GetCardSpendingByMonthRow struct {
 	Month            int64 `json:"month"`
 	TransactionCount int64 `json:"transaction_count"`
-	TotalSpendCents  int64 `json:"total_spend_cents"`
+	TotalSpend       int64 `json:"total_spend"`
 }
 
 func (q *Queries) GetCardSpendingByMonth(ctx context.Context, arg GetCardSpendingByMonthParams) ([]GetCardSpendingByMonthRow, error) {
@@ -1266,7 +1266,7 @@ func (q *Queries) GetCardSpendingByMonth(ctx context.Context, arg GetCardSpendin
 	items := []GetCardSpendingByMonthRow{}
 	for rows.Next() {
 		var i GetCardSpendingByMonthRow
-		if err := rows.Scan(&i.Month, &i.TransactionCount, &i.TotalSpendCents); err != nil {
+		if err := rows.Scan(&i.Month, &i.TransactionCount, &i.TotalSpend); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -1826,7 +1826,7 @@ SELECT
     COUNT(*) as total_subscriptions,
     COUNT(*) FILTER (WHERE status = 'active') as active_subscriptions,
     COUNT(*) FILTER (WHERE status IN ('cancelled', 'failed', 'paused')) as inactive_subscriptions,
-    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend_cents
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::BIGINT as monthly_spend
 FROM user_subscriptions
 WHERE user_id = $1
 `
@@ -1835,7 +1835,7 @@ type GetSubscriptionStatsRow struct {
 	TotalSubscriptions    int64 `json:"total_subscriptions"`
 	ActiveSubscriptions   int64 `json:"active_subscriptions"`
 	InactiveSubscriptions int64 `json:"inactive_subscriptions"`
-	MonthlySpendCents     int64 `json:"monthly_spend_cents"`
+	MonthlySpend          int64 `json:"monthly_spend"`
 }
 
 // ============================================================================
@@ -1848,7 +1848,7 @@ func (q *Queries) GetSubscriptionStats(ctx context.Context, userID int64) (GetSu
 		&i.TotalSubscriptions,
 		&i.ActiveSubscriptions,
 		&i.InactiveSubscriptions,
-		&i.MonthlySpendCents,
+		&i.MonthlySpend,
 	)
 	return i, err
 }
@@ -1857,17 +1857,17 @@ const getSubscriptionsByCategory = `-- name: GetSubscriptionsByCategory :many
 SELECT 
     category,
     COUNT(*) as subscription_count,
-    SUM(amount) as total_spend_cents
+    SUM(amount) as total_spend
 FROM user_subscriptions
 WHERE user_id = $1 AND status = 'active'
 GROUP BY category
-ORDER BY total_spend_cents DESC
+ORDER BY total_spend DESC
 `
 
 type GetSubscriptionsByCategoryRow struct {
 	Category          sql.NullString `json:"category"`
 	SubscriptionCount int64          `json:"subscription_count"`
-	TotalSpendCents   int64          `json:"total_spend_cents"`
+	TotalSpend        int64          `json:"total_spend"`
 }
 
 func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID int64) ([]GetSubscriptionsByCategoryRow, error) {
@@ -1879,7 +1879,7 @@ func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID int64) 
 	items := []GetSubscriptionsByCategoryRow{}
 	for rows.Next() {
 		var i GetSubscriptionsByCategoryRow
-		if err := rows.Scan(&i.Category, &i.SubscriptionCount, &i.TotalSpendCents); err != nil {
+		if err := rows.Scan(&i.Category, &i.SubscriptionCount, &i.TotalSpend); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -2036,14 +2036,14 @@ const getTopMerchantsBySpend = `-- name: GetTopMerchantsBySpend :many
 SELECT 
     merchant_name,
     COUNT(*) as transaction_count,
-    SUM(amount) as total_spend_cents,
+    SUM(amount) as total_spend,
     MAX(transaction_date) as last_transaction_date
 FROM card_transactions
 WHERE user_id = $1 
   AND status = 'approved'
   AND merchant_name IS NOT NULL
 GROUP BY merchant_name
-ORDER BY total_spend_cents DESC
+ORDER BY total_spend DESC
 LIMIT $2
 `
 
@@ -2055,7 +2055,7 @@ type GetTopMerchantsBySpendParams struct {
 type GetTopMerchantsBySpendRow struct {
 	MerchantName        sql.NullString `json:"merchant_name"`
 	TransactionCount    int64          `json:"transaction_count"`
-	TotalSpendCents     int64          `json:"total_spend_cents"`
+	TotalSpend          int64          `json:"total_spend"`
 	LastTransactionDate interface{}    `json:"last_transaction_date"`
 }
 
@@ -2071,7 +2071,7 @@ func (q *Queries) GetTopMerchantsBySpend(ctx context.Context, arg GetTopMerchant
 		if err := rows.Scan(
 			&i.MerchantName,
 			&i.TransactionCount,
-			&i.TotalSpendCents,
+			&i.TotalSpend,
 			&i.LastTransactionDate,
 		); err != nil {
 			return nil, err
@@ -2334,7 +2334,7 @@ SELECT
     COUNT(DISTINCT vc.id) as total_cards,
     COUNT(DISTINCT vc.id) FILTER (WHERE vc.status = 'active') as active_cards,
     COUNT(DISTINCT ct.id) as total_transactions,
-    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend_cents,
+    COALESCE(SUM(ct.amount) FILTER (WHERE ct.status = 'approved'), 0) as total_spend,
     COUNT(DISTINCT us.id) FILTER (WHERE us.status = 'active') as active_subscriptions
 FROM virtual_cards vc
 LEFT JOIN card_transactions ct ON vc.id = ct.card_id
@@ -2346,7 +2346,7 @@ type GetUserCardStatsRow struct {
 	TotalCards          int64       `json:"total_cards"`
 	ActiveCards         int64       `json:"active_cards"`
 	TotalTransactions   int64       `json:"total_transactions"`
-	TotalSpendCents     interface{} `json:"total_spend_cents"`
+	TotalSpend          interface{} `json:"total_spend"`
 	ActiveSubscriptions int64       `json:"active_subscriptions"`
 }
 
@@ -2360,7 +2360,7 @@ func (q *Queries) GetUserCardStats(ctx context.Context, userID int64) (GetUserCa
 		&i.TotalCards,
 		&i.ActiveCards,
 		&i.TotalTransactions,
-		&i.TotalSpendCents,
+		&i.TotalSpend,
 		&i.ActiveSubscriptions,
 	)
 	return i, err
@@ -2791,17 +2791,17 @@ const getUserSubscriptionSummary = `-- name: GetUserSubscriptionSummary :one
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend_cents,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1
 `
 
 type GetUserSubscriptionSummaryRow struct {
-	ActiveCount            int64     `json:"active_count"`
-	FailedCount            int64     `json:"failed_count"`
-	TotalMonthlySpendCents string    `json:"total_monthly_spend_cents"`
-	NextChargeDate         time.Time `json:"next_charge_date"`
+	ActiveCount       int64     `json:"active_count"`
+	FailedCount       int64     `json:"failed_count"`
+	TotalMonthlySpend string    `json:"total_monthly_spend"`
+	NextChargeDate    time.Time `json:"next_charge_date"`
 }
 
 func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) (GetUserSubscriptionSummaryRow, error) {
@@ -2810,7 +2810,7 @@ func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 	err := row.Scan(
 		&i.ActiveCount,
 		&i.FailedCount,
-		&i.TotalMonthlySpendCents,
+		&i.TotalMonthlySpend,
 		&i.NextChargeDate,
 	)
 	return i, err

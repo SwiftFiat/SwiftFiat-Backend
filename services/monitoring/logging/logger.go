@@ -74,8 +74,8 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 		duration := time.Since(start)
 		statusCode := c.Writer.Status()
 
-		var requestJson interface{}
-		var responseJson interface{}
+		var requestJson any
+		var responseJson any
 		err := json.Unmarshal(requestBody, &requestJson)
 		if err != nil {
 			l.Log(logrus.DebugLevel, "error unmarshalling requestBody, request may not be JSON")

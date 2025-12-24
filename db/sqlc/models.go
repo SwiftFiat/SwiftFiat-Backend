@@ -935,6 +935,15 @@ type Referral struct {
 	UpdatedAt   time.Time `json:"updated_at"`
 }
 
+type ReferralConfig struct {
+	ID                         int64     `json:"id"`
+	ReferralAmount             string    `json:"referral_amount"`
+	MinimumWithdrawalThreshold string    `json:"minimum_withdrawal_threshold"`
+	Singleton                  bool      `json:"singleton"`
+	CreatedAt                  time.Time `json:"created_at"`
+	UpdatedAt                  time.Time `json:"updated_at"`
+}
+
 type ReferralEarning struct {
 	ID               int64     `json:"id"`
 	UserID           int32     `json:"user_id"`
@@ -1147,10 +1156,13 @@ type TicketAssignmentHistory struct {
 // Core transaction table storing all financial transactions
 type Transaction struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               sql.NullInt64  `json:"user_id"`
+	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
@@ -1313,6 +1325,20 @@ type UserToken struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+// Tracks individual transaction volumes for VIP level evaluation
+type UserTransactionVolume struct {
+	ID              int64     `json:"id"`
+	UserID          int64     `json:"user_id"`
+	TransactionType string    `json:"transaction_type"`
+	Amount          string    `json:"amount"`
+	Currency        string    `json:"currency"`
+	TransactionDate time.Time `json:"transaction_date"`
+	DailyVolume     string    `json:"daily_volume"`
+	DailyCount      int32     `json:"daily_count"`
+	CreatedAt       time.Time `json:"created_at"`
+	UpdatedAt       time.Time `json:"updated_at"`
+}
+
 // User VIP level assignments and tier progression tracking
 type UserVipAssignment struct {
 	ID                     uuid.UUID     `json:"id"`
@@ -1322,11 +1348,46 @@ type UserVipAssignment struct {
 	AssignedBy             sql.NullInt64 `json:"assigned_by"`
 	AssignmentType         string        `json:"assignment_type"`
 	TotalTransactionVolume string        `json:"total_transaction_volume"`
-	TotalConversionCount   int32         `json:"total_conversion_count"`
 	IsActive               bool          `json:"is_active"`
 	ExpiresAt              sql.NullTime  `json:"expires_at"`
 	CreatedAt              time.Time     `json:"created_at"`
 	UpdatedAt              time.Time     `json:"updated_at"`
+}
+
+// Historical record of VIP level changes
+type UserVipLevelHistory struct {
+	ID                      uuid.UUID      `json:"id"`
+	UserID                  int64          `json:"user_id"`
+	PreviousLevelID         uuid.NullUUID  `json:"previous_level_id"`
+	PreviousLevelName       sql.NullString `json:"previous_level_name"`
+	NewLevelID              uuid.NullUUID  `json:"new_level_id"`
+	NewLevelName            sql.NullString `json:"new_level_name"`
+	ChangeReason            string         `json:"change_reason"`
+	ChangeType              string         `json:"change_type"`
+	TotalVolumeAtChange     sql.NullString `json:"total_volume_at_change"`
+	ConversionCountAtChange sql.NullInt32  `json:"conversion_count_at_change"`
+	ChangedBy               sql.NullInt64  `json:"changed_by"`
+	ChangedByType           sql.NullString `json:"changed_by_type"`
+	ChangedAt               time.Time      `json:"changed_at"`
+}
+
+// Cached aggregated metrics for fast VIP level queries
+type UserVipMetricsCache struct {
+	UserID                 int64          `json:"user_id"`
+	TotalTransactionVolume string         `json:"total_transaction_volume"`
+	TotalConversionCount   int32          `json:"total_conversion_count"`
+	MonthlyVolume          string         `json:"monthly_volume"`
+	MonthlyCount           int32          `json:"monthly_count"`
+	WeeklyVolume           string         `json:"weekly_volume"`
+	WeeklyCount            int32          `json:"weekly_count"`
+	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
+	CurrentVipLevelName    sql.NullString `json:"current_vip_level_name"`
+	CurrentVipLevelRank    sql.NullInt32  `json:"current_vip_level_rank"`
+	LastTransactionDate    sql.NullTime   `json:"last_transaction_date"`
+	FirstTransactionDate   sql.NullTime   `json:"first_transaction_date"`
+	LastCalculatedAt       time.Time      `json:"last_calculated_at"`
+	CreatedAt              time.Time      `json:"created_at"`
+	UpdatedAt              time.Time      `json:"updated_at"`
 }
 
 type VaultSaving struct {
@@ -1410,8 +1471,6 @@ type VipLevel struct {
 	LevelCode            string         `json:"level_code"`
 	LevelRank            int32          `json:"level_rank"`
 	MinTransactionVolume string         `json:"min_transaction_volume"`
-	MinMonthlyVolume     sql.NullString `json:"min_monthly_volume"`
-	MinConversionCount   sql.NullInt32  `json:"min_conversion_count"`
 	Description          sql.NullString `json:"description"`
 	BenefitsDescription  sql.NullString `json:"benefits_description"`
 	BadgeColor           sql.NullString `json:"badge_color"`
@@ -1452,11 +1511,39 @@ type VirtualCard struct {
 	TerminatedAt            sql.NullTime   `json:"terminated_at"`
 }
 
+// Current distribution of users across VIP levels
+type VwVipDistribution struct {
+	VipLevelID       uuid.UUID   `json:"vip_level_id"`
+	LevelName        string      `json:"level_name"`
+	LevelCode        string      `json:"level_code"`
+	LevelRank        int32       `json:"level_rank"`
+	UserCount        int64       `json:"user_count"`
+	TotalVolume      interface{} `json:"total_volume"`
+	AvgVolumePerUser interface{} `json:"avg_volume_per_user"`
+	MonthlyVolume    interface{} `json:"monthly_volume"`
+	Percentage       float64     `json:"percentage"`
+}
+
+// Users eligible for VIP level upgrades
+type VwVipUpgradeCandidate struct {
+	UserID                 int64          `json:"user_id"`
+	Email                  string         `json:"email"`
+	PhoneNumber            string         `json:"phone_number"`
+	CurrentVipLevelName    sql.NullString `json:"current_vip_level_name"`
+	CurrentVipLevelRank    sql.NullInt32  `json:"current_vip_level_rank"`
+	TotalTransactionVolume string         `json:"total_transaction_volume"`
+	TotalConversionCount   int32          `json:"total_conversion_count"`
+	MonthlyVolume          string         `json:"monthly_volume"`
+	EligibleLevelName      string         `json:"eligible_level_name"`
+	EligibleLevelRank      int32          `json:"eligible_level_rank"`
+	EligibleLevelID        uuid.UUID      `json:"eligible_level_id"`
+	VolumeToNextLevel      int32          `json:"volume_to_next_level"`
+}
+
 type WithdrawalRequest struct {
 	ID        int64     `json:"id"`
 	UserID    int32     `json:"user_id"`
 	Amount    string    `json:"amount"`
-	WalletID  uuid.UUID `json:"wallet_id"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`

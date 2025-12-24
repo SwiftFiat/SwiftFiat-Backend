@@ -1,0 +1,27 @@
+meta {
+  name: Update referral config
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BaseURl}}/referral/admin/update-referral-config
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 1,
+    "referral_amount": "200.00"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

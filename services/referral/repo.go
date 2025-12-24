@@ -25,6 +25,7 @@ type ReferralStatus string
 const (
 	WithdrawalStatusPending   WithdrawalRequestStatus = "pending"
 	WithdrawalStatusApproved  WithdrawalRequestStatus = "approved"
+	WithdrawalStatusRejected  WithdrawalRequestStatus = "rejected"
 	WithdrawalStatusCompleted WithdrawalRequestStatus = "completed"
 	ReferralStatusPending     ReferralStatus          = "pending"
 	ReferralStatusActive      ReferralStatus          = "active"
@@ -212,66 +213,42 @@ func (r *Repo) GetReferralEarnings(ctx context.Context, userID int64) (*db.Refer
 }
 
 func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (*db.WithdrawalRequest, error) {
-	const withdrawalThreshold = 10000.00 // 10,000 Naira
+	// Check if user has enough balance
+	earnings, err := r.queries.GetReferralEarnings(ctx, int32(userID))
+	if err != nil {
+		return nil, err
+	}
 
-	var wr db.WithdrawalRequest // Change to non-pointer type
+	availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
+	if err != nil {
+		return nil, err
+	}
 
-	err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
-		// Check if user has enough balance
-		earnings, err := q.GetReferralEarnings(ctx, int32(userID))
-		if err != nil {
-			return err
-		}
+	if availableBalance.LessThan(amount) {
+		return nil, ErrInsufficientBalance
+	}
 
-		aBToDecimal, err := decimal.NewFromString(earnings.AvailableBalance)
-		if err != nil {
-			return err
-		}
+	// Check if withdrawal amount is less than minimum withdrawal threshold
+	referralConfig, err := r.queries.GetReferralConfig(ctx)
+	if err != nil {
+		return nil, err
+	}
+	minimumWithdrawalThreshold, err := decimal.NewFromString(referralConfig.MinimumWithdrawalThreshold)
+	if err != nil {
+		return nil, err
+	}
 
-		if aBToDecimal.LessThan(amount) {
-			return ErrInsufficientBalance
-		}
+	if amount.LessThan(minimumWithdrawalThreshold) {
+		return nil, ErrWithdrawalThreshold
+	}
 
-		wtToDecimal := decimal.NewFromFloat(withdrawalThreshold)
-		if amount.LessThan(wtToDecimal) {
-			return ErrWithdrawalThreshold
-		}
+	// Create withdrawal request
+	params := db.CreateWithdrawalRequestParams{
+		UserID: int32(userID),
+		Amount: amount.String(),
+	}
 
-		// Deduct the amount from available balance
-		newAvailableBalance := aBToDecimal.Sub(amount)
-		updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
-			UserID:           int32(userID),
-			AvailableBalance: newAvailableBalance.String(),
-		}
-		if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
-			return err
-		}
-
-		// Get user naira wallet
-		walletParams := db.GetWalletByCurrencyParams{
-			CustomerID: userID,
-			Currency:   "NGN",
-		}
-
-		wallet, err := q.GetWalletByCurrency(ctx, walletParams)
-		if err != nil {
-			return err
-		}
-
-		// Create withdrawal request
-		params := db.CreateWithdrawalRequestParams{
-			UserID:   int32(userID),
-			Amount:   amount.String(),
-			WalletID: wallet.ID,
-		}
-		wr, err = q.CreateWithdrawalRequest(ctx, params)
-		if err != nil {
-			return err
-		}
-
-		return nil
-	})
-
+	wr, err := r.queries.CreateWithdrawalRequest(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -279,63 +256,48 @@ func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount
 	return &wr, nil
 }
 
-func (r *Repo) UpdateWithdrawalRequestStatus(ctx context.Context, requestID int64, status WithdrawalRequestStatus) (*db.WithdrawalRequest, error) {
-	var wr db.WithdrawalRequest
-
-	err := r.queries.ExecTx(ctx, func(q *db.Queries) error {
-		// Fetch the withdrawal request
-		requested, err := q.GetWithdrawalRequest(ctx, requestID)
-		if err != nil {
-			return err
-		}
-
-		if requested.Status == string(WithdrawalStatusCompleted) {
-			return errors.New("status is already completed")
-		}
-
-		// Update the withdrawal request status
-		params := db.UpdateWithdrawalRequestParams{
-			ID:     requestID,
-			Status: string(status),
-		}
-		wr, err = q.UpdateWithdrawalRequest(ctx, params)
-		if err != nil {
-			return err
-		}
-
-		// If the status is rejected, return the funds to the user's available balance
-		if status == WithdrawalStatusPending {
-			amount, err := decimal.NewFromString(requested.Amount)
-			if err != nil {
-				return err
-			}
-
-			earnings, err := q.GetReferralEarnings(ctx, requested.UserID)
-			if err != nil {
-				return err
-			}
-
-			availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
-			if err != nil {
-				return err
-			}
-
-			newAvailableBalance := availableBalance.Add(amount)
-			updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
-				UserID:           requested.UserID,
-				AvailableBalance: newAvailableBalance.String(),
-			}
-			if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
-				return err
-			}
-		}
-
-		return nil
+func (r *Repo) UpdateWithdrawalRequest(ctx context.Context, requestID int64, status WithdrawalRequestStatus) (db.WithdrawalRequest, error) {
+	return r.queries.UpdateWithdrawalRequest(ctx, db.UpdateWithdrawalRequestParams{
+		ID:     requestID,
+		Status: string(status),
 	})
+}
 
-	if err != nil {
-		return nil, err
+func (r *Repo) ListWithdrawalRequests(ctx context.Context) ([]db.WithdrawalRequest, error) {
+	return r.queries.ListWithdrawalRequests(ctx)
+}
+
+func (r *Repo) GetWithdrawalRequest(ctx context.Context, requestID int64) (db.WithdrawalRequest, error) {
+	return r.queries.GetWithdrawalRequest(ctx, requestID)
+}
+
+func (r *Repo) CreateReferralConfig(ctx context.Context, minimumWithdrawalThreshold decimal.Decimal, referralAmount decimal.Decimal) (db.ReferralConfig, error) {
+	return r.queries.CreateReferralConfig(ctx, db.CreateReferralConfigParams{
+		MinimumWithdrawalThreshold: minimumWithdrawalThreshold.String(),
+		ReferralAmount:             referralAmount.String(),
+	})
+}
+
+func (r *Repo) UpdateReferralConfig(ctx context.Context, id int64, minThreshold, refAmount *decimal.Decimal) (db.ReferralConfig, error) {
+	params := db.UpdateReferralConfigParams{ID: id}
+
+	if minThreshold != nil {
+		params.MinimumWithdrawalThreshold = sql.NullString{
+			String: minThreshold.String(),
+			Valid:  true,
+		}
 	}
 
-	return &wr, nil
+	if refAmount != nil {
+		params.ReferralAmount = sql.NullString{
+			String: refAmount.String(),
+			Valid:  true,
+		}
+	}
+
+	return r.queries.UpdateReferralConfig(ctx, params)
+}
+
+func (r *Repo) GetReferralConfig(ctx context.Context) (db.ReferralConfig, error) {
+	return r.queries.GetReferralConfig(ctx)
 }

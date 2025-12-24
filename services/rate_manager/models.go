@@ -564,7 +564,6 @@ func toUserVIPAssignmentResponse(assignment *db.UserVipAssignment, user *db.User
 		AssignedAt:             assignment.AssignedAt,
 		AssignmentType:         AssignmentType(assignment.AssignmentType),
 		TotalTransactionVolume: assignment.TotalTransactionVolume,
-		TotalConversionCount:   assignment.TotalConversionCount,
 		IsActive:               assignment.IsActive,
 	}
 }

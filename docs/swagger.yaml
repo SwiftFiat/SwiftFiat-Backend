@@ -117,7 +117,7 @@ definitions:
   api.CreateCustomSubscriptionRequest:
     properties:
       amount:
-        description: Dollar amount as string
+        description: Amount is provided and stored as whole dollars
         type: integer
       auto_topup_buffer_percent:
         type: number
@@ -546,7 +546,8 @@ definitions:
   api.UpdateCustomSubscriptionRequest:
     properties:
       amount:
-        type: string
+        description: Amount is specified in whole dollars
+        type: integer
       auto_topup_buffer_percent:
         type: number
       billing_cycle:
@@ -8809,6 +8810,52 @@ paths:
       summary: Get QR transactions
       tags:
       - QR Codes
+  /api/v1/referral/admin/create-referral-config:
+    post:
+      consumes:
+      - application/json
+      description: Creates a new referral config
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Create Referral Config
+      tags:
+      - Referral
+  /api/v1/referral/admin/get-withdrawal-request:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the withdrawal request for the authenticated user
+      parameters:
+      - description: Withdrawal Request ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Withdrawal Request
+      tags:
+      - Referral
   /api/v1/referral/admin/list:
     get:
       consumes:
@@ -8834,6 +8881,83 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get User Referrals
+      tags:
+      - Referral
+  /api/v1/referral/admin/list-withdrawal-requests:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the withdrawal requests for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: List Withdrawal Requests
+      tags:
+      - Referral
+  /api/v1/referral/admin/update-referral-config:
+    put:
+      consumes:
+      - application/json
+      description: Updates the referral config
+      parameters:
+      - description: Referral Config ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update Referral Config
+      tags:
+      - Referral
+  /api/v1/referral/admin/update-withdrawal:
+    put:
+      consumes:
+      - application/json
+      description: Retrieves the referral earnings for the authenticated user
+      parameters:
+      - description: Withdrawal ID
+        in: query
+        name: id
+        required: true
+        type: integer
+      - description: Withdrawal Status
+        in: query
+        name: status
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Earnings
       tags:
       - Referral
   /api/v1/referral/earnings:
@@ -8927,26 +9051,6 @@ paths:
       summary: Track Referral
       tags:
       - Referral
-  /api/v1/referral/update-withdrawal:
-    post:
-      consumes:
-      - application/json
-      description: Retrieves the referral earnings for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get Referral Earnings
-      tags:
-      - Referral
   /api/v1/reminder/:id:
     get:
       consumes:
@@ -8968,7 +9072,7 @@ paths:
       tags:
       - Referral
   /api/v1/request-withdrawal:
-    get:
+    post:
       consumes:
       - application/json
       description: Retrieves the referral earnings for the authenticated user

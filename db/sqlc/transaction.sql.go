@@ -322,17 +322,23 @@ INSERT INTO transactions (
     type,
     description,
     transaction_flow,
+    amount,
+    currency,
+    amount_usd,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5
-) RETURNING id, user_id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+    $1, $2, $3, $4, $5, $6, $7, $8
+) RETURNING id, user_id, type, description, transaction_flow, amount, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type CreateTransactionParams struct {
-	UserID          sql.NullInt64  `json:"user_id"`
+	UserID          int64          `json:"user_id"`
 	Type            string         `json:"type"`
 	Description     sql.NullString `json:"description"`
 	TransactionFlow sql.NullString `json:"transaction_flow"`
+	Amount          string         `json:"amount"`
+	Currency        string         `json:"currency"`
+	AmountUsd       string         `json:"amount_usd"`
 	Status          string         `json:"status"`
 }
 
@@ -342,6 +348,9 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		arg.Type,
 		arg.Description,
 		arg.TransactionFlow,
+		arg.Amount,
+		arg.Currency,
+		arg.AmountUsd,
 		arg.Status,
 	)
 	var i Transaction
@@ -351,6 +360,9 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.Type,
 		&i.Description,
 		&i.TransactionFlow,
+		&i.Amount,
+		&i.Currency,
+		&i.AmountUsd,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -397,7 +409,7 @@ func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTran
 }
 
 const getPendingTransactions = `-- name: GetPendingTransactions :many
-SELECT id, user_id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
+SELECT id, user_id, type, description, transaction_flow, amount, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE status = 'pending'
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $1
@@ -423,6 +435,9 @@ func (q *Queries) GetPendingTransactions(ctx context.Context, arg GetPendingTran
 			&i.Type,
 			&i.Description,
 			&i.TransactionFlow,
+			&i.Amount,
+			&i.Currency,
+			&i.AmountUsd,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
@@ -512,17 +527,9 @@ func (q *Queries) GetTotalTrade(ctx context.Context) (int64, error) {
 }
 
 const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
-SELECT
-    COALESCE(SUM(
-        COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount, st.sent_amount)
-    ), 0)::BIGINT AS total_volume
-FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-WHERE t.status = 'successful'
+SELECT SUM(amount_usd) AS total_volume
+FROM transactions  
+WHERE status = 'successful'
 `
 
 func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int64, error) {
@@ -532,9 +539,22 @@ func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int64, error) 
 	return total_volume, err
 }
 
+const getTotalTransactionVolumeForUser = `-- name: GetTotalTransactionVolumeForUser :one
+SELECT SUM(amount_usd) AS total_volume
+FROM transactions  
+WHERE user_id = $1 AND status = 'successful'
+`
+
+func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalTransactionVolumeForUser, userID)
+	var total_volume int64
+	err := row.Scan(&total_volume)
+	return total_volume, err
+}
+
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, fw.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
     COALESCE(st.currency, ct.coin) as currency,
@@ -553,10 +573,13 @@ WHERE t.id = $1 LIMIT 1
 
 type GetTransactionByIDRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               sql.NullInt64  `json:"user_id"`
+	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
@@ -564,7 +587,7 @@ type GetTransactionByIDRow struct {
 	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
 	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
 	DestinationWallet    uuid.NullUUID  `json:"destination_wallet"`
-	Currency             string         `json:"currency"`
+	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	Fees                 sql.NullString `json:"fees"`
 	ReceivedAmount       sql.NullString `json:"received_amount"`
@@ -580,6 +603,9 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 		&i.Type,
 		&i.Description,
 		&i.TransactionFlow,
+		&i.Amount,
+		&i.Currency,
+		&i.AmountUsd,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -587,7 +613,7 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 		&i.DeletedToAccountID,
 		&i.SourceWallet,
 		&i.DestinationWallet,
-		&i.Currency,
+		&i.Currency_2,
 		&i.Rate,
 		&i.Fees,
 		&i.ReceivedAmount,
@@ -597,7 +623,7 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 }
 
 const getTransactionByIDForUpdate = `-- name: GetTransactionByIDForUpdate :one
-SELECT id, user_id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
+SELECT id, user_id, type, description, transaction_flow, amount, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE id = $1 LIMIT 1 
 FOR UPDATE
 `
@@ -611,6 +637,9 @@ func (q *Queries) GetTransactionByIDForUpdate(ctx context.Context, id uuid.UUID)
 		&i.Type,
 		&i.Description,
 		&i.TransactionFlow,
+		&i.Amount,
+		&i.Currency,
+		&i.AmountUsd,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -863,7 +892,7 @@ func (q *Queries) GetTransactionWithMetadata(ctx context.Context, transactionID 
 
 const getTransactionsByDateRange = `-- name: GetTransactionsByDateRange :many
 SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.currency, ct.coin) as currency,
     COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
     COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
@@ -890,16 +919,19 @@ type GetTransactionsByDateRangeParams struct {
 
 type GetTransactionsByDateRangeRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               sql.NullInt64  `json:"user_id"`
+	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
 	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
-	Currency             string         `json:"currency"`
+	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	ReceivedAmount       sql.NullString `json:"received_amount"`
 	SentAmount           sql.NullString `json:"sent_amount"`
@@ -926,12 +958,15 @@ func (q *Queries) GetTransactionsByDateRange(ctx context.Context, arg GetTransac
 			&i.Type,
 			&i.Description,
 			&i.TransactionFlow,
+			&i.Amount,
+			&i.Currency,
+			&i.AmountUsd,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedFromAccountID,
 			&i.DeletedToAccountID,
-			&i.Currency,
+			&i.Currency_2,
 			&i.Rate,
 			&i.ReceivedAmount,
 			&i.SentAmount,
@@ -961,7 +996,7 @@ WITH user_wallets AS (
 ),
 wallet_transactions AS (
     -- Get transactions from swap_transfer_metadata where wallet is source or destination
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
+    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
     FROM transactions t
     JOIN swap_transfer_metadata st ON t.id = st.transaction_id
     JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
@@ -969,7 +1004,7 @@ wallet_transactions AS (
     UNION ALL
 
     -- Get transactions from crypto_transaction_metadata where wallet is destination
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'crypto' as metadata_type, to_jsonb(ct.*) as metadata
+    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'crypto' as metadata_type, to_jsonb(ct.*) as metadata
     FROM transactions t
     JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
     JOIN user_wallets uw ON ct.destination_wallet = uw.wallet_id
@@ -977,7 +1012,7 @@ wallet_transactions AS (
     UNION ALL
 
     -- Get transactions from giftcard_transaction_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'giftcard' as metadata_type, to_jsonb(gt.*) as metadata
+    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'giftcard' as metadata_type, to_jsonb(gt.*) as metadata
     FROM transactions t
     JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
     JOIN user_wallets uw ON gt.source_wallet = uw.wallet_id
@@ -985,7 +1020,7 @@ wallet_transactions AS (
     UNION ALL
 
     -- Get transactions from fiat_withdrawal_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
+    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
     FROM transactions t
     JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
     JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
@@ -993,7 +1028,7 @@ wallet_transactions AS (
     UNION ALL
 
     -- Get transactions from services_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'service' as metadata_type, to_jsonb(sm.*) as metadata
+    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'service' as metadata_type, to_jsonb(sm.*) as metadata
     FROM transactions t
     JOIN services_metadata sm ON t.id = sm.transaction_id
     JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
@@ -1082,7 +1117,7 @@ func (q *Queries) GetTransactionsByUserID(ctx context.Context, arg GetTransactio
 
 const getTransactionsByWallet = `-- name: GetTransactionsByWallet :many
 SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     CASE
         WHEN st.source_wallet = $1 THEN 'source'
         ELSE 'destination'
@@ -1116,17 +1151,20 @@ type GetTransactionsByWalletParams struct {
 
 type GetTransactionsByWalletRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               sql.NullInt64  `json:"user_id"`
+	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	Amount               string         `json:"amount"`
+	Currency             string         `json:"currency"`
+	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
 	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
 	WalletRole           string         `json:"wallet_role"`
-	Currency             string         `json:"currency"`
+	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	Fees                 sql.NullString `json:"fees"`
 	ReceivedAmount       sql.NullString `json:"received_amount"`
@@ -1148,13 +1186,16 @@ func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactio
 			&i.Type,
 			&i.Description,
 			&i.TransactionFlow,
+			&i.Amount,
+			&i.Currency,
+			&i.AmountUsd,
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedFromAccountID,
 			&i.DeletedToAccountID,
 			&i.WalletRole,
-			&i.Currency,
+			&i.Currency_2,
 			&i.Rate,
 			&i.Fees,
 			&i.ReceivedAmount,
@@ -1917,7 +1958,7 @@ const updateTransactionStatus = `-- name: UpdateTransactionStatus :one
 UPDATE transactions
 SET status = $2
 WHERE id = $1
-RETURNING id, user_id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+RETURNING id, user_id, type, description, transaction_flow, amount, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type UpdateTransactionStatusParams struct {
@@ -1934,6 +1975,9 @@ func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransac
 		&i.Type,
 		&i.Description,
 		&i.TransactionFlow,
+		&i.Amount,
+		&i.Currency,
+		&i.AmountUsd,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,

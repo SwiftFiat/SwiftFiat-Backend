@@ -15,7 +15,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
@@ -47,6 +46,12 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/track", r.server.authMiddleware.AuthenticatedMiddleware(), r.Trackreferral)
 	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
 	serverGroupV1.GET("/admin/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.AdminGetUserReferrals)
+	serverGroupV1.PUT("/admin/update-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.UpdateWithdrawalRequest)
+	serverGroupV1.GET("/admin/list-withdrawal-requests", r.server.authMiddleware.AuthenticatedMiddleware(), r.ListWithdrawalRequests)
+	serverGroupV1.GET("/admin/get-withdrawal-request", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetWithdrawalRequest)
+	serverGroupV1.POST("/admin/create-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.CreateReferralConfig)
+	serverGroupV1.PUT("/admin/update-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.UpdateReferralConfig)
+	serverGroupV1.GET("/admin/get-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetReferralConfig)
 }
 
 // testReferral godoc
@@ -232,24 +237,29 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 // @Produce      json
 // @Success      200  {object}  map[string]any
 // @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/request-withdrawal [get]
+// @Router       /api/v1/request-withdrawal [post]
 func (r *Referral) RequestWithdrawal(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
-		// Todo: add logging
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
 	var req struct {
-		Amount decimal.Decimal `json:"amount" binding:"required"`
+		Amount string `json:"amount" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	wr, err := r.service.RequestWithdrawal(c, activeUser.UserID, req.Amount)
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	wr, err := r.service.RequestWithdrawal(c, activeUser.UserID, amount)
 	if err != nil {
 		if errors.Is(err, referral.ErrInsufficientBalance) {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance"))
@@ -259,12 +269,12 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("amount is below withdrawal threshold"))
 			return
 		}
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create withdrawal request"))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 	}
 
 	// audit log
 	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawalRequest, "referral", fmt.Sprintf("Withdrawal requested by user %d", activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("User %d requested withdrawal of amount %s", activeUser.UserID, req.Amount.String())
+	auditLog.Description = fmt.Sprintf("User %d requested withdrawal of amount %s", activeUser.UserID, amount.String())
 	r.audit.Log(auditLog)
 
 	c.JSON(http.StatusCreated, basemodels.SuccessResponse{
@@ -280,27 +290,28 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 // @Tags         Referral
 // @Accept       json
 // @Produce      json
+// @Param        id  query  int  true  "Withdrawal ID"
+// @Param        status  query  string  true  "Withdrawal Status" (approved, rejected)
 // @Success      200  {object}  map[string]any
 // @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/referral/update-withdrawal [post]
+// @Router       /api/v1/referral/admin/update-withdrawal [put]
 func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
-		// Todo: add logging
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
 	//	check if active user is admin
-	if activeUser.Role == models.USER {
-		r.logger.Error(fmt.Errorf("unauthorized access"))
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	r.logger.Error(fmt.Errorf("unauthorized access"))
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	var req struct {
 		ID     int64                            `json:"id" binding:"required"`
-		Status referral.WithdrawalRequestStatus `json:"status" binding:"required"`
+		Status referral.WithdrawalRequestStatus `json:"status" binding:"required" enum:"approved,rejected"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -311,22 +322,26 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 
 	wr, err := r.service.UpdateWithdrawalRequest(c, req.ID, req.Status)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update withdrawal request"})
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	amt, err := decimal.NewFromString(wr.Amount)
-	if err != nil {
-		r.logger.Error(err)
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
-		return
-	}
+	if wr.Status == string(referral.WithdrawalStatusApproved) {
+		amt, err := decimal.NewFromString(wr.Amount)
+		if err != nil {
+			r.logger.Error(err)
+			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+			return
+		}
 
-	_, err = r.service.Withdraw(c, req.ID, int32(activeUser.UserID), amt, wr.WalletID)
-	if err != nil {
-		r.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
-		return
+		err = r.service.Withdraw(c, req.ID, int32(activeUser.UserID), amt)
+		if err != nil {
+			r.logger.Error(err)
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
+			return
+		}
+	} else {
+		// send notification
 	}
 
 	// audit log
@@ -335,54 +350,6 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 	r.audit.Log(auditLog)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wr))
-}
-
-// deprecate this, it has been added to UpdateWithdrawalRequest
-func (r *Referral) Withdraw(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		// Todo: add logging
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	var req struct {
-		WalletID          uuid.UUID `json:"wallet_id" binding:"required"`
-		WithdrawRequestID int64     `json:"withdraw_request_id" binding:"required"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-	}
-
-	wallet, err := r.server.queries.GetWallet(c, req.WalletID)
-	if err != nil {
-		r.logger.Error(fmt.Errorf("failed to get wallet [api/referral.go - Withdraw]: %w", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.InvalidWalletInput))
-		return
-	}
-
-	wr, err := r.server.queries.GetWithdrawalRequest(c, req.WithdrawRequestID)
-	if err != nil {
-		return
-	}
-
-	amt, err := decimal.NewFromString(wr.Amount)
-	if err != nil {
-		r.logger.Error(err)
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
-		return
-	}
-
-	wallett, err := r.service.Withdraw(c, req.WithdrawRequestID, int32(activeUser.UserID), amt, wallet.ID)
-	if err != nil {
-		r.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wallett))
-
 }
 
 // GetEarnings godoc
@@ -409,4 +376,241 @@ func (r *Referral) Reminder(c *gin.Context) {
 	}
 	r.notifyr.Create(c, int32(parsedUserID), "referral", "You have a pending referral request, complete your KYC!")
 	c.JSON(http.StatusOK, basemodels.NewSuccess("reminder sent successfully", nil))
+}
+
+// ListWithdrawalRequests godoc
+// @Summary      List Withdrawal Requests
+// @Description  Retrieves the withdrawal requests for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/list-withdrawal-requests [get]
+func (r *Referral) ListWithdrawalRequests(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	wr, err := r.service.ListWithdrawalRequests(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to list withdrawal requests"))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal requests retrieved successfully", wr))
+}
+
+// GetWithdrawalRequest godoc
+// @Summary      Get Withdrawal Request
+// @Description  Retrieves the withdrawal request for the authenticated user
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "Withdrawal Request ID"
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/get-withdrawal-request [get]
+func (r *Referral) GetWithdrawalRequest(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	//	check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	requestID := c.Param("id")
+	if requestID == "" {
+		r.logger.Error("request_id parameter is empty")
+		c.JSON(http.StatusBadRequest, basemodels.NewError("request_id is required"))
+		return
+	}
+	parsedRequestID, err := strconv.Atoi(requestID)
+	if err != nil {
+		r.logger.Error(fmt.Errorf("invalid request_id: %v, provided: %s", err, requestID))
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request_id"))
+		return
+	}
+	wr, err := r.service.GetWithdrawalRequest(c, int64(parsedRequestID))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get withdrawal request"))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal request retrieved successfully", wr))
+}
+
+// CreateReferralConfig godoc
+// @Summary      Create Referral Config
+// @Description  Creates a new referral config
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/create-referral-config [post]
+func (r *Referral) CreateReferralConfig(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	//	check if active user is admin
+	// if activeUser.Role == models.USER {
+	// 	r.logger.Error(fmt.Errorf("unauthorized access"))
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	var req struct {
+		MinimumWithdrawalThreshold string `json:"minimum_withdrawal_threshold" binding:"required"`
+		ReferralAmount             string `json:"referral_amount" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	minimumWithdrawalThreshold, err := decimal.NewFromString(req.MinimumWithdrawalThreshold)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid minimum withdrawal threshold"))
+		return
+	}
+
+	referralAmount, err := decimal.NewFromString(req.ReferralAmount)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid referral amount"))
+		return
+	}
+
+	config, err := r.service.CreateReferralConfig(c, referralAmount, minimumWithdrawalThreshold)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategoryRewards,
+		audit.EventCreateReferralConfig,
+		fmt.Sprint(config.ID),
+		fmt.Sprintf("Admin %d created referral config %d", activeUser.UserID, config.ID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	r.audit.Log(entry)
+	c.JSON(http.StatusOK, basemodels.NewSuccess("referral config created successfully", nil))
+}
+
+// UpdateReferralConfig godoc
+// @Summary      Update Referral Config
+// @Description  Updates the referral config
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Param        id  path  int  true  "Referral Config ID"
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/update-referral-config [put]
+func (r *Referral) UpdateReferralConfig(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	//	check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	var req struct {
+		ID                         int64   `json:"id" binding:"required"`
+		MinimumWithdrawalThreshold *string `json:"minimum_withdrawal_threshold"`
+		ReferralAmount             *string `json:"referral_amount"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var minThresholdPtr *decimal.Decimal
+	var refAmountPtr *decimal.Decimal
+
+	if req.MinimumWithdrawalThreshold != nil {
+		val, err := decimal.NewFromString(*req.MinimumWithdrawalThreshold)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid threshold"))
+			return
+		}
+		minThresholdPtr = &val
+	}
+
+	if req.ReferralAmount != nil {
+		val, err := decimal.NewFromString(*req.ReferralAmount)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+			return
+		}
+		refAmountPtr = &val
+	}
+
+	config, err := r.service.UpdateReferralConfig(c, req.ID, minThresholdPtr, refAmountPtr)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategoryRewards,
+		audit.EventUpdateReferralConfig,
+		fmt.Sprint(config.ID),
+		fmt.Sprintf("Admin %d updated referral config %d", activeUser.UserID, config.ID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	r.audit.Log(entry)
+	c.JSON(http.StatusOK, basemodels.NewSuccess("referral config updated successfully", nil))
+}
+
+func (r *Referral) GetReferralConfig(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	config, err := r.service.GetReferralConfig(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("referral config retrieved successfully", config))
 }

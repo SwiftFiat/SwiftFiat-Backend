@@ -62,7 +62,7 @@ type GetTransactionByIDRow struct {
 func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRow {
 	return GetTransactionByIDRow{
 		ID:                   row.ID,
-		UserID:               &row.UserID.Int64,
+		UserID:               &row.UserID,
 		Type:                 row.Type,
 		Description:          &row.Description.String,
 		TransactionFlow:      &row.TransactionFlow.String,

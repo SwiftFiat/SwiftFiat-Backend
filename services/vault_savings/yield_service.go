@@ -10,6 +10,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -315,6 +316,25 @@ func (ys *YieldService) creditYieldToVault(
 	balanceBefore := vault.CurrentBalance
 	balanceAfter := newBalance.StringFixed(4)
 
+	amountUsd, err := utils.ConvertToUSD(ctx, yieldAmount, vault.Currency)
+	if err != nil {
+		return fmt.Errorf("failed to convert yield amount to USD: %w", err)
+	}
+
+	mainTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          vault.UserID,
+		Type:            string(transaction.Vault),
+		Description:     sql.NullString{String: "Yield credit", Valid: true},
+		Amount:          result.YieldAmount,
+		Currency:        vault.Currency,
+		AmountUsd:       amountUsd.String(),
+		Status:          string(transaction.Success),
+		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
 	_, err = qtx.CreateVaultTransaction(ctx, db.CreateVaultTransactionParams{
 		UserID:          vault.UserID,
 		VaultID:         vault.ID,
@@ -327,6 +347,7 @@ func (ys *YieldService) creditYieldToVault(
 		Description:     nullString((fmt.Sprintf("Yield earned: %s%% APY for %d days", config.ApyRate, result.DaysInPeriod))),
 		Status:          nullString(string(TransactionStatusSuccessful)),
 		Requires2fa:     nullBool(false),
+		TransactionID:   uuid.NullUUID{UUID: mainTx.ID, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create transaction: %w", err)
