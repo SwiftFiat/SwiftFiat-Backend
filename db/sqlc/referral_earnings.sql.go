@@ -122,6 +122,40 @@ func (q *Queries) DeleteReferralConfig(ctx context.Context, id int64) error {
 	return err
 }
 
+const getAllReferrals = `-- name: GetAllReferrals :many
+SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals
+`
+
+func (q *Queries) GetAllReferrals(ctx context.Context) ([]UserReferral, error) {
+	rows, err := q.db.QueryContext(ctx, getAllReferrals)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserReferral{}
+	for rows.Next() {
+		var i UserReferral
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReferrerID,
+			&i.RefereeID,
+			&i.EarnedAmount,
+			&i.CreatedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getReferralByRefereeID = `-- name: GetReferralByRefereeID :one
 SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals WHERE referee_id = $1
 `

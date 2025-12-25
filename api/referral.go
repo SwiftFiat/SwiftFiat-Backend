@@ -162,13 +162,12 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 }
 
 // AdminGetUserReferrals godoc
-// @Summary      Get User Referrals
-// @Description  Retrieves the list of referrals for a specific user
+// @Summary      list User Referrals
+// @Description  Retrieves all referrals
 // @Tags         Referral
 // @Accept       json
 // @Produce      json
-// @Param        user_id  query  int  true  "User ID"
-// @Success      200  {object}  []referral.Referral
+// @Success      200  {object}  []db.UserReferral
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/list [get]
 func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
@@ -183,13 +182,7 @@ func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
 		return
 	}
 
-	userID, err := strconv.Atoi(ctx.Query("user_id"))
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	referrals, err := r.service.GetUserReferrals(ctx, int64(userID))
+	referrals, err := r.service.GetAllReferrals(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return

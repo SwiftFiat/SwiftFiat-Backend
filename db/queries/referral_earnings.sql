@@ -10,6 +10,9 @@ SELECT * FROM user_referrals WHERE referee_id = $1;
 SELECT * FROM user_referrals WHERE referrer_id = $1
 ORDER BY created_at DESC;
 
+-- name: GetAllReferrals :many
+SELECT * FROM user_referrals;
+
 -- name: UpdateReferralStatus :exec
 UPDATE user_referrals
 SET status = $1
