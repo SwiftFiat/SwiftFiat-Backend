@@ -500,10 +500,10 @@ INSERT INTO card_plans (name, description, creation_fee, monthly_maintenance_fee
                         max_cards_per_user, card_limit)
 VALUES 
     ('Standard', 'Basic virtual card for everyday subscriptions', 
-     5, 100, 5000, 500, 200, 1, 1000),
+     5, 100, 5000, 500, 200, 1, 5000),
     
     ('Platinum', 'Premium card with higher limits and no monthly fees', 
-     10, 0, 20000, 2000, 1000, 1, 2000)
+     10, 0, 20000, 2000, 1000, 1, 10000)
 ON CONFLICT (name) DO NOTHING;
 
 -- View for custom subscriptions summary

@@ -103,6 +103,10 @@ func (s *Service) GetUserReferrals(ctx context.Context, userID int64) ([]Referra
 	return s.repo.GetUserReferrals(ctx, userID)
 }
 
+func (s *Service) GetAllReferrals(ctx context.Context) ([]db.UserReferral, error) {
+	return s.repo.GetAllReferrals(ctx)
+}
+
 func (s *Service) GetReferralEarnings(ctx context.Context, userID int64) (*db.ReferralEarning, error) {
 	return s.repo.GetReferralEarnings(ctx, userID)
 }

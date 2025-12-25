@@ -301,3 +301,7 @@ func (r *Repo) UpdateReferralConfig(ctx context.Context, id int64, minThreshold,
 func (r *Repo) GetReferralConfig(ctx context.Context) (db.ReferralConfig, error) {
 	return r.queries.GetReferralConfig(ctx)
 }
+
+func (r *Repo) GetAllReferrals(ctx context.Context) ([]db.UserReferral, error) {
+	return r.queries.GetAllReferrals(ctx)
+}
