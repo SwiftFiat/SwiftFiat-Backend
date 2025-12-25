@@ -995,8 +995,7 @@ func (v *Virtualcard) DebitCard(c *gin.Context) {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Param cardholder_id query string true "Cardholder ID"
-// @Success 200 {object} bridgecards.ListCardsResponse
+// @Success 200 {object} *bridgecards.ListCardsResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-cards [get]
@@ -1016,17 +1015,45 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 	}
 
 	if cardholderIDfromUser.String == "" {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("missing cardholder_id query parameter"))
+		c.JSON(http.StatusBadRequest, basemodels.NewError("You dont have a cardholder ID"))
 		return
 	}
 
-	response, err := v.virtualCardSvc.ListCards(c, cardholderIDfromUser.String, activeUser.UserID)
+	cards, err := v.virtualCardSvc.ListCardsFromDB(c, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, response)
+	if len(cards) < 1 {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("You dont have a card"))
+		return
+	}
+
+	response, err := v.virtualCardSvc.ListCardsFromProvider(c, cardholderIDfromUser.String, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+
+	// var UserCardResponse []GetUserCardsRowResponse
+	// for _, card := range cards {
+	// 	UserCardResponse = append(UserCardResponse, GetUserCardsRowResponse{
+	// 		ID:               card.ID,
+	// 		BridgecardCardID: card.BridgecardCardID,
+	// 		UserID:           card.UserID,
+	// 		CardPlanID:       card.CardPlanID,
+	// 		CardName:         card.CardName,
+	// 		CardColor:        &card.CardColor.String,
+	// 		Currency:         card.Currency,
+	// 		Status:           card.Status,
+	// 		CreatedAt:        card.CreatedAt,
+	// 		UpdatedAt:        card.UpdatedAt,
+	// 	})
+	// }
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", response))
 }
 
 // ListCardTransactions godoc

@@ -1111,7 +1111,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	}
 
 	// Lock source wallet
-	sourceWallet, err := qtx.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+	sourceWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: req.UserID,
 		Currency:   req.Currency,
 	})

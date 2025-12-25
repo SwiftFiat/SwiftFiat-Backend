@@ -251,10 +251,10 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	var req rewards.CreateRewardConfigRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -264,7 +264,7 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 
 	// Validate reward rate
 	if req.RewardRate <= 0 || req.RewardRate > 1 {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Reward rate must be between 0 and 1 (0% to 100%)"})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("reward rate must be between 0 and 1"))
 		return
 	}
 
