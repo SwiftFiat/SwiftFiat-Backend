@@ -483,7 +483,7 @@ func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req Creat
 		maxPoints = sql.NullString{String: *req.MaxPointsPerTransaction, Valid: true}
 	}
 
-	rewardRate := strconv.FormatInt(int64(req.RewardRate), 10)
+	rewardRate := strconv.FormatFloat(float64(req.RewardRate), 'f', -1, 64)
 
 	config, err := s.store.CreateRewardConfiguration(ctx, db.CreateRewardConfigurationParams{
 		ConfigName:              req.ConfigName,

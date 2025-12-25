@@ -390,7 +390,7 @@ func (s *Service) VerifyWebhookSignature(payload []byte, signature string) (bool
 
 func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest, userID int64) (*bridgecards.FundCardResponse, error) {
 	// get user usd wallet
-	wallet, err := s.store.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+	wallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: userID,
 		Currency:   "USD",
 	})
@@ -581,8 +581,12 @@ func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (
 	return cardDetails, nil
 }
 
-func (s *Service) ListCards(ctx context.Context, cardholderID string, userID int64) (*bridgecards.ListCardsResponse, error) {
+func (s *Service) ListCardsFromProvider(ctx context.Context, cardholderID string, userID int64) (*bridgecards.ListCardsResponse, error) {
 	return s.bridgeCard.ListCards(ctx, cardholderID)
+}
+
+func (s *Service) ListCardsFromDB(ctx context.Context, userID int64) ([]db.GetUserCardsRow, error) {
+	return s.store.GetUserCards(ctx, userID)
 }
 
 func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID int64) (*bridgecards.GetCardDetailsResponse, error) {

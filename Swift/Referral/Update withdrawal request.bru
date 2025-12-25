@@ -4,12 +4,24 @@ meta {
   seq: 7
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+put {
+  url: {{BaseURl}}/referral/admin/update-withdrawal
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "id": 3,
+    "status": "approved"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

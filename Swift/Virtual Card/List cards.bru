@@ -5,9 +5,13 @@ meta {
 }
 
 get {
-  url: {{BaseURl}}/cards/list-cards
+  url: {{BaseURl}}/cards/list-cards?cardholder_id=123456789
   body: none
   auth: bearer
+}
+
+params:query {
+  cardholder_id: 123456789
 }
 
 auth:bearer {
