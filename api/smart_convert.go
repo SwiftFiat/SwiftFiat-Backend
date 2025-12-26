@@ -145,7 +145,7 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 		return
 	}
 
-	rules, err := s.server.queries.GetActiveConversionRules(c.Request.Context(), activeUser.UserID)
+	rules, err := s.server.queries.GetConversionRules(c.Request.Context(), activeUser.UserID)
 	if err != nil {
 		s.logger.Error("Failed to fetch conversion rules", "error", err)
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to fetch conversion rules"))

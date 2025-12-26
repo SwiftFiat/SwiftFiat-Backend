@@ -5,17 +5,13 @@ meta {
 }
 
 get {
-  url: {{BaseURl}}/cards/list-cards?cardholder_id=123456789
+  url: {{BaseURl}}/cards/list-cards
   body: none
   auth: bearer
 }
 
-params:query {
-  cardholder_id: 123456789
-}
-
 auth:bearer {
-  token: {{token}}
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjozLCJ1c2VyX3JvbGUiOiJ1c2VyIiwidXNlcl92ZXJpZmllZCI6dHJ1ZSwiZXhwIjoxNzY5MjMyNjI1fQ.2LvQr7JJ2PFxEEUVoMGWvVMPfN8k19X1DAAoBI7sqtY
 }
 
 settings {

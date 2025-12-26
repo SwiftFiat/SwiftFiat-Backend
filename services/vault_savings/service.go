@@ -1074,6 +1074,22 @@ func (s *VaultService) GetVaultProgress(ctx context.Context, vaultID uuid.UUID) 
 	return &progress, nil
 }
 
+func (s *VaultService) GetVaultYieldID(ctx context.Context, yieldID uuid.UUID) (db.VaultYield, error) {
+	return s.store.GetVaultYieldByID(ctx, yieldID)
+}
+
+func (s *VaultService) ListVaultYields(ctx context.Context, vaultID uuid.UUID, limit, offset int32) ([]db.VaultYield, error) {
+	return s.store.GetVaultYieldsByVaultID(ctx, db.GetVaultYieldsByVaultIDParams{
+		VaultID: vaultID,
+		Limit:   limit,
+		Offset:  offset,
+	})
+}
+
+func (s *VaultService) GetTotalVaultYields(ctx context.Context, vaultID uuid.UUID) (string, error) {
+	return s.store.GetTotalYieldEarned(ctx, vaultID)
+}
+
 // ============================================================================
 // DEPOSIT
 // ============================================================================

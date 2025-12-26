@@ -18,7 +18,7 @@ import (
 const (
 	ConfidenceThreshold = 0.55
 	OpenAIBaseURL       = "https://api.openai.com/v1"
-	OpenAIModel         = "gpt-4o-mini"
+	OpenAIModel         = "GPT-5 Nano"
 	MaxContextMessages  = 10
 )
 

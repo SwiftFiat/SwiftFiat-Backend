@@ -56,6 +56,9 @@ func (v Vault) router(server *Server) {
 		vaultGroup.DELETE("/admin/goals/:id", v.adminDeleteGoal)
 		vaultGroup.GET("/summary", v.getSummary)
 		vaultGroup.GET("/goals/:id/progress", v.getProgress)
+		vaultGroup.GET("/yield/:id", v.getVaultYield)
+		vaultGroup.GET("/yields/:id", v.ListVaultYeilds)
+		vaultGroup.GET("/yields/:id/total", v.GetTotalVaultYields)
 
 		// Transactions
 		vaultGroup.POST("/goals/:id/deposit", v.deposit)
@@ -388,6 +391,162 @@ func (v *Vault) getProgress(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("progress retrieved successfully", vaultsavings.MapGetVaultGoalProgressRowToReponse(progress)))
+}
+
+// getVaultYield godoc
+// @Summary Get Vault Yield
+// @Description Get yield details for a specific vault
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault ID"
+// @Success 200 {object} vaultsavings.VaultYield
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/yield/{id} [get]
+func (v *Vault) getVaultYield(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	vault, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+	if vault.UserID != activeUser.UserID {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+		return
+	}
+
+	// Verify ownership
+	yield, err := v.vaultService.GetVaultYieldID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault yield not found"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield retrieved successfully", yield))
+}
+
+// listVaultYeilds godoc
+// @Summary List Vault Yields
+// @Description List yield details for a specific vault
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault ID"
+// @Param limit query int false "Limit"
+// @Param offset query int false "Offset"
+// @Success 200 {object} []vaultsavings.VaultYield
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/yields/{id} [get]
+func (v *Vault) ListVaultYeilds (ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	limit, err := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid limit"))
+		return
+	}
+
+	offset, err := strconv.Atoi(ctx.DefaultQuery("offset", "0"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid offset"))
+		return
+	}
+
+	vault, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+	if vault.UserID != activeUser.UserID {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+		return
+	}
+
+	yeilds, err := v.vaultService.ListVaultYields(ctx.Request.Context(), vaultID, int32(limit), int32(offset))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("yield retrieved successfully", yeilds))
+}
+
+// getVaultYield godoc
+// @Summary Get Total Vault Yield
+// @Description Get total yield details for a specific vault
+// @Tags vault
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param id path string true "Vault ID"
+// @Success 200 {object} string
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/yield/{id}/total [get]
+func (v *Vault) GetTotalVaultYields(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
+	vault, err := v.vaultService.GetVaultByID(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+	if vault.UserID != activeUser.UserID {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+		return
+	}
+
+	totalYields, err := v.vaultService.GetTotalVaultYields(ctx.Request.Context(), vaultID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("vault not found"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("total yield retrieved successfully", totalYields))
 }
 
 // ============================================================================
