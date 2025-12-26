@@ -668,71 +668,6 @@ func (q *Queries) DeleteQRCode(ctx context.Context, arg DeleteQRCodeParams) (QrC
 	return i, err
 }
 
-const getActiveConversionRules = `-- name: GetActiveConversionRules :many
-SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
-WHERE user_id = $1 
-    AND status = 'active'
-    AND is_active = TRUE
-    AND deleted_at IS NULL
-ORDER BY created_at DESC
-`
-
-func (q *Queries) GetActiveConversionRules(ctx context.Context, userID int64) ([]ConversionRule, error) {
-	rows, err := q.db.QueryContext(ctx, getActiveConversionRules, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []ConversionRule{}
-	for rows.Next() {
-		var i ConversionRule
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.SourceCurrency,
-			&i.TargetCurrency,
-			&i.SourceWalletID,
-			&i.TargetWalletID,
-			&i.TriggerRate,
-			&i.TriggerType,
-			&i.TriggerCondition,
-			&i.PercentageThreshold,
-			&i.ConversionType,
-			&i.FixedAmount,
-			&i.Percentage,
-			&i.ScheduleFrequency,
-			&i.ScheduleDayOfWeek,
-			&i.ScheduleDayOfMonth,
-			&i.ScheduleTime,
-			&i.NextExecutionAt,
-			&i.Timezone,
-			&i.Status,
-			&i.IsActive,
-			&i.LastTriggeredAt,
-			&i.LastTriggerRate,
-			&i.ExecutionCount,
-			&i.MaxExecutions,
-			&i.FailureCount,
-			&i.LastFailureReason,
-			&i.Description,
-			&i.Label,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getActiveRateBasedRules = `-- name: GetActiveRateBasedRules :many
 SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
 WHERE status = 'active'
@@ -1178,6 +1113,69 @@ func (q *Queries) GetConversionRule(ctx context.Context, id uuid.UUID) (Conversi
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const getConversionRules = `-- name: GetConversionRules :many
+SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
+WHERE user_id = $1 
+    AND deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetConversionRules(ctx context.Context, userID int64) ([]ConversionRule, error) {
+	rows, err := q.db.QueryContext(ctx, getConversionRules, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ConversionRule{}
+	for rows.Next() {
+		var i ConversionRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.SourceCurrency,
+			&i.TargetCurrency,
+			&i.SourceWalletID,
+			&i.TargetWalletID,
+			&i.TriggerRate,
+			&i.TriggerType,
+			&i.TriggerCondition,
+			&i.PercentageThreshold,
+			&i.ConversionType,
+			&i.FixedAmount,
+			&i.Percentage,
+			&i.ScheduleFrequency,
+			&i.ScheduleDayOfWeek,
+			&i.ScheduleDayOfMonth,
+			&i.ScheduleTime,
+			&i.NextExecutionAt,
+			&i.Timezone,
+			&i.Status,
+			&i.IsActive,
+			&i.LastTriggeredAt,
+			&i.LastTriggerRate,
+			&i.ExecutionCount,
+			&i.MaxExecutions,
+			&i.FailureCount,
+			&i.LastFailureReason,
+			&i.Description,
+			&i.Label,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getConversionRulesByUser = `-- name: GetConversionRulesByUser :many

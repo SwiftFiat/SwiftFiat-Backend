@@ -33,11 +33,9 @@ SELECT * FROM conversion_rules
 WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC;
 
--- name: GetActiveConversionRules :many
+-- name: GetConversionRules :many
 SELECT * FROM conversion_rules
 WHERE user_id = $1 
-    AND status = 'active'
-    AND is_active = TRUE
     AND deleted_at IS NULL
 ORDER BY created_at DESC;
 

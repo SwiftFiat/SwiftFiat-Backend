@@ -15,40 +15,46 @@ import (
 )
 
 const (
-	ProductionBaseURL = "https://issuecards.api.bridgecard.co/v1/issuing"
-	SandboxBaseURL    = "https://issuecards.api.bridgecard.co/v1/issuing/sandbox"
+	ProductionBaseURL    = "https://issuecards.api.bridgecard.co/v1/issuing"
+	SandboxBaseURL       = "https://issuecards.api.bridgecard.co/v1/issuing/sandbox"
+	CardDetailsSanboxURL = "https://issuecards-api-bridgecard-co.relay.evervault.com/v1/issuing/sandbox/cards/get_card_details"
+	CardDetailsBaseURL   = "https://issuecards-api-bridgecard-co.relay.evervault.com/v1/issuing/cards/get_card_details"
 )
 
 // BridgeCardProvider handles all interactions with BridgeCard API
 type BridgeCardProvider struct {
-	authToken  string
-	secreyKey  string
-	webhookKey string
-	baseURL    string
-	config     *utils.Config
-	httpClient *http.Client
-	logger     *logging.Logger
+	authToken      string
+	secreyKey      string
+	webhookKey     string
+	baseURL        string
+	cardDetailsURL string
+	config         *utils.Config
+	httpClient     *http.Client
+	logger         *logging.Logger
 }
 
 // NewBridgeCardProvider creates a new BridgeCard provider instance
 func NewBridgeCardProvider(config *utils.Config, useSandbox bool, logger *logging.Logger) *BridgeCardProvider {
 	baseURL := ProductionBaseURL
+	cardDetailsURL := CardDetailsBaseURL
 	secretKey := config.BridgeCardsSecretKey
 	webhookKey := config.BridgeCardsWebhookKey
 	authToken := config.BridgeCardsAuthToken
 	if useSandbox {
 		baseURL = SandboxBaseURL
+		cardDetailsURL = CardDetailsSanboxURL
 		secretKey = config.BridgeCardsTestSecretKey
 		webhookKey = config.BridgeCardsTestWebhookKey
 		authToken = config.BridgeCardsTestAuthToken
 	}
 
 	return &BridgeCardProvider{
-		authToken:  authToken,
-		secreyKey:  secretKey,
-		webhookKey: webhookKey,
-		baseURL:    baseURL,
-		config:     config,
+		authToken:      authToken,
+		secreyKey:      secretKey,
+		webhookKey:     webhookKey,
+		baseURL:        baseURL,
+		cardDetailsURL: cardDetailsURL,
+		config:         config,
 		httpClient: &http.Client{
 			Timeout: 50 * time.Second,
 		},
@@ -223,8 +229,7 @@ func (p BridgeCardProvider) ListCards(ctx context.Context, cardholderID string) 
 
 func (p *BridgeCardProvider) GetCardDetails(ctx context.Context, cardID string) (*GetCardDetailsResponse, error) {
 	var response GetCardDetailsResponse
-	// url := fmt.Sprintf("https://issuecards-api-bridgecard-co.relay.evervault.com/v1/issuing/sandbox/cards/get_card_details?card_id=%s", cardID)
-	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("/cards/get_card_details?card_id=%s", cardID), nil, &response)
+	err := p.makeRequest(ctx, http.MethodGet, fmt.Sprintf("%s?card_id=%s", p.cardDetailsURL, cardID), nil, &response)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get card details: %w", err)
 	}
@@ -287,7 +292,10 @@ func (p *BridgeCardProvider) makeRequest(ctx context.Context, method, endpoint s
 		reqBody = bytes.NewBuffer(jsonData)
 	}
 
-	finalURL := p.baseURL + endpoint
+	finalURL := endpoint
+	if endpoint[0] == '/' {
+		finalURL = p.baseURL + endpoint
+	}
 	req, err := http.NewRequestWithContext(ctx, method, finalURL, reqBody)
 	if err != nil {
 		return fmt.Errorf("create request: %w", err)

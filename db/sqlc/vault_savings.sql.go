@@ -953,14 +953,14 @@ func (q *Queries) GetTopSavers(ctx context.Context, limit int32) ([]GetTopSavers
 }
 
 const getTotalYieldEarned = `-- name: GetTotalYieldEarned :one
-SELECT COALESCE(SUM(yield_amount), 0) as total_yield
+SELECT COALESCE(SUM(yield_amount), 0)::decimal as total_yield
 FROM vault_yields
 WHERE vault_id = $1 AND status = 'credited'
 `
 
-func (q *Queries) GetTotalYieldEarned(ctx context.Context, vaultID uuid.UUID) (interface{}, error) {
+func (q *Queries) GetTotalYieldEarned(ctx context.Context, vaultID uuid.UUID) (string, error) {
 	row := q.db.QueryRowContext(ctx, getTotalYieldEarned, vaultID)
-	var total_yield interface{}
+	var total_yield string
 	err := row.Scan(&total_yield)
 	return total_yield, err
 }

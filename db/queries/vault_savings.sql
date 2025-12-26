@@ -306,7 +306,7 @@ INSERT INTO vault_yields (
 
 -- name: GetVaultYieldByID :one
 SELECT * FROM vault_yields
-WHERE id = $1;
+WHERE id = $1; 
 
 -- name: GetVaultYieldsByVaultID :many
 SELECT * FROM vault_yields
@@ -332,7 +332,7 @@ SET status = $2,
 WHERE id = $1;
 
 -- name: GetTotalYieldEarned :one
-SELECT COALESCE(SUM(yield_amount), 0) as total_yield
+SELECT COALESCE(SUM(yield_amount), 0)::decimal as total_yield
 FROM vault_yields
 WHERE vault_id = $1 AND status = 'credited';
 
