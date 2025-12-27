@@ -316,11 +316,12 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:      params.UserID,
 		Type:        string(transaction.Card),
-		Description: sql.NullString{String: string(transaction.Outflow), Valid: true},
+		Description: sql.NullString{String: "card-creation", Valid: true},
 		Amount:      creationFee.String(),
 		Currency:    "USD",
 		AmountUsd:   creationFee.String(),
 		Status:      string(transaction.Success),
+		TransactionFlow: string(transaction.Outflow),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create transaction: %w", err)
