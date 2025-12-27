@@ -153,17 +153,33 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	// 2. Check if user has reached plan card limit
-	userCardsCount, err := qtx.GetUserActiveCardsCount(ctx, params.UserID)
+	userActiveCardsCount, err := qtx.GetUserActiveCardsCount(ctx, params.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("count user cards error: %w", err)
 	}
 
-	s.logger.Infof("active cards for this user: %d", userCardsCount)
+	// 2. Global Constraint: Total cards cannot exceed 2
+	const GlobalMaxCards = 2
+	if userActiveCardsCount >= GlobalMaxCards {
+		return nil, fmt.Errorf("user has reached the maximum global limit of %d cards", GlobalMaxCards)
+	}
+
+	s.logger.Infof("active cards for this user: %d", userActiveCardsCount)
 
 	s.logger.Infof("max card for this plan: %d", plan.MaxCardsPerUser)
 
-	if userCardsCount >= int64(plan.MaxCardsPerUser) {
-		return nil, ErrPlanLimitExceeded
+	// 3. Plan-specific Constraint: Check if they already have a card under THIS specific plan
+	// Note: This assumes GetUserActiveCardsCountByPlan is available or logic to filter by plan
+	cardsInThisPlan, err := qtx.GetUserCardsCountByPlan(ctx, db.GetUserCardsCountByPlanParams{
+		UserID:     params.UserID,
+		CardPlanID: params.CardPlanID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("count user cards for plan error: %w", err)
+	}
+
+	if cardsInThisPlan >= int64(plan.MaxCardsPerUser) {
+		return nil, fmt.Errorf("user has reached the limit for the %s plan", plan.Name)
 	}
 
 	creationFee, err := utils.ToDecimal(plan.CreationFee)
@@ -314,13 +330,13 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 
 	// create generic tx record
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:      params.UserID,
-		Type:        string(transaction.Card),
-		Description: sql.NullString{String: "card-creation", Valid: true},
-		Amount:      creationFee.String(),
-		Currency:    "USD",
-		AmountUsd:   creationFee.String(),
-		Status:      string(transaction.Success),
+		UserID:          params.UserID,
+		Type:            string(transaction.Card),
+		Description:     sql.NullString{String: "card-creation", Valid: true},
+		Amount:          creationFee.String(),
+		Currency:        "USD",
+		AmountUsd:       creationFee.String(),
+		Status:          string(transaction.Success),
 		TransactionFlow: string(transaction.Outflow),
 	})
 	if err != nil {
