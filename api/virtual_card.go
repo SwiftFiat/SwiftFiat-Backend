@@ -995,7 +995,7 @@ func (v *Virtualcard) DebitCard(c *gin.Context) {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Success 200 {object} bridgecards.ListCardsResponse
+// @Success 200 {object} []GetUserCardsRowResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-cards [get]
@@ -1026,23 +1026,23 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 	}
 
 
-	// var UserCardResponse []GetUserCardsRowResponse
-	// for _, card := range cards {
-	// 	UserCardResponse = append(UserCardResponse, GetUserCardsRowResponse{
-	// 		ID:               card.ID,
-	// 		BridgecardCardID: card.BridgecardCardID,
-	// 		UserID:           card.UserID,
-	// 		CardPlanID:       card.CardPlanID,
-	// 		CardName:         card.CardName,
-	// 		CardColor:        &card.CardColor.String,
-	// 		Currency:         card.Currency,
-	// 		Status:           card.Status,
-	// 		CreatedAt:        card.CreatedAt,
-	// 		UpdatedAt:        card.UpdatedAt,
-	// 	})
-	// }
+	var UserCardResponse []GetUserCardsRowResponse
+	for _, card := range cards {
+		UserCardResponse = append(UserCardResponse, GetUserCardsRowResponse{
+			ID:               card.ID,
+			BridgecardCardID: card.BridgecardCardID,
+			UserID:           card.UserID,
+			CardPlanID:       card.CardPlanID,
+			CardName:         card.CardName,
+			CardColor:        &card.CardColor.String,
+			Currency:         card.Currency,
+			Status:           card.Status,
+			CreatedAt:        card.CreatedAt,
+			UpdatedAt:        card.UpdatedAt,
+		})
+	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("", cards))
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", UserCardResponse))
 }
 
 // ListCardTransactions godoc
