@@ -6195,7 +6195,10 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/bridgecards.ListCardsResponse"
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.GetUserCardsRowResponse"
+                            }
                         }
                     },
                     "400": {
@@ -18463,98 +18466,6 @@ const docTemplate = `{
                                     }
                                 }
                             }
-                        }
-                    }
-                },
-                "message": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                }
-            }
-        },
-        "bridgecards.ListCardsResponse": {
-            "type": "object",
-            "properties": {
-                "data": {
-                    "type": "object",
-                    "properties": {
-                        "cards": {
-                            "type": "array",
-                            "items": {
-                                "type": "object",
-                                "properties": {
-                                    "billing_address": {
-                                        "type": "object",
-                                        "properties": {
-                                            "billing_address1": {
-                                                "type": "string"
-                                            },
-                                            "billing_city": {
-                                                "type": "string"
-                                            },
-                                            "billing_country": {
-                                                "type": "string"
-                                            },
-                                            "billing_zip_code": {
-                                                "type": "string"
-                                            },
-                                            "country_code": {
-                                                "type": "string"
-                                            }
-                                        }
-                                    },
-                                    "brand": {
-                                        "type": "string"
-                                    },
-                                    "card_currency": {
-                                        "type": "string"
-                                    },
-                                    "card_id": {
-                                        "type": "string"
-                                    },
-                                    "card_name": {
-                                        "type": "string"
-                                    },
-                                    "card_number": {
-                                        "type": "string"
-                                    },
-                                    "card_type": {
-                                        "type": "string"
-                                    },
-                                    "cardholder_id": {
-                                        "type": "string"
-                                    },
-                                    "created_at": {
-                                        "type": "integer"
-                                    },
-                                    "cvv": {
-                                        "type": "string"
-                                    },
-                                    "expiry_month": {
-                                        "type": "string"
-                                    },
-                                    "expiry_year": {
-                                        "type": "string"
-                                    },
-                                    "is_active": {
-                                        "type": "boolean"
-                                    },
-                                    "issuing_app_id": {
-                                        "type": "string"
-                                    },
-                                    "last_4": {
-                                        "type": "string"
-                                    },
-                                    "livemode": {
-                                        "type": "boolean"
-                                    }
-                                }
-                            }
-                        },
-                        "total": {
-                            "type": "integer"
                         }
                     }
                 },

@@ -1268,66 +1268,6 @@ definitions:
       status:
         type: string
     type: object
-  bridgecards.ListCardsResponse:
-    properties:
-      data:
-        properties:
-          cards:
-            items:
-              properties:
-                billing_address:
-                  properties:
-                    billing_address1:
-                      type: string
-                    billing_city:
-                      type: string
-                    billing_country:
-                      type: string
-                    billing_zip_code:
-                      type: string
-                    country_code:
-                      type: string
-                  type: object
-                brand:
-                  type: string
-                card_currency:
-                  type: string
-                card_id:
-                  type: string
-                card_name:
-                  type: string
-                card_number:
-                  type: string
-                card_type:
-                  type: string
-                cardholder_id:
-                  type: string
-                created_at:
-                  type: integer
-                cvv:
-                  type: string
-                expiry_month:
-                  type: string
-                expiry_year:
-                  type: string
-                is_active:
-                  type: boolean
-                issuing_app_id:
-                  type: string
-                last_4:
-                  type: string
-                livemode:
-                  type: boolean
-              type: object
-            type: array
-          total:
-            type: integer
-        type: object
-      message:
-        type: string
-      status:
-        type: string
-    type: object
   bridgecards.UpdateCardPinRequest:
     properties:
       card_id:
@@ -7823,7 +7763,9 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/bridgecards.ListCardsResponse'
+            items:
+              $ref: '#/definitions/api.GetUserCardsRowResponse'
+            type: array
         "400":
           description: Bad Request
           schema:
