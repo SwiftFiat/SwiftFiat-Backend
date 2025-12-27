@@ -1025,17 +1025,6 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 		return
 	}
 
-	if len(cards) < 1 {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("You dont have a card"))
-		return
-	}
-
-	response, err := v.virtualCardSvc.ListCardsFromProvider(c, cardholderIDfromUser.String, activeUser.UserID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
 
 	// var UserCardResponse []GetUserCardsRowResponse
 	// for _, card := range cards {
@@ -1053,7 +1042,7 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 	// 	})
 	// }
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("", response))
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", cards))
 }
 
 // ListCardTransactions godoc
