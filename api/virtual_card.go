@@ -32,7 +32,7 @@ func (v Virtualcard) router(server *Server) {
 	v1 := server.router.Group("/api/v1/cards")
 	// v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
-		v1.POST("/", v.CreateCard)                                         //done
+		v1.POST("/create", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)                                         //done
 		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder)             //done
 		v1.POST("/webhook", v.Webhook)                                                                                      //done
 		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance)                      // done
@@ -348,12 +348,12 @@ type CreateCardRequest struct {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards [post]
 func (v *Virtualcard) CreateCard(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
 	var req CreateCardRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -362,7 +362,7 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 	}
 
 	result, err := v.virtualCardSvc.CreateCard(c, &bridgecards.CreateCardRequest{
-		UserID:        5,
+		UserID:        activeUser.UserID,
 		CardPlanID:    req.CardPlanID,
 		CardName:      req.CardName,
 		CardColor:     req.CardColor,
@@ -386,27 +386,27 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		return
 	}
 
-	// entry := audit.NewLog(
-	// 	c,
-	// 	audit.CategoryCard,
-	// 	audit.EventCreateCard,
-	// 	"",
-	// 	fmt.Sprintf("%d created a new card", activeUser.UserID),
-	// 	&activeUser.UserID,
-	// 	activeUser.Role,
-	// 	true,
-	// 	nil,
-	// )
-	// entry.NewValues = map[string]interface{}{
-	// 	"card_id":        result.Data.CardID,
-	// 	"currency":       result.Data.Currency,
-	// 	"card_name":      req.CardName,
-	// 	"card_color":     req.CardColor,
-	// 	"card_holder_id": req.CardHolderID,
-	// }
-	// v.audit.Log(entry)
+	entry := audit.NewLog(
+		c,
+		audit.CategoryCard,
+		audit.EventCreateCard,
+		"",
+		fmt.Sprintf("%d created a new card", activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	entry.NewValues = map[string]interface{}{
+		"card_id":        result.Data.CardID,
+		"currency":       result.Data.Currency,
+		"card_name":      req.CardName,
+		"card_color":     req.CardColor,
+		"card_holder_id": req.CardHolderID,
+	}
+	v.audit.Log(entry)
 
-	c.JSON(http.StatusCreated, result)
+	c.JSON(http.StatusCreated, basemodels.NewSuccess("", result))
 }
 
 // RegisterCardHolder godoc [Replace existing KYC with this]
