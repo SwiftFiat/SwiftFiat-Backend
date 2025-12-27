@@ -1128,10 +1128,10 @@ type SwiftWallet struct {
 
 type SystemSetting struct {
 	ID                      int32        `json:"id"`
-	RewardsEnabled          bool         `json:"rewards_enabled"`
-	VaultsEnabled           bool         `json:"vaults_enabled"`
-	SmartConversionsEnabled bool         `json:"smart_conversions_enabled"`
-	RapidRampEnabled        bool         `json:"rapid_ramp_enabled"`
+	RewardsEnabled          sql.NullBool `json:"rewards_enabled"`
+	VaultsEnabled           sql.NullBool `json:"vaults_enabled"`
+	SmartConversionsEnabled sql.NullBool `json:"smart_conversions_enabled"`
+	RapidRampEnabled        sql.NullBool `json:"rapid_ramp_enabled"`
 	CreatedAt               sql.NullTime `json:"created_at"`
 	UpdatedAt               sql.NullTime `json:"updated_at"`
 }

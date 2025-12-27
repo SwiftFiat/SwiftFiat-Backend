@@ -7,6 +7,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
@@ -39,10 +40,10 @@ WHERE id = 1
 `
 
 type UpdateSystemSettingsParams struct {
-	RewardsEnabled          bool `json:"rewards_enabled"`
-	VaultsEnabled           bool `json:"vaults_enabled"`
-	SmartConversionsEnabled bool `json:"smart_conversions_enabled"`
-	RapidRampEnabled        bool `json:"rapid_ramp_enabled"`
+	RewardsEnabled          sql.NullBool `json:"rewards_enabled"`
+	VaultsEnabled           sql.NullBool `json:"vaults_enabled"`
+	SmartConversionsEnabled sql.NullBool `json:"smart_conversions_enabled"`
+	RapidRampEnabled        sql.NullBool `json:"rapid_ramp_enabled"`
 }
 
 func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) error {

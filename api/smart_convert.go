@@ -63,7 +63,7 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -155,7 +155,7 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -193,7 +193,7 @@ func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -257,7 +257,7 @@ func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -322,7 +322,7 @@ func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -388,7 +388,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -472,7 +472,7 @@ func (s *SmartConvertHandler) GetExchangeRate(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -522,7 +522,7 @@ func (s *SmartConvertHandler) GetConversionHistory(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
@@ -567,7 +567,7 @@ func (s *SmartConvertHandler) GetConversionStats(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.SmartConversionsEnabled {
+	if !settings.SmartConversionsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}

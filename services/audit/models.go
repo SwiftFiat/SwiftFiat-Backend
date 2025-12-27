@@ -216,6 +216,8 @@ const (
 	EventCreateReferralConfig = "referral.config.created"
 	EventUpdateReferralConfig = "referral.config.updated"
 	EventDeleteReferralConfig = "referral.config.deleted"
+
+	EventUpdateSystemSettings = "system.settings.updated"
 )
 
 // LogEntry represents the input for creating an audit log

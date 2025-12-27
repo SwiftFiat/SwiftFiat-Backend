@@ -80,7 +80,7 @@ func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -120,7 +120,7 @@ func (r *Rewards) getUserRewardSummary(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -166,7 +166,7 @@ func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -239,7 +239,7 @@ func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -292,7 +292,7 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -372,7 +372,7 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -426,7 +426,7 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -500,7 +500,7 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -614,7 +614,7 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -688,7 +688,7 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -765,7 +765,7 @@ func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
@@ -822,7 +822,7 @@ func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}

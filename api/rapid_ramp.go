@@ -68,7 +68,7 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -148,7 +148,7 @@ func (q *QRCodeHandler) GetQRCodes(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -186,7 +186,7 @@ func (q *QRCodeHandler) GetQRCodeByToken(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -226,7 +226,7 @@ func (q *QRCodeHandler) DeleteQRCode(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -286,7 +286,7 @@ func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -334,7 +334,7 @@ func (q *QRCodeHandler) AdminUpdateQRCodeStatus(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -406,7 +406,7 @@ func (q *QRCodeHandler) GetQRTransactions(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -458,7 +458,7 @@ func (q *QRCodeHandler) GetQRTransactionStats(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}
@@ -553,7 +553,7 @@ func (q *QRCodeHandler) GetQRTransactionStatsAdmin(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RapidRampEnabled {
+	if !settings.RapidRampEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
 		return
 	}

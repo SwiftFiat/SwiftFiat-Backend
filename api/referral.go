@@ -69,7 +69,7 @@ func (r Referral) testReferral(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -104,7 +104,7 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -156,7 +156,7 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -209,7 +209,7 @@ func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -250,7 +250,7 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -292,7 +292,7 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -360,7 +360,7 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -438,7 +438,7 @@ func (r *Referral) Reminder(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -475,7 +475,7 @@ func (r *Referral) ListWithdrawalRequests(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -511,7 +511,7 @@ func (r *Referral) GetWithdrawalRequest(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -565,7 +565,7 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -646,7 +646,7 @@ func (r *Referral) UpdateReferralConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
@@ -734,7 +734,7 @@ func (r *Referral) GetReferralConfig(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.RewardsEnabled {
+	if !settings.RewardsEnabled.Bool {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}

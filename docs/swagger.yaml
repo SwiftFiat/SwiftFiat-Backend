@@ -5355,6 +5355,53 @@ paths:
       summary: Get Transaction
       tags:
       - Analytics
+  /api/v1/analytics/update-system-settings:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: Enable rewards
+        in: query
+        name: rewards_enabled
+        type: boolean
+      - description: Enable vaults
+        in: query
+        name: vaults_enabled
+        type: boolean
+      - description: Enable smart conversions
+        in: query
+        name: smart_conversions_enabled
+        type: boolean
+      - description: Enable rapid ramp
+        in: query
+        name: rapid_ramp_enabled
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Update system settings
+      tags:
+      - Analytics
   /api/v1/analytics/user-wallets/{id}:
     get:
       consumes:

@@ -1,9 +1,9 @@
 CREATE TABLE system_settings (
     id SERIAL PRIMARY KEY,
-    rewards_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    vaults_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    smart_conversions_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-    rapid_ramp_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    rewards_enabled BOOLEAN DEFAULT TRUE,
+    vaults_enabled BOOLEAN DEFAULT TRUE,
+    smart_conversions_enabled BOOLEAN DEFAULT TRUE,
+    rapid_ramp_enabled BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

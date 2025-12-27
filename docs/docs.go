@@ -2344,6 +2344,78 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/analytics/update-system-settings": {
+            "put": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Update system settings",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "description": "Enable rewards",
+                        "name": "rewards_enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enable vaults",
+                        "name": "vaults_enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enable smart conversions",
+                        "name": "smart_conversions_enabled",
+                        "in": "query"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "Enable rapid ramp",
+                        "name": "rapid_ramp_enabled",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/analytics/user-wallets/{id}": {
             "get": {
                 "security": [
