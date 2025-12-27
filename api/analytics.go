@@ -11,6 +11,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -18,10 +19,12 @@ import (
 
 type Analytics struct {
 	server *Server
+	audit  audit.Service
 }
 
 func (h Analytics) router(server *Server) {
 	h.server = server
+	h.audit = *server.auditService
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
@@ -43,6 +46,92 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/total-inplatform-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInplatformTransactions)
 	serverGroupV1.GET("/transactions-by-type", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListTransactionsByType)
 	serverGroupV1.GET("/transactions-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
+	serverGroupV1.PUT("/update-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.UpdateSystemSettings)
+}
+
+type UpdateSystemSettingsRequest struct {
+	RewardsEnabled          *bool `json:"rewards_enabled"`
+	VaultsEnabled           *bool `json:"vaults_enabled"`
+	SmartConversionsEnabled *bool `json:"smart_conversions_enabled"`
+	RapidRampEnabled        *bool `json:"rapid_ramp_enabled"`
+}
+
+func toNullBool(b *bool) sql.NullBool {
+	if b == nil {
+		return sql.NullBool{Valid: false}
+	}
+	return sql.NullBool{Bool: *b, Valid: true}
+}
+
+// UpdateSystemSettings godoc
+// @Summary Update system settings
+// @Tags Analytics
+// @Accept json
+// @Produce json
+// @Param rewards_enabled query bool false "Enable rewards"
+// @Param vaults_enabled query bool false "Enable vaults"
+// @Param smart_conversions_enabled query bool false "Enable smart conversions"
+// @Param rapid_ramp_enabled query bool false "Enable rapid ramp"
+// @Success 200 {object} models.SuccessResponse
+// @Failure 400 {object} models.ErrorResponse
+// @Failure 401 {object} models.ErrorResponse
+// @Failure 403 {object} models.ErrorResponse
+// @Failure 500 {object} models.ErrorResponse
+// @Router /api/v1/analytics/update-system-settings [put]
+func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
+
+	var req UpdateSystemSettingsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// Optional guard
+	if req.RewardsEnabled == nil &&
+		req.VaultsEnabled == nil &&
+		req.SmartConversionsEnabled == nil &&
+		req.RapidRampEnabled == nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("no fields provided for update"))
+		return
+	}
+
+	params := db.UpdateSystemSettingsParams{
+		RewardsEnabled:          toNullBool(req.RewardsEnabled),
+		VaultsEnabled:           toNullBool(req.VaultsEnabled),
+		SmartConversionsEnabled: toNullBool(req.SmartConversionsEnabled),
+		RapidRampEnabled:        toNullBool(req.RapidRampEnabled),
+	}
+
+	if err := h.server.queries.UpdateSystemSettings(
+		c.Request.Context(),
+		params,
+	); err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	entry := audit.NewLog(
+		c,
+		audit.CategorySystem,
+		audit.EventUpdateSystemSettings,
+		"",
+		fmt.Sprintf("System settings updated by admin %d", activeUser.UserID),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	h.audit.Log(entry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess(
+		"System settings updated successfully",
+		nil,
+	))
 }
 
 type GetTransactionByIDRow struct {
@@ -276,7 +365,6 @@ func (h *Analytics) ListGiftCards(c *gin.Context) {
 		"count":      len(giftCards),
 	}))
 }
-
 
 // GetTotalSent godoc
 // @Summary      Get Total Sent
@@ -602,7 +690,7 @@ type SendNotificationToAllUsersRequest struct {
 // @Failure      403  {object}  basemodels.ErrorResponse
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/v1/analytics/send-notification-to-all [post]	
+// @Router       /api/v1/analytics/send-notification-to-all [post]
 func (h *Analytics) SendNotificationToAll(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil || activeUser.Role == models.USER {
@@ -618,7 +706,7 @@ func (h *Analytics) SendNotificationToAll(c *gin.Context) {
 	}
 
 	notification := db.SendNotificationToAllUsersParams{
-		Title: req.Title,
+		Title:   req.Title,
 		Message: req.Message,
 	}
 

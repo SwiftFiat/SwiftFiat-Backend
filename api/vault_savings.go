@@ -121,7 +121,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -202,7 +202,7 @@ func (v *Vault) listGoals(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -255,7 +255,7 @@ func (v *Vault) AdminListGoals(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -312,7 +312,7 @@ func (v *Vault) getGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -372,7 +372,7 @@ func (v *Vault) getSummary(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -419,7 +419,7 @@ func (v *Vault) getProgress(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -478,7 +478,7 @@ func (v *Vault) getVaultYield(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -538,7 +538,7 @@ func (v *Vault) ListVaultYeilds(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -608,7 +608,7 @@ func (v *Vault) GetTotalVaultYields(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -671,7 +671,7 @@ func (v *Vault) deposit(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -794,7 +794,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -930,7 +930,7 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1057,7 +1057,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1201,7 +1201,7 @@ func (v *Vault) getVaultTransactions(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1285,7 +1285,7 @@ func (v *Vault) getAllTransactions(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1353,7 +1353,7 @@ func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1437,7 +1437,7 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1543,7 +1543,7 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1624,7 +1624,7 @@ func (v *Vault) adminDeleteGoal(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1710,7 +1710,7 @@ func (v *Vault) updateRecurringRule(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1916,7 +1916,7 @@ func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -1987,7 +1987,7 @@ func (v *Vault) getAdminMetrics(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2028,7 +2028,7 @@ func (v *Vault) getSchedulerStats(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2062,7 +2062,7 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2117,7 +2117,7 @@ func (v *Vault) getYieldHistory(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2199,7 +2199,7 @@ func (v *Vault) getYieldProjection(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2263,7 +2263,7 @@ func (v *Vault) getYieldSummary(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2343,7 +2343,7 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2395,7 +2395,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2484,7 +2484,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2567,7 +2567,7 @@ func (v *Vault) deleteYieldConfig(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2634,7 +2634,7 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
@@ -2691,7 +2691,7 @@ func (v *Vault) getYieldSchedulerStats(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
 		return
 	}
-	if !settings.VaultsEnabled {
+	if !settings.VaultsEnabled.Bool {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
