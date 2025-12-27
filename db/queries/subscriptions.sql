@@ -20,6 +20,10 @@ SELECT * FROM card_plans
 WHERE deleted_at IS NULL
 ORDER BY creation_fee ASC;
 
+-- name: GetUserCardsCountByPlan :one
+SELECT COUNT(*) FROM virtual_cards
+WHERE user_id = $1 AND card_plan_id = $2 AND terminated_at IS NULL;
+
 -- name: UpdateCardPlan :one
 UPDATE card_plans
 SET 

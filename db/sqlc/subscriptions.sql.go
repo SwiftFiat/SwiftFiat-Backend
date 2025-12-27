@@ -2602,6 +2602,23 @@ func (q *Queries) GetUserCards(ctx context.Context, userID int64) ([]GetUserCard
 	return items, nil
 }
 
+const getUserCardsCountByPlan = `-- name: GetUserCardsCountByPlan :one
+SELECT COUNT(*) FROM virtual_cards
+WHERE user_id = $1 AND card_plan_id = $2 AND terminated_at IS NULL
+`
+
+type GetUserCardsCountByPlanParams struct {
+	UserID     int64 `json:"user_id"`
+	CardPlanID int64 `json:"card_plan_id"`
+}
+
+func (q *Queries) GetUserCardsCountByPlan(ctx context.Context, arg GetUserCardsCountByPlanParams) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUserCardsCountByPlan, arg.UserID, arg.CardPlanID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const getUserCustomSubscriptions = `-- name: GetUserCustomSubscriptions :many
 SELECT us.id, us.user_id, us.card_id, us.merchant_id, us.merchant_name, us.display_name, us.category, us.amount, us.currency, us.billing_interval_days, us.first_charge_date, us.last_charge_date, us.next_estimated_charge_date, us.status, us.confidence_score, us.total_charges, us.failed_charges, us.last_failed_date, us.last_failure_reason, us.reminder_enabled, us.reminder_days_before, us.user_confirmed, us.custom_name, us.is_custom, us.custom_billing_cycle, us.custom_amount_override, us.auto_topup_buffer_percent, us.custom_reminder_timing, us.notes, us.created_at, us.updated_at, us.cancelled_at, sm.logo_url, sm.website
 FROM user_subscriptions us
