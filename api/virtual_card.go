@@ -32,7 +32,7 @@ func (v Virtualcard) router(server *Server) {
 	v1 := server.router.Group("/api/v1/cards")
 	// v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
-		v1.POST("/", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)                                         //done
+		v1.POST("/", v.CreateCard)                                         //done
 		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder)             //done
 		v1.POST("/webhook", v.Webhook)                                                                                      //done
 		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance)                      // done
