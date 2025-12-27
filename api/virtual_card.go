@@ -348,6 +348,9 @@ type CreateCardRequest struct {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards [post]
 func (v *Virtualcard) CreateCard(c *gin.Context) {
+	c.Header("Access-Control-Allow-Origin", "*")
+	c.Header("Access-Control-Allow-Credentials", "true")
+	c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		v.server.logger.Error(err.Error())
