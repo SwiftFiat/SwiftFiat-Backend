@@ -225,9 +225,7 @@ CREATE TABLE IF NOT EXISTS "qr_codes" (
     CONSTRAINT "valid_qr_conversion_mode" CHECK (conversion_mode IN ('auto', 'manual')),
     CONSTRAINT "valid_qr_status" CHECK (status IN ('active', 'used', 'expired', 'disabled')),
     CONSTRAINT "positive_qr_amounts" CHECK (
-        (fixed_amount IS NULL OR fixed_amount > 0) AND
-        (min_amount IS NULL OR min_amount > 0) AND
-        (max_amount IS NULL OR max_amount > 0)
+        (amount IS NULL OR amount > 0)
     )
 );
 
