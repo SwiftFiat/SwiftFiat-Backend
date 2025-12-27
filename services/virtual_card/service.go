@@ -256,7 +256,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		UserID:           params.UserID,
 		CardPlanID:       params.CardPlanID,
 		BridgecardCardID: bridgeCardDetails.Data.CardID,
-		CardName:         params.CardName,
+		CardName:         plan.Name,
 		CardColor:        sql.NullString{String: params.CardColor, Valid: params.CardColor != ""},
 		Currency:         "USD",
 		Status:           string(VirtualCardStatusActive),
