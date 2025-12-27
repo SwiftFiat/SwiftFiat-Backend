@@ -57,6 +57,17 @@ func (s SmartConvertHandler) router(server *Server) {
 // @Router /api/v1/smart-convert/rules [post]
 // @Security BearerAuth
 func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -138,6 +149,16 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/rules [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -166,6 +187,16 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 // @Router /api/v1/smart-convert/rules/{rule_id}/pause [post]
 // @Security BearerAuth
 func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -220,6 +251,17 @@ func (s *SmartConvertHandler) PauseConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/rules/{rule_id}/resume [post]
 // @Security BearerAuth
 func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -274,6 +316,17 @@ func (s *SmartConvertHandler) ResumeConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/rules/{rule_id} [delete]
 // @Security BearerAuth
 func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -329,6 +382,17 @@ func (s *SmartConvertHandler) DeleteConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/execute [post]
 // @Security BearerAuth
 func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -402,6 +466,17 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 // @Router /api/v1/smart-convert/rates [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetExchangeRate(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+	
 	from := c.Query("from")
 	to := c.Query("to")
 
@@ -441,6 +516,17 @@ func (s *SmartConvertHandler) GetExchangeRate(c *gin.Context) {
 // @Router /api/v1/smart-convert/history [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetConversionHistory(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
@@ -475,6 +561,17 @@ func (s *SmartConvertHandler) GetConversionHistory(c *gin.Context) {
 // @Router /api/v1/smart-convert/stats [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetConversionStats(c *gin.Context) {
+	settings, err := s.server.queries.GetSystemSettings(c)
+	if err != nil {
+		s.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.SmartConversionsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())

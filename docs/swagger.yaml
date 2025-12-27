@@ -474,6 +474,13 @@ definitions:
     required:
     - email
     type: object
+  api.SendNotificationToAllUsersRequest:
+    properties:
+      message:
+        type: string
+      title:
+        type: string
+    type: object
   api.TicketResponse:
     properties:
       assigned_to:
@@ -1618,6 +1625,21 @@ definitions:
       user_id:
         type: integer
     type: object
+  db.UserReferral:
+    properties:
+      created_at:
+        type: string
+      earned_amount:
+        type: string
+      id:
+        type: integer
+      referee_id:
+        type: integer
+      referrer_id:
+        type: integer
+      status:
+        type: string
+    type: object
   exchangerate.ExchangeRateResponse:
     properties:
       last_updated:
@@ -2053,6 +2075,8 @@ definitions:
     type: object
   rapidramp.CreateQRCodeRequest:
     properties:
+      amount:
+        type: string
       bank_account_id:
         description: |-
           CurrencyPreference string           `json:"currency_preference" binding:"required,oneof=USD NGN"`
@@ -2071,12 +2095,9 @@ definitions:
       network:
         type: string
       usage_limit:
-        description: |-
-          FixedAmount        *decimal.Decimal `json:"fixed_amount" binding:"required"`
-          MinAmount          *decimal.Decimal `json:"min_amount"`
-          MaxAmount          *decimal.Decimal `json:"max_amount"`
         type: integer
     required:
+    - amount
     - bank_account_id
     - crypto_currency
     - network
@@ -2726,7 +2747,7 @@ definitions:
         type: string
       reward_rate:
         maximum: 1
-        type: integer
+        type: number
       transaction_type:
         type: string
       valid_from:
@@ -4846,6 +4867,174 @@ paths:
       summary: Admin Edit User
       tags:
       - Analytics
+  /api/v1/analytics/get-total-inflow-transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the total number of inflow transactions. Accessible only
+        by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Inflow Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/get-total-inplatform-transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the total number of inplatform transactions. Accessible
+        only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Inplatform Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/get-total-outflow-transactions:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the total number of outflow transactions. Accessible only
+        by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Outflow Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/get-total-reward-earned:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the total reward earned by all users.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Reward Earned
+      tags:
+      - Analytics
+  /api/v1/analytics/get-total-reward-paid:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve the total reward paid by the platform.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: integer
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Reward Paid
+      tags:
+      - Analytics
   /api/v1/analytics/gift-cards:
     get:
       consumes:
@@ -4924,24 +5113,25 @@ paths:
       summary: List All Gift Card Transactions
       tags:
       - Analytics
-  /api/v1/analytics/total-received:
-    get:
+  /api/v1/analytics/send-notification-to-all:
+    post:
       consumes:
       - application/json
-      description: Retrieve total received amount. Accessible only by admin.
+      description: Send a notification to all users.
+      parameters:
+      - description: Send Notification To All Users Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.SendNotificationToAllUsersRequest'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  additionalProperties: true
-                  type: object
-              type: object
+            $ref: '#/definitions/models.NotificationResponse'
         "400":
           description: Bad Request
           schema:
@@ -4960,53 +5150,15 @@ paths:
             $ref: '#/definitions/models.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: Get Total Received
+      summary: Send Notification To All
       tags:
       - Analytics
-  /api/v1/analytics/total-sent:
+  /api/v1/analytics/total-transactions:
     get:
       consumes:
       - application/json
-      description: Retrieve total sent amount. Accessible only by admin.
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  additionalProperties: true
-                  type: object
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Total Sent
-      tags:
-      - Analytics
-  /api/v1/analytics/total-trade:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve total sent amount. Accessible only by admin.
+      description: Retrieve total transaction made on the platform. Accessible only
+        by admin.
       produces:
       - application/json
       responses:
@@ -5079,6 +5231,89 @@ paths:
       security:
       - BearerAuth: []
       summary: List All Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/transactions-by-type:
+    get:
+      consumes:
+      - application/json
+      description: |-
+        Retrieve all transactions by type. Accessible only by admin.
+        Transaction type can be 'swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity', 'qr_code', 'card', 'rewards', 'service'.
+      parameters:
+      - description: Transaction Type
+        in: query
+        name: type
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Transactions By Type
+      tags:
+      - Analytics
+  /api/v1/analytics/transactions-with-metadata/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific transaction by ID with metadata. Accessible
+        only by admin.
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Transaction With Metadata
       tags:
       - Analytics
   /api/v1/analytics/transactions/{id}:
@@ -7535,12 +7770,6 @@ paths:
       consumes:
       - application/json
       description: List all virtual cards for a cardholder with BridgeCard
-      parameters:
-      - description: Cardholder ID
-        in: query
-        name: cardholder_id
-        required: true
-        type: string
       produces:
       - application/json
       responses:
@@ -8830,6 +9059,26 @@ paths:
       summary: Create Referral Config
       tags:
       - Referral
+  /api/v1/referral/admin/get-referral-config:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves the referral config
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      summary: Get Referral Config
+      tags:
+      - Referral
   /api/v1/referral/admin/get-withdrawal-request:
     get:
       consumes:
@@ -8860,13 +9109,7 @@ paths:
     get:
       consumes:
       - application/json
-      description: Retrieves the list of referrals for a specific user
-      parameters:
-      - description: User ID
-        in: query
-        name: user_id
-        required: true
-        type: integer
+      description: Retrieves all referrals
       produces:
       - application/json
       responses:
@@ -8874,13 +9117,13 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/referral.Referral'
+              $ref: '#/definitions/db.UserReferral'
             type: array
         "401":
           description: Unauthorized
           schema:
             $ref: '#/definitions/models.ErrorResponse'
-      summary: Get User Referrals
+      summary: list User Referrals
       tags:
       - Referral
   /api/v1/referral/admin/list-withdrawal-requests:
@@ -11064,6 +11307,23 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get User Avatar
+      tags:
+      - user
+  /api/v1/user/admin/bank-accounts:
+    get:
+      description: Retrieves all bank accounts for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/bankaccounts.BankAccountResponse'
+            type: array
+      security:
+      - BearerAuth: []
+      summary: Get all bank accounts
       tags:
       - user
   /api/v1/user/avatar:
@@ -13914,6 +14174,123 @@ paths:
       summary: User WebSocket Connection
       tags:
       - websocket
+  /api/v1/yield/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Vault Yield
+      tags:
+      - vault
+  /api/v1/yield/{id}/total:
+    get:
+      consumes:
+      - application/json
+      description: Get total yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Vault Yield
+      tags:
+      - vault
+  /api/v1/yields/{id}:
+    get:
+      consumes:
+      - application/json
+      description: List yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Vault Yields
+      tags:
+      - vault
   /rate-manager/current-rate:
     get:
       description: Get current exchange rate with VIP adjustment applied

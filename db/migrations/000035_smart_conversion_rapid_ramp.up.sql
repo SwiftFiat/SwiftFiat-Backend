@@ -201,9 +201,7 @@ CREATE TABLE IF NOT EXISTS "qr_codes" (
     "linked_bank_account_id" UUID REFERENCES bank_accounts(id) ON DELETE SET NULL,
 
     -- Amount settings
-    "fixed_amount" DECIMAL(19,4), --
-    "min_amount" DECIMAL(19,4), -- 
-    "max_amount" DECIMAL(19,4),
+    "amount" DECIMAL(19,4) NOT NULL,
 
     -- QR metadata
     "qr_code_data" TEXT NOT NULL,
@@ -212,7 +210,7 @@ CREATE TABLE IF NOT EXISTS "qr_codes" (
     "label" VARCHAR(100),
 
     -- Status and lifecycle
-    "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+    "status" VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'used', 'expired', 'disabled')),
     "usage_limit" INTEGER,
     "usage_count" INTEGER NOT NULL DEFAULT 0,
     "expires_at" TIMESTAMPTZ,
@@ -253,14 +251,10 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     -- Cryptomus webhook data
     "cryptomus_transaction_id" VARCHAR(100) UNIQUE,
     "cryptomus_order_id" VARCHAR(100),
-    "cryptomus_uuid" VARCHAR(100),
+    "cryptomus_uuid" VARCHAR(100), 
     "order_id" VARCHAR(100),
     "cryptomus_address_id" UUID REFERENCES cryptomus_addresses(id) ON DELETE SET NULL,
     "webhook_data" JSONB,
-    
-    -- Sender information
-    -- "sender_address" VARCHAR(200),
-    -- "sender_name" VARCHAR(100),
 
     -- Crypto received
     "crypto_currency" VARCHAR(10) NOT NULL,
@@ -268,8 +262,6 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "crypto_amount" DECIMAL(40,20) NOT NULL,
     "crypto_amount_usd" DECIMAL(19,4),
     "transaction_hash" VARCHAR(200),
-    -- "confirmation_blocks" INTEGER DEFAULT 0,
-    -- "required_confirmations" INTEGER DEFAULT 1,
 
     -- Conversion details
     "conversion_rate" DECIMAL(19,4),
@@ -315,7 +307,6 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
         'sending_to_bank', 'completed', 'failed', 'cancelled', 'expired'
     )),
     CONSTRAINT "positive_qr_crypto_amount" CHECK (crypto_amount > 0)
-    -- CONSTRAINT "valid_confirmations" CHECK (confirmation_blocks >= 0 AND required_confirmations > 0)
 );
 
 CREATE INDEX IF NOT EXISTS "idx_qr_transactions_qr_code" ON qr_transactions(qr_code_id);

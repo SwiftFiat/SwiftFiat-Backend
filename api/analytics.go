@@ -27,9 +27,7 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
 	serverGroupV1.GET("/transaction/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransaction) // not done
 	serverGroupV1.GET("/gift-cards", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListGiftCards)
-	serverGroupV1.GET("/total-received", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalReceived)
-	serverGroupV1.GET("/total-sent", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalSent)
-	serverGroupV1.GET("/total-trade", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalTrade)
+	serverGroupV1.GET("/total-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalTransactions)
 	serverGroupV1.GET("/crypto-transactions/counts", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetCryptoTransactionCounts)
 	serverGroupV1.GET("/crypto-transactions/amount", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalCryptoTransactionAmount)
 	serverGroupV1.GET("/crypto-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllCryptoTransactions)
@@ -37,6 +35,14 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
 	serverGroupV1.GET("/transaction-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
+	serverGroupV1.POST("/send-notification-to-all", h.server.authMiddleware.AuthenticatedMiddleware(), h.SendNotificationToAll)
+	serverGroupV1.GET("/total-reward-paid", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardPaid)
+	serverGroupV1.GET("/total-reward-earned", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardEarned)
+	serverGroupV1.GET("/total-outflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalOutflowTransactions)
+	serverGroupV1.GET("/total-inflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInflowTransactions)
+	serverGroupV1.GET("/total-inplatform-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInplatformTransactions)
+	serverGroupV1.GET("/transactions-by-type", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListTransactionsByType)
+	serverGroupV1.GET("/transactions-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 }
 
 type GetTransactionByIDRow struct {
@@ -65,7 +71,7 @@ func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRo
 		UserID:               &row.UserID,
 		Type:                 row.Type,
 		Description:          &row.Description.String,
-		TransactionFlow:      &row.TransactionFlow.String,
+		TransactionFlow:      &row.TransactionFlow,
 		Status:               row.Status,
 		CreatedAt:            row.CreatedAt,
 		UpdatedAt:            row.UpdatedAt,
@@ -96,17 +102,17 @@ func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRo
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 func (h *Analytics) GetTransaction(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	h.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
 
 	transactionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -139,17 +145,17 @@ func (h *Analytics) GetTransaction(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 func (h *Analytics) ListAllTransactions(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	h.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
 
 	transactions, err := h.server.queries.ListAllTransactionsWithUsers(c)
 	if err != nil {
@@ -171,6 +177,50 @@ func (h *Analytics) ListAllTransactions(c *gin.Context) {
 	}))
 }
 
+// ListTransactionsByType godoc
+// @Summary      List Transactions By Type
+// @Description  Retrieve all transactions by type. Accessible only by admin.
+// @Description  Transaction type can be 'swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity', 'qr_code', 'card', 'rewards', 'service'.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        type   query     string  true  "Transaction Type"
+// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/analytics/transactions-by-type [get]
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+func (h *Analytics) ListTransactionsByType(c *gin.Context) {
+	transactionType := c.Query("type")
+	if transactionType == "" {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("transaction type is required"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListTransactionsByType(c, transactionType)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Transactions retrieved successfully", transactions))
+}
+
+// GetTransactionWithMetadata godoc
+// @Summary      Get Transaction With Metadata
+// @Description  Retrieve a specific transaction by ID with metadata. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        id   path     string  true  "Transaction ID"
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/analytics/transactions-with-metadata/{id} [get]
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
 func (h *Analytics) GetTransactionWithMetadata(c *gin.Context) {
 	transactionID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -227,47 +277,10 @@ func (h *Analytics) ListGiftCards(c *gin.Context) {
 	}))
 }
 
-// ListGiftCards godoc
-// @Summary      Get Total Received
-// @Description  Retrieve total received amount. Accessible only by admin.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/total-received [get]
-func (h *Analytics) GetTotalReceived(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-
-	totalReceived, err := h.server.queries.GetTotalReceived(c)
-	if err != nil {
-		h.server.logger.Error(fmt.Sprintf("error fetching total received: %v", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total received"))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Total received retrieved successfully", gin.H{
-		"total_received": totalReceived,
-	}))
-}
 
 // GetTotalSent godoc
 // @Summary      Get Total Sent
-// @Description  Retrieve total sent amount. Accessible only by admin.
+// @Description  Retrieve total transaction made on the platform. Accessible only by admin.
 // @Tags         Analytics
 // @Accept       json
 // @Produce      json
@@ -277,8 +290,8 @@ func (h *Analytics) GetTotalReceived(c *gin.Context) {
 // @Failure      403  {object}  basemodels.ErrorResponse
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
-// @Router       /api/v1/analytics/total-sent [get]
-func (h *Analytics) GetTotalSent(c *gin.Context) {
+// @Router       /api/v1/analytics/total-transactions [get]
+func (h *Analytics) GetTotalTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		h.server.logger.Error(err.Error())
@@ -291,53 +304,15 @@ func (h *Analytics) GetTotalSent(c *gin.Context) {
 		return
 	}
 
-	totalSent, err := h.server.queries.GetTotalSent(c)
+	totalTransactions, err := h.server.queries.GetTotalTransactions(c)
 	if err != nil {
-		h.server.logger.Error(fmt.Sprintf("error fetching total sent: %v", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total sent"))
+		h.server.logger.Error(fmt.Sprintf("error fetching total transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total transactions"))
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Total sent retrieved successfully", gin.H{
-		"total_sent": totalSent,
-	}))
-}
-
-// GetTotalSent godoc
-// @Summary      Get Total Sent
-// @Description  Retrieve total sent amount. Accessible only by admin.
-// @Tags         Analytics
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  basemodels.SuccessResponse{data=map[string]interface{}}
-// @Failure      400  {object}  basemodels.ErrorResponse
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Failure      403  {object}  basemodels.ErrorResponse
-// @Failure      500  {object}  basemodels.ErrorResponse
-// @Security     BearerAuth
-// @Router       /api/v1/analytics/total-trade [get]
-func (h *Analytics) GetTotalTrade(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
-
-	totalTrade, err := h.server.queries.GetTotalTrade(c)
-	if err != nil {
-		h.server.logger.Error(fmt.Sprintf("error fetching total trade: %v", err))
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch total trade"))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Total trade retrieved successfully", gin.H{
-		"total_trade": totalTrade,
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total transactions retrieved successfully", gin.H{
+		"total_transactions": totalTransactions,
 	}))
 }
 
@@ -607,4 +582,196 @@ func (h *Analytics) AdminEditUser(c *gin.Context) {
 	mappedUser := models.UserResponse{}.ToUserResponse(&user)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("User updated successfully", mappedUser))
+}
+
+type SendNotificationToAllUsersRequest struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+// SendNotificationToAll godoc
+// @Summary      Send Notification To All
+// @Description  Send a notification to all users.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param body      body      SendNotificationToAllUsersRequest  true  "Send Notification To All Users Request"
+// @Success      200  {object}  models.NotificationResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/send-notification-to-all [post]	
+func (h *Analytics) SendNotificationToAll(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var req SendNotificationToAllUsersRequest
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request"))
+		return
+	}
+
+	notification := db.SendNotificationToAllUsersParams{
+		Title: req.Title,
+		Message: req.Message,
+	}
+
+	err = h.server.queries.SendNotificationToAllUsers(c, notification)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send notification"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Notification sent successfully", nil))
+}
+
+// GetTotalRewardPaid godoc
+// @Summary      Get Total Reward Paid
+// @Description  Retrieve the total reward paid by the platform.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  int
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/get-total-reward-paid [get]
+func (h *Analytics) GetTotalRewardPaid(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalRewardPaid, err := h.server.queries.GetTotalRewardPaid(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total reward paid"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total reward paid retrieved successfully", totalRewardPaid))
+}
+
+// GetTotalRewardEarned godoc
+// @Summary      Get Total Reward Earned
+// @Description  Retrieve the total reward earned by all users.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  int
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/get-total-reward-earned [get]
+func (h *Analytics) GetTotalRewardEarned(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalRewardEarned, err := h.server.queries.GetTotalRewardEarned(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total reward earned"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total reward earned retrieved successfully", totalRewardEarned))
+}
+
+// GetTotalOutflowTransactions godoc
+// @Summary      Get Total Outflow Transactions
+// @Description  Retrieve the total number of outflow transactions. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  int
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/get-total-outflow-transactions [get]
+func (h *Analytics) GetTotalOutflowTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalOutflowTransactions, err := h.server.queries.GetTotalOutflowTransactions(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total outflow transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total outflow transactions retrieved successfully", totalOutflowTransactions))
+}
+
+// GetTotalInflowTransactions godoc
+// @Summary      Get Total Inflow Transactions
+// @Description  Retrieve the total number of inflow transactions. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  int
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/get-total-inflow-transactions [get]
+func (h *Analytics) GetTotalInflowTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalInflowTransactions, err := h.server.queries.GetTotalInflowTransactions(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total inflow transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total inflow transactions retrieved successfully", totalInflowTransactions))
+}
+
+// GetTotalInplatformTransactions godoc
+// @Summary      Get Total Inplatform Transactions
+// @Description  Retrieve the total number of inplatform transactions. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  int
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/get-total-inplatform-transactions [get]
+func (h *Analytics) GetTotalInplatformTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	totalInplatformTransactions, err := h.server.queries.GetTotalInplatformTransactions(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total inplatform transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total inplatform transactions retrieved successfully", totalInplatformTransactions))
 }

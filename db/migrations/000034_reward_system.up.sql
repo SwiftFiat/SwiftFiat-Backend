@@ -113,7 +113,7 @@ CREATE TABLE reward_transactions (
     -- Original transaction amount (in Naira)
     transaction_amount DECIMAL(10, 2),
     
-    -- Reward points involved (positive for earned, positive for redeemed too)
+    -- Reward points involved (positive for earned, negative for redeemed too)
     points_amount DECIMAL(10, 2) NOT NULL,
     
     -- Equivalent Naira value (1 point = ₦1)
@@ -126,7 +126,7 @@ CREATE TABLE reward_transactions (
     description TEXT,
     
     -- Status: 'completed', 'pending', 'reversed', 'failed'
-    status VARCHAR(20) NOT NULL DEFAULT 'completed',
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
      
     -- Balance after this transaction
     balance_after DECIMAL(10, 2) NOT NULL,
@@ -181,7 +181,7 @@ CREATE INDEX idx_reward_transactions_user_type_date ON reward_transactions(user_
 -- This table provides additional details specifically for reward redemptions
 -- Links redemptions to the actual bill payment transactions
 CREATE TABLE reward_redemptions (
-    id BIGSERIAL PRIMARY KEY,
+    id BIGSERIAL PRIMARY KEY, 
     
     -- Reference to the reward transaction
     reward_transaction_id BIGINT NOT NULL REFERENCES reward_transactions(id) ON DELETE CASCADE,

@@ -1020,6 +1020,59 @@ func (q *Queries) FreezeCard(ctx context.Context, arg FreezeCardParams) (Virtual
 	return i, err
 }
 
+const getAllVirtualCards = `-- name: GetAllVirtualCards :many
+SELECT id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, currency, current_month_spend, current_day_spend, spending_month, spending_day, status, status_reason, auto_topup_enabled, auto_topup_threshold, auto_topup_amount, auto_topup_source_wallet_id, next_billing_date, last_billing_date, last_transaction_at, total_transactions_count, created_at, updated_at, terminated_at FROM virtual_cards
+WHERE terminated_at IS NULL
+`
+
+func (q *Queries) GetAllVirtualCards(ctx context.Context) ([]VirtualCard, error) {
+	rows, err := q.db.QueryContext(ctx, getAllVirtualCards)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []VirtualCard{}
+	for rows.Next() {
+		var i VirtualCard
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.CardPlanID,
+			&i.BridgecardCardID,
+			&i.CardName,
+			&i.CardColor,
+			&i.Currency,
+			&i.CurrentMonthSpend,
+			&i.CurrentDaySpend,
+			&i.SpendingMonth,
+			&i.SpendingDay,
+			&i.Status,
+			&i.StatusReason,
+			&i.AutoTopupEnabled,
+			&i.AutoTopupThreshold,
+			&i.AutoTopupAmount,
+			&i.AutoTopupSourceWalletID,
+			&i.NextBillingDate,
+			&i.LastBillingDate,
+			&i.LastTransactionAt,
+			&i.TotalTransactionsCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.TerminatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getAutoTopupSuccessRate = `-- name: GetAutoTopupSuccessRate :one
 SELECT 
     COUNT(*) FILTER (WHERE funding_type = 'auto_topup') as total_auto_topups,

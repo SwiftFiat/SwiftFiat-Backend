@@ -414,7 +414,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		UserID:          params.userID,
 		Type:            string(transaction.Swap),
 		Description:     sql.NullString{String: "Conversion from " + params.sourceCurrency + " to " + params.targetCurrency, Valid: true},
-		TransactionFlow: sql.NullString{String: fmt.Sprintf("%s to %s", params.sourceCurrency, params.targetCurrency), Valid: true},
+		TransactionFlow: string(transaction.InPlatform),
 		Amount:          params.sourceAmount.String(),
 		Currency:        params.sourceCurrency,
 		AmountUsd:       amountUsd.String(),

@@ -74,6 +74,16 @@ func (r Rewards) router(server *Server) {
 // @Router /api/v1/rewards/balance [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
 	// Get authenticated user from context
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -104,6 +114,17 @@ func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
 // @Router /api/v1/rewards/summary [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardSummary(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -139,6 +160,17 @@ func (r *Rewards) getUserRewardSummary(ctx *gin.Context) {
 // @Router /api/v1/rewards/history [get]
 // @Security BearerAuth
 func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -201,6 +233,17 @@ func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
 // @Router /api/v1/rewards/activity [get]
 // @Security BearerAuth
 func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -243,6 +286,17 @@ func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/configure [post]
 // @Security BearerAuth
 func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	// Verify admin role
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -312,6 +366,17 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/config [get]
 // @Security BearerAuth
 func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -355,6 +420,17 @@ func (r *Rewards) getRewardConfiguration(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/configurations [get]
 // @Security BearerAuth
 func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -418,6 +494,17 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 // @Router /api/v1/admin/rewards/configure/{id} [put]
 // @Security BearerAuth
 func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -521,6 +608,17 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/configure/{id}/activate [put]
 // @Security BearerAuth
 func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -584,6 +682,17 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 // @Router /api/v1/admin/rewards/configure/{id}/deactivate [put]
 // @Security BearerAuth
 func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -591,10 +700,10 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	configID, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
@@ -650,17 +759,28 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/top-users [get]
 // @Security BearerAuth
 func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	r.server.logger.Error(err.Error())
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		r.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	limit := 10
 	if limitStr := ctx.Query("limit"); limitStr != "" {
@@ -696,6 +816,17 @@ func (r *Rewards) getTopRewardUsers(ctx *gin.Context) {
 // @Router /api/v1/rewards/admin/statistics [get]
 // @Security BearerAuth
 func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())

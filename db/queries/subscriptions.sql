@@ -75,6 +75,10 @@ WHERE id = $1 AND terminated_at IS NULL;
 SELECT * FROM virtual_cards
 WHERE bridgecard_card_id = $1 AND terminated_at IS NULL;
 
+-- name: GetAllVirtualCards :many
+SELECT * FROM virtual_cards
+WHERE terminated_at IS NULL;
+
 -- name: GetUserCards :many
 SELECT vc.*, cp.name as plan_name, cp.monthly_spending_limit, cp.transaction_limit
 FROM virtual_cards vc

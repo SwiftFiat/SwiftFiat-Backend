@@ -11,6 +11,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -147,6 +149,42 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 		return nil, fmt.Errorf("failed to award reward points: %w", err)
 	}
 
+	pointsEarnedToDecimal := decimal.NewFromInt(pointsEarned)
+
+	amountUSD, err := utils.ConvertToUSD(ctx, pointsEarnedToDecimal, "NGN")
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert to USD: %w", err)
+	}
+
+	ttx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          params.UserID,
+		Amount:          pointsEarnedToDecimal.String(),
+		Currency:        "NGN",
+		AmountUsd:       amountUSD.String(),
+		Type:            string(transaction.Rewards),
+		TransactionFlow: string(transaction.InPlatform),
+		Description:     sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	_, err = qtx.CreateRewardTransaction(ctx, db.CreateRewardTransactionParams{
+		UserID:                params.UserID,
+		PointsAmount:          fmt.Sprintf("+ %s", pointsEarnedToDecimal.String()),
+		NairaValue:            pointsEarnedToDecimal.String(),
+		TransactionID:         uuid.NullUUID{UUID: ttx.ID, Valid: true},
+		SourceTransactionType: sql.NullString{String: params.TransactionType, Valid: true},
+		TransactionAmount:     sql.NullString{String: params.TransactionAmount, Valid: true},
+		RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
+		BalanceAfter:          rewardTx.BalanceAfter,
+		Status:                string(transaction.Success),
+		Description:           sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create reward transaction: %w", err)
+	}
+
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
@@ -184,7 +222,7 @@ type RedeemRewardPointsParams struct {
 	ServiceType        string
 	ServiceProvider    string
 }
- 
+
 // RedeemRewardPoints redeems reward points and applies discount to bill payment
 // This should be called before processing the actual bill payment
 // Returns the final amount to pay after discount
@@ -251,6 +289,46 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 	})
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to create redemption record: %w", err)
+	}
+
+	pointsToReddemDecimal, err := utils.ToDecimal(params.PointsToRedeem)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to convert points to decimal: %w", err)
+	}
+
+	amountUSD, err := utils.ConvertToUSD(ctx, pointsToReddemDecimal, "NGN")
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to convert points to USD: %w", err)
+	}
+
+	// Create transaction
+	ttx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          params.UserID,
+		Amount:          params.PointsToRedeem,
+		Currency:        "NGN",
+		AmountUsd:       amountUSD.String(),
+		Type:            string(transaction.Rewards),
+		TransactionFlow: string(transaction.InPlatform),
+		Description:     sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create transaction: %w", err)
+	}
+
+	// Create reward transaction
+	_, err = qtx.CreateRewardTransaction(ctx, db.CreateRewardTransactionParams{
+		UserID:                params.UserID,
+		PointsAmount:          fmt.Sprintf("- %s", params.PointsToRedeem),
+		NairaValue:            pointsToReddemDecimal.String(),
+		SourceTransactionType: sql.NullString{String: "bill_payment", Valid: true},
+		TransactionID:         uuid.NullUUID{UUID: ttx.ID, Valid: true},
+		TransactionAmount:     sql.NullString{String: params.OriginalBillAmount, Valid: true},
+		BalanceAfter:          rewardTx.BalanceAfter,
+		Status:                string(transaction.Success),
+		Description:           sql.NullString{String: description, Valid: true},
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to create reward transaction: %w", err)
 	}
 
 	// Commit transaction
@@ -470,7 +548,7 @@ func (s *RewardService) GetRecentRewardActivity(ctx context.Context, userID int3
 // ============================================================================
 // ADMIN: REWARD CONFIGURATION MANAGEMENT
 // ============================================================================
- 
+
 // CreateRewardConfiguration creates a new reward configuration (admin only)
 func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req CreateRewardConfigRequest, adminID int32) (*RewardConfigurationResponse, error) {
 	validFrom := time.Now()

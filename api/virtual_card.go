@@ -320,7 +320,7 @@ func (v *Virtualcard) GetAllIssuedCards(c *gin.Context) {
 		return
 	}
 
-	cards, err := v.virtualCardSvc.GetAllIssuedCards(c)
+	cards, err := v.server.queries.GetAllVirtualCards(c)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -995,7 +995,7 @@ func (v *Virtualcard) DebitCard(c *gin.Context) {
 // @Tags Cards
 // @Accept json
 // @Produce json
-// @Success 200 {object} *bridgecards.ListCardsResponse
+// @Success 200 {object} bridgecards.ListCardsResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/cards/list-cards [get]
