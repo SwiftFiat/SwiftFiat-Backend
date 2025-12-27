@@ -3,6 +3,11 @@ INSERT INTO notifications (user_id, title, message)
 VALUES ($1, $2, $3)
 RETURNING id, user_id, title, message, read, created_at;
 
+-- name: SendNotificationToAllUsers :exec
+INSERT INTO notifications (user_id, title, message)
+SELECT id, $1, $2
+FROM users;
+
 -- name: ListNotificationsByUser :many
 SELECT id, user_id, title, message, read, created_at
 FROM notifications

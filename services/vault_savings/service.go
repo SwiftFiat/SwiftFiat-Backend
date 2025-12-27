@@ -1174,7 +1174,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Success),
-		TransactionFlow: sql.NullString{String: "wallet -> savings", Valid: true},
+		TransactionFlow: string(transaction.InPlatform),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -1361,7 +1361,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
 		Status:          status,
-		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
+		TransactionFlow: string(transaction.InPlatform),
 		Amount:          req.Amount,
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),

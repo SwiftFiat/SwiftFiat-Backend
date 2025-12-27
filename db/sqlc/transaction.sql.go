@@ -335,7 +335,7 @@ type CreateTransactionParams struct {
 	UserID          int64          `json:"user_id"`
 	Type            string         `json:"type"`
 	Description     sql.NullString `json:"description"`
-	TransactionFlow sql.NullString `json:"transaction_flow"`
+	TransactionFlow string         `json:"transaction_flow"`
 	Amount          string         `json:"amount"`
 	Currency        string         `json:"currency"`
 	AmountUsd       string         `json:"amount_usd"`
@@ -373,7 +373,6 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 }
 
 const getCryptoTransactionCounts = `-- name: GetCryptoTransactionCounts :one
-
 SELECT
     COUNT(*) FILTER (WHERE t.status = 'success') AS successful_transactions,
     COUNT(*) FILTER (WHERE t.status = 'failed') AS failed_transactions,
@@ -389,18 +388,6 @@ type GetCryptoTransactionCountsRow struct {
 	PendingTransactions    int64 `json:"pending_transactions"`
 }
 
-// -- name: GetDisputes :many
-// SELECT
-//
-//	d.id AS dispute_id,
-//	d.transaction_id,
-//	d.reason,
-//	d.status,
-//	d.created_at,
-//	d.updated_at
-//
-// FROM disputes d
-// ORDER BY d.created_at DESC;
 func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTransactionCountsRow, error) {
 	row := q.db.QueryRowContext(ctx, getCryptoTransactionCounts)
 	var i GetCryptoTransactionCountsRow
@@ -478,52 +465,40 @@ func (q *Queries) GetTotalCryptoTransactionAmount(ctx context.Context) (GetTotal
 	return i, err
 }
 
-const getTotalReceived = `-- name: GetTotalReceived :one
-SELECT
-    COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
-FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+const getTotalInflowTransactions = `-- name: GetTotalInflowTransactions :one
+SELECT COUNT(*) AS total_inflow
+WHERE transaction_flow = 'inflow'
 `
 
-func (q *Queries) GetTotalReceived(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getTotalReceived)
-	var total_received int64
-	err := row.Scan(&total_received)
-	return total_received, err
+func (q *Queries) GetTotalInflowTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalInflowTransactions)
+	var total_inflow int64
+	err := row.Scan(&total_inflow)
+	return total_inflow, err
 }
 
-const getTotalSent = `-- name: GetTotalSent :one
-SELECT
-    COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
-FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+const getTotalInplatformTransactions = `-- name: GetTotalInplatformTransactions :one
+SELECT COUNT(*) AS total_inplatform
+WHERE transaction_flow = 'inplatform'
 `
 
-func (q *Queries) GetTotalSent(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getTotalSent)
-	var total_sent int64
-	err := row.Scan(&total_sent)
-	return total_sent, err
+func (q *Queries) GetTotalInplatformTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalInplatformTransactions)
+	var total_inplatform int64
+	err := row.Scan(&total_inplatform)
+	return total_inplatform, err
 }
 
-const getTotalTrade = `-- name: GetTotalTrade :one
-SELECT
-    COUNT(*) AS total_trade
-FROM transactions t
-WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service')
+const getTotalOutflowTransactions = `-- name: GetTotalOutflowTransactions :one
+SELECT COUNT(*) AS total_outflow
+WHERE transaction_flow = 'outflow'
 `
 
-func (q *Queries) GetTotalTrade(ctx context.Context) (int64, error) {
-	row := q.db.QueryRowContext(ctx, getTotalTrade)
-	var total_trade int64
-	err := row.Scan(&total_trade)
-	return total_trade, err
+func (q *Queries) GetTotalOutflowTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalOutflowTransactions)
+	var total_outflow int64
+	err := row.Scan(&total_outflow)
+	return total_outflow, err
 }
 
 const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
@@ -552,6 +527,20 @@ func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID i
 	return total_volume, err
 }
 
+const getTotalTransactions = `-- name: GetTotalTransactions :one
+SELECT
+    COUNT(*) AS total_transactions
+FROM transactions t
+WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service', 'reward', 'vault', 'qr_code', 'card', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity')
+`
+
+func (q *Queries) GetTotalTransactions(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getTotalTransactions)
+	var total_transactions int64
+	err := row.Scan(&total_transactions)
+	return total_transactions, err
+}
+
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT
     t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
@@ -568,6 +557,11 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.id = $1 LIMIT 1
 `
 
@@ -576,7 +570,7 @@ type GetTransactionByIDRow struct {
 	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
-	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	TransactionFlow      string         `json:"transaction_flow"`
 	Amount               string         `json:"amount"`
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
@@ -676,6 +670,26 @@ SELECT
             'type', 'service',
             'data', to_jsonb(sm.*)
         )
+        WHEN 'vault' THEN jsonb_build_object(
+            'type', 'vault',
+            'data', to_jsonb(vt.*)
+        )
+        WHEN 'conversion' THEN jsonb_build_object(
+            'type', 'conversion',
+            'data', to_jsonb(ch.*)
+        )
+        WHEN 'qr_code' THEN jsonb_build_object(
+            'type', 'qr_code',
+            'data', to_jsonb(qr.*)
+        )
+        WHEN 'reward' THEN jsonb_build_object(
+            'type', 'reward',
+            'data', to_jsonb(rt.*)
+        )
+        WHEN 'card' THEN jsonb_build_object(
+            'type', 'card',
+            'data', to_jsonb(ct.*)
+        )
     END as metadata
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
@@ -683,6 +697,11 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.id = $1 LIMIT 1
 `
 
@@ -705,7 +724,7 @@ SELECT
             'created_at', t.created_at,
             'updated_at', t.updated_at,
             'metadata', CASE
-            WHEN t.transaction_flow IN ('wallet -> savings', 'savings -> wallet') THEN (
+            WHEN t.type IN ('vault') THEN (
                     SELECT jsonb_build_object(
                         'vault_id', vt.vault_id,
                         'transaction_type', vt.transaction_type,
@@ -875,6 +894,24 @@ SELECT
                     FROM public.qr_transactions qr
                     WHERE qr.transaction_id = t.id
                 )
+                WHEN t.type IN ('reward') THEN (
+                    SELECT jsonb_build_object(
+                        'reward_id', rt.id,
+                        'transaction_type', rt.transaction_type,
+                        'points_amount', rt.points_amount,
+                        'naira_value', rt.naira_value,
+                        'transaction_id', rt.transaction_id,
+                        'source_transaction_type', rt.source_transaction_type,
+                        'transaction_amount', rt.transaction_amount,
+                        'balance_after', rt.balance_after,
+                        'status', rt.status,
+                        'description', rt.description,
+                        'created_at', rt.created_at,
+                        'updated_at', rt.updated_at
+                    )::jsonb
+                    FROM public.reward_transactions rt
+                    WHERE rt.transaction_id = t.id
+                )
             END
         )
     ) as result
@@ -901,8 +938,13 @@ FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.created_at BETWEEN $1 AND $2
 AND ($3::text IS NULL OR t.type = $3)
 ORDER BY t.created_at DESC
@@ -922,7 +964,7 @@ type GetTransactionsByDateRangeRow struct {
 	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
-	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	TransactionFlow      string         `json:"transaction_flow"`
 	Amount               string         `json:"amount"`
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
@@ -1070,7 +1112,7 @@ type GetTransactionsByUserIDRow struct {
 	ID              uuid.UUID       `json:"id"`
 	Type            string          `json:"type"`
 	Description     sql.NullString  `json:"description"`
-	TransactionFlow sql.NullString  `json:"transaction_flow"`
+	TransactionFlow string          `json:"transaction_flow"`
 	Status          string          `json:"status"`
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
@@ -1154,7 +1196,7 @@ type GetTransactionsByWalletRow struct {
 	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
-	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	TransactionFlow      string         `json:"transaction_flow"`
 	Amount               string         `json:"amount"`
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
@@ -1677,7 +1719,7 @@ type ListAllCryptoTransactionsRow struct {
 	TransactionID          uuid.UUID      `json:"transaction_id"`
 	TransactionType        string         `json:"transaction_type"`
 	TransactionDescription sql.NullString `json:"transaction_description"`
-	TransactionFlow        sql.NullString `json:"transaction_flow"`
+	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
@@ -1741,25 +1783,25 @@ SELECT
     t.status AS transaction_status,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
+
     u.id AS user_id,
     u.first_name AS user_first_name,
     u.last_name AS user_last_name,
     u.email AS user_email,
     u.phone_number AS user_phone_number
 FROM transactions t
+JOIN users u ON u.id = t.user_id
+
 LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
 LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN swift_wallets sw ON
-    sw.id = stm.source_wallet OR
-    sw.id = stm.destination_wallet OR
-    sw.id = ctm.destination_wallet OR
-    sw.id = gtm.source_wallet OR
-    sw.id = fwm.source_wallet OR
-    sw.id = sm.source_wallet
-LEFT JOIN users u ON sw.customer_id = u.id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
+
 ORDER BY t.created_at DESC
 `
 
@@ -1767,17 +1809,18 @@ type ListAllTransactionsWithUsersRow struct {
 	TransactionID          uuid.UUID      `json:"transaction_id"`
 	TransactionType        string         `json:"transaction_type"`
 	TransactionDescription sql.NullString `json:"transaction_description"`
-	TransactionFlow        sql.NullString `json:"transaction_flow"`
+	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
-	UserID                 sql.NullInt64  `json:"user_id"`
+	UserID                 int64          `json:"user_id"`
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
-	UserEmail              sql.NullString `json:"user_email"`
-	UserPhoneNumber        sql.NullString `json:"user_phone_number"`
+	UserEmail              string         `json:"user_email"`
+	UserPhoneNumber        string         `json:"user_phone_number"`
 }
 
+// Metadata joins (kept if needed for filtering / enrichment)
 func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTransactionsWithUsersRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAllTransactionsWithUsers)
 	if err != nil {
@@ -1848,7 +1891,7 @@ type ListGiftcardTransactionsRow struct {
 	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
-	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	TransactionFlow      string         `json:"transaction_flow"`
 	Status               string         `json:"status"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
@@ -1879,6 +1922,84 @@ func (q *Queries) ListGiftcardTransactions(ctx context.Context) ([]ListGiftcardT
 			&i.Status,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTransactionsByType = `-- name: ListTransactionsByType :many
+SELECT
+    t.id AS transaction_id,
+    t.type AS transaction_type,
+    t.description AS transaction_description,
+    t.transaction_flow,
+    t.amount,
+    t.currency,
+    t.amount_usd,
+    t.status AS transaction_status,
+    t.created_at AS transaction_created_at,
+
+    u.id AS user_id,
+    u.first_name AS user_first_name,
+    u.last_name AS user_last_name,
+    u.email AS user_email,
+    u.phone_number AS user_phone_number
+FROM transactions t
+JOIN users u ON u.id = t.user_id
+WHERE t.type = $1
+ORDER BY t.created_at DESC
+`
+
+type ListTransactionsByTypeRow struct {
+	TransactionID          uuid.UUID      `json:"transaction_id"`
+	TransactionType        string         `json:"transaction_type"`
+	TransactionDescription sql.NullString `json:"transaction_description"`
+	TransactionFlow        string         `json:"transaction_flow"`
+	Amount                 string         `json:"amount"`
+	Currency               string         `json:"currency"`
+	AmountUsd              string         `json:"amount_usd"`
+	TransactionStatus      string         `json:"transaction_status"`
+	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
+	UserID                 int64          `json:"user_id"`
+	UserFirstName          sql.NullString `json:"user_first_name"`
+	UserLastName           sql.NullString `json:"user_last_name"`
+	UserEmail              string         `json:"user_email"`
+	UserPhoneNumber        string         `json:"user_phone_number"`
+}
+
+func (q *Queries) ListTransactionsByType(ctx context.Context, type_ string) ([]ListTransactionsByTypeRow, error) {
+	rows, err := q.db.QueryContext(ctx, listTransactionsByType, type_)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListTransactionsByTypeRow{}
+	for rows.Next() {
+		var i ListTransactionsByTypeRow
+		if err := rows.Scan(
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.TransactionDescription,
+			&i.TransactionFlow,
+			&i.Amount,
+			&i.Currency,
+			&i.AmountUsd,
+			&i.TransactionStatus,
+			&i.TransactionCreatedAt,
+			&i.UserID,
+			&i.UserFirstName,
+			&i.UserLastName,
+			&i.UserEmail,
+			&i.UserPhoneNumber,
 		); err != nil {
 			return nil, err
 		}

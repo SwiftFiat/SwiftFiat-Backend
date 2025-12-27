@@ -62,6 +62,17 @@ func (q QRCodeHandler) router(server *Server) {
 // @Router /api/v1/qr-codes [post]
 // @Security BearerAuth
 func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -131,6 +142,17 @@ func (q *QRCodeHandler) CreateQRCode(c *gin.Context) {
 // @Router /api/v1/qr-codes [get]
 // @Security BearerAuth
 func (q *QRCodeHandler) GetQRCodes(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -158,6 +180,17 @@ func (q *QRCodeHandler) GetQRCodes(c *gin.Context) {
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Router /api/v1/qr-codes/public/{token} [get]
 func (q *QRCodeHandler) GetQRCodeByToken(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	token, err := uuid.Parse(c.Param("token"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid token"})
@@ -187,6 +220,17 @@ func (q *QRCodeHandler) GetQRCodeByToken(c *gin.Context) {
 // @Router /api/v1/qr-codes/{qr_id} [delete]
 // @Security BearerAuth
 func (q *QRCodeHandler) DeleteQRCode(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -236,6 +280,17 @@ func (q *QRCodeHandler) DeleteQRCode(c *gin.Context) {
 // @Router /api/v1/qr-codes/admin [get]
 // @Security BearerAuth
 func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -273,6 +328,17 @@ func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
 // @Router /api/v1/qr-codes/admin/update-status [put]
 // @Security BearerAuth
 func (q *QRCodeHandler) AdminUpdateQRCodeStatus(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -334,6 +400,17 @@ func (q *QRCodeHandler) AdminUpdateQRCodeStatus(c *gin.Context) {
 // @Router /api/v1/qr-codes/transactions [get]
 // @Security BearerAuth
 func (q *QRCodeHandler) GetQRTransactions(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -375,6 +452,17 @@ func (q *QRCodeHandler) GetQRTransactions(c *gin.Context) {
 // @Router /api/v1/qr-codes/stats [get]
 // @Security BearerAuth
 func (q *QRCodeHandler) GetQRTransactionStats(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())
@@ -459,6 +547,17 @@ func (q *QRCodeHandler) GetQRTransactionStats(c *gin.Context) {
 // @Router /api/v1/qr-codes/stats/admin [get]
 // @Security BearerAuth
 func (q *QRCodeHandler) GetQRTransactionStatsAdmin(c *gin.Context) {
+	settings, err := q.server.queries.GetSystemSettings(c)
+	if err != nil {
+		q.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RapidRampEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("rapid ramp is disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		q.server.logger.Error(err.Error())

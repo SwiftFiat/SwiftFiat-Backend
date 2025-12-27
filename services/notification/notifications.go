@@ -28,6 +28,17 @@ func (n *Notification) Create(ctx context.Context, userID int32, title, message 
 	return &nots, nil
 }
 
+func (n *Notification) SendToAll(ctx context.Context, title, message string) error {
+	err := n.store.SendNotificationToAllUsers(ctx, db.SendNotificationToAllUsersParams{
+		Title: title,
+		Message: message,
+	})
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (n *Notification) Get(ctx context.Context, userID int32) ([]db.ListNotificationsByUserRow, error) {
 	nots, err := n.store.ListNotificationsByUser(ctx, sql.NullInt32{Int32: userID, Valid: true})
 

@@ -120,6 +120,11 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.id = $1 LIMIT 1;
 
 -- name: GetTransactionByIDForUpdate :one
@@ -165,8 +170,13 @@ FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.created_at BETWEEN sqlc.arg(start_date) AND sqlc.arg(end_date)
 AND (sqlc.arg(transaction_type)::text IS NULL OR t.type = sqlc.arg(transaction_type))
 ORDER BY t.created_at DESC
@@ -211,6 +221,26 @@ SELECT
             'type', 'service',
             'data', to_jsonb(sm.*)
         )
+        WHEN 'vault' THEN jsonb_build_object(
+            'type', 'vault',
+            'data', to_jsonb(vt.*)
+        )
+        WHEN 'conversion' THEN jsonb_build_object(
+            'type', 'conversion',
+            'data', to_jsonb(ch.*)
+        )
+        WHEN 'qr_code' THEN jsonb_build_object(
+            'type', 'qr_code',
+            'data', to_jsonb(qr.*)
+        )
+        WHEN 'reward' THEN jsonb_build_object(
+            'type', 'reward',
+            'data', to_jsonb(rt.*)
+        )
+        WHEN 'card' THEN jsonb_build_object(
+            'type', 'card',
+            'data', to_jsonb(ct.*)
+        )
     END as metadata
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
@@ -218,6 +248,11 @@ LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
 WHERE t.id = $1 LIMIT 1;
 
 -- name: GetTransactionsByUserID :many
@@ -691,7 +726,7 @@ SELECT
             'created_at', t.created_at,
             'updated_at', t.updated_at,
             'metadata', CASE
-            WHEN t.transaction_flow IN ('wallet -> savings', 'savings -> wallet') THEN (
+            WHEN t.type IN ('vault') THEN (
                     SELECT jsonb_build_object(
                         'vault_id', vt.vault_id,
                         'transaction_type', vt.transaction_type,
@@ -861,6 +896,24 @@ SELECT
                     FROM public.qr_transactions qr
                     WHERE qr.transaction_id = t.id
                 )
+                WHEN t.type IN ('reward') THEN (
+                    SELECT jsonb_build_object(
+                        'reward_id', rt.id,
+                        'transaction_type', rt.transaction_type,
+                        'points_amount', rt.points_amount,
+                        'naira_value', rt.naira_value,
+                        'transaction_id', rt.transaction_id,
+                        'source_transaction_type', rt.source_transaction_type,
+                        'transaction_amount', rt.transaction_amount,
+                        'balance_after', rt.balance_after,
+                        'status', rt.status,
+                        'description', rt.description,
+                        'created_at', rt.created_at,
+                        'updated_at', rt.updated_at
+                    )::jsonb
+                    FROM public.reward_transactions rt
+                    WHERE rt.transaction_id = t.id
+                )
             END
         )
     ) as result
@@ -877,61 +930,58 @@ SELECT
     t.status AS transaction_status,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
+
     u.id AS user_id,
     u.first_name AS user_first_name,
     u.last_name AS user_last_name,
     u.email AS user_email,
     u.phone_number AS user_phone_number
 FROM transactions t
+JOIN users u ON u.id = t.user_id
+
+-- Metadata joins (kept if needed for filtering / enrichment)
 LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
 LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
 LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN swift_wallets sw ON
-    sw.id = stm.source_wallet OR
-    sw.id = stm.destination_wallet OR
-    sw.id = ctm.destination_wallet OR
-    sw.id = gtm.source_wallet OR
-    sw.id = fwm.source_wallet OR
-    sw.id = sm.source_wallet
-LEFT JOIN users u ON sw.customer_id = u.id
+LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
+LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
+LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
+LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
+
 ORDER BY t.created_at DESC;
 
--- name: GetTotalReceived :one
+-- name: ListTransactionsByType :many
 SELECT
-    COALESCE(SUM(COALESCE(ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount)), 0)::BIGINT AS total_received
-FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
+    t.id AS transaction_id,
+    t.type AS transaction_type,
+    t.description AS transaction_description,
+    t.transaction_flow,
+    t.amount,
+    t.currency,
+    t.amount_usd,
+    t.status AS transaction_status,
+    t.created_at AS transaction_created_at,
 
--- name: GetTotalSent :one
+    u.id AS user_id,
+    u.first_name AS user_first_name,
+    u.last_name AS user_last_name,
+    u.email AS user_email,
+    u.phone_number AS user_phone_number
+FROM transactions t
+JOIN users u ON u.id = t.user_id
+WHERE t.type = $1
+ORDER BY t.created_at DESC;
+
+
+
+-- name: GetTotalTransactions :one
 SELECT
-    COALESCE(SUM(COALESCE(ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount)), 0)::BIGINT AS total_sent
+    COUNT(*) AS total_transactions
 FROM transactions t
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id;
+WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service', 'reward', 'vault', 'qr_code', 'card', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity');
 
--- name: GetTotalTrade :one
-SELECT
-    COUNT(*) AS total_trade
-FROM transactions t
-WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service');
-
--- -- name: GetDisputes :many
--- SELECT
---     d.id AS dispute_id,
---     d.transaction_id,
---     d.reason,
---     d.status,
---     d.created_at,
---     d.updated_at
--- FROM disputes d
--- ORDER BY d.created_at DESC;
 
 -- name: GetCryptoTransactionCounts :one
 SELECT
@@ -1003,3 +1053,16 @@ WHERE status = 'successful';
 SELECT SUM(amount_usd) AS total_volume
 FROM transactions  
 WHERE user_id = $1 AND status = 'successful';
+
+-- name: GetTotalOutflowTransactions :one
+SELECT COUNT(*) AS total_outflow
+WHERE transaction_flow = 'outflow';
+
+-- name: GetTotalInflowTransactions :one
+SELECT COUNT(*) AS total_inflow
+WHERE transaction_flow = 'inflow';
+
+-- name: GetTotalInplatformTransactions :one
+SELECT COUNT(*) AS total_inplatform
+WHERE transaction_flow = 'inplatform';
+

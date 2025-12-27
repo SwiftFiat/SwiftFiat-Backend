@@ -328,15 +328,13 @@ INSERT INTO qr_codes (
     qr_code_image_url,
     label,
     description,
-    fixed_amount,
-    min_amount,
-    max_amount,
+    amount,
     usage_limit,
     expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16, $17, $18
-) RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
+    $11, $12, $13, $14, $15, $16
+) RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
 `
 
 type CreateQRCodeParams struct {
@@ -353,9 +351,7 @@ type CreateQRCodeParams struct {
 	QrCodeImageUrl      sql.NullString `json:"qr_code_image_url"`
 	Label               sql.NullString `json:"label"`
 	Description         sql.NullString `json:"description"`
-	FixedAmount         sql.NullString `json:"fixed_amount"`
-	MinAmount           sql.NullString `json:"min_amount"`
-	MaxAmount           sql.NullString `json:"max_amount"`
+	Amount              string         `json:"amount"`
 	UsageLimit          sql.NullInt32  `json:"usage_limit"`
 	ExpiresAt           sql.NullTime   `json:"expires_at"`
 }
@@ -378,9 +374,7 @@ func (q *Queries) CreateQRCode(ctx context.Context, arg CreateQRCodeParams) (QrC
 		arg.QrCodeImageUrl,
 		arg.Label,
 		arg.Description,
-		arg.FixedAmount,
-		arg.MinAmount,
-		arg.MaxAmount,
+		arg.Amount,
 		arg.UsageLimit,
 		arg.ExpiresAt,
 	)
@@ -397,9 +391,7 @@ func (q *Queries) CreateQRCode(ctx context.Context, arg CreateQRCodeParams) (QrC
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,
@@ -626,7 +618,7 @@ const deleteQRCode = `-- name: DeleteQRCode :one
 UPDATE qr_codes
 SET deleted_at = NOW(), updated_at = NOW()
 WHERE id = $1 AND user_id = $2
-RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
+RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
 `
 
 type DeleteQRCodeParams struct {
@@ -649,9 +641,7 @@ func (q *Queries) DeleteQRCode(ctx context.Context, arg DeleteQRCodeParams) (QrC
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,
@@ -790,6 +780,56 @@ func (q *Queries) GetActiveRuleByCurrencyPair(ctx context.Context, arg GetActive
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const getAllBankAccounts = `-- name: GetAllBankAccounts :many
+SELECT id, user_id, account_name, account_number, bank_code, bank_name, account_type, currency, is_verified, verified_at, verification_method, verification_reference, is_default, is_active, status, label, description, created_at, updated_at, deleted_at FROM bank_accounts
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetAllBankAccounts(ctx context.Context) ([]BankAccount, error) {
+	rows, err := q.db.QueryContext(ctx, getAllBankAccounts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []BankAccount{}
+	for rows.Next() {
+		var i BankAccount
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.AccountName,
+			&i.AccountNumber,
+			&i.BankCode,
+			&i.BankName,
+			&i.AccountType,
+			&i.Currency,
+			&i.IsVerified,
+			&i.VerifiedAt,
+			&i.VerificationMethod,
+			&i.VerificationReference,
+			&i.IsDefault,
+			&i.IsActive,
+			&i.Status,
+			&i.Label,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getBankAccount = `-- name: GetBankAccount :one
@@ -1355,7 +1395,7 @@ func (q *Queries) GetFailedQRTransactions(ctx context.Context, limit int32) ([]Q
 }
 
 const getQRCode = `-- name: GetQRCode :one
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -1374,9 +1414,7 @@ func (q *Queries) GetQRCode(ctx context.Context, id uuid.UUID) (QrCode, error) {
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,
@@ -1394,7 +1432,7 @@ func (q *Queries) GetQRCode(ctx context.Context, id uuid.UUID) (QrCode, error) {
 }
 
 const getQRCodeByToken = `-- name: GetQRCodeByToken :one
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE token = $1 AND deleted_at IS NULL
 `
 
@@ -1413,9 +1451,7 @@ func (q *Queries) GetQRCodeByToken(ctx context.Context, token uuid.UUID) (QrCode
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,
@@ -1433,7 +1469,7 @@ func (q *Queries) GetQRCodeByToken(ctx context.Context, token uuid.UUID) (QrCode
 }
 
 const getQRCodes = `-- name: GetQRCodes :many
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -1459,9 +1495,7 @@ func (q *Queries) GetQRCodes(ctx context.Context) ([]QrCode, error) {
 			&i.CryptomusAddressID,
 			&i.LinkedWalletID,
 			&i.LinkedBankAccountID,
-			&i.FixedAmount,
-			&i.MinAmount,
-			&i.MaxAmount,
+			&i.Amount,
 			&i.QrCodeData,
 			&i.QrCodeImageUrl,
 			&i.Description,
@@ -1489,7 +1523,7 @@ func (q *Queries) GetQRCodes(ctx context.Context) ([]QrCode, error) {
 }
 
 const getQRCodesByCryptomusAddress = `-- name: GetQRCodesByCryptomusAddress :many
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE cryptomus_address_id = $1 AND deleted_at IS NULL
 `
 
@@ -1514,9 +1548,7 @@ func (q *Queries) GetQRCodesByCryptomusAddress(ctx context.Context, cryptomusAdd
 			&i.CryptomusAddressID,
 			&i.LinkedWalletID,
 			&i.LinkedBankAccountID,
-			&i.FixedAmount,
-			&i.MinAmount,
-			&i.MaxAmount,
+			&i.Amount,
 			&i.QrCodeData,
 			&i.QrCodeImageUrl,
 			&i.Description,
@@ -1544,7 +1576,7 @@ func (q *Queries) GetQRCodesByCryptomusAddress(ctx context.Context, cryptomusAdd
 }
 
 const getQRCodesByUser = `-- name: GetQRCodesByUser :many
-SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
+SELECT id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at FROM qr_codes
 WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
@@ -1570,9 +1602,7 @@ func (q *Queries) GetQRCodesByUser(ctx context.Context, userID int64) ([]QrCode,
 			&i.CryptomusAddressID,
 			&i.LinkedWalletID,
 			&i.LinkedBankAccountID,
-			&i.FixedAmount,
-			&i.MinAmount,
-			&i.MaxAmount,
+			&i.Amount,
 			&i.QrCodeData,
 			&i.QrCodeImageUrl,
 			&i.Description,
@@ -2469,7 +2499,7 @@ const updateQRCodeStatus = `-- name: UpdateQRCodeStatus :one
 UPDATE qr_codes
 SET status = $2, updated_at = NOW()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
+RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
 `
 
 type UpdateQRCodeStatusParams struct {
@@ -2492,9 +2522,7 @@ func (q *Queries) UpdateQRCodeStatus(ctx context.Context, arg UpdateQRCodeStatus
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,
@@ -2521,7 +2549,7 @@ SET usage_count = usage_count + 1,
     END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, fixed_amount, min_amount, max_amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
+RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, network, crypto_currency, cryptomus_address_id, linked_wallet_id, linked_bank_account_id, amount, qr_code_data, qr_code_image_url, description, label, status, usage_limit, usage_count, expires_at, created_at, updated_at, last_used_at, deleted_at
 `
 
 func (q *Queries) UpdateQRCodeUsage(ctx context.Context, id uuid.UUID) (QrCode, error) {
@@ -2539,9 +2567,7 @@ func (q *Queries) UpdateQRCodeUsage(ctx context.Context, id uuid.UUID) (QrCode, 
 		&i.CryptomusAddressID,
 		&i.LinkedWalletID,
 		&i.LinkedBankAccountID,
-		&i.FixedAmount,
-		&i.MinAmount,
-		&i.MaxAmount,
+		&i.Amount,
 		&i.QrCodeData,
 		&i.QrCodeImageUrl,
 		&i.Description,

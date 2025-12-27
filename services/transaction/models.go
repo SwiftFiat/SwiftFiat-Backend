@@ -32,7 +32,16 @@ const (
 	Card           TransactionType = "card"
 	QrCode         TransactionType = "qr_code"
 	UtilityPayment TransactionType = "utility_payment"
+	Rewards        TransactionType = "rewards"
 	Other          TransactionType = "other"
+)
+
+type TransactionFlow string
+
+const (
+	Inflow  TransactionFlow = "inflow"
+	Outflow TransactionFlow = "outflow"
+	InPlatform TransactionFlow = "inplatform"
 )
 
 var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, Vault, GiftCard, Airtime, Data, TV, Electricity}

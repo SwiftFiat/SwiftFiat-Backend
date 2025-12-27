@@ -781,9 +781,7 @@ type QrCode struct {
 	CryptomusAddressID  uuid.NullUUID  `json:"cryptomus_address_id"`
 	LinkedWalletID      uuid.NullUUID  `json:"linked_wallet_id"`
 	LinkedBankAccountID uuid.NullUUID  `json:"linked_bank_account_id"`
-	FixedAmount         sql.NullString `json:"fixed_amount"`
-	MinAmount           sql.NullString `json:"min_amount"`
-	MaxAmount           sql.NullString `json:"max_amount"`
+	Amount              string         `json:"amount"`
 	QrCodeData          string         `json:"qr_code_data"`
 	QrCodeImageUrl      sql.NullString `json:"qr_code_image_url"`
 	Description         sql.NullString `json:"description"`
@@ -1128,6 +1126,16 @@ type SwiftWallet struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+type SystemSetting struct {
+	ID                      int32        `json:"id"`
+	RewardsEnabled          bool         `json:"rewards_enabled"`
+	VaultsEnabled           bool         `json:"vaults_enabled"`
+	SmartConversionsEnabled bool         `json:"smart_conversions_enabled"`
+	RapidRampEnabled        bool         `json:"rapid_ramp_enabled"`
+	CreatedAt               sql.NullTime `json:"created_at"`
+	UpdatedAt               sql.NullTime `json:"updated_at"`
+}
+
 type Ticket struct {
 	ID                  int64          `json:"id"`
 	UserID              int64          `json:"user_id"`
@@ -1159,7 +1167,7 @@ type Transaction struct {
 	UserID               int64          `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
-	TransactionFlow      sql.NullString `json:"transaction_flow"`
+	TransactionFlow      string         `json:"transaction_flow"`
 	Amount               string         `json:"amount"`
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`

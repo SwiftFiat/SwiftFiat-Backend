@@ -1081,6 +1081,38 @@ func (q *Queries) GetTopUsersByRewardsEarned(ctx context.Context, limit int32) (
 	return items, nil
 }
 
+const getTotalRewardEarned = `-- name: GetTotalRewardEarned :one
+SELECT
+    COALESCE(SUM(u.total_reward_earned), 0)
+  + COALESCE(SUM(rt.points_amount), 0) AS total_reward_earned
+FROM users u
+LEFT JOIN reward_transactions rt
+  ON rt.user_id = u.id
+`
+
+func (q *Queries) GetTotalRewardEarned(ctx context.Context) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getTotalRewardEarned)
+	var total_reward_earned int32
+	err := row.Scan(&total_reward_earned)
+	return total_reward_earned, err
+}
+
+const getTotalRewardPaid = `-- name: GetTotalRewardPaid :one
+SELECT
+    COALESCE(SUM(u.total_reward_redeemed), 0)
+  + COALESCE(SUM(re.withdrawn_balance), 0) AS total_reward_paid
+FROM users u
+LEFT JOIN referral_earnings re
+  ON re.user_id = u.id
+`
+
+func (q *Queries) GetTotalRewardPaid(ctx context.Context) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getTotalRewardPaid)
+	var total_reward_paid int32
+	err := row.Scan(&total_reward_paid)
+	return total_reward_paid, err
+}
+
 const getTotalRewardsIssued = `-- name: GetTotalRewardsIssued :one
 
 SELECT COALESCE(SUM(total_reward_earned), 0) AS total_points_issued

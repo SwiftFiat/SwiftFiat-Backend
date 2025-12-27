@@ -237,6 +237,11 @@ SET is_verified = TRUE,
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
+-- name: GetAllBankAccounts :many
+SELECT * FROM bank_accounts
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC;
+
 -- name: UpdateBankAccountStatus :one
 UPDATE bank_accounts
 SET status = $2,
@@ -270,14 +275,12 @@ INSERT INTO qr_codes (
     qr_code_image_url,
     label,
     description,
-    fixed_amount,
-    min_amount,
-    max_amount,
+    amount,
     usage_limit,
     expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-    $11, $12, $13, $14, $15, $16, $17, $18
+    $11, $12, $13, $14, $15, $16
 ) RETURNING *;
 
 -- name: GetQRCode :one

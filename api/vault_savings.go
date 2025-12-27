@@ -115,6 +115,16 @@ func (v Vault) router(server *Server) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals [post]
 func (v *Vault) createGoal(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -186,6 +196,17 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals [get]
 func (v *Vault) listGoals(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -228,6 +249,17 @@ func (v *Vault) listGoals(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/goals [get]
 func (v *Vault) AdminListGoals(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -274,6 +306,17 @@ func (v *Vault) AdminListGoals(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id} [get]
 func (v *Vault) getGoal(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -323,6 +366,17 @@ func (v *Vault) getGoal(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/summary [get]
 func (v *Vault) getSummary(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -359,6 +413,17 @@ func (v *Vault) getSummary(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/progress [get]
 func (v *Vault) getProgress(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -401,13 +466,23 @@ func (v *Vault) getProgress(ctx *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param id path string true "Vault ID"
-// @Success 200 {object} vaultsavings.VaultYield
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/yield/{id} [get]
 func (v *Vault) getVaultYield(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -451,13 +526,23 @@ func (v *Vault) getVaultYield(ctx *gin.Context) {
 // @Param id path string true "Vault ID"
 // @Param limit query int false "Limit"
 // @Param offset query int false "Offset"
-// @Success 200 {object} []vaultsavings.VaultYield
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/yields/{id} [get]
-func (v *Vault) ListVaultYeilds (ctx *gin.Context) {
+func (v *Vault) ListVaultYeilds(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -517,6 +602,17 @@ func (v *Vault) ListVaultYeilds (ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/yield/{id}/total [get]
 func (v *Vault) GetTotalVaultYields(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -569,6 +665,17 @@ func (v *Vault) GetTotalVaultYields(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/deposit [post]
 func (v *Vault) deposit(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -681,6 +788,17 @@ func (v *Vault) deposit(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/goals/deposit [post]
 func (v *Vault) adminDeposit(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -806,6 +924,17 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/withdraw [post]
 func (v *Vault) withdraw(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -922,6 +1051,17 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/withdraw [post]
 func (v *Vault) adminWithdraw(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1055,6 +1195,17 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/transactions [get]
 func (v *Vault) getVaultTransactions(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1128,6 +1279,17 @@ func (v *Vault) getVaultTransactions(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/transactions [get]
 func (v *Vault) getAllTransactions(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1185,17 +1347,28 @@ func (v *Vault) getAllTransactions(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/transactions [get]
 func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	// Parse pagination
 	limit := int32(20)
@@ -1258,6 +1431,17 @@ func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id} [put]
 func (v *Vault) updateGoal(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1353,6 +1537,17 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id} [delete]
 func (v *Vault) deleteGoal(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1423,6 +1618,17 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/goals/{id} [delete]
 func (v *Vault) adminDeleteGoal(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1498,6 +1704,17 @@ func (v *Vault) adminDeleteGoal(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/recurring [put]
 func (v *Vault) updateRecurringRule(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1693,6 +1910,17 @@ func (v *Vault) AdminResumeRecurring(ctx *gin.Context) {
 }
 
 func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1753,6 +1981,17 @@ func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/metrics [get]
 func (v *Vault) getAdminMetrics(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1783,6 +2022,17 @@ func (v *Vault) getAdminMetrics(ctx *gin.Context) {
 // @Success 200 {object} vaultsavings.SchedulerStats
 // @Router /api/v1/vault/admin/scheduler/stats [get]
 func (v *Vault) getSchedulerStats(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, _ := utils.GetActiveUser(ctx)
 	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
@@ -1806,6 +2056,17 @@ func (v *Vault) getSchedulerStats(ctx *gin.Context) {
 // @Success 200 {object} basemodels.SuccessResponse
 // @Router /api/v1/vault/admin/scheduler/trigger [post]
 func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, _ := utils.GetActiveUser(ctx)
 	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
@@ -1850,6 +2111,17 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/yield-history [get]
 func (v *Vault) getYieldHistory(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1921,6 +2193,17 @@ func (v *Vault) getYieldHistory(ctx *gin.Context) {
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/yield-projection [get]
 func (v *Vault) getYieldProjection(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -1974,6 +2257,17 @@ func (v *Vault) getYieldProjection(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/yield-summary [get]
 func (v *Vault) getYieldSummary(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -2043,17 +2337,28 @@ func (v *Vault) getYieldSummary(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs [get]
 func (v *Vault) listYieldConfigs(ctx *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(ctx)
-	// if err != nil {
-	// 	v.server.logger.Error(err.Error())
-	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-	// 	return
-	// }
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	configs, err := v.server.queries.GetAllActiveYieldConfigs(ctx.Request.Context())
 	if err != nil {
@@ -2084,6 +2389,17 @@ func (v *Vault) listYieldConfigs(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs [post]
 func (v *Vault) createYieldConfig(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -2091,10 +2407,10 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	var req vaultsavings.CreateYieldConfigParams
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -2162,6 +2478,17 @@ type UpdateYieldConfigParams struct {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs/{id} [put]
 func (v *Vault) updateYieldConfig(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -2169,10 +2496,10 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role == models.USER {
-	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	configID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -2234,6 +2561,17 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-configs/{id}/delete [post]
 func (v *Vault) deleteYieldConfig(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -2290,6 +2628,17 @@ func (v *Vault) deleteYieldConfig(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/process-yields-now [post]
 func (v *Vault) processYieldsNow(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())
@@ -2336,6 +2685,17 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/admin/yield-scheduler/stats [get]
 func (v *Vault) getYieldSchedulerStats(ctx *gin.Context) {
+	settings, err := v.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		v.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.VaultsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())

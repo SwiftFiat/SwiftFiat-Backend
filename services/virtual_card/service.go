@@ -316,7 +316,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:      params.UserID,
 		Type:        string(transaction.Card),
-		Description: sql.NullString{String: "Card creation fee", Valid: true},
+		Description: sql.NullString{String: string(transaction.Outflow), Valid: true},
 		Amount:      creationFee.String(),
 		Currency:    "USD",
 		AmountUsd:   creationFee.String(),
@@ -681,7 +681,7 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(transaction.Card),
 		Description:     sql.NullString{String: "Card Debit", Valid: true},
-		TransactionFlow: sql.NullString{String: "outgoing", Valid: true},
+		TransactionFlow: string(transaction.Outflow),
 		Status:          string(transaction.Success),
 	})
 	if err != nil {
@@ -1116,7 +1116,7 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          user.ID,
 		Type:            string(transaction.Card),
-		TransactionFlow: sql.NullString{String: "card_funding", Valid: true},
+		TransactionFlow: string(transaction.Inflow),
 		Description:     sql.NullString{String: "Card funding", Valid: true},
 		Amount:          amount.String(),
 		Currency:        "USD",
@@ -1224,10 +1224,10 @@ func (s *Service) handleCardUnloadEventSuccess(ctx context.Context, success *bri
 		return "", fmt.Errorf("update wallet balance error: %w", err)
 	}
 
-	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          user.ID,
 		Type:            "card",
-		TransactionFlow: sql.NullString{String: "card_withdrawal", Valid: true},
+		TransactionFlow: string(transaction.InPlatform),
 		Description:     sql.NullString{String: "Card withdrawal", Valid: true},
 		Amount:          withdrawAmount.String(),
 		Currency:        "USD",
@@ -1236,6 +1236,28 @@ func (s *Service) handleCardUnloadEventSuccess(ctx context.Context, success *bri
 	})
 	if err != nil {
 		return "", fmt.Errorf("create transaction error: %w", err)
+	}
+
+	card, err := qtx.GetVirtualCardByBridgeCardID(ctx, success.Data.CardID)
+	if err != nil {
+		return "", fmt.Errorf("get card by cardholder id error: %w", err)
+	}
+
+	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  card.ID,
+		UserID:                  user.ID,
+		BridgecardTransactionID: success.Data.TransactionReference,
+		Amount:                  withdrawAmount.IntPart(),
+		Currency:                success.Data.Currency,
+		TransactionType:         success.Data.CardTransactionType,
+		Fee:                     0,
+		Status:                  string(transaction.Success),
+		Mode:                    success.Data.Livemode,
+		TransactionTimestamp:    success.Data.TransactionTimestamp,
+		TransactionID:           txx.ID,
+	})
+	if err != nil {
+		return "", fmt.Errorf("create card transaction error: %w", err)
 	}
 
 	// Commit transaction

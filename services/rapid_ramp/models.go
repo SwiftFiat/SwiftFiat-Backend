@@ -48,9 +48,7 @@ type CreateQRCodeRequest struct {
 	// LinkedWalletID     *uuid.UUID       `json:"linked_wallet_id"` // Required if manual mode
 	Label              *string          `json:"label"`
 	Description        *string          `json:"description"`
-	// FixedAmount        *decimal.Decimal `json:"fixed_amount" binding:"required"`
-	// MinAmount          *decimal.Decimal `json:"min_amount"`
-	// MaxAmount          *decimal.Decimal `json:"max_amount"`
+	Amount             string           `json:"amount" binding:"required"`
 	UsageLimit         *int             `json:"usage_limit"`
 	ExpiresAt          *time.Time       `json:"expires_at"`
 }

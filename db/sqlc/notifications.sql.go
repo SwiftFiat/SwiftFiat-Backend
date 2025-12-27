@@ -178,3 +178,19 @@ func (q *Queries) MarkNotificationAsRead(ctx context.Context, arg MarkNotificati
 	_, err := q.db.ExecContext(ctx, markNotificationAsRead, arg.ID, arg.UserID)
 	return err
 }
+
+const sendNotificationToAllUsers = `-- name: SendNotificationToAllUsers :exec
+INSERT INTO notifications (user_id, title, message)
+SELECT id, $1, $2
+FROM users
+`
+
+type SendNotificationToAllUsersParams struct {
+	Title   string `json:"title"`
+	Message string `json:"message"`
+}
+
+func (q *Queries) SendNotificationToAllUsers(ctx context.Context, arg SendNotificationToAllUsersParams) error {
+	_, err := q.db.ExecContext(ctx, sendNotificationToAllUsers, arg.Title, arg.Message)
+	return err
+}

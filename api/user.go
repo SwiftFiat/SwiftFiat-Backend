@@ -72,6 +72,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/bank-accounts/default", u.GetDefaultBankAccount)
 	serverGroupV1.POST("/bank-accounts/:account_id/set-default", u.GetDefaultBankAccount)
 	serverGroupV1.DELETE("bank-accounts/:account_id", u.DeleteBankAccount)
+	serverGroupV1.GET("/admin/bank-accounts", u.GetAllBankAccounts)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.testPush)
 }
@@ -1369,6 +1370,37 @@ func (u *User) GetBankAccounts(c *gin.Context) {
 	}
 
 	accounts, err := u.bankAccountService.GetBankAccounts(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error("Failed to fetch bank accounts", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch bank accounts"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", accounts))
+}
+
+// GetAllBankAccounts godoc
+// @Summary Get all bank accounts
+// @Description Retrieves all bank accounts for the authenticated user
+// @Tags user
+// @Produce json
+// @Success 200 {object} []bankaccounts.BankAccountResponse
+// @Router /api/v1/user/admin/bank-accounts [get]
+// @Security BearerAuth
+func (u *User) GetAllBankAccounts(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	accounts, err := u.bankAccountService.GetAllBankAccounts(c.Request.Context())
 	if err != nil {
 		u.server.logger.Error("Failed to fetch bank accounts", "error", err)
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch bank accounts"))

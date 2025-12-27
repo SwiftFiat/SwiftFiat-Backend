@@ -97,6 +97,7 @@ func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *Cre
 		CryptomusAddressID:  uuid.NullUUID{UUID: uuid.MustParse(cryptomusAddress.ID.String()), Valid: true},
 		LinkedBankAccountID: s.uuidPtrToNullUUID(req.BankAccountID),
 		QrCodeData:          qrCodeData,
+		Amount:              req.Amount,
 		QrCodeImageUrl:      s.stringPtrToNullString(imageURL),
 		Label:               s.stringPtrToNullString(req.Label),
 		Description:         s.stringPtrToNullString(req.Description),
@@ -273,9 +274,6 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 	// Marshal webhook data
 	webhookJSON, _ := json.Marshal(payload)
 
-	// Determine required confirmations based on network
-	// requiredConfirmations := s.getRequiredConfirmations(payload.Network)
-
 	// Start transaction
 	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
@@ -289,7 +287,7 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 	txRecord, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(transaction.QrCode),
 		Description:     qrCode.Description,
-		TransactionFlow: sql.NullString{String: "crypto_to_fiat", Valid: true},
+		TransactionFlow: string(transaction.Inflow),
 		Status:          string(QRTransactionStatusReceived),
 	})
 	if err != nil {
@@ -362,43 +360,6 @@ func (s *QRCodeService) ProcessCryptomusWebhook(ctx context.Context, payload *cr
 // ============================================================
 // TRANSACTION PROCESSING PIPELINE
 // ============================================================
-
-// ProcessPendingConfirmations checks and updates confirmation status
-// func (s *QRCodeService) ProcessPendingConfirmations(ctx context.Context) error {
-// 	s.logger.Info("Processing pending confirmations")
-
-// 	transactions, err := s.store.GetPendingConfirmations(ctx)
-// 	if err != nil {
-// 		return fmt.Errorf("failed to fetch pending confirmations: %w", err)
-// 	}
-
-// 	s.logger.Infof("pending confirmations txs: %d", len(transactions))
-
-// 	for _, tx := range transactions {
-// 		// Get payment info from Cryptomus
-// 		if !tx.CryptomusUuid.Valid {
-// 			continue
-// 		}
-
-// 		paymentInfo, err := s.cryptomusProvider.GetPaymentInfo(&cryptocurrency.PaymentInfoRequest{
-// 			PaymentUUID: tx.CryptomusUuid.String,
-// 		})
-
-// 		if err != nil {
-// 			s.logger.Error(fmt.Sprintf("Failed to get payment info for %s: %v", tx.ID, err))
-// 			continue
-// 		}
-
-// 		// Update confirmation status
-// 		if paymentInfo.Result.IsFinal {
-// 			err = s.confirmQRTransaction(ctx, tx.ID, int(tx.RequiredConfirmations.Int32))
-// 			if err != nil {
-// 				s.logger.Error(fmt.Sprintf("Failed to confirm transaction %s: %v", tx.ID, err))
-// 			}
-// 		}
-// 	}
-// 	return nil
-// }
 
 // ProcessReadyForConversion processes transactions ready for conversion
 func (s *QRCodeService) ProcessReadyForConversion(ctx context.Context, limit int32) error {

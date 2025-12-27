@@ -63,6 +63,16 @@ func (r Referral) router(server *Server) {
 // @Success      200  {object}  basemodels.SuccessResponse
 // @Router       /api/v1/referral/test [get]
 func (r Referral) testReferral(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
 	dr := basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "Referral API is active",
@@ -88,6 +98,17 @@ type TrackReferralRequest struct {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/track [post]
 func (r *Referral) Trackreferral(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
 	var request TrackReferralRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'referral_code'"))
@@ -129,6 +150,17 @@ type ReferralWithUser struct {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/list [get]
 func (r *Referral) GetUserReferrals(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -171,6 +203,17 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/list [get]
 func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -201,6 +244,17 @@ func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/earnings [get]
 func (r *Referral) GetEarnings(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		// Todo: add logging
@@ -232,6 +286,17 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/request-withdrawal [post]
 func (r *Referral) RequestWithdrawal(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -289,6 +354,18 @@ func (r *Referral) RequestWithdrawal(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/update-withdrawal [put]
 func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -355,6 +432,17 @@ func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/reminder/:id [get]
 func (r *Referral) Reminder(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	userID := c.Param("id")
 	if userID == "" {
 		r.logger.Error("user_id parameter is empty")
@@ -381,6 +469,17 @@ func (r *Referral) Reminder(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/list-withdrawal-requests [get]
 func (r *Referral) ListWithdrawalRequests(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -406,6 +505,17 @@ func (r *Referral) ListWithdrawalRequests(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/get-withdrawal-request [get]
 func (r *Referral) GetWithdrawalRequest(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -449,6 +559,17 @@ func (r *Referral) GetWithdrawalRequest(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/create-referral-config [post]
 func (r *Referral) CreateReferralConfig(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -456,11 +577,11 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 	}
 
 	//	check if active user is admin
-	// if activeUser.Role == models.USER {
-	// 	r.logger.Error(fmt.Errorf("unauthorized access"))
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	var req struct {
 		MinimumWithdrawalThreshold string `json:"minimum_withdrawal_threshold" binding:"required"`
@@ -519,6 +640,17 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Router       /api/v1/referral/admin/update-referral-config [put]
 func (r *Referral) UpdateReferralConfig(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -586,7 +718,27 @@ func (r *Referral) UpdateReferralConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("referral config updated successfully", nil))
 }
 
+// GetReferralConfig godoc
+// @Summary      Get Referral Config
+// @Description  Retrieves the referral config
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  map[string]any
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/admin/get-referral-config [get]
 func (r *Referral) GetReferralConfig(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+	
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))

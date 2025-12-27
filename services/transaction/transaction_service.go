@@ -127,7 +127,7 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, fromAccount.CustomerID)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, string(Inflow), fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -257,7 +257,7 @@ func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, 
 	tx.ReceivedAmount = amount
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, walletAddress.CustomerID.Int64)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, string(Inflow), walletAddress.CustomerID.Int64)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -411,7 +411,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, order
 	tx.Coin = coinSym
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, walletAddress.CustomerID.Int64)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, string(Inflow), walletAddress.CustomerID.Int64)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -545,7 +545,7 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	tx.SentAmount = sentAmount
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, GiftCardOutflowTransaction, &tx, currFlow, string(Outflow), fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -637,7 +637,7 @@ func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Cont
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow, string(Outflow), fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -735,7 +735,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, BillOutflowTransaction, &tx, currFlow, fromAccount.CustomerID)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, BillOutflowTransaction, &tx, currFlow, string(Outflow), fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -765,7 +765,7 @@ func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Con
 	return tObj, nil
 }
 
-func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow string, userID int64) (interface{}, error) {
+func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow, transactionFlow string, userID int64) (interface{}, error) {
 
 	if platform == WalletTransaction {
 		tx, ok := txx.(*IntraTransaction)
@@ -781,7 +781,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			TransactionFlow: transactionFlow,
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -852,7 +852,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			TransactionFlow: transactionFlow,
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -942,7 +942,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			TransactionFlow: transactionFlow,
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -1010,7 +1010,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			TransactionFlow: transactionFlow,
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -1111,7 +1111,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: sql.NullString{String: currFlow, Valid: currFlow != ""},
+			TransactionFlow: transactionFlow,
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),

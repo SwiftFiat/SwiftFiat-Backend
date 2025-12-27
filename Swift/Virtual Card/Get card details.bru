@@ -5,11 +5,20 @@ meta {
 }
 
 get {
-  url: 
+  url: {{BaseURl}}/cards/get-card-details?card_id=1ee3aa0fa7d54aa5ba74fcdefae83788
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+params:query {
+  card_id: 1ee3aa0fa7d54aa5ba74fcdefae83788
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

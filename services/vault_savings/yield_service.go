@@ -295,7 +295,7 @@ func (ys *YieldService) creditYieldToVault(
 	periodStart := vault.LastYieldCalculation.Time
 	if !vault.LastYieldCalculation.Valid {
 		periodStart = vault.CreatedAt
-	}
+	} 
 
 	yieldRecord, err := qtx.CreateVaultYield(ctx, db.CreateVaultYieldParams{
 		UserID:                 vault.UserID,
@@ -329,7 +329,7 @@ func (ys *YieldService) creditYieldToVault(
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Success),
-		TransactionFlow: sql.NullString{String: "savings -> wallet", Valid: true},
+		TransactionFlow: string(transaction.InPlatform),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create transaction record: %w", err)

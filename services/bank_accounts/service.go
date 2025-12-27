@@ -224,6 +224,20 @@ func (s *BankAccountService) UpdateBankAccountStatus(ctx context.Context, accoun
 
 	return nil
 }
+func (s *BankAccountService) GetAllBankAccounts(ctx context.Context) ([]*BankAccountResponse, error) {
+	accounts, err := s.store.GetAllBankAccounts(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch bank accounts: %w", err)
+	}
+
+	var responses []*BankAccountResponse
+	for _, account := range accounts {
+		responses = append(responses, s.toBankAccountResponse(&account))
+	}
+
+	return responses, nil
+}
+
 
 // GetBankAccounts retrieves all bank accounts for a user
 func (s *BankAccountService) GetBankAccounts(ctx context.Context, userID int64) ([]*BankAccountResponse, error) {
