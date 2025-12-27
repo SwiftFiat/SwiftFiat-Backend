@@ -68,7 +68,8 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 	aiResponse, err := s.callOpenAI(ctx, messages)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("OpenAI API error: %v", err))
-		return nil, ErrAIServiceUnavailable
+		// return nil, ErrAIServiceUnavailable
+		return nil, err
 	}
 
 	// Step 4: Calculate confidence score
