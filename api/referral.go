@@ -137,7 +137,7 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 
 type ReferralWithUser struct {
 	Referral referral.Referral `json:"referral" binding:"required"`
-	User     string            `json:"first_Name" binding:"required"`
+	User     string            `json:"first_name" binding:"required"`
 }
 
 // GetUserReferrals godoc
