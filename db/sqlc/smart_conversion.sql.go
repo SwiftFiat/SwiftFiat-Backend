@@ -834,7 +834,6 @@ func (q *Queries) GetAllBankAccounts(ctx context.Context) ([]BankAccount, error)
 
 const getAllConversionHistory = `-- name: GetAllConversionHistory :many
 SELECT id, conversion_rule_id, user_id, transaction_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, executed_rate, rate_difference_percentage, rate_provider, source_amount, target_amount, fees, net_amount, source_balance_before, source_balance_after, target_balance_before, target_balance_after, execution_type, trigger_type, status, failure_reason, executed_at, created_at FROM conversion_history
-WHERE deleted_at IS NULL
 ORDER BY executed_at DESC
 `
 
