@@ -9317,6 +9317,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/smart-convert/admin/history": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all conversion history for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversion"
+                ],
+                "summary": "Get all conversion history",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/smartconversion.ConversionHistoryResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/smart-convert/admin/rules": {
             "get": {
                 "security": [

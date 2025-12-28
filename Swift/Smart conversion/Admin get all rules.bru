@@ -1,0 +1,20 @@
+meta {
+  name: Admin get all rules
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BaseURl}}/smart-convert/admin/rules
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjo3LCJ1c2VyX3JvbGUiOiJzdXBlcl9hZG1pbiIsInVzZXJfdmVyaWZpZWQiOnRydWUsImV4cCI6MTc2OTQzNzk0MH0.BBVEoUopSCHMYOSTHIGLQ8b3St8U5D7qRdvtd0joFz0
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
