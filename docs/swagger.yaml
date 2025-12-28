@@ -459,12 +459,12 @@ definitions:
     type: object
   api.ReferralWithUser:
     properties:
-      first_Name:
+      first_name:
         type: string
       referral:
         $ref: '#/definitions/referral.Referral'
     required:
-    - first_Name
+    - first_name
     - referral
     type: object
   api.ResendEmailRequest:
@@ -1997,21 +1997,21 @@ definitions:
   rapidramp.ConversionDetails:
     properties:
       conversion_fees:
-        type: number
+        type: string
       fiat_amount:
-        type: number
+        type: string
       fiat_currency:
         type: string
       net_amount:
-        type: number
+        type: string
       network_fees:
-        type: number
+        type: string
       platform_fees:
-        type: number
+        type: string
       rate:
-        type: number
+        type: string
       total_fees:
-        type: number
+        type: string
     type: object
   rapidramp.CreateQRCodeRequest:
     properties:
@@ -2045,17 +2045,13 @@ definitions:
   rapidramp.CryptoDetails:
     properties:
       amount:
-        type: number
+        type: string
       amount_usd:
-        type: number
-      confirmation_blocks:
-        type: integer
+        type: string
       currency:
         type: string
       network:
         type: string
-      required_confirmations:
-        type: integer
       transaction_hash:
         type: string
     type: object
