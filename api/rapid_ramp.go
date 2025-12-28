@@ -418,6 +418,11 @@ func (q *QRCodeHandler) GetQRTransactions(c *gin.Context) {
 		return
 	}
 
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
 	lt := c.DefaultQuery("limit", "20")
 	os := c.DefaultQuery("offset", "0")
 
