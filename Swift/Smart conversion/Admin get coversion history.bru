@@ -1,0 +1,20 @@
+meta {
+  name: Admin get coversion history
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{BaseURl}}/smart-convert/admin/history
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -158,7 +158,6 @@ SELECT * FROM conversion_history WHERE id = $1;
 
 -- name: GetAllConversionHistory :many
 SELECT * FROM conversion_history
-WHERE deleted_at IS NULL
 ORDER BY executed_at DESC;
 
 -- name: GetConversionHistoryByUser :many
