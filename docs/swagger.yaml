@@ -9766,6 +9766,27 @@ paths:
       summary: Get comprehensive reward summary
       tags:
       - rewards
+  /api/v1/smart-convert/admin/history:
+    get:
+      description: Retrieves all conversion history for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/smartconversion.ConversionHistoryResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all conversion history
+      tags:
+      - Conversion
   /api/v1/smart-convert/admin/rules:
     get:
       description: Retrieves all conversion rules for the authenticated user

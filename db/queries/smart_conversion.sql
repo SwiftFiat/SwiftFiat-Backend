@@ -142,7 +142,7 @@ INSERT INTO conversion_history (
     fees,
     net_amount,
     source_balance_before,
-    source_balance_after,
+    source_balance_after, 
     target_balance_before,
     target_balance_after,
     execution_type,
@@ -155,6 +155,11 @@ INSERT INTO conversion_history (
 
 -- name: GetConversionHistory :one
 SELECT * FROM conversion_history WHERE id = $1;
+
+-- name: GetAllConversionHistory :many
+SELECT * FROM conversion_history
+WHERE deleted_at IS NULL
+ORDER BY executed_at DESC;
 
 -- name: GetConversionHistoryByUser :many
 SELECT * FROM conversion_history

@@ -111,7 +111,7 @@ INSERT INTO conversion_history (
     fees,
     net_amount,
     source_balance_before,
-    source_balance_after,
+    source_balance_after, 
     target_balance_before,
     target_balance_after,
     execution_type,
@@ -818,6 +818,62 @@ func (q *Queries) GetAllBankAccounts(ctx context.Context) ([]BankAccount, error)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getAllConversionHistory = `-- name: GetAllConversionHistory :many
+SELECT id, conversion_rule_id, user_id, transaction_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, executed_rate, rate_difference_percentage, rate_provider, source_amount, target_amount, fees, net_amount, source_balance_before, source_balance_after, target_balance_before, target_balance_after, execution_type, trigger_type, status, failure_reason, executed_at, created_at FROM conversion_history
+WHERE deleted_at IS NULL
+ORDER BY executed_at DESC
+`
+
+func (q *Queries) GetAllConversionHistory(ctx context.Context) ([]ConversionHistory, error) {
+	rows, err := q.db.QueryContext(ctx, getAllConversionHistory)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ConversionHistory{}
+	for rows.Next() {
+		var i ConversionHistory
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversionRuleID,
+			&i.UserID,
+			&i.TransactionID,
+			&i.SourceCurrency,
+			&i.TargetCurrency,
+			&i.SourceWalletID,
+			&i.TargetWalletID,
+			&i.TriggerRate,
+			&i.ExecutedRate,
+			&i.RateDifferencePercentage,
+			&i.RateProvider,
+			&i.SourceAmount,
+			&i.TargetAmount,
+			&i.Fees,
+			&i.NetAmount,
+			&i.SourceBalanceBefore,
+			&i.SourceBalanceAfter,
+			&i.TargetBalanceBefore,
+			&i.TargetBalanceAfter,
+			&i.ExecutionType,
+			&i.TriggerType,
+			&i.Status,
+			&i.FailureReason,
+			&i.ExecutedAt,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}

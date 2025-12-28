@@ -32,7 +32,7 @@ func (s SmartConvertHandler) router(server *Server) {
 	s.conversionSvc = s.server.smartConvertService
 	s.audit = s.server.auditService
 
-	v1 := server.router.Group("/api/v1/smart-convert") 
+	v1 := server.router.Group("/api/v1/smart-convert")
 	v1.GET("/rates", s.GetExchangeRate)
 	v1.Use(s.server.authMiddleware.AuthenticatedMiddleware())
 	{
@@ -43,6 +43,7 @@ func (s SmartConvertHandler) router(server *Server) {
 		v1.DELETE("/rules/:rule_id", s.DeleteConversionRule)
 		v1.POST("/execute", s.ExecuteManualConversion)
 		v1.GET("/admin/rules", s.GetAllConversionRules)
+		v1.GET("/admin/history", s.GetAllConversionHistory)
 	}
 }
 
@@ -151,17 +152,17 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/admin/rules [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetAllConversionRules(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		s.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	s.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
+	// 	return
+	// }
 
 	rules, err := s.server.queries.GetAllConversionRules(c.Request.Context())
 	if err != nil {
@@ -172,7 +173,6 @@ func (s *SmartConvertHandler) GetAllConversionRules(c *gin.Context) {
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Conversion rules fetched successfully", rules))
 }
-
 
 // GetConversionRules godoc
 // @Summary Get all conversion rules
@@ -209,6 +209,38 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", rules))
+}
+
+// GetAllConversionHistory godoc
+// @Summary Get all conversion history
+// @Description Retrieves all conversion history for the authenticated user
+// @Tags Conversion
+// @Produce json
+// @Success 200 {object} []smartconversion.ConversionHistoryResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/admin/history [get]
+// @Security BearerAuth
+func (s *SmartConvertHandler) GetAllConversionHistory(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
+		return
+	}
+
+	history, err := s.server.queries.GetAllConversionHistory(c.Request.Context())
+	if err != nil {
+		s.logger.Error("Failed to fetch conversion history", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to fetch conversion history"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", history))
 }
 
 // PauseConversionRule godoc
@@ -477,12 +509,12 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		nil,
 	)
 	entry.Metadata = map[string]any{
-		"time":           time.Now().Format(time.RFC3339),
-		"executed_rate":  result.ExecutedRate,
-		"net_amount":     result.NetAmount,
-		"source_amount":  result.SourceAmount,
-		"target_amount":  result.TargetAmount,
-		"status":         result.Status,
+		"time":          time.Now().Format(time.RFC3339),
+		"executed_rate": result.ExecutedRate,
+		"net_amount":    result.NetAmount,
+		"source_amount": result.SourceAmount,
+		"target_amount": result.TargetAmount,
+		"status":        result.Status,
 	}
 	s.audit.Log(entry)
 
@@ -511,7 +543,7 @@ func (s *SmartConvertHandler) GetExchangeRate(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
-	
+
 	from := c.Query("from")
 	to := c.Query("to")
 
@@ -606,7 +638,7 @@ func (s *SmartConvertHandler) GetConversionStats(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("smart conversions are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		s.server.logger.Error(err.Error())
