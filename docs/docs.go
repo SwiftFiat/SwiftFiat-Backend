@@ -1961,6 +1961,109 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/analytics/schedulers/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve statistics and status for all system schedulers. Accessible only by admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Get Scheduler Stats",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/schedulers/trigger": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually trigger a specific scheduler task. Accessible only by admin.\nTask names must be one of the following:\nprocess_vault_recurring, process_vault_yield, rapid_ramp_conversions, rapid_ramp_payouts, smart_conversion_scheduled, smart_conversion_rate, subscription_renewal_reminders, subscription_auto_topup, streak_reset, streak_reminders, streak_weekly_analytics",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Trigger Scheduler Task",
+                "parameters": [
+                    {
+                        "description": "Trigger Task Request",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/api.TriggerSchedulerTaskRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/analytics/send-notification-to-all": {
             "post": {
                 "security": [
@@ -9207,6 +9310,40 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/smart-convert/admin/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all conversion rules for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Conversion"
+                ],
+                "summary": "Get all conversion rules",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/smartconversion.ConversionRuleResponse"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -17367,6 +17504,17 @@ const docTemplate = `{
                 }
             }
         },
+        "api.TriggerSchedulerTaskRequest": {
+            "type": "object",
+            "required": [
+                "task_name"
+            ],
+            "properties": {
+                "task_name": {
+                    "type": "string"
+                }
+            }
+        },
         "api.TwoFARequest": {
             "type": "object",
             "properties": {
@@ -19682,6 +19830,9 @@ const docTemplate = `{
         "rapidramp.QRCodeResponse": {
             "type": "object",
             "properties": {
+                "amount": {
+                    "type": "string"
+                },
                 "bank_account": {
                     "$ref": "#/definitions/rapidramp.BankAccountInfo"
                 },
@@ -19731,6 +19882,9 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "usage_limit": {
+                    "type": "integer"
+                },
+                "user_id": {
                     "type": "integer"
                 }
             }

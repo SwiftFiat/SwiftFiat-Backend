@@ -515,6 +515,13 @@ definitions:
     required:
     - enabled
     type: object
+  api.TriggerSchedulerTaskRequest:
+    properties:
+      task_name:
+        type: string
+    required:
+    - task_name
+    type: object
   api.TwoFARequest:
     properties:
       enable:
@@ -2070,6 +2077,8 @@ definitions:
     type: object
   rapidramp.QRCodeResponse:
     properties:
+      amount:
+        type: string
       bank_account:
         $ref: '#/definitions/rapidramp.BankAccountInfo'
       conversion_mode:
@@ -2103,6 +2112,8 @@ definitions:
       usage_count:
         type: integer
       usage_limit:
+        type: integer
+      user_id:
         type: integer
     type: object
   rapidramp.QRTransactionResponse:
@@ -5047,6 +5058,75 @@ paths:
       security:
       - BearerAuth: []
       summary: List All Gift Card Transactions
+      tags:
+      - Analytics
+  /api/v1/analytics/schedulers/stats:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve statistics and status for all system schedulers. Accessible
+        only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Scheduler Stats
+      tags:
+      - Analytics
+  /api/v1/analytics/schedulers/trigger:
+    post:
+      consumes:
+      - application/json
+      description: |-
+        Manually trigger a specific scheduler task. Accessible only by admin.
+        Task names must be one of the following:
+        process_vault_recurring, process_vault_yield, rapid_ramp_conversions, rapid_ramp_payouts, smart_conversion_scheduled, smart_conversion_rate, subscription_renewal_reminders, subscription_auto_topup, streak_reset, streak_reminders, streak_weekly_analytics
+      parameters:
+      - description: Trigger Task Request
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/api.TriggerSchedulerTaskRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger Scheduler Task
       tags:
       - Analytics
   /api/v1/analytics/send-notification-to-all:
@@ -9686,6 +9766,27 @@ paths:
       summary: Get comprehensive reward summary
       tags:
       - rewards
+  /api/v1/smart-convert/admin/rules:
+    get:
+      description: Retrieves all conversion rules for the authenticated user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/smartconversion.ConversionRuleResponse'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all conversion rules
+      tags:
+      - Conversion
   /api/v1/smart-convert/execute:
     post:
       consumes:

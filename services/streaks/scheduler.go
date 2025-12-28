@@ -233,7 +233,7 @@ func (ss *StreakScheduler) UpdateStreakOnTransaction(
 	// ✅ FIX: Check if this is the first transaction by looking at history
 	// If total_transaction_days == 1, this is their first transaction
 	isFirstTransaction := streak.TotalTransactionDays == 1
-	
+
 	// ✅ FIX: Also check if streak was just started today (for same-day multiple transactions)
 	isNewStreak := false
 	if streak.StreakStartedAt.Valid {
@@ -256,8 +256,8 @@ func (ss *StreakScheduler) UpdateStreakOnTransaction(
 	// AND it's a new day (to avoid duplicate notifications on same day)
 	if streak.CurrentStreak > 1 {
 		// Check if this is a milestone worth celebrating
-		isMilestone := streak.CurrentStreak%7 == 0 || 
-			streak.CurrentStreak == 3 || 
+		isMilestone := streak.CurrentStreak%7 == 0 ||
+			streak.CurrentStreak == 3 ||
 			streak.CurrentStreak == 14 ||
 			streak.CurrentStreak == 30 ||
 			streak.CurrentStreak == 60 ||
@@ -314,7 +314,7 @@ func (ss *StreakScheduler) handleStreakMilestone(
 				currentStreak,
 			)
 
-			ss.logger.Info(fmt.Sprintf("🎖️  User %d unlocked badge: %s (required %d days)", 
+			ss.logger.Info(fmt.Sprintf("🎖️  User %d unlocked badge: %s (required %d days)",
 				userID, badge.Name, badge.RequiredStreakDays))
 
 			// Send celebration notification
@@ -435,4 +435,44 @@ func (ss *StreakScheduler) Stop() error {
 
 	ss.logger.Info("Streak scheduler stopped")
 	return nil
+}
+
+// TriggerResetBrokenStreaks manually triggers the daily streak reset task.
+func (ss *StreakScheduler) TriggerResetBrokenStreaks(ctx context.Context) error {
+	ss.logger.Info("Manually triggering streak reset task")
+	return ss.resetBrokenStreaksTask(ctx)
+}
+
+// TriggerStreakReminders manually triggers the streak reminder notifications task.
+func (ss *StreakScheduler) TriggerStreakReminders(ctx context.Context) error {
+	ss.logger.Info("Manually triggering streak reminders task")
+	return ss.sendStreakReminders(ctx)
+}
+
+// TriggerWeeklyAnalytics manually triggers the weekly streak analytics generation task.
+func (ss *StreakScheduler) TriggerWeeklyAnalytics(ctx context.Context) error {
+	ss.logger.Info("Manually triggering weekly streak analytics task")
+	return ss.generateWeeklyAnalytics(ctx)
+}
+
+// GetStats returns statistics about the streak scheduler.
+func (ss *StreakScheduler) GetStats(ctx context.Context) map[string]interface{} {
+	stats := make(map[string]interface{})
+
+	tasks := []string{"streak-reset-midnight", "streak-reminder-evening", "streak-weekly-analytics"}
+	taskStats := make(map[string]interface{})
+
+	for _, taskID := range tasks {
+		task, err := ss.taskScheduler.GetTask(taskID)
+		if err != nil {
+			taskStats[taskID] = "not found"
+			continue
+		}
+		taskStats[taskID] = map[string]interface{}{
+			"last_run":  task.LastRun,
+			"is_active": task.IsRecurring,
+		}
+	}
+	stats["tasks"] = taskStats
+	return stats
 }
