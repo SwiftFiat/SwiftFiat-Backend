@@ -170,3 +170,7 @@ ORDER BY created_at DESC;
 
 -- name: GetBridgeCardCardholderByUserID :one
 SELECT bridgecard_cardholder_id FROM users WHERE id = $1;
+
+-- name: ListAllUsers :many
+SELECT * FROM users
+ORDER BY created_at DESC;

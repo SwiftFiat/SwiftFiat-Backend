@@ -399,6 +399,23 @@ func (u *UserService) ListUsers(ctx context.Context, limit, offset int32) ([]db.
 	return users, nil
 }
 
+// ListAllActiveUsers returns all active users from the database
+func (s *UserService) ListAllActiveUsers(ctx context.Context) ([]*db.User, error) {
+    users, err := s.store.ListAllUsers(ctx)
+    if err != nil {
+        return nil, err
+    }
+    
+    activeUsers := make([]*db.User, 0)
+    for i := range users {
+        if users[i].IsActive {
+            activeUsers = append(activeUsers, &users[i])
+        }
+    }
+    
+    return activeUsers, nil
+}
+
 func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {
 	kycs, err := u.store.ListAllKYC(ctx)
 	if err != nil {
