@@ -291,17 +291,17 @@ func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
 		return
 	}
 
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	q.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		q.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	qrCodes, err := q.server.queries.GetQRCodes(c)
 	if err != nil {
@@ -330,6 +330,7 @@ func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
 			usageLimit = &val
 		}
 		m = append(m, rapidramp.QRCodeResponse{
+			UserID:         qrCode.UserID,
 			ID:             qrCode.ID,
 			Status:         qrCode.Status,
 			Token:          qrCode.Token,
