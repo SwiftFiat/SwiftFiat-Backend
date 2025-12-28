@@ -27,26 +27,21 @@ func (r RateManagerHandler) router(server *Server) {
 	v.GET("/my-vip-status", r.GetUserVIPStatus)
 	v.GET("/current-rate", r.GetCurrentRateWithAdjustment)
 
-	v1 := server.router.Group("/api/v1/rate-manager/admin")
-	v1.Use(server.authMiddleware.AuthenticatedMiddleware())
-
-	v1.POST("/vip-levels", r.CreateVIPLevel)
-	v1.GET("/vip-levels/:id", r.GetVIPLevel)
-	v1.GET("/vip-levels", r.ListVIPLevels)
-	v1.PUT("/vip-levels/:id", r.UpdateVIPLevel)
-	v1.DELETE("/vip-levels/:id", r.DeleteVIPLevel) 
+	v.POST("/admin/vip-levels", r.CreateVIPLevel)
+	v.GET("/admin/vip-levels/:id", r.GetVIPLevel)
+	v.GET("/admin/vip-levels", r.ListVIPLevels)
+	v.PUT("/admin/vip-levels/:id", r.UpdateVIPLevel)
+	v.DELETE("/admin/vip-levels/:id", r.DeleteVIPLevel) 
 
 	// rules
-	v1.POST("/rules", r.CreateRateAdjustmentRule)
-	v1.GET("/rules/:id", r.GetRateAdjustmentRule)
-	v1.GET("/rules", r.ListRateAdjustmentRules)
-	v1.PUT("/rules/:id", r.UpdateRateAdjustmentRule)
-	v1.DELETE("/rules/:id", r.DeleteRateAdjustmentRule)
-	v1.PATCH("/rules/:id/toggle", r.ToggleRateAdjustmentRule)
-	v1.POST("/simulate", r.SimulateRateAdjustment)
-	v1.POST("/vip-assignments", r.AssignUserToVIPLevel)
-	
-
+	v.POST("/admin/rules", r.CreateRateAdjustmentRule)
+	v.GET("/admin/rules/:id", r.GetRateAdjustmentRule)
+	v.GET("/admin/rules", r.ListRateAdjustmentRules)
+	v.PUT("/admin/rules/:id", r.UpdateRateAdjustmentRule)
+	v.DELETE("/admin/rules/:id", r.DeleteRateAdjustmentRule)
+	v.PATCH("/admin/rules/:id/toggle", r.ToggleRateAdjustmentRule)
+	v.POST("/admin/simulate", r.SimulateRateAdjustment)
+	v.POST("/admin/vip-assignments", r.AssignUserToVIPLevel)
 }
 
 // CreateVIPLevel godoc

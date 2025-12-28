@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
@@ -151,17 +152,17 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 // @Router /api/v1/smart-convert/admin/rules [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetAllConversionRules(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	s.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
+		return
+	}
 
 	rules, err := s.server.queries.GetAllConversionRules(c.Request.Context())
 	if err != nil {
@@ -220,17 +221,17 @@ func (s *SmartConvertHandler) GetConversionRules(c *gin.Context) {
 // @Router /api/v1/smart-convert/admin/history [get]
 // @Security BearerAuth
 func (s *SmartConvertHandler) GetAllConversionHistory(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	s.server.logger.Error(err.Error())
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
+		return
+	}
 
 	history, err := s.server.queries.GetAllConversionHistory(c.Request.Context())
 	if err != nil {
