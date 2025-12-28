@@ -1450,6 +1450,35 @@ definitions:
       user_id:
         type: integer
     type: object
+  coindesk.NewsArticle:
+    properties:
+      authors:
+        type: string
+      body:
+        type: string
+      created_at:
+        type: string
+      guid:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      keywords:
+        type: string
+      published_on:
+        type: integer
+      sentiment:
+        type: string
+      source_name:
+        type: string
+      subtitle:
+        type: string
+      title:
+        type: string
+      url:
+        type: string
+    type: object
   cryptocurrency.PaymentInfoRequest:
     properties:
       order_id:
@@ -8864,6 +8893,96 @@ paths:
       summary: Test Cryptomus Webhook Endpoint
       tags:
       - Crypto
+  /api/v1/market-insights/news:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve latest cryptocurrency news articles
+      parameters:
+      - description: 'Number of articles to retrieve (default: 10, max: 50)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  properties:
+                    count:
+                      type: integer
+                    news:
+                      items:
+                        $ref: '#/definitions/coindesk.NewsArticle'
+                      type: array
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Crypto News
+      tags:
+      - market-insights
+  /api/v1/market-insights/news/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve details of a specific news article by ID
+      parameters:
+      - description: Article ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/coindesk.NewsArticle'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Single News Article
+      tags:
+      - market-insights
   /api/v1/qr-codes:
     get:
       description: Retrieves all QR codes for the authenticated user

@@ -14,6 +14,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/coindesk"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/giftcards"
@@ -92,6 +93,7 @@ type Server struct {
 	wsHub                    *Hub
 	streakScheduler          *streaks.StreakScheduler
 	streakService            *streaks.StreakService
+	marketInsightsService    *coindesk.MarketInsightsService
 }
 
 func NewServer(envPath string) *Server {
@@ -259,6 +261,9 @@ func NewServer(envPath string) *Server {
 	wsHub := NewHub(l)
 	go wsHub.Run()
 
+	// market insight
+	insights := coindesk.NewMarketInsightsService(l, pn, us)
+
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
 
@@ -321,6 +326,7 @@ func NewServer(envPath string) *Server {
 		wsHub:                    wsHub,
 		streakScheduler:          streakScheduler,
 		streakService:            streak,
+		marketInsightsService:    insights,
 	}
 }
 
@@ -362,6 +368,7 @@ func (s *Server) Start() error {
 	ChatSupport{}.router(s)
 	SupportAdmin{}.router(s)
 	WebSocketHandler{}.router(s)
+	MarketInsights{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
@@ -463,6 +470,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			s.logger.Error("Error closing Redis connection", "error", err)
 			shutdownErr = err
 		}
+
+		// Shutdown market insights service
+		s.marketInsightsService.Shutdown()
 
 		close(done)
 	}()
