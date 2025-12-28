@@ -1,0 +1,33 @@
+meta {
+  name: Create custom subscription
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{BaseURl}}/subscriptions/custom
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "card_id": "05976941-e746-40ed-a6b3-cea8146cba8c",
+    "merchant_name": "adidas",
+    "display_name": "Adidas",
+    "category": "streaming",
+    "amount": 100,
+    "currency": "USD",
+    "billing_cycle": "monthly",
+    "first_charge_date": "2025-12-29T00:00:00Z"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

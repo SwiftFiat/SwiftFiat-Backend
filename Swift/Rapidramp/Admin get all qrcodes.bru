@@ -1,0 +1,20 @@
+meta {
+  name: Admin get all qrcodes
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BaseURl}}/qr-codes/admin
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
