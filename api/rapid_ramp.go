@@ -440,8 +440,50 @@ func (q *QRCodeHandler) GetQRTransactions(c *gin.Context) {
 		return
 	}
 
+	var m []rapidramp.QRTransactionResponse
+	for _, tx := range txs {
+		m = append(m, rapidramp.QRTransactionResponse{
+			ID:     tx.ID,
+			Status: tx.Status,
+			Crypto: rapidramp.CryptoDetails{
+				Currency:        tx.CryptoCurrency,
+				Amount:          tx.CryptoAmount,
+				Network:         tx.CryptoNetwork,
+				AmountUSD:       &tx.CryptoAmountUsd.String,
+				TransactionHash: &tx.TransactionHash.String,
+			},
+			Conversion: &rapidramp.ConversionDetails{
+				Rate:           tx.ConversionRate.String,
+				FiatCurrency:   tx.FiatCurrency.String,
+				FiatAmount:     tx.FiatAmount.String,
+				ConversionFees: tx.ConversionFees,
+				PlatformFees:   tx.PlatformFees,
+				NetworkFees:    tx.NetworkFees,
+				TotalFees:      tx.TotalFees,
+				NetAmount:      tx.NetAmount.String,
+			},
+			Payout: &rapidramp.PayoutDetails{
+				BankAccountNumber: tx.BankAccountNumber.String,
+				BankAccountName:   tx.BankAccountName.String,
+				// BankName: tx.,
+				Reference: &tx.PayoutReference.String,
+				Provider:  tx.PayoutProvider.String,
+			},
+			Timeline: rapidramp.TransactionTimeline{
+				CreatedAt:             tx.CreatedAt,
+				PaymentReceivedAt:     &tx.PaymentReceivedAt.Time,
+				PaymentConfirmedAt:    &tx.PaymentConfirmedAt.Time,
+				ConversionStartedAt:   &tx.ConversionStartedAt.Time,
+				ConversionCompletedAt: &tx.ConversionCompletedAt.Time,
+				PayoutInitiatedAt:     &tx.PaymentConfirmedAt.Time,
+				PayoutCompletedAt:     &tx.PaymentConfirmedAt.Time,
+			},
+			CreatedAt: tx.CreatedAt,
+		})
+	}
+
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{
-		"transactions": txs,
+		"transactions": m,
 	}))
 }
 

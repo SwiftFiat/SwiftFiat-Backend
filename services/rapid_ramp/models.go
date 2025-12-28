@@ -143,28 +143,26 @@ type QRTransactionResponse struct {
 type CryptoDetails struct {
 	Currency              string           `json:"currency"`
 	Network               string           `json:"network"`
-	Amount                decimal.Decimal  `json:"amount"`
-	AmountUSD             *decimal.Decimal `json:"amount_usd,omitempty"`
+	Amount                string  `json:"amount"`
+	AmountUSD             *string `json:"amount_usd,omitempty"`
 	TransactionHash       *string          `json:"transaction_hash,omitempty"`
-	Confirmations         int              `json:"confirmation_blocks"`
-	RequiredConfirmations int              `json:"required_confirmations"`
 }
 
 type ConversionDetails struct {
-	Rate           decimal.Decimal `json:"rate"`
+	Rate         string `json:"rate"`
 	FiatCurrency   string          `json:"fiat_currency"`
-	FiatAmount     decimal.Decimal `json:"fiat_amount"`
-	ConversionFees decimal.Decimal `json:"conversion_fees"`
-	PlatformFees   decimal.Decimal `json:"platform_fees"`
-	NetworkFees    decimal.Decimal `json:"network_fees"`
-	TotalFees      decimal.Decimal `json:"total_fees"`
-	NetAmount      decimal.Decimal `json:"net_amount"`
+	FiatAmount     string `json:"fiat_amount"`
+	ConversionFees string `json:"conversion_fees"`
+	PlatformFees   string `json:"platform_fees"`
+	NetworkFees    string `json:"network_fees"`
+	TotalFees      string `json:"total_fees"`
+	NetAmount      string `json:"net_amount"`
 }
 
 type PayoutDetails struct {
 	BankAccountNumber string  `json:"bank_account_number"`
 	BankAccountName   string  `json:"bank_account_name"`
-	BankName          string  `json:"bank_name"`
+	BankName          *string  `json:"bank_name"`
 	Reference         *string `json:"reference,omitempty"`
 	Provider          string  `json:"provider"`
 }

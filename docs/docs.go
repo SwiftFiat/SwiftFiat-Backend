@@ -17281,11 +17281,11 @@ const docTemplate = `{
         "api.ReferralWithUser": {
             "type": "object",
             "required": [
-                "first_Name",
+                "first_name",
                 "referral"
             ],
             "properties": {
-                "first_Name": {
+                "first_name": {
                     "type": "string"
                 },
                 "referral": {
@@ -19577,28 +19577,28 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "conversion_fees": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "fiat_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "fiat_currency": {
                     "type": "string"
                 },
                 "net_amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "network_fees": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "platform_fees": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "rate": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "total_fees": {
-                    "type": "number"
+                    "type": "string"
                 }
             }
         },
@@ -19643,22 +19643,16 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "amount": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "amount_usd": {
-                    "type": "number"
-                },
-                "confirmation_blocks": {
-                    "type": "integer"
+                    "type": "string"
                 },
                 "currency": {
                     "type": "string"
                 },
                 "network": {
                     "type": "string"
-                },
-                "required_confirmations": {
-                    "type": "integer"
                 },
                 "transaction_hash": {
                     "type": "string"
