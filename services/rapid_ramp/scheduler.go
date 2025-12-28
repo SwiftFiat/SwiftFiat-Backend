@@ -104,3 +104,38 @@ func (s *RapidRampScheduler) processReadyForConversion(ctx context.Context) erro
 func (s *RapidRampScheduler) processReadyForPayout(ctx context.Context) error {
 	return s.qrcodeService.ProcessReadyForPayout(ctx, 50)
 }
+
+// TriggerConversions manually triggers the processing of pending QR conversions.
+func (s *RapidRampScheduler) TriggerConversions(ctx context.Context) error {
+	s.logger.Info("Manually triggering QR conversions processing")
+	return s.processReadyForConversion(ctx)
+}
+
+// TriggerPayouts manually triggers the processing of ready QR payouts.
+func (s *RapidRampScheduler) TriggerPayouts(ctx context.Context) error {
+	s.logger.Info("Manually triggering QR payouts processing")
+	return s.processReadyForPayout(ctx)
+}
+
+// GetStats returns statistics about the rapid ramp scheduler.
+func (s *RapidRampScheduler) GetStats(ctx context.Context) map[string]interface{} {
+	stats := make(map[string]interface{})
+	stats["check_interval"] = s.checkInterval.String()
+
+	tasks := []string{"qr-process-confirmations", "qr-process-conversions", "qr-process-payouts"}
+	taskStats := make(map[string]interface{})
+
+	for _, taskID := range tasks {
+		task, err := s.taskScheduler.GetTask(taskID)
+		if err != nil {
+			taskStats[taskID] = "not found"
+			continue
+		}
+		taskStats[taskID] = map[string]interface{}{
+			"last_run":  task.LastRun,
+			"is_active": task.IsRecurring,
+		}
+	}
+	stats["tasks"] = taskStats
+	return stats
+}

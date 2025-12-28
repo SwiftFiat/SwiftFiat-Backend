@@ -47,6 +47,8 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/transactions-by-type", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListTransactionsByType)
 	serverGroupV1.GET("/transactions-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 	serverGroupV1.PUT("/update-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.UpdateSystemSettings)
+	serverGroupV1.GET("/schedulers/stats", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetSchedulerStats)
+	serverGroupV1.POST("/schedulers/trigger", h.server.authMiddleware.AuthenticatedMiddleware(), h.TriggerSchedulerTask)
 }
 
 type UpdateSystemSettingsRequest struct {
@@ -862,4 +864,149 @@ func (h *Analytics) GetTotalInplatformTransactions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Total inplatform transactions retrieved successfully", totalInplatformTransactions))
+}
+
+// GetSchedulerStats godoc
+// @Summary      Get Scheduler Stats
+// @Description  Retrieve statistics and status for all system schedulers. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/schedulers/stats [get]
+func (h *Analytics) GetSchedulerStats(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	stats := make(map[string]interface{})
+
+	if h.server.vaultScheduler != nil {
+		if s, err := h.server.vaultScheduler.GetStats(c); err == nil {
+			stats["vault_recurring"] = s
+		}
+	}
+
+	if h.server.yieldScheduler != nil {
+		if s, err := h.server.yieldScheduler.GetStats(c); err == nil {
+			stats["vault_yield"] = s
+		}
+	}
+
+	if h.server.qrcodeScheduler != nil {
+		stats["rapid_ramp"] = h.server.qrcodeScheduler.GetStats(c)
+	}
+
+	if h.server.smartConversionScheduler != nil {
+		stats["smart_conversion"] = h.server.smartConversionScheduler.GetStats(c)
+	}
+
+	if h.server.subscriptionScheduler != nil {
+		stats["subscriptions"] = h.server.subscriptionScheduler.HealthCheck()
+	}
+
+	if h.server.streakScheduler != nil {
+		stats["streaks"] = h.server.streakScheduler.GetStats(c)
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Scheduler statistics retrieved successfully", stats))
+}
+
+type TriggerSchedulerTaskRequest struct {
+	TaskName string `json:"task_name" binding:"required"`
+}
+
+// TriggerSchedulerTask godoc
+// @Summary      Trigger Scheduler Task
+// @Description  Manually trigger a specific scheduler task. Accessible only by admin.
+// @Description  Task names must be one of the following:
+// @Description  process_vault_recurring, process_vault_yield, rapid_ramp_conversions, rapid_ramp_payouts, smart_conversion_scheduled, smart_conversion_rate, subscription_renewal_reminders, subscription_auto_topup, streak_reset, streak_reminders, streak_weekly_analytics
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Param        body  body      TriggerSchedulerTaskRequest  true  "Trigger Task Request"
+// @Success      200   {object}  basemodels.SuccessResponse
+// @Failure      400   {object}  basemodels.ErrorResponse
+// @Failure      401   {object}  basemodels.ErrorResponse
+// @Failure      403   {object}  basemodels.ErrorResponse
+// @Failure      500   {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/schedulers/trigger [post]
+func (h *Analytics) TriggerSchedulerTask(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var req TriggerSchedulerTaskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var triggerErr error
+	ctx := c.Request.Context()
+
+	switch req.TaskName {
+	case "process_vault_recurring":
+		if h.server.vaultScheduler != nil {
+			triggerErr = h.server.vaultScheduler.ProcessAllDueNow(ctx)
+		}
+	case "process_vault_yield":
+		if h.server.yieldScheduler != nil {
+			triggerErr = h.server.yieldScheduler.ProcessAllYieldsNow(ctx)
+		}
+	case "rapid_ramp_conversions":
+		if h.server.qrcodeScheduler != nil {
+			triggerErr = h.server.qrcodeScheduler.TriggerConversions(ctx)
+		}
+	case "rapid_ramp_payouts":
+		if h.server.qrcodeScheduler != nil {
+			triggerErr = h.server.qrcodeScheduler.TriggerPayouts(ctx)
+		}
+	case "smart_conversion_scheduled":
+		if h.server.smartConversionScheduler != nil {
+			triggerErr = h.server.smartConversionScheduler.TriggerScheduledConversions(ctx)
+		}
+	case "smart_conversion_rate":
+		if h.server.smartConversionScheduler != nil {
+			triggerErr = h.server.smartConversionScheduler.TriggerRateBasedConversions(ctx)
+		}
+	case "subscription_renewal_reminders":
+		if h.server.subscriptionScheduler != nil {
+			triggerErr = h.server.subscriptionScheduler.RunRenewalRemindersNow()
+		}
+	case "subscription_auto_topup":
+		if h.server.subscriptionScheduler != nil {
+			triggerErr = h.server.subscriptionScheduler.RunAutoTopUpNow()
+		}
+	case "streak_reset":
+		if h.server.streakScheduler != nil {
+			triggerErr = h.server.streakScheduler.TriggerResetBrokenStreaks(ctx)
+		}
+	case "streak_reminders":
+		if h.server.streakScheduler != nil {
+			triggerErr = h.server.streakScheduler.TriggerStreakReminders(ctx)
+		}
+	case "streak_weekly_analytics":
+		if h.server.streakScheduler != nil {
+			triggerErr = h.server.streakScheduler.TriggerWeeklyAnalytics(ctx)
+		}
+	default:
+		c.JSON(http.StatusBadRequest, basemodels.NewError("unknown task name"))
+		return
+	}
+
+	if triggerErr != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(triggerErr.Error()))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("Task '%s' triggered successfully", req.TaskName), nil))
 }
