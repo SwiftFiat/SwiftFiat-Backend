@@ -832,6 +832,68 @@ func (q *Queries) GetAllBankAccounts(ctx context.Context) ([]BankAccount, error)
 	return items, nil
 }
 
+const getAllConversionRules = `-- name: GetAllConversionRules :many
+SELECT id, user_id, source_currency, target_currency, source_wallet_id, target_wallet_id, trigger_rate, trigger_type, trigger_condition, percentage_threshold, conversion_type, fixed_amount, percentage, schedule_frequency, schedule_day_of_week, schedule_day_of_month, schedule_time, next_execution_at, timezone, status, is_active, last_triggered_at, last_trigger_rate, execution_count, max_executions, failure_count, last_failure_reason, description, label, created_at, updated_at, deleted_at FROM conversion_rules
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+func (q *Queries) GetAllConversionRules(ctx context.Context) ([]ConversionRule, error) {
+	rows, err := q.db.QueryContext(ctx, getAllConversionRules)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ConversionRule{}
+	for rows.Next() {
+		var i ConversionRule
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.SourceCurrency,
+			&i.TargetCurrency,
+			&i.SourceWalletID,
+			&i.TargetWalletID,
+			&i.TriggerRate,
+			&i.TriggerType,
+			&i.TriggerCondition,
+			&i.PercentageThreshold,
+			&i.ConversionType,
+			&i.FixedAmount,
+			&i.Percentage,
+			&i.ScheduleFrequency,
+			&i.ScheduleDayOfWeek,
+			&i.ScheduleDayOfMonth,
+			&i.ScheduleTime,
+			&i.NextExecutionAt,
+			&i.Timezone,
+			&i.Status,
+			&i.IsActive,
+			&i.LastTriggeredAt,
+			&i.LastTriggerRate,
+			&i.ExecutionCount,
+			&i.MaxExecutions,
+			&i.FailureCount,
+			&i.LastFailureReason,
+			&i.Description,
+			&i.Label,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getBankAccount = `-- name: GetBankAccount :one
 SELECT id, user_id, account_name, account_number, bank_code, bank_name, account_type, currency, is_verified, verified_at, verification_method, verification_reference, is_default, is_active, status, label, description, created_at, updated_at, deleted_at FROM bank_accounts
 WHERE id = $1 AND deleted_at IS NULL

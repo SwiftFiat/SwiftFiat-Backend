@@ -58,6 +58,7 @@ type QRCodeResponse struct {
 	Token              uuid.UUID        `json:"token"`
 	QRCodeData         string           `json:"qr_code_data"`
 	QRCodeImageURL     *string          `json:"qr_code_image_url,omitempty"`
+	Amount             string           `json:"amount"`
 	CryptoAddress      string           `json:"crypto_address"`
 	Network            string           `json:"network"`
 	CryptoCurrency     string           `json:"crypto_currency"`

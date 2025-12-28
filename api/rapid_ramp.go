@@ -291,26 +291,69 @@ func (q *QRCodeHandler) GetQRCodesAdmin(c *gin.Context) {
 		return
 	}
 
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		q.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	q.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	qrCodes, err := q.server.queries.GetQRCodes(c)
 	if err != nil {
 		q.logger.Error("Failed to fetch QR codes", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch QR codes"))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("", qrCodes))
+	var m []rapidramp.QRCodeResponse
+	for _, qrCode := range qrCodes {
+		address, err := q.server.queries.GetCryptomusAddressByID(c, qrCode.CryptomusAddressID.UUID)
+		if err != nil {
+			q.logger.Error("Failed to fetch QR codes", "error", err)
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("address does not exist"))
+			return
+		}
+		bank, err := q.server.queries.GetBankAccount(c, qrCode.LinkedBankAccountID.UUID)
+		if err != nil {
+			q.logger.Error("Failed to fetch QR codes", "error", err)
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("bank account does not exist"))
+			return
+		}
+		var usageLimit *int
+		if qrCode.UsageLimit.Valid {
+			val := int(qrCode.UsageLimit.Int32)
+			usageLimit = &val
+		}
+		m = append(m, rapidramp.QRCodeResponse{
+			ID:             qrCode.ID,
+			Status:         qrCode.Status,
+			Token:          qrCode.Token,
+			Network:        qrCode.Network,
+			CryptoCurrency: qrCode.CryptoCurrency,
+			Amount:         qrCode.Amount,
+			CryptoAddress:  address.Address,
+			ConversionMode: qrCode.ConversionMode,
+			UsageCount:     int(qrCode.UsageCount),
+			UsageLimit:     usageLimit,
+			CreatedAt:      qrCode.CreatedAt,
+			Label:          &qrCode.Label.String,
+			CurrencyPreference: qrCode.CurrencyPreference,
+			BankAccount: &rapidramp.BankAccountInfo{
+				BankName:      bank.BankName,
+				AccountNumber: bank.AccountNumber,
+				AccountName:   bank.AccountName,
+			},
+			ExpiresAt:  &qrCode.ExpiresAt.Time,
+			LastUsedAt: &qrCode.LastUsedAt.Time,
+		})
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", m))
 }
 
 // AdminUpdateQRCodeStatus godoc
