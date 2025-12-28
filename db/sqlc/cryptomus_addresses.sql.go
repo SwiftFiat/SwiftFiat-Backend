@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 const deleteCryptomusAddress = `-- name: DeleteCryptomusAddress :exec
@@ -27,6 +29,32 @@ WHERE address = $1 LIMIT 1
 
 func (q *Queries) GetCryptomusAddressByAddress(ctx context.Context, address string) (CryptomusAddress, error) {
 	row := q.db.QueryRowContext(ctx, getCryptomusAddressByAddress, address)
+	var i CryptomusAddress
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
+		&i.WalletUuid,
+		&i.Uuid,
+		&i.Address,
+		&i.Network,
+		&i.Currency,
+		&i.OrderID,
+		&i.PaymentUrl,
+		&i.CallbackUrl,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCryptomusAddressByID = `-- name: GetCryptomusAddressByID :one
+SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id, payment_url, callback_url, status, created_at, updated_at FROM cryptomus_addresses
+WHERE id = $1 LIMIT 1
+`
+
+func (q *Queries) GetCryptomusAddressByID(ctx context.Context, id uuid.UUID) (CryptomusAddress, error) {
+	row := q.db.QueryRowContext(ctx, getCryptomusAddressByID, id)
 	var i CryptomusAddress
 	err := row.Scan(
 		&i.ID,
@@ -110,8 +138,8 @@ SELECT id, customer_id, wallet_uuid, uuid, address, network, currency, order_id,
 WHERE uuid = $1 LIMIT 1
 `
 
-func (q *Queries) GetCryptomusAddressByUUID(ctx context.Context, uuid string) (CryptomusAddress, error) {
-	row := q.db.QueryRowContext(ctx, getCryptomusAddressByUUID, uuid)
+func (q *Queries) GetCryptomusAddressByUUID(ctx context.Context, argUuid string) (CryptomusAddress, error) {
+	row := q.db.QueryRowContext(ctx, getCryptomusAddressByUUID, argUuid)
 	var i CryptomusAddress
 	err := row.Scan(
 		&i.ID,
@@ -349,7 +377,7 @@ INSERT INTO cryptomus_addresses (
     order_id,
     wallet_uuid,
     uuid,
-    address,
+    address, 
     network,
     currency,
     payment_url,

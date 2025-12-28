@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
@@ -31,7 +32,7 @@ func (s SmartConvertHandler) router(server *Server) {
 	s.conversionSvc = s.server.smartConvertService
 	s.audit = s.server.auditService
 
-	v1 := server.router.Group("/api/v1/smart-convert")
+	v1 := server.router.Group("/api/v1/smart-convert") 
 	v1.GET("/rates", s.GetExchangeRate)
 	v1.Use(s.server.authMiddleware.AuthenticatedMiddleware())
 	{
@@ -41,6 +42,7 @@ func (s SmartConvertHandler) router(server *Server) {
 		v1.POST("/rules/:rule_id/resume", s.ResumeConversionRule)
 		v1.DELETE("/rules/:rule_id", s.DeleteConversionRule)
 		v1.POST("/execute", s.ExecuteManualConversion)
+		v1.GET("/admin/rules", s.GetAllConversionRules)
 	}
 }
 
@@ -138,6 +140,39 @@ func (s *SmartConvertHandler) CreateConversionRule(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, basemodels.NewSuccess("Conversion rule created successfully", rule))
 }
+
+// GetAllConversionRules godoc
+// @Summary Get all conversion rules
+// @Description Retrieves all conversion rules for the authenticated user
+// @Tags Conversion
+// @Produce json
+// @Success 200 {object} []smartconversion.ConversionRuleResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Router /api/v1/smart-convert/admin/rules [get]
+// @Security BearerAuth
+func (s *SmartConvertHandler) GetAllConversionRules(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		s.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("unauthorized access"))
+		return
+	}
+
+	rules, err := s.server.queries.GetAllConversionRules(c.Request.Context())
+	if err != nil {
+		s.logger.Error("Failed to fetch conversion rules", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch conversion rules"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Conversion rules fetched successfully", rules))
+}
+
 
 // GetConversionRules godoc
 // @Summary Get all conversion rules

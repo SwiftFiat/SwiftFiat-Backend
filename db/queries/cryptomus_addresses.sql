@@ -4,7 +4,7 @@ INSERT INTO cryptomus_addresses (
     order_id,
     wallet_uuid,
     uuid,
-    address,
+    address, 
     network,
     currency,
     payment_url,
@@ -33,6 +33,10 @@ WHERE address = $1 LIMIT 1;
 -- name: GetCryptomusAddressByUUID :one
 SELECT * FROM cryptomus_addresses
 WHERE uuid = $1 LIMIT 1;
+
+-- name: GetCryptomusAddressByID :one
+SELECT * FROM cryptomus_addresses
+WHERE id = $1 LIMIT 1;
 
 -- name: GetCryptomusAddressByOrderID :one
 SELECT * FROM cryptomus_addresses

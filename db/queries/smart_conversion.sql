@@ -39,6 +39,11 @@ WHERE user_id = $1
     AND deleted_at IS NULL
 ORDER BY created_at DESC;
 
+-- name: GetAllConversionRules :many
+SELECT * FROM conversion_rules
+WHERE deleted_at IS NULL
+ORDER BY created_at DESC;
+
 -- name: GetRulesByCurrencyPair :many
 SELECT * FROM conversion_rules
 WHERE user_id = $1
