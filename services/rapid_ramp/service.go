@@ -126,6 +126,7 @@ func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *Cre
 
 	return &QRCodeResponse{
 		ID:                 qrCode.ID,
+		UserID:             userID,
 		Token:              qrCode.Token,
 		QRCodeData:         qrCode.QrCodeData,
 		QRCodeImageURL:     s.nullStringToStringPtr(qrCode.QrCodeImageUrl),
@@ -156,7 +157,7 @@ func (s *QRCodeService) GetQRCodes(ctx context.Context, userID int64) ([]*QRCode
 		// Get crypto address
 		var cryptoAddress string
 		if qr.CryptomusAddressID.Valid {
-			addr, err := s.store.GetCryptomusAddressByUUID(ctx, qr.CryptomusAddressID.UUID.String())
+			addr, err := s.store.GetCryptomusAddressByID(ctx, qr.CryptomusAddressID.UUID)
 			if err == nil {
 				cryptoAddress = addr.Address
 			}
@@ -177,6 +178,7 @@ func (s *QRCodeService) GetQRCodes(ctx context.Context, userID int64) ([]*QRCode
 
 		responses = append(responses, &QRCodeResponse{
 			ID:                 qr.ID,
+			UserID:             userID,
 			Token:              qr.Token,
 			QRCodeData:         qr.QrCodeData,
 			QRCodeImageURL:     s.nullStringToStringPtr(qr.QrCodeImageUrl),
