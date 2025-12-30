@@ -525,3 +525,28 @@ UPDATE user_vip_assignments
 SET is_active = FALSE, updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+
+-- name: GetUserVIPStatus :one
+SELECT 
+    uva.id,
+    uva.user_id,
+    uva.vip_level_id,
+    uva.is_active,
+    uva.total_transaction_volume,
+    v.level_name as vip_level,
+    v.level_code as vip_code,
+    v.level_rank as vip_rank,
+    v.min_transaction_volume as vip_min_volume,
+    v.description as vip_description,
+    v.benefits_description as vip_benefits_description,
+    v.badge_color as vip_badge_color,
+    v.icon_url as vip_icon_url,
+    v.is_active as vip_is_active,
+    v.created_at as vip_created_at,
+    v.updated_at as vip_updated_at,
+    v.deleted_at as vip_deleted_at
+FROM user_vip_assignments uva
+JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
+WHERE uva.user_id = $1 AND uva.is_active = TRUE
+LIMIT 1;

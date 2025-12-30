@@ -1,8 +1,8 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
-	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -20,18 +20,19 @@ type RateManagerHandler struct {
 }
 
 func (r RateManagerHandler) router(server *Server) {
+	r.server = server
 	r.service = server.rateManager
 
 	v := server.router.Group("/api/v1/rate-manager")
 	v.Use(server.authMiddleware.AuthenticatedMiddleware())
-	v.GET("/my-vip-status", r.GetUserVIPStatus)
+	v.GET("/my-vip-level", r.GetUserVIPLevel)
 	v.GET("/current-rate", r.GetCurrentRateWithAdjustment)
 
 	v.POST("/admin/vip-levels", r.CreateVIPLevel)
 	v.GET("/admin/vip-levels/:id", r.GetVIPLevel)
 	v.GET("/admin/vip-levels", r.ListVIPLevels)
 	v.PUT("/admin/vip-levels/:id", r.UpdateVIPLevel)
-	v.DELETE("/admin/vip-levels/:id", r.DeleteVIPLevel) 
+	v.DELETE("/admin/vip-levels/:id", r.DeleteVIPLevel)
 
 	// rules
 	v.POST("/admin/rules", r.CreateRateAdjustmentRule)
@@ -575,15 +576,10 @@ func (r *RateManagerHandler) GetCurrentRateWithAdjustment(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
 	from := c.Query("from")
 	to := c.Query("to")
 	amountStr := c.Query("amount")
-	user_id, _ := strconv.Atoi("user_id")
+	user_id := activeUser.UserID
 
 	if from == "" || to == "" || amountStr == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("Missing required parameters: from, to, amount"))
@@ -662,8 +658,8 @@ func (r *RateManagerHandler) AssignUserToVIPLevel(c *gin.Context) {
 // @Security BearerAuth
 // @Success 200 {object} ratemanager.UserVIPAssignmentResponse
 // @Failure 404 {object} basemodels.ErrorResponse
-// @Router /rate-manager/my-vip-status [get]
-func (r *RateManagerHandler) GetUserVIPStatus(c *gin.Context) {
+// @Router /rate-manager/my-vip-level [get]
+func (r *RateManagerHandler) GetUserVIPLevel(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		r.server.logger.Error(err.Error())
@@ -671,10 +667,16 @@ func (r *RateManagerHandler) GetUserVIPStatus(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// Implement GetUserVIPStatus in service
+	level, err := r.server.queries.GetUserVIPLevel(c, activeUser.UserID)
+	if err != nil {
+		r.server.logger.Errorf("failed to get user vip level: %v", err)
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, basemodels.NewError("user not assigned any vip levels yet"))
+			return
+		}
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user vip level"))
 		return
 	}
-	// Implement GetUserVIPStatus in service
-	c.JSON(http.StatusNotImplemented, basemodels.NewError("Not yet implemented"))
+	c.JSON(http.StatusOK, basemodels.NewSuccess("User vip status retrieved successfully", level))
 }
