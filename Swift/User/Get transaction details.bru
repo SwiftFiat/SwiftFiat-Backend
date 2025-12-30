@@ -1,0 +1,20 @@
+meta {
+  name: Get transaction details
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BaseURl}}/user/transactions/b3819899-c310-41d5-80d4-a337725db052
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

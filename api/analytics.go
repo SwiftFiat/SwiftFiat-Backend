@@ -253,7 +253,7 @@ func (h *Analytics) ListAllTransactions(c *gin.Context) {
 		h.server.logger.Error(fmt.Sprintf("error fetching all transactions: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
 	}
-
+ 
 	volume, err := h.server.queries.GetTotalTransactionVolume(c)
 	if err != nil {
 		h.server.logger.Error(fmt.Sprintf("error fetching transaction volume: %v", err))
