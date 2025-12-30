@@ -18,3 +18,8 @@ UPDATE user_tokens SET token = $1 WHERE user_id = $2 AND device_uuid = $3 RETURN
 -- name: RemoveToken :exec
 DELETE FROM user_tokens WHERE user_id = $1 AND token = $2;
 
+-- name: ListActiveUserTokens :many
+SELECT ut.* FROM user_tokens ut
+JOIN users u ON u.id = ut.user_id
+WHERE u.is_active = TRUE AND u.deleted_at IS NULL;
+

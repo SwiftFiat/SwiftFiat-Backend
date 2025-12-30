@@ -45,6 +45,43 @@ func (q *Queries) GetTokens(ctx context.Context, userID int64) ([]UserToken, err
 	return items, nil
 }
 
+const listActiveUserTokens = `-- name: ListActiveUserTokens :many
+SELECT ut.id, ut.user_id, ut.token, ut.provider, ut.device_uuid, ut.created_at, ut.updated_at FROM user_tokens ut
+JOIN users u ON u.id = ut.user_id
+WHERE u.is_active = TRUE AND u.deleted_at IS NULL
+`
+
+func (q *Queries) ListActiveUserTokens(ctx context.Context) ([]UserToken, error) {
+	rows, err := q.db.QueryContext(ctx, listActiveUserTokens)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []UserToken{}
+	for rows.Next() {
+		var i UserToken
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Token,
+			&i.Provider,
+			&i.DeviceUuid,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const removeToken = `-- name: RemoveToken :exec
 DELETE FROM user_tokens WHERE user_id = $1 AND token = $2
 `

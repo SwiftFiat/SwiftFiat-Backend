@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
@@ -272,11 +273,21 @@ func (s *MarketInsightsService) checkForNewArticles(ctx context.Context) {
 
 // notifyUsersOfArticle sends push notifications to all active users
 func (s *MarketInsightsService) notifyUsersOfArticle(ctx context.Context, article *NewsArticle) {
-	// Get all active users
-	users, err := s.userService.ListAllActiveUsers(ctx)
+	// Get all tokens for active users in one go
+	tokens, err := s.userService.ListActiveUserTokens(ctx)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get users for notifications: %v", err))
+		s.logger.Error(fmt.Sprintf("Failed to get active user tokens for notifications: %v", err))
 		return
+	}
+
+	if len(tokens) == 0 {
+		return
+	}
+
+	// Group tokens by UserID
+	userTokensMap := make(map[int64][]db.UserToken)
+	for _, t := range tokens {
+		userTokensMap[t.UserID] = append(userTokensMap[t.UserID], t)
 	}
 
 	title := "📰 Crypto News"
@@ -285,36 +296,38 @@ func (s *MarketInsightsService) notifyUsersOfArticle(ctx context.Context, articl
 		message = message[:147] + "..."
 	}
 
-	notifiedCount := 0
-	for _, user := range users {
-		tokens, err := s.userService.GetUserPushTokens(ctx, user.ID)
-		if err != nil || tokens == nil || len(*tokens) == 0 {
-			continue
-		}
+	// Use a worker pool to send notifications
+	const numWorkers = 20
+	taskChan := make(chan []db.UserToken, len(userTokensMap))
 
-		// Send notification
-		go func(userID int64) {
-			err := s.sendNewsNotification(ctx, userID, title, message)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("Failed to send notification to user %d: %v", userID, err))
+	var wg sync.WaitGroup
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for userTokens := range taskChan {
+				err := s.sendNewsNotification(ctx, userTokens, title, message)
+				if err != nil {
+					// Error is already logged inside sendNewsNotification
+				}
 			}
-		}(user.ID)
-
-		notifiedCount++
+		}()
 	}
 
-	s.logger.Info(fmt.Sprintf("Sent news notification to %d users: %s", notifiedCount, article.Title))
+	// Feed tasks to workers
+	for _, userTokens := range userTokensMap {
+		taskChan <- userTokens
+	}
+	close(taskChan)
+	wg.Wait()
+
+	s.logger.Info(fmt.Sprintf("Sent news notification to %d users: %s", len(userTokensMap), article.Title))
 }
 
-// sendNewsNotification sends a push notification to a user
-func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, userID int64, title, message string) error {
-	tokens, err := s.userService.GetUserPushTokens(ctx, userID)
-	if err != nil {
-		return err
-	}
-
+// sendNewsNotification sends a push notification to a user using provided tokens
+func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, tokens []db.UserToken, title, message string) error {
 	var fcmToken, expoToken string
-	for _, token := range *tokens {
+	for _, token := range tokens {
 		switch service.PushProvider(token.Provider) {
 		case service.PushProviderFCM:
 			fcmToken = token.Token
@@ -330,7 +343,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, userID
 	badge := 1
 
 	if fcmToken != "" {
-		err = s.pushNotification.SendPush(&service.PushNotificationInfo{
+		err := s.pushNotification.SendPush(&service.PushNotificationInfo{
 			Title:          title,
 			Message:        message,
 			Provider:       service.PushProviderFCM,
@@ -344,7 +357,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, userID
 	}
 
 	if expoToken != "" {
-		err = s.pushNotification.SendPush(&service.PushNotificationInfo{
+		err := s.pushNotification.SendPush(&service.PushNotificationInfo{
 			Title:         title,
 			Message:       message,
 			Provider:      service.PushProviderExpo,

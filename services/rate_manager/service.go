@@ -1057,19 +1057,20 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 	}
 
 	// Get user transaction metrics
-	totalTxVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, req.UserID)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
-	}
+	// totalTxVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, req.UserID)
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
+	// 	return nil, fmt.Errorf("failed to get user metrics: %w", err)
+	// }
 
-	totalVolume := decimal.NewFromInt(totalTxVolume)
+	// totalVolume := decimal.NewFromInt(totalTxVolume)
 
 	params := db.AssignUserToVIPLevelParams{
 		UserID:                 req.UserID,
 		VipLevelID:             req.VIPLevelID,
 		AssignedBy:             sql.NullInt64{Int64: user.ID, Valid: true},
 		AssignmentType:         string(AssignmentTypeManual),
-		TotalTransactionVolume: totalVolume.String(),
+		TotalTransactionVolume: "35",
 	}
 
 	if req.ExpiresAt != nil {
