@@ -813,9 +813,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[SwapTransferMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     tx.Description,
-			TransactionFlow: currFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
@@ -850,9 +850,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: transactionFlow,
+			TransactionFlow: string(Inflow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -904,9 +904,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[CryptoMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     tx.Description,
-			TransactionFlow: currFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
@@ -940,9 +940,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: transactionFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -974,9 +974,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[GiftcardMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     tx.Description,
-			TransactionFlow: currFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
@@ -1008,9 +1008,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: transactionFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -1072,9 +1072,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[FiatWithdrawalMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     tx.Description,
-			TransactionFlow: currFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
@@ -1109,9 +1109,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: transactionFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),
@@ -1162,9 +1162,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[BillMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     tx.Description,
-			TransactionFlow: currFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
