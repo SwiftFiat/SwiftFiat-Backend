@@ -19,8 +19,8 @@ import (
 type PushProvider string
 
 const (
-	PushProviderFCM  = PushProvider("fcm")
-	PushProviderExpo = PushProvider("expo")
+	PushProviderFCM  = PushProvider("FCM")
+	PushProviderExpo = PushProvider("EXPO")
 )
 
 type Config struct {
@@ -66,9 +66,9 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 	client := expo.NewPushClient(nil)
 
 	return &PushNotificationService{
-		client:      client,
-		app:         app,
-		logger:      logger,
+		client: client,
+		app:    app,
+		logger: logger,
 	}
 }
 
@@ -185,10 +185,10 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 	}
 	var fcmToken, expoToken string
 	for _, token := range *tokens {
-		switch token.Provider {
-		case "fcm":
+		switch PushProvider(token.Provider) {
+		case PushProviderFCM:
 			fcmToken = token.Token
-		case "expo":
+		case PushProviderExpo:
 			expoToken = token.Token
 		}
 	}
