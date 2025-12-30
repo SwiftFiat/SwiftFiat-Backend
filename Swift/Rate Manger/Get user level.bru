@@ -1,0 +1,20 @@
+meta {
+  name: Get user level
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BaseURl}}/rate-manager/my-vip-level
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

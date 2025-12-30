@@ -1400,6 +1400,76 @@ func (q *Queries) GetUserVIPLevel(ctx context.Context, userID int64) (VipLevel, 
 	return i, err
 }
 
+const getUserVIPStatus = `-- name: GetUserVIPStatus :one
+SELECT 
+    uva.id,
+    uva.user_id,
+    uva.vip_level_id,
+    uva.is_active,
+    uva.total_transaction_volume,
+    v.level_name as vip_level,
+    v.level_code as vip_code,
+    v.level_rank as vip_rank,
+    v.min_transaction_volume as vip_min_volume,
+    v.description as vip_description,
+    v.benefits_description as vip_benefits_description,
+    v.badge_color as vip_badge_color,
+    v.icon_url as vip_icon_url,
+    v.is_active as vip_is_active,
+    v.created_at as vip_created_at,
+    v.updated_at as vip_updated_at,
+    v.deleted_at as vip_deleted_at
+FROM user_vip_assignments uva
+JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
+WHERE uva.user_id = $1 AND uva.is_active = TRUE
+LIMIT 1
+`
+
+type GetUserVIPStatusRow struct {
+	ID                     uuid.UUID      `json:"id"`
+	UserID                 int64          `json:"user_id"`
+	VipLevelID             uuid.UUID      `json:"vip_level_id"`
+	IsActive               bool           `json:"is_active"`
+	TotalTransactionVolume string         `json:"total_transaction_volume"`
+	VipLevel               string         `json:"vip_level"`
+	VipCode                string         `json:"vip_code"`
+	VipRank                int32          `json:"vip_rank"`
+	VipMinVolume           string         `json:"vip_min_volume"`
+	VipDescription         sql.NullString `json:"vip_description"`
+	VipBenefitsDescription sql.NullString `json:"vip_benefits_description"`
+	VipBadgeColor          sql.NullString `json:"vip_badge_color"`
+	VipIconUrl             sql.NullString `json:"vip_icon_url"`
+	VipIsActive            bool           `json:"vip_is_active"`
+	VipCreatedAt           time.Time      `json:"vip_created_at"`
+	VipUpdatedAt           time.Time      `json:"vip_updated_at"`
+	VipDeletedAt           sql.NullTime   `json:"vip_deleted_at"`
+}
+
+func (q *Queries) GetUserVIPStatus(ctx context.Context, userID int64) (GetUserVIPStatusRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserVIPStatus, userID)
+	var i GetUserVIPStatusRow
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.VipLevelID,
+		&i.IsActive,
+		&i.TotalTransactionVolume,
+		&i.VipLevel,
+		&i.VipCode,
+		&i.VipRank,
+		&i.VipMinVolume,
+		&i.VipDescription,
+		&i.VipBenefitsDescription,
+		&i.VipBadgeColor,
+		&i.VipIconUrl,
+		&i.VipIsActive,
+		&i.VipCreatedAt,
+		&i.VipUpdatedAt,
+		&i.VipDeletedAt,
+	)
+	return i, err
+}
+
 const getVIPLevelByCode = `-- name: GetVIPLevelByCode :one
 SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE level_code = $1 AND deleted_at IS NULL
