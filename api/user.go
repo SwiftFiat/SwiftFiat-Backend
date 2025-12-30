@@ -73,6 +73,8 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("/bank-accounts/:account_id/set-default", u.GetDefaultBankAccount)
 	serverGroupV1.DELETE("bank-accounts/:account_id", u.DeleteBankAccount)
 	serverGroupV1.GET("/admin/bank-accounts", u.GetAllBankAccounts)
+	serverGroupV1.GET("/transactions", u.ListUserTransactions)
+	serverGroupV1.GET("/transactions/:transaction_id", u.GetTransactionDetails)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.testPush)
 }
@@ -1541,4 +1543,57 @@ func (u *User) DeleteBankAccount(c *gin.Context) {
 	u.audit.Log(logentry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Bank account deleted successfully", nil))
+}
+
+// ListUserTransactions godoc
+// @Summary List user transactions
+// @Description Retrieves the list of transactions for the user
+// @Tags user
+// @Produce json
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/transactions [get]
+// @Security BearerAuth
+func (u *User) ListUserTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	transactions, err := u.userService.ListUserTransactions(c.Request.Context(), activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error("Failed to list user transactions", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to list user transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", transactions))
+}
+
+// GetTransactionDetails godoc
+// @Summary Get transaction details
+// @Description Retrieves the details of a specific transaction
+// @Tags user
+// @Produce json
+// @Param transaction_id path string true "Transaction ID" format(uuid)
+// @Failure 404 {object} basemodels.ErrorResponse
+// @Router /api/v1/user/transactions/{transaction_id} [get]
+// @Security BearerAuth
+func (u *User) GetTransactionDetails(c *gin.Context) {
+
+	transactionID, err := uuid.Parse(c.Param("transaction_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid transaction ID"))
+		return
+	}
+
+	transaction, err := u.userService.GetTansactionDetails(c.Request.Context(), transactionID)
+	if err != nil {
+		u.server.logger.Error("Failed to get transaction details", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get transaction details"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", transaction))
 }

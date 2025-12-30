@@ -864,7 +864,7 @@ SELECT
                     SELECT jsonb_build_object(
                         'user_id', qr.user_id,
                         'qr_code_id', qr.qr_code_id,
-                        'qr_code_type', qr.qr_code_type,
+                        'qr_order_id', qr.order_id,
                         'provider_transaction_id', qr.cryptomus_transaction_id,
                         'provider_order_id', qr.cryptomus_order_id,
                         'address_id', qr.cryptomus_address_id,
@@ -1995,6 +1995,77 @@ func (q *Queries) ListTransactionsByType(ctx context.Context, type_ string) ([]L
 			&i.AmountUsd,
 			&i.TransactionStatus,
 			&i.TransactionCreatedAt,
+			&i.UserID,
+			&i.UserFirstName,
+			&i.UserLastName,
+			&i.UserEmail,
+			&i.UserPhoneNumber,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUserTransactions = `-- name: ListUserTransactions :many
+SELECT
+    t.id AS transaction_id,
+    t.type AS transaction_type,
+    t.description AS transaction_description,
+    t.transaction_flow,
+    t.status AS transaction_status,
+    t.created_at AS transaction_created_at,
+    t.updated_at AS transaction_updated_at,
+    u.id AS user_id,
+    u.first_name AS user_first_name,
+    u.last_name AS user_last_name,
+    u.email AS user_email,
+    u.phone_number AS user_phone_number
+FROM transactions t
+JOIN users u ON u.id = t.user_id
+WHERE t.user_id = $1
+ORDER BY t.created_at DESC
+`
+
+type ListUserTransactionsRow struct {
+	TransactionID          uuid.UUID      `json:"transaction_id"`
+	TransactionType        string         `json:"transaction_type"`
+	TransactionDescription sql.NullString `json:"transaction_description"`
+	TransactionFlow        string         `json:"transaction_flow"`
+	TransactionStatus      string         `json:"transaction_status"`
+	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
+	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
+	UserID                 int64          `json:"user_id"`
+	UserFirstName          sql.NullString `json:"user_first_name"`
+	UserLastName           sql.NullString `json:"user_last_name"`
+	UserEmail              string         `json:"user_email"`
+	UserPhoneNumber        string         `json:"user_phone_number"`
+}
+
+func (q *Queries) ListUserTransactions(ctx context.Context, userID int64) ([]ListUserTransactionsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listUserTransactions, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListUserTransactionsRow{}
+	for rows.Next() {
+		var i ListUserTransactionsRow
+		if err := rows.Scan(
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.TransactionDescription,
+			&i.TransactionFlow,
+			&i.TransactionStatus,
+			&i.TransactionCreatedAt,
+			&i.TransactionUpdatedAt,
 			&i.UserID,
 			&i.UserFirstName,
 			&i.UserLastName,

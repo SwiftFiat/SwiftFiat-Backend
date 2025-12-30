@@ -3,6 +3,7 @@ package user_service
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -10,6 +11,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
@@ -423,4 +425,22 @@ func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {
 		return nil, fmt.Errorf("failed to list all kyc: %w", err)
 	}
 	return kycs, nil
+}
+
+func (u *UserService) ListUserTransactions(ctx context.Context, userID int64) ([]db.ListUserTransactionsRow, error) {
+	transactions, err := u.store.ListUserTransactions(ctx, userID)
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to list user transactions: %v", err))
+		return nil, fmt.Errorf("failed to list user transactions: %w", err)
+	}
+	return transactions, nil
+}
+
+func (u *UserService) GetTansactionDetails(ctx context.Context, transactionID uuid.UUID) (json.RawMessage, error) {
+	transaction, err := u.store.GetTransactionWithMetadata(ctx, transactionID)
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to get transaction details: %v", err))
+		return nil, fmt.Errorf("failed to get transaction details: %w", err)
+	}
+	return transaction, nil
 }

@@ -12456,6 +12456,43 @@ paths:
       summary: Get User Referral
       tags:
       - user
+  /api/v1/user/transactions:
+    get:
+      description: Retrieves the list of transactions for the user
+      produces:
+      - application/json
+      responses:
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List user transactions
+      tags:
+      - user
+  /api/v1/user/transactions/{transaction_id}:
+    get:
+      description: Retrieves the details of a specific transaction
+      parameters:
+      - description: Transaction ID
+        format: uuid
+        in: path
+        name: transaction_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get transaction details
+      tags:
+      - user
   /api/v1/user/update-name:
     put:
       consumes:
@@ -13844,6 +13881,123 @@ paths:
       summary: Get User Yield Summary
       tags:
       - vault
+  /api/v1/vault/yield/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Get yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Vault Yield
+      tags:
+      - vault
+  /api/v1/vault/yield/{id}/total:
+    get:
+      consumes:
+      - application/json
+      description: Get total yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Total Vault Yield
+      tags:
+      - vault
+  /api/v1/vault/yields/{id}:
+    get:
+      consumes:
+      - application/json
+      description: List yield details for a specific vault
+      parameters:
+      - description: Vault ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Limit
+        in: query
+        name: limit
+        type: integer
+      - description: Offset
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: List Vault Yields
+      tags:
+      - vault
   /api/v1/wallets:
     get:
       consumes:
@@ -14400,123 +14554,6 @@ paths:
       summary: User WebSocket Connection
       tags:
       - websocket
-  /api/v1/yield/{id}:
-    get:
-      consumes:
-      - application/json
-      description: Get yield details for a specific vault
-      parameters:
-      - description: Vault ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Vault Yield
-      tags:
-      - vault
-  /api/v1/yield/{id}/total:
-    get:
-      consumes:
-      - application/json
-      description: Get total yield details for a specific vault
-      parameters:
-      - description: Vault ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get Total Vault Yield
-      tags:
-      - vault
-  /api/v1/yields/{id}:
-    get:
-      consumes:
-      - application/json
-      description: List yield details for a specific vault
-      parameters:
-      - description: Vault ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Limit
-        in: query
-        name: limit
-        type: integer
-      - description: Offset
-        in: query
-        name: offset
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List Vault Yields
-      tags:
-      - vault
   /rate-manager/current-rate:
     get:
       description: Get current exchange rate with VIP adjustment applied
