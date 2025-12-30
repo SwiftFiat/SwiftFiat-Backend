@@ -360,7 +360,7 @@ func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUU
 		},
 		WalletUuid: walletUUID,
 		Uuid:       UUID,
-		OrderID:   orderID,
+		OrderID:    orderID,
 		Address:    walletAddress,
 		Network:    walletNetwork,
 		Currency:   walletCurrency,
@@ -401,19 +401,19 @@ func (u *UserService) ListUsers(ctx context.Context, limit, offset int32) ([]db.
 
 // ListAllActiveUsers returns all active users from the database
 func (s *UserService) ListAllActiveUsers(ctx context.Context) ([]*db.User, error) {
-    users, err := s.store.ListAllUsers(ctx)
-    if err != nil {
-        return nil, err
-    }
-    
-    activeUsers := make([]*db.User, 0)
-    for i := range users {
-        if users[i].IsActive {
-            activeUsers = append(activeUsers, &users[i])
-        }
-    }
-    
-    return activeUsers, nil
+	users, err := s.store.ListAllUsers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	activeUsers := make([]*db.User, 0)
+	for i := range users {
+		if users[i].IsActive {
+			activeUsers = append(activeUsers, &users[i])
+		}
+	}
+
+	return activeUsers, nil
 }
 
 func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {

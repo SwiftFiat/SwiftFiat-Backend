@@ -315,10 +315,10 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, userID
 
 	var fcmToken, expoToken string
 	for _, token := range *tokens {
-		switch token.Provider {
-		case "fcm":
+		switch service.PushProvider(token.Provider) {
+		case service.PushProviderFCM:
 			fcmToken = token.Token
-		case "expo":
+		case service.PushProviderExpo:
 			expoToken = token.Token
 		}
 	}
