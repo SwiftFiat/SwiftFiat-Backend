@@ -18,7 +18,7 @@ import (
 const (
 	ConfidenceThreshold = 0.55
 	OpenAIBaseURL       = "https://api.openai.com/v1"
-	OpenAIModel         = "GPT-5 Nano"
+	OpenAIModel         = "gpt-5-nano"
 	MaxContextMessages  = 10
 )
 
@@ -185,10 +185,10 @@ func (s *AIService) buildMessages(systemPrompt, userMessage string, context []Co
 // callOpenAI makes the API call to OpenAI
 func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessage) (string, error) {
 	reqBody := OpenAIRequest{
-		Model:       OpenAIModel,
-		Messages:    messages,
-		Temperature: 0.7,
-		MaxTokens:   500,
+		Model:               OpenAIModel,
+		Messages:            messages,
+		Temperature:         1,
+		MaxCompletionTokens: 500,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -199,7 +199,7 @@ func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessa
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
-		OpenAIBaseURL+"/chat/completions",
+		OpenAIBaseURL+"/chat/completions", //change to /responses
 		bytes.NewBuffer(jsonBody),
 	)
 	if err != nil {

@@ -15,10 +15,10 @@ var (
 	ErrAIServiceUnavailable = errors.New("AI service unavailable")
 	ErrInsufficientContext  = errors.New("insufficient context for AI response")
 
-	ErrAdminNotFound           = errors.New("support admin not found")
-	ErrAdminAlreadyExists      = errors.New("support admin profile already exists")
-	ErrInvalidStatus           = errors.New("invalid status")
-	ErrMaxConcurrentExceeded   = errors.New("maximum concurrent tickets exceeded")
+	ErrAdminNotFound         = errors.New("support admin not found")
+	ErrAdminAlreadyExists    = errors.New("support admin profile already exists")
+	ErrInvalidStatus         = errors.New("invalid status")
+	ErrMaxConcurrentExceeded = errors.New("maximum concurrent tickets exceeded")
 )
 
 type CreateTicketParams struct {
@@ -89,10 +89,10 @@ type FAQSource struct {
 }
 
 type OpenAIRequest struct {
-	Model       string                `json:"model"`
-	Messages    []ConversationMessage `json:"messages"`
-	Temperature float64               `json:"temperature"`
-	MaxTokens   int                   `json:"max_tokens"`
+	Model               string                `json:"model"`
+	Messages            []ConversationMessage `json:"messages"`
+	Temperature         float64               `json:"temperature"`
+	MaxCompletionTokens int                   `json:"max_completion_tokens,omitempty"`
 }
 
 type OpenAIResponse struct {
@@ -116,6 +116,6 @@ type OpenAIResponse struct {
 }
 
 type CreateSupportAdminParams struct {
-	UserID              int64
+	UserID               int64
 	MaxConcurrentTickets int32
 }
