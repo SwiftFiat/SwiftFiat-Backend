@@ -470,7 +470,7 @@ func (v *Vault) getProgress(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/yield/{id} [get]
+// @Router /api/v1/vault/yield/{id} [get]
 func (v *Vault) getVaultYield(ctx *gin.Context) {
 	settings, err := v.server.queries.GetSystemSettings(ctx)
 	if err != nil {
@@ -530,7 +530,7 @@ func (v *Vault) getVaultYield(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/yields/{id} [get]
+// @Router /api/v1/vault/yields/{id} [get]
 func (v *Vault) ListVaultYeilds(ctx *gin.Context) {
 	settings, err := v.server.queries.GetSystemSettings(ctx)
 	if err != nil {
@@ -600,7 +600,7 @@ func (v *Vault) ListVaultYeilds(ctx *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/yield/{id}/total [get]
+// @Router /api/v1/vault/yield/{id}/total [get]
 func (v *Vault) GetTotalVaultYields(ctx *gin.Context) {
 	settings, err := v.server.queries.GetSystemSettings(ctx)
 	if err != nil {

@@ -1365,6 +1365,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		Amount:          req.Amount,
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
+		UserID:          req.UserID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
