@@ -72,10 +72,10 @@ func (r *RateManagerHandler) CreateVIPLevel(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	user, err := r.server.queries.GetUserByID(c, activeUser.UserID)
 	if err != nil {
@@ -613,7 +613,7 @@ func (r *RateManagerHandler) GetCurrentRateWithAdjustment(c *gin.Context) {
 // @Success 200 {object} ratemanager.UserVIPAssignmentResponse
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
-// @Router /admin/rate-manager/vip-assignments [post]
+// @Router/rate-manager/admin/vip-assignments [post]
 func (r *RateManagerHandler) AssignUserToVIPLevel(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -622,10 +622,10 @@ func (r *RateManagerHandler) AssignUserToVIPLevel(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	var req ratemanager.AssignVIPLevelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

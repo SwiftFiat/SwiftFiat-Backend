@@ -4,14 +4,23 @@ meta {
   seq: 1
 }
 
-get {
+post {
   url: {{BaseURl}}/rate-manager/admin/vip-levels
-  body: none
+  body: json
   auth: bearer
 }
 
 auth:bearer {
   token: {{token}}
+}
+
+body:json {
+  {
+    "level_name": "test level",
+    "level_code": "TSL",
+    "level_rank": 1,
+    "min_transaction_volume": "500"
+  }
 }
 
 settings {

@@ -779,9 +779,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(tx.Type),
+			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: transactionFlow,
+			TransactionFlow: string(Outflow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),

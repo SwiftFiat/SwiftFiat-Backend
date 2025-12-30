@@ -427,6 +427,15 @@ func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {
 	return kycs, nil
 }
 
+func (u *UserService) ListActiveUserTokens(ctx context.Context) ([]db.UserToken, error) {
+	tokens, err := u.store.ListActiveUserTokens(ctx)
+	if err != nil {
+		u.logger.Error(fmt.Sprintf("failed to list active user tokens: %v", err))
+		return nil, fmt.Errorf("failed to list active user tokens: %w", err)
+	}
+	return tokens, nil
+}
+
 func (u *UserService) ListUserTransactions(ctx context.Context, userID int64) ([]db.ListUserTransactionsRow, error) {
 	transactions, err := u.store.ListUserTransactions(ctx, userID)
 	if err != nil {
