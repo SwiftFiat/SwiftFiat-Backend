@@ -813,9 +813,9 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 
 		response := TransactionResponse[SwapTransferMetadataResponse]{
 			ID:              tObj.ID,
-			Type:            string(Transfer),
+			Type:            string(tx.Type),
 			Description:     tx.Description,
-			TransactionFlow: string(Outflow),
+			TransactionFlow: string(currFlow),
 			Status:          string(Success),
 			CreatedAt:       tObj.CreatedAt,
 			UpdatedAt:       tObj.UpdatedAt,
