@@ -489,6 +489,32 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 	return bridgeResponse, nil
 }
 
+func (s *Service) AdminFreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+
+	cardDetails, err := s.bridgeCard.FreezeCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("freeze card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: string(VirtualCardStatusFrozen),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
+	}
+
+	// TODO: send notifications
+
+	return cardDetails, nil
+}
+
 func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
 	// check if card belongs to user
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
@@ -517,6 +543,33 @@ func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (
 
 	return cardDetails, nil
 }
+
+func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+
+	cardDetails, err := s.bridgeCard.UnfreezeCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("unfreeze card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: string(VirtualCardStatusActive),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
+	}
+
+	// TODO: send notifications
+
+	return cardDetails, nil
+}
+
 
 func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
 	// check if card belongs to user
@@ -558,6 +611,41 @@ func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardP
 	}
 	// TODO: send notifications
 	return s.bridgeCard.UpdateCardPin(ctx, req)
+}
+
+func (s *Service) AdminDeleteCard(ctx context.Context, cardID string, userID int64) (*bridgecards.CardResponse, error) {
+	// check if card belongs to user
+	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+	}
+
+	cardDetails, err := s.bridgeCard.DeleteCard(ctx, cardID)
+	if err != nil {
+		return nil, fmt.Errorf("delete card via bridgecard error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.TerminateCard(ctx, db.TerminateCardParams{
+		ID:     card.ID,
+		UserID: userID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("terminate card error: %w", err)
+	}
+
+	// update virtual card status
+	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+		ID:     card.ID,
+		Status: string(VirtualCardStatusTerminated),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update virtual card status error: %w", err)
+	}
+
+	// TODO: send notifications
+
+	return cardDetails, nil
 }
 
 func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (*bridgecards.CardResponse, error) {
