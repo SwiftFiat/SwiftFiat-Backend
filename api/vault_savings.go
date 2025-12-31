@@ -1788,6 +1788,7 @@ func (v *Vault) pauseRecurring(ctx *gin.Context) {
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", ctx.Param("id"))
 	v.audit.Log(auditLog)
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("recurring deposits paused successfully", nil))
 }
 
 // AdminPauseRecurring godoc
@@ -1812,10 +1813,10 @@ func (v *Vault) AdminPauseRecurring(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	vaultID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -1847,6 +1848,8 @@ func (v *Vault) AdminPauseRecurring(ctx *gin.Context) {
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", goal.ID.String())
 	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("recurring deposits paused successfully", nil))
 }
 
 // resumeRecurring godoc
@@ -1871,10 +1874,10 @@ func (v *Vault) resumeRecurring(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	vaultID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -1896,9 +1899,11 @@ func (v *Vault) resumeRecurring(ctx *gin.Context) {
 		return
 	}
 
-	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
+	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", ctx.Param("id"), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", ctx.Param("id"))
 	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("recurring deposits resumed successfully", nil))
 }
 
 // AdminResumeRecurring godoc
@@ -1923,10 +1928,10 @@ func (v *Vault) AdminResumeRecurring(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	vaultID, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
@@ -1957,6 +1962,8 @@ func (v *Vault) AdminResumeRecurring(ctx *gin.Context) {
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", goal.ID.String())
 	v.audit.Log(auditLog)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("recurring deposits resumed successfully", nil))
 }
 
 func (v *Vault) updateRecurringEnabled(ctx *gin.Context, enabled *bool) {
