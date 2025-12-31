@@ -644,7 +644,7 @@ func (v *Virtualcard) AdminFreezeCard(c *gin.Context) {
 		return
 	}
 
-	response, err := v.virtualCardSvc.FreezeCard(c, cardID, activeUser.UserID)
+	response, err := v.virtualCardSvc.AdminFreezeCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -717,7 +717,7 @@ func (v *Virtualcard) AdminUnfreezeCard(c *gin.Context) {
 		return
 	}
 
-	response, err := v.virtualCardSvc.UnfreezeCard(c, cardID, activeUser.UserID)
+	response, err := v.virtualCardSvc.AdminUnfreezeCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -864,7 +864,7 @@ func (v *Virtualcard) DeleteCard(c *gin.Context) {
 		return
 	}
 
-	response, err := v.virtualCardSvc.DeleteCard(c, cardID, activeUser.UserID)
+	response, err := v.virtualCardSvc.AdminDeleteCard(c, cardID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
