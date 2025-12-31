@@ -280,10 +280,10 @@ INSERT INTO user_vip_assignments (
     assigned_by,
     assignment_type,
     total_transaction_volume,
-    total_conversion_count,
+    -- total_conversion_count,
     expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
+    $1, $2, $3, $4, $5, $6
 )
 ON CONFLICT (user_id) WHERE is_active = TRUE
 DO UPDATE SET

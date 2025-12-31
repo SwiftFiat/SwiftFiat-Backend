@@ -49,6 +49,7 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.PUT("/update-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.UpdateSystemSettings)
 	serverGroupV1.GET("/schedulers/stats", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetSchedulerStats)
 	serverGroupV1.POST("/schedulers/trigger", h.server.authMiddleware.AuthenticatedMiddleware(), h.TriggerSchedulerTask)
+	serverGroupV1.GET("/daily-transactions-summary", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDailyTransactions)
 }
 
 type UpdateSystemSettingsRequest struct {
@@ -1009,4 +1010,33 @@ func (h *Analytics) TriggerSchedulerTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("Task '%s' triggered successfully", req.TaskName), nil))
+}
+
+// GetDailyTransactions godoc
+// @Summary      Get Daily Transactions
+// @Description  Retrieve daily transaction summaries. Accessible only by admin.
+// @Tags         Analytics
+// @Accept       json
+// @Produce      json
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Failure      403  {object}  basemodels.ErrorResponse
+// @Failure      500  {object}  basemodels.ErrorResponse
+// @Security     BearerAuth
+// @Router       /api/v1/analytics/daily-transactions-summary [get]
+func(h *Analytics) GetDailyTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.ADMIN {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	dailyTransactions, err := h.server.queries.GetDailyTransactionSummary(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get daily transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Daily transactions retrieved successfully", dailyTransactions))
 }

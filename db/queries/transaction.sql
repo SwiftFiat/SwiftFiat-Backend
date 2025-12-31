@@ -974,7 +974,7 @@ JOIN users u ON u.id = t.user_id
 WHERE t.type = $1
 ORDER BY t.created_at DESC;
 
-
+ 
 
 -- name: GetTotalTransactions :one
 SELECT
@@ -1084,3 +1084,78 @@ FROM transactions t
 JOIN users u ON u.id = t.user_id
 WHERE t.user_id = $1
 ORDER BY t.created_at DESC;
+
+-- name: GetDailyTransactionSummary :many
+SELECT 
+    date,
+    SUM(crypto_usd) AS crypto_total_usd,
+    SUM(giftcard_usd) AS giftcard_total_usd,
+    SUM(bill_ngn) AS bill_payment_total_ngn,
+    SUM(virtual_cards) AS virtual_cards_created,
+    SUM(vaults) AS vaults_created
+FROM (
+    -- Crypto transactions (amount in USD)
+    SELECT 
+        DATE(created_at) AS date,
+        amount_usd AS crypto_usd,
+        0 AS giftcard_usd,
+        0 AS bill_ngn,
+        0 AS virtual_cards,
+        0 AS vaults
+    FROM transactions 
+    WHERE type = 'crypto' AND status = 'successful'
+    
+    UNION ALL
+    
+    -- Giftcard transactions (amount in USD)
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        amount_usd,
+        0,
+        0,
+        0
+    FROM transactions 
+    WHERE type = 'giftcard' AND status = 'successful'
+    
+    UNION ALL
+    
+    -- Bill payments (services like airtime, data, tv_subscription, utility_payment, electricity in NGN)
+    SELECT 
+        DATE(t.created_at) AS date,
+        0,
+        0,
+        CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END,
+        0,
+        0
+    FROM transactions t
+    JOIN services_metadata sm ON t.id = sm.transaction_id
+    WHERE t.type = 'service' AND t.status = 'successful'
+    
+    UNION ALL
+    
+    -- Virtual cards created
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        0,
+        0,
+        1,
+        0
+    FROM virtual_cards
+    WHERE terminated_at IS NULL
+    
+    UNION ALL
+    
+    -- Vaults created
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        0,
+        0,
+        0,
+        1
+    FROM vault_savings
+) AS daily_data
+GROUP BY date
+ORDER BY date DESC;

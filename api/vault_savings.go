@@ -1853,8 +1853,37 @@ func (v *Vault) AdminPauseRecurring(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/vault/goals/{id}/recurring/resume [post]
 func (v *Vault) resumeRecurring(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		v.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	vaultID, err := uuid.Parse(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid vault ID"))
+		return
+	}
+
 	enabled := true
-	v.updateRecurringEnabled(ctx, &enabled)
+	// v.updateRecurringEnabled(ctx, &enabled)
+	req := vaultsavings.UpdateRecurringRuleRequest{
+		Enabled: &enabled,
+	}
+
+	// v.updateRecurringEnabled(ctx, &enabled)
+	err = v.vaultService.UpdateRecurringRule(ctx.Request.Context(), vaultID, req)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to update recurring rule: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update recurring deposits"))
+		return
+	}
 
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", ctx.Param("id"), "", nil, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", ctx.Param("id"))
@@ -1902,7 +1931,17 @@ func (v *Vault) AdminResumeRecurring(ctx *gin.Context) {
 	}
 
 	enabled := true
-	v.updateRecurringEnabled(ctx, &enabled)
+	req := vaultsavings.UpdateRecurringRuleRequest{
+		Enabled: &enabled,
+	}
+
+	// v.updateRecurringEnabled(ctx, &enabled)
+	err = v.vaultService.UpdateRecurringRule(ctx.Request.Context(), vaultID, req)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to update recurring rule: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update recurring deposits"))
+		return
+	}
 
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRuleResumed, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s resumed", goal.ID.String())

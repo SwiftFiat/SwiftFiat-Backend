@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
     "received_amount" DECIMAL(19,4), -- amount received by other party
     "sent_amount" DECIMAL(19,4), -- amount sent by current party
     CONSTRAINT "unique_swift_wallet_transaction" UNIQUE (transaction_id)
-);
+); 
 
 -- Crypto transaction metadata
 CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (

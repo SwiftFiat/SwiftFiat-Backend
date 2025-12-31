@@ -1195,6 +1195,12 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		ID:        newUser.ID,
 	})
 
+	a.server.queries.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
+		Verified:  true,
+		UpdatedAt: time.Now(),
+		ID:        newUser.ID,
+	})
+
 	// Enable 2FA for admin user with TOTP secret
 	if _, err := qtx.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
 		ID:           int64(newUser.ID),
@@ -1403,7 +1409,7 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
 	if err != nil {
 		errMsg := err.Error()
-		
+
 		// Log audit
 		entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s changed passcode", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
@@ -1554,7 +1560,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeCreated, fmt.Sprintf("User %s created passcode", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
-	
+
 	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
@@ -1861,7 +1867,6 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s changed password", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
-
 	userResponse := models.UserResponse{}.ToUserResponse(&user)
 	/// Delete user token from redis
 	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
@@ -1931,7 +1936,6 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 
 	entry := audit.NewAuthenticationLog(ctx, audit.EventAccountDeleted, fmt.Sprintf("User %s deleted account", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
-
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("account deleted successfully", nil))
 }
