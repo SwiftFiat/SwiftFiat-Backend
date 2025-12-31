@@ -395,6 +395,121 @@ func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTran
 	return i, err
 }
 
+const getDailyTransactionSummary = `-- name: GetDailyTransactionSummary :many
+SELECT 
+    date,
+    SUM(crypto_usd) AS crypto_total_usd,
+    SUM(giftcard_usd) AS giftcard_total_usd,
+    SUM(bill_ngn) AS bill_payment_total_ngn,
+    SUM(virtual_cards) AS virtual_cards_created,
+    SUM(vaults) AS vaults_created
+FROM (
+    -- Crypto transactions (amount in USD)
+    SELECT 
+        DATE(created_at) AS date,
+        amount_usd AS crypto_usd,
+        0 AS giftcard_usd,
+        0 AS bill_ngn,
+        0 AS virtual_cards,
+        0 AS vaults
+    FROM transactions 
+    WHERE type = 'crypto' AND status = 'successful'
+    
+    UNION ALL
+    
+    -- Giftcard transactions (amount in USD)
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        amount_usd,
+        0,
+        0,
+        0
+    FROM transactions 
+    WHERE type = 'giftcard' AND status = 'successful'
+    
+    UNION ALL
+    
+    -- Bill payments (services like airtime, data, tv_subscription, utility_payment, electricity in NGN)
+    SELECT 
+        DATE(t.created_at) AS date,
+        0,
+        0,
+        CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END,
+        0,
+        0
+    FROM transactions t
+    JOIN services_metadata sm ON t.id = sm.transaction_id
+    WHERE t.type = 'service' AND t.status = 'successful'
+    
+    UNION ALL
+    
+    -- Virtual cards created
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        0,
+        0,
+        1,
+        0
+    FROM virtual_cards
+    WHERE terminated_at IS NULL
+    
+    UNION ALL
+    
+    -- Vaults created
+    SELECT 
+        DATE(created_at) AS date,
+        0,
+        0,
+        0,
+        0,
+        1
+    FROM vault_savings
+) AS daily_data
+GROUP BY date
+ORDER BY date DESC
+`
+
+type GetDailyTransactionSummaryRow struct {
+	Date                time.Time `json:"date"`
+	CryptoTotalUsd      int64     `json:"crypto_total_usd"`
+	GiftcardTotalUsd    int64     `json:"giftcard_total_usd"`
+	BillPaymentTotalNgn int64     `json:"bill_payment_total_ngn"`
+	VirtualCardsCreated int64     `json:"virtual_cards_created"`
+	VaultsCreated       int64     `json:"vaults_created"`
+}
+
+func (q *Queries) GetDailyTransactionSummary(ctx context.Context) ([]GetDailyTransactionSummaryRow, error) {
+	rows, err := q.db.QueryContext(ctx, getDailyTransactionSummary)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetDailyTransactionSummaryRow{}
+	for rows.Next() {
+		var i GetDailyTransactionSummaryRow
+		if err := rows.Scan(
+			&i.Date,
+			&i.CryptoTotalUsd,
+			&i.GiftcardTotalUsd,
+			&i.BillPaymentTotalNgn,
+			&i.VirtualCardsCreated,
+			&i.VaultsCreated,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPendingTransactions = `-- name: GetPendingTransactions :many
 SELECT id, user_id, type, description, transaction_flow, amount, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE status = 'pending'

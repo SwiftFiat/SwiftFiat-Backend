@@ -61,7 +61,7 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
     "reference" VARCHAR(100) UNIQUE, -- for idempotency
     "description" VARCHAR(255),
     "metadata" JSONB,
-    
+     
     -- Status tracking
     "status" VARCHAR(20) DEFAULT 'pending' CHECK(status IN ('pending', 'successful', 'failed', 'cancelled')),
     

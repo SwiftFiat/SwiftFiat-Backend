@@ -22,6 +22,7 @@ INSERT INTO user_vip_assignments (
     assigned_by,
     assignment_type,
     total_transaction_volume,
+    -- total_conversion_count,
     expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6
