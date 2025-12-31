@@ -1831,7 +1831,18 @@ func (v *Vault) AdminPauseRecurring(ctx *gin.Context) {
 	}
 
 	enabled := false
-	v.updateRecurringEnabled(ctx, &enabled)
+	// v.updateRecurringEnabled(ctx, &enabled)
+	req := vaultsavings.UpdateRecurringRuleRequest{
+		Enabled: &enabled,
+	}
+
+	// v.updateRecurringEnabled(ctx, &enabled)
+	err = v.vaultService.UpdateRecurringRule(ctx.Request.Context(), vaultID, req)
+	if err != nil {
+		v.server.logger.Error(fmt.Sprintf("failed to update recurring rule: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update recurring deposits"))
+		return
+	}
 
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultRecurringRulePaused, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Recurring deposits for vault %s paused", goal.ID.String())
