@@ -4,12 +4,28 @@ meta {
   seq: 7
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/rate-manager/admin/simulate
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "source_currency": "USD",
+    "target_currency": "NGN",
+    "amount": "100",
+    "adjustment_type": "fixed",
+    "adjustment_value": "200",
+    "adjustment_direction": "add"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
