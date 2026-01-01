@@ -1,8 +1,8 @@
 package api
 
 import (
-	"fmt"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -27,7 +27,7 @@ type Rewards struct {
 func (r Rewards) router(server *Server) {
 	r.server = server
 	r.rewardService = server.rewardService
-	r.audit = server.auditService	
+	r.audit = server.auditService
 
 	// User endpoints
 	rewards := server.router.Group("/api/v1/rewards")
@@ -38,17 +38,17 @@ func (r Rewards) router(server *Server) {
 		rewards.GET("/history", r.getUserRewardHistory)
 		rewards.GET("/activity", r.getRecentRewardActivity)
 	}
-		// Configuration management
-		rewards.POST("/admin/configure", r.createRewardConfiguration)
-		rewards.GET("/admin/config", r.getRewardConfiguration)
-		rewards.GET("/admin/configurations", r.listRewardConfigurations)
-		rewards.PUT("/admin/configure/:id", r.updateRewardConfiguration)
-		rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
-		rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
+	// Configuration management
+	rewards.POST("/admin/configure", r.createRewardConfiguration)
+	rewards.GET("/admin/config", r.getRewardConfiguration)
+	rewards.GET("/admin/configurations", r.listRewardConfigurations)
+	rewards.PUT("/admin/configure/:id", r.updateRewardConfiguration)
+	rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
+	rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
 
-		// Analytics
-		rewards.GET("/admin/statistics", r.getRewardStatistics)
-		rewards.GET("/admin/top-users", r.getTopRewardUsers)
+	// Analytics
+	rewards.GET("/admin/statistics", r.getRewardStatistics)
+	rewards.GET("/admin/top-users", r.getTopRewardUsers)
 }
 
 // ============================================================================
@@ -341,11 +341,11 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		nil,
 	)
 	entry.Metadata = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": config.ConfigName,
-		"reward_rate": config.RewardRate,
+		"time":             time.Now().Format(time.RFC3339),
+		"config_name":      config.ConfigName,
+		"reward_rate":      config.RewardRate,
 		"transaction_type": config.TransactionType,
-		"is_active": config.IsActive,
+		"is_active":        config.IsActive,
 	}
 	r.audit.Log(entry)
 
@@ -494,6 +494,7 @@ func (r *Rewards) listRewardConfigurations(ctx *gin.Context) {
 // @Router /api/v1/admin/rewards/configure/{id} [put]
 // @Security BearerAuth
 func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
+	// 1. System settings
 	settings, err := r.server.queries.GetSystemSettings(ctx)
 	if err != nil {
 		r.server.logger.Error("Failed to get system settings", "error", err)
@@ -505,93 +506,97 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
+	// 2. Auth
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		r.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
 	if activeUser.Role != models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
+	// 3. Path param
 	configID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Invalid configuration ID"})
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid configuration id"))
 		return
 	}
 
-	oldConfig, err := r.server.queries.GetRewardConfigurationByID(ctx.Request.Context(), configID)
+	// 4. Load old config for audit
+	oldConfig, err := r.server.queries.GetRewardConfigurationByID(ctx, configID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("reward configuration not found"))
 		return
 	}
 
+	// 5. Bind request
 	var req rewards.UpdateRewardConfigRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	rewardRate, err := decimal.NewFromString(*req.RewardRate)
+	// 6. Validate reward rate ONLY if provided
+	if req.RewardRate != "" {
+		rate, err := decimal.NewFromString(req.RewardRate)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid reward rate format"))
+			return
+		}
+		if rate.LessThanOrEqual(decimal.Zero) || rate.GreaterThan(decimal.NewFromInt(1)) {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(
+				"reward rate must be between 0 and 1",
+			))
+			return
+		}
+	}
+
+	// 7. Perform partial update
+	updated, err := r.rewardService.UpdateRewardConfiguration(
+		ctx,
+		configID,
+		req,
+	)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	// Validate reward rate if provided
-	if req.RewardRate != nil && (rewardRate.LessThanOrEqual(decimal.Zero) || rewardRate.GreaterThan(decimal.NewFromInt(1))) {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Reward rate must be between 0 and 1 (0% to 100%)"})
-		return
-	}
-
-	config, err := r.rewardService.UpdateRewardConfiguration(ctx.Request.Context(), configID, req)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	// audit log
+	// 8. Audit log
 	entry := audit.NewLog(
 		ctx,
 		audit.CategoryRewards,
 		audit.EventUpdateRewardConfig,
-		fmt.Sprint(config.ID),
-		"Reward configuration updated successfully",
+		fmt.Sprint(updated.ID),
+		"Reward configuration updated",
 		&activeUser.UserID,
 		activeUser.Role,
 		true,
 		nil,
 	)
-	entry.Metadata = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": config.ConfigName,
-		"reward_rate": config.RewardRate,
-		"transaction_type": config.TransactionType,
-		"is_active": config.IsActive,
-	}
 
 	entry.OldValues = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": oldConfig.ConfigName,
-		"reward_rate": oldConfig.RewardRate,
+		"config_name":      oldConfig.ConfigName,
+		"reward_rate":      oldConfig.RewardRate,
 		"transaction_type": oldConfig.TransactionType,
-		"is_active": oldConfig.IsActive,
+		"is_active":        oldConfig.IsActive,
 	}
 
 	entry.NewValues = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": config.ConfigName,
-		"reward_rate": config.RewardRate,
-		"transaction_type": config.TransactionType,
-		"is_active": config.IsActive,
+		"config_name":      updated.ConfigName,
+		"reward_rate":      updated.RewardRate,
+		"transaction_type": updated.TransactionType,
+		"is_active":        updated.IsActive,
 	}
+
 	r.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("", config))
+	// 9. Response
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("updated", updated))
 }
+
 
 // activateRewardConfiguration godoc
 // @Summary Activate reward configuration (Admin)
@@ -656,11 +661,11 @@ func (r *Rewards) activateRewardConfiguration(ctx *gin.Context) {
 		nil,
 	)
 	entry.Metadata = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": config.ConfigName,
-		"reward_rate": config.RewardRate,
+		"time":             time.Now().Format(time.RFC3339),
+		"config_name":      config.ConfigName,
+		"reward_rate":      config.RewardRate,
 		"transaction_type": config.TransactionType,
-		"is_active": config.IsActive,
+		"is_active":        config.IsActive,
 	}
 	r.audit.Log(entry)
 
@@ -730,11 +735,11 @@ func (r *Rewards) deactivateRewardConfiguration(ctx *gin.Context) {
 		nil,
 	)
 	entry.Metadata = map[string]any{
-		"time": time.Now().Format(time.RFC3339),
-		"config_name": config.ConfigName,
-		"reward_rate": config.RewardRate,
+		"time":             time.Now().Format(time.RFC3339),
+		"config_name":      config.ConfigName,
+		"reward_rate":      config.RewardRate,
 		"transaction_type": config.TransactionType,
-		"is_active": config.IsActive,
+		"is_active":        config.IsActive,
 	}
 	r.audit.Log(entry)
 
@@ -826,7 +831,7 @@ func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		r.server.logger.Error(err.Error())
