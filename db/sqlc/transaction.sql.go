@@ -2135,7 +2135,9 @@ SELECT
     t.type AS transaction_type,
     t.description AS transaction_description,
     t.transaction_flow,
-    t.status AS transaction_status,
+    t.status AS transaction_status, 
+    t.amount AS amount,
+    t.currency AS currency,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
     u.id AS user_id,
@@ -2155,6 +2157,8 @@ type ListUserTransactionsRow struct {
 	TransactionDescription sql.NullString `json:"transaction_description"`
 	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
+	Amount                 string         `json:"amount"`
+	Currency               string         `json:"currency"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
 	UserID                 int64          `json:"user_id"`
@@ -2179,6 +2183,8 @@ func (q *Queries) ListUserTransactions(ctx context.Context, userID int64) ([]Lis
 			&i.TransactionDescription,
 			&i.TransactionFlow,
 			&i.TransactionStatus,
+			&i.Amount,
+			&i.Currency,
 			&i.TransactionCreatedAt,
 			&i.TransactionUpdatedAt,
 			&i.UserID,
