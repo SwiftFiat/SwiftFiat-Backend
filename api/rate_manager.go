@@ -481,12 +481,19 @@ func (r *RateManagerHandler) DeleteRateAdjustmentRule(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		r.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("apistrings.UnauthorizedAccess"))
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	user, err := r.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		r.server.logger.Errorf("failed to get user: %v", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user"))
 		return
 	}
 
@@ -496,9 +503,12 @@ func (r *RateManagerHandler) DeleteRateAdjustmentRule(c *gin.Context) {
 		return
 	}
 
-	_ = id
-	// Implement DeleteRateAdjustmentRule in service
-	c.JSON(http.StatusNotImplemented, basemodels.NewSuccess("Not yet implemented", nil))
+	err = r.service.DeleteRateAdjustmentRule(c.Request.Context(), id, &user)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Rule deleted successfully", nil))
 }
 
 

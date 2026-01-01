@@ -1,0 +1,20 @@
+meta {
+  name: Delete rule
+  type: http
+  seq: 8
+}
+
+delete {
+  url: {{BaseURl}}/rate-manager/admin/rules/32f6319c-ac0c-4986-91a4-76eaacc03c31
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

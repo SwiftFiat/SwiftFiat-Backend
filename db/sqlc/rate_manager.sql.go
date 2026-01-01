@@ -528,45 +528,14 @@ func (q *Queries) DeactivateVIPAssignment(ctx context.Context, id uuid.UUID) (Us
 	return i, err
 }
 
-const deleteRateAdjustmentRule = `-- name: DeleteRateAdjustmentRule :one
-UPDATE rate_adjustment_rules
-SET deleted_at = NOW(), updated_by = $2
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, rule_name, rule_description, vip_level_id, is_global_rule, source_currency, target_currency, adjustment_type, adjustment_value, adjustment_direction, priority, min_conversion_amount, max_conversion_amount, valid_from, valid_until, is_active, created_by, updated_by, created_at, updated_at, deleted_at
+const deleteRateAdjustmentRule = `-- name: DeleteRateAdjustmentRule :exec
+DELETE FROM rate_adjustment_rules
+WHERE id = $1
 `
 
-type DeleteRateAdjustmentRuleParams struct {
-	ID        uuid.UUID     `json:"id"`
-	UpdatedBy sql.NullInt64 `json:"updated_by"`
-}
-
-func (q *Queries) DeleteRateAdjustmentRule(ctx context.Context, arg DeleteRateAdjustmentRuleParams) (RateAdjustmentRule, error) {
-	row := q.db.QueryRowContext(ctx, deleteRateAdjustmentRule, arg.ID, arg.UpdatedBy)
-	var i RateAdjustmentRule
-	err := row.Scan(
-		&i.ID,
-		&i.RuleName,
-		&i.RuleDescription,
-		&i.VipLevelID,
-		&i.IsGlobalRule,
-		&i.SourceCurrency,
-		&i.TargetCurrency,
-		&i.AdjustmentType,
-		&i.AdjustmentValue,
-		&i.AdjustmentDirection,
-		&i.Priority,
-		&i.MinConversionAmount,
-		&i.MaxConversionAmount,
-		&i.ValidFrom,
-		&i.ValidUntil,
-		&i.IsActive,
-		&i.CreatedBy,
-		&i.UpdatedBy,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-	)
-	return i, err
+func (q *Queries) DeleteRateAdjustmentRule(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.ExecContext(ctx, deleteRateAdjustmentRule, id)
+	return err
 }
 
 const deleteRateAdminNotification = `-- name: DeleteRateAdminNotification :exec
@@ -1014,7 +983,7 @@ func (q *Queries) GetRateAdjustmentImpact(ctx context.Context, arg GetRateAdjust
 
 const getRateAdjustmentRuleByID = `-- name: GetRateAdjustmentRuleByID :one
 SELECT id, rule_name, rule_description, vip_level_id, is_global_rule, source_currency, target_currency, adjustment_type, adjustment_value, adjustment_direction, priority, min_conversion_amount, max_conversion_amount, valid_from, valid_until, is_active, created_by, updated_by, created_at, updated_at, deleted_at FROM rate_adjustment_rules
-WHERE id = $1 AND deleted_at IS NULL
+WHERE id = $1
 `
 
 func (q *Queries) GetRateAdjustmentRuleByID(ctx context.Context, id uuid.UUID) (RateAdjustmentRule, error) {

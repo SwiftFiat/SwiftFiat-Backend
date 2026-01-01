@@ -131,7 +131,7 @@ INSERT INTO rate_adjustment_rules (
 
 -- name: GetRateAdjustmentRuleByID :one
 SELECT * FROM rate_adjustment_rules
-WHERE id = $1 AND deleted_at IS NULL;
+WHERE id = $1;
 
 -- name: ListRateAdjustmentRules :many
 SELECT 
@@ -234,11 +234,9 @@ SET
 WHERE id = $1 AND deleted_at IS NULL
 RETURNING *;
 
--- name: DeleteRateAdjustmentRule :one
-UPDATE rate_adjustment_rules
-SET deleted_at = NOW(), updated_by = $2
-WHERE id = $1 AND deleted_at IS NULL
-RETURNING *;
+-- name: DeleteRateAdjustmentRule :exec
+DELETE FROM rate_adjustment_rules
+WHERE id = $1;
 
 -- name: ToggleRateAdjustmentRule :one
 UPDATE rate_adjustment_rules

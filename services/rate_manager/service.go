@@ -625,10 +625,7 @@ func (s *Service) DeleteRateAdjustmentRule(ctx context.Context, id uuid.UUID, us
 	}
 
 	// Delete
-	_, err = s.store.DeleteRateAdjustmentRule(ctx, db.DeleteRateAdjustmentRuleParams{
-		ID:        id,
-		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
-	})
+	err = s.store.DeleteRateAdjustmentRule(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete rate adjustment rule: %w", err)
 	}
