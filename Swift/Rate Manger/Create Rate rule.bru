@@ -1,0 +1,33 @@
+meta {
+  name: Create Rate rule
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BaseURl}}/rate-manager/admin/rules
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "rule_name": "test rule",
+    "vip_level_id": "49896726-2ec7-406b-b642-00eea2f90656",
+    "is_global_rule": false,
+    "source_currency": "USD",
+    "target_currency": "NGN",
+    "adjustment_direction": "add",
+    "adjustment_value": "10",
+    "adjustment_type": "fixed"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

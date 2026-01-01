@@ -14,72 +14,72 @@ import (
 // =====================================================
 
 type VIPLevel struct {
-	ID                   uuid.UUID        `json:"id"`
-	LevelName            string           `json:"level_name"`
-	LevelCode            string           `json:"level_code"`
-	LevelRank            int32            `json:"level_rank"`
-	MinTransactionVolume string  `json:"min_transaction_volume"`
-	MinMonthlyVolume     *string `json:"min_monthly_volume,omitempty"`
-	MinConversionCount   *int32           `json:"min_conversion_count,omitempty"`
-	Description          *string          `json:"description,omitempty"`
-	BenefitsDescription  *string          `json:"benefits_description,omitempty"`
-	BadgeColor           *string          `json:"badge_color,omitempty"`
-	IconURL              *string          `json:"icon_url,omitempty"`
-	IsActive             bool             `json:"is_active"`
-	IsDefault            bool             `json:"is_default"`
-	CreatedBy            *int64           `json:"created_by,omitempty"`
-	UpdatedBy            *int64           `json:"updated_by,omitempty"`
-	CreatedAt            time.Time        `json:"created_at"`
-	UpdatedAt            time.Time        `json:"updated_at"`
-	DeletedAt            *time.Time       `json:"deleted_at,omitempty"`
+	ID                  uuid.UUID  `json:"id"`
+	LevelName           string     `json:"level_name"`
+	LevelCode           string     `json:"level_code"`
+	LevelRank           int32      `json:"level_rank"`
+	MinConversionVolume string     `json:"min_conversion_volume"`
+	MinMonthlyVolume    *string    `json:"min_monthly_volume,omitempty"`
+	MinConversionCount  *int32     `json:"min_conversion_count,omitempty"`
+	Description         *string    `json:"description,omitempty"`
+	BenefitsDescription *string    `json:"benefits_description,omitempty"`
+	BadgeColor          *string    `json:"badge_color,omitempty"`
+	IconURL             *string    `json:"icon_url,omitempty"`
+	IsActive            bool       `json:"is_active"`
+	IsDefault           bool       `json:"is_default"`
+	CreatedBy           *int64     `json:"created_by,omitempty"`
+	UpdatedBy           *int64     `json:"updated_by,omitempty"`
+	CreatedAt           time.Time  `json:"created_at"`
+	UpdatedAt           time.Time  `json:"updated_at"`
+	DeletedAt           *time.Time `json:"deleted_at,omitempty"`
 }
 
 type CreateVIPLevelRequest struct {
-	LevelName            string  `json:"level_name" binding:"required,min=2,max=50"`
-	LevelCode            string  `json:"level_code" binding:"required,min=2,max=20,uppercase"`
-	LevelRank            int32   `json:"level_rank" binding:"required,min=1"`
-	MinTransactionVolume string  `json:"min_transaction_volume" binding:"required,gte=0"`
-	MinMonthlyVolume     *string `json:"min_monthly_volume,omitempty"`
-	MinConversionCount   *int32  `json:"min_conversion_count,omitempty"`
-	Description          *string `json:"description,omitempty"`
-	BenefitsDescription  *string `json:"benefits_description,omitempty"`
-	BadgeColor           *string `json:"badge_color,omitempty" binding:"omitempty,hexcolor"`
-	IconURL              *string `json:"icon_url,omitempty" binding:"omitempty,url"`
-	IsActive             *bool   `json:"is_active,omitempty"`
+	LevelName           string  `json:"level_name" binding:"required,min=2,max=50"`
+	LevelCode           string  `json:"level_code" binding:"required,min=2,max=20,uppercase"`
+	LevelRank           int32   `json:"level_rank" binding:"required,min=1"`
+	MinConversionVolume string  `json:"min_conversion_volume" binding:"required,gte=0"`
+	MinMonthlyVolume    *string `json:"min_monthly_volume,omitempty"`
+	MinConversionCount  *int32  `json:"min_conversion_count,omitempty"`
+	Description         *string `json:"description,omitempty"`
+	BenefitsDescription *string `json:"benefits_description,omitempty"`
+	BadgeColor          *string `json:"badge_color,omitempty" binding:"omitempty,hexcolor"`
+	IconURL             *string `json:"icon_url,omitempty" binding:"omitempty,url"`
+	IsActive            *bool   `json:"is_active,omitempty"`
 }
 
 type UpdateVIPLevelRequest struct {
-	LevelName            *string `json:"level_name,omitempty" binding:"omitempty,min=2,max=50"`
-	LevelCode            *string `json:"level_code,omitempty" binding:"omitempty,min=2,max=20,uppercase"`
-	LevelRank            *int32  `json:"level_rank,omitempty" binding:"omitempty,min=1"`
-	MinTransactionVolume *string `json:"min_transaction_volume,omitempty" binding:"omitempty,gte=0"`
-	MinMonthlyVolume     *string `json:"min_monthly_volume,omitempty"`
-	MinConversionCount   *int32  `json:"min_conversion_count,omitempty"`
-	Description          *string `json:"description,omitempty"`
-	BenefitsDescription  *string `json:"benefits_description,omitempty"`
-	BadgeColor           *string `json:"badge_color,omitempty" binding:"omitempty,hexcolor"`
-	IconURL              *string `json:"icon_url,omitempty" binding:"omitempty,url"`
-	IsActive             *bool   `json:"is_active,omitempty"`
+	LevelName           *string `json:"level_name,omitempty" binding:"omitempty,min=2,max=50"`
+	LevelCode           *string `json:"level_code,omitempty" binding:"omitempty,min=2,max=20,uppercase"`
+	LevelRank           *int32  `json:"level_rank,omitempty" binding:"omitempty,min=1"`
+	MinConversionVolume *string `json:"min_conversion_volume,omitempty" binding:"omitempty,gte=0"`
+	MinMonthlyVolume    *string `json:"min_monthly_volume,omitempty"`
+	MinConversionCount  *int32  `json:"min_conversion_count,omitempty"`
+	Description         *string `json:"description,omitempty"`
+	BenefitsDescription *string `json:"benefits_description,omitempty"`
+	BadgeColor          *string `json:"badge_color,omitempty" binding:"omitempty,hexcolor"`
+	IconURL             *string `json:"icon_url,omitempty" binding:"omitempty,url"`
+	IsActive            *bool   `json:"is_active,omitempty"`
 }
 
 type VIPLevelResponse struct {
-	ID                   uuid.UUID `json:"id"`
-	LevelName            string    `json:"level_name"`
-	LevelCode            string    `json:"level_code"`
-	LevelRank            int32     `json:"level_rank"`
-	MinTransactionVolume string    `json:"min_transaction_volume"`
-	MinMonthlyVolume     *string   `json:"min_monthly_volume,omitempty"`
-	MinConversionCount   *int32    `json:"min_conversion_count,omitempty"`
-	Description          *string   `json:"description,omitempty"`
-	BenefitsDescription  *string   `json:"benefits_description,omitempty"`
-	BadgeColor           *string   `json:"badge_color,omitempty"`
-	IconURL              *string   `json:"icon_url,omitempty"`
-	IsActive             bool      `json:"is_active"`
-	IsDefault            bool      `json:"is_default"`
-	UserCount            int64     `json:"user_count"`
-	ActiveRulesCount     int64     `json:"active_rules_count"`
-	CreatedAt            time.Time `json:"created_at"`
-	UpdatedAt            time.Time `json:"updated_at"`
+	ID                  uuid.UUID `json:"id"`
+	LevelName           string    `json:"level_name"`
+	LevelCode           string    `json:"level_code"`
+	LevelRank           int32     `json:"level_rank"`
+	MinConversionVolume string    `json:"min_conversion_volume"`
+	MinMonthlyVolume    *string   `json:"min_monthly_volume,omitempty"`
+	MinConversionCount  *int32    `json:"min_conversion_count,omitempty"`
+	Description         *string   `json:"description,omitempty"`
+	BenefitsDescription *string   `json:"benefits_description,omitempty"`
+	BadgeColor          *string   `json:"badge_color,omitempty"`
+	IconURL             *string   `json:"icon_url,omitempty"`
+	IsActive            bool      `json:"is_active"`
+	IsDefault           bool      `json:"is_default"`
+	UserCount           int64     `json:"user_count"`
+	ActiveRulesCount    int64     `json:"active_rules_count"`
+	CreatedAt           time.Time `json:"created_at"`
+	UpdatedAt           time.Time `json:"updated_at"`
 }
 
 // =====================================================
@@ -109,11 +109,11 @@ type RateAdjustmentRule struct {
 	SourceCurrency      string              `json:"source_currency"`
 	TargetCurrency      string              `json:"target_currency"`
 	AdjustmentType      AdjustmentType      `json:"adjustment_type"`
-	AdjustmentValue     string     `json:"adjustment_value"`
+	AdjustmentValue     string              `json:"adjustment_value"`
 	AdjustmentDirection AdjustmentDirection `json:"adjustment_direction"`
 	Priority            int32               `json:"priority"`
-	MinConversionAmount *string    `json:"min_conversion_amount,omitempty"`
-	MaxConversionAmount *string    `json:"max_conversion_amount,omitempty"`
+	MinConversionAmount *string             `json:"min_conversion_amount,omitempty"`
+	MaxConversionAmount *string             `json:"max_conversion_amount,omitempty"`
 	ValidFrom           *time.Time          `json:"valid_from,omitempty"`
 	ValidUntil          *time.Time          `json:"valid_until,omitempty"`
 	IsActive            bool                `json:"is_active"`
@@ -132,11 +132,11 @@ type CreateRateAdjustmentRuleRequest struct {
 	SourceCurrency      string              `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
 	TargetCurrency      string              `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
 	AdjustmentType      AdjustmentType      `json:"adjustment_type" binding:"required,oneof=fixed percentage"`
-	AdjustmentValue     string     `json:"adjustment_value" binding:"required,gt=0"`
+	AdjustmentValue     string              `json:"adjustment_value" binding:"required,gt=0"`
 	AdjustmentDirection AdjustmentDirection `json:"adjustment_direction" binding:"required,oneof=add subtract"`
 	Priority            *int32              `json:"priority,omitempty"`
-	MinConversionAmount *string    `json:"min_conversion_amount,omitempty" binding:"omitempty,gte=0"`
-	MaxConversionAmount *string    `json:"max_conversion_amount,omitempty" binding:"omitempty,gte=0"`
+	MinConversionAmount *string             `json:"min_conversion_amount,omitempty" binding:"omitempty,gte=0"`
+	MaxConversionAmount *string             `json:"max_conversion_amount,omitempty" binding:"omitempty,gte=0"`
 	ValidFrom           *time.Time          `json:"valid_from,omitempty"`
 	ValidUntil          *time.Time          `json:"valid_until,omitempty"`
 	IsActive            *bool               `json:"is_active,omitempty"`
@@ -146,11 +146,11 @@ type UpdateRateAdjustmentRuleRequest struct {
 	RuleName            *string              `json:"rule_name,omitempty" binding:"omitempty,min=3,max=100"`
 	RuleDescription     *string              `json:"rule_description,omitempty"`
 	AdjustmentType      *AdjustmentType      `json:"adjustment_type,omitempty" binding:"omitempty,oneof=fixed percentage"`
-	AdjustmentValue     *string     `json:"adjustment_value,omitempty" binding:"omitempty,gt=0"`
+	AdjustmentValue     *string              `json:"adjustment_value,omitempty" binding:"omitempty,gt=0"`
 	AdjustmentDirection *AdjustmentDirection `json:"adjustment_direction,omitempty" binding:"omitempty,oneof=add subtract"`
 	Priority            *int32               `json:"priority,omitempty"`
-	MinConversionAmount *string     `json:"min_conversion_amount,omitempty" binding:"omitempty,gte=0"`
-	MaxConversionAmount *string     `json:"max_conversion_amount,omitempty" binding:"omitempty,gte=0"`
+	MinConversionAmount *string              `json:"min_conversion_amount,omitempty" binding:"omitempty,gte=0"`
+	MaxConversionAmount *string              `json:"max_conversion_amount,omitempty" binding:"omitempty,gte=0"`
 	ValidFrom           *time.Time           `json:"valid_from,omitempty"`
 	ValidUntil          *time.Time           `json:"valid_until,omitempty"`
 	IsActive            *bool                `json:"is_active,omitempty"`
@@ -191,7 +191,7 @@ type RateSimulationRequest struct {
 	Amount              string               `json:"amount" binding:"required,gt=0"`
 	VIPLevelID          *uuid.UUID           `json:"vip_level_id,omitempty"`
 	AdjustmentType      *AdjustmentType      `json:"adjustment_type,omitempty" binding:"omitempty,oneof=fixed percentage"`
-	AdjustmentValue     *decimal.Decimal     `json:"adjustment_value,omitempty" binding:"omitempty,gt=0"`
+	AdjustmentValue     *string              `json:"adjustment_value,omitempty" binding:"omitempty,gt=0"`
 	AdjustmentDirection *AdjustmentDirection `json:"adjustment_direction,omitempty" binding:"omitempty,oneof=add subtract"`
 }
 
@@ -222,18 +222,18 @@ const (
 )
 
 type UserVIPAssignment struct {
-	ID                     uuid.UUID       `json:"id"`
-	UserID                 int64           `json:"user_id"`
-	VIPLevelID             uuid.UUID       `json:"vip_level_id"`
-	AssignedAt             time.Time       `json:"assigned_at"`
-	AssignedBy             *int64          `json:"assigned_by,omitempty"`
-	AssignmentType         AssignmentType  `json:"assignment_type"`
-	TotalTransactionVolume decimal.Decimal `json:"total_transaction_volume"`
-	TotalConversionCount   int32           `json:"total_conversion_count"`
-	IsActive               bool            `json:"is_active"`
-	ExpiresAt              *time.Time      `json:"expires_at,omitempty"`
-	CreatedAt              time.Time       `json:"created_at"`
-	UpdatedAt              time.Time       `json:"updated_at"`
+	ID                    uuid.UUID       `json:"id"`
+	UserID                int64           `json:"user_id"`
+	VIPLevelID            uuid.UUID       `json:"vip_level_id"`
+	AssignedAt            time.Time       `json:"assigned_at"`
+	AssignedBy            *int64          `json:"assigned_by,omitempty"`
+	AssignmentType        AssignmentType  `json:"assignment_type"`
+	TotalConversionVolume decimal.Decimal `json:"total_conversion_volume"`
+	TotalConversionCount  int32           `json:"total_conversion_count"`
+	IsActive              bool            `json:"is_active"`
+	ExpiresAt             *time.Time      `json:"expires_at,omitempty"`
+	CreatedAt             time.Time       `json:"created_at"`
+	UpdatedAt             time.Time       `json:"updated_at"`
 }
 
 type AssignVIPLevelRequest struct {
@@ -244,22 +244,22 @@ type AssignVIPLevelRequest struct {
 }
 
 type UserVIPAssignmentResponse struct {
-	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
-	UserEmail              string         `json:"user_email"`
-	UserName               string         `json:"user_name"`
-	VIPLevelID             uuid.UUID      `json:"vip_level_id"`
-	VIPLevelName           string         `json:"vip_level_name"`
-	VIPLevelCode           string         `json:"vip_level_code"`
-	VIPLevelRank           int32          `json:"vip_level_rank"`
-	BadgeColor             *string        `json:"badge_color,omitempty"`
-	BenefitsDescription    *string        `json:"benefits_description,omitempty"`
-	AssignedAt             time.Time      `json:"assigned_at"`
-	AssignmentType         AssignmentType `json:"assignment_type"`
-	TotalTransactionVolume string         `json:"total_transaction_volume"`
-	TotalConversionCount   int32          `json:"total_conversion_count"`
-	ExpiresAt              *time.Time     `json:"expires_at,omitempty"`
-	IsActive               bool           `json:"is_active"`
+	ID                    uuid.UUID      `json:"id"`
+	UserID                int64          `json:"user_id"`
+	UserEmail             string         `json:"user_email"`
+	UserName              string         `json:"user_name"`
+	VIPLevelID            uuid.UUID      `json:"vip_level_id"`
+	VIPLevelName          string         `json:"vip_level_name"`
+	VIPLevelCode          string         `json:"vip_level_code"`
+	VIPLevelRank          int32          `json:"vip_level_rank"`
+	BadgeColor            *string        `json:"badge_color,omitempty"`
+	BenefitsDescription   *string        `json:"benefits_description,omitempty"`
+	AssignedAt            time.Time      `json:"assigned_at"`
+	AssignmentType        AssignmentType `json:"assignment_type"`
+	TotalConversionVolume string         `json:"total_conversion_volume"`
+	TotalConversionCount  int32          `json:"total_conversion_count"`
+	ExpiresAt             *time.Time     `json:"expires_at,omitempty"`
+	IsActive              bool           `json:"is_active"`
 }
 
 // =====================================================
@@ -337,13 +337,13 @@ type RateStatistics struct {
 }
 
 type TopVIPUser struct {
-	UserID                 int64  `json:"user_id"`
-	Email                  string `json:"email"`
-	FirstName              string `json:"first_name"`
-	LastName               string `json:"last_name"`
-	VIPLevel               string `json:"vip_level"`
-	TotalTransactionVolume string `json:"total_transaction_volume"`
-	TotalConversionCount   int32  `json:"total_conversion_count"`
+	UserID                int64  `json:"user_id"`
+	Email                 string `json:"email"`
+	FirstName             string `json:"first_name"`
+	LastName              string `json:"last_name"`
+	VIPLevel              string `json:"vip_level"`
+	TotalConversionVolume string `json:"total_conversion_volume"`
+	TotalConversionCount  int32  `json:"total_conversion_count"`
 }
 
 // =====================================================
@@ -451,15 +451,15 @@ type PaginatedResponse struct {
 
 func toVIPLevelModel(vipLevel *db.VipLevel) *VIPLevel {
 	model := &VIPLevel{
-		ID:                   vipLevel.ID,
-		LevelName:            vipLevel.LevelName,
-		LevelCode:            vipLevel.LevelCode,
-		LevelRank:            vipLevel.LevelRank,
-		MinTransactionVolume: vipLevel.MinTransactionVolume,
-		IsActive:             vipLevel.IsActive,
-		IsDefault:            vipLevel.IsDefault,
-		CreatedAt:            vipLevel.CreatedAt,
-		UpdatedAt:            vipLevel.UpdatedAt,
+		ID:                  vipLevel.ID,
+		LevelName:           vipLevel.LevelName,
+		LevelCode:           vipLevel.LevelCode,
+		LevelRank:           vipLevel.LevelRank,
+		MinConversionVolume: vipLevel.MinConversionVolume,
+		IsActive:            vipLevel.IsActive,
+		IsDefault:           vipLevel.IsDefault,
+		CreatedAt:           vipLevel.CreatedAt,
+		UpdatedAt:           vipLevel.UpdatedAt,
 	}
 
 	if vipLevel.Description.Valid {
@@ -477,17 +477,17 @@ func toVIPLevelModel(vipLevel *db.VipLevel) *VIPLevel {
 
 func toVIPLevelResponse(vipLevel *db.VipLevel, userCount, rulesCount int64) *VIPLevelResponse {
 	resp := &VIPLevelResponse{
-		ID:                   vipLevel.ID,
-		LevelName:            vipLevel.LevelName,
-		LevelCode:            vipLevel.LevelCode,
-		LevelRank:            vipLevel.LevelRank,
-		MinTransactionVolume: vipLevel.MinTransactionVolume,
-		IsActive:             vipLevel.IsActive,
-		IsDefault:            vipLevel.IsDefault,
-		UserCount:            userCount,
-		ActiveRulesCount:     rulesCount,
-		CreatedAt:            vipLevel.CreatedAt,
-		UpdatedAt:            vipLevel.UpdatedAt,
+		ID:                  vipLevel.ID,
+		LevelName:           vipLevel.LevelName,
+		LevelCode:           vipLevel.LevelCode,
+		LevelRank:           vipLevel.LevelRank,
+		MinConversionVolume: vipLevel.MinConversionVolume,
+		IsActive:            vipLevel.IsActive,
+		IsDefault:           vipLevel.IsDefault,
+		UserCount:           userCount,
+		ActiveRulesCount:    rulesCount,
+		CreatedAt:           vipLevel.CreatedAt,
+		UpdatedAt:           vipLevel.UpdatedAt,
 	}
 
 	if vipLevel.Description.Valid {
@@ -553,17 +553,17 @@ func toRateAdjustmentRuleResponse(rule *db.RateAdjustmentRule, appCount int64, t
 
 func toUserVIPAssignmentResponse(assignment *db.UserVipAssignment, user *db.User, vipLevel *db.VipLevel) *UserVIPAssignmentResponse {
 	return &UserVIPAssignmentResponse{
-		ID:                     assignment.ID,
-		UserID:                 assignment.UserID,
-		UserEmail:              user.Email,
-		UserName:               fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
-		VIPLevelID:             assignment.VipLevelID,
-		VIPLevelName:           vipLevel.LevelName,
-		VIPLevelCode:           vipLevel.LevelCode,
-		VIPLevelRank:           vipLevel.LevelRank,
-		AssignedAt:             assignment.AssignedAt,
-		AssignmentType:         AssignmentType(assignment.AssignmentType),
-		TotalTransactionVolume: assignment.TotalTransactionVolume,
-		IsActive:               assignment.IsActive,
+		ID:                    assignment.ID,
+		UserID:                assignment.UserID,
+		UserEmail:             user.Email,
+		UserName:              fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
+		VIPLevelID:            assignment.VipLevelID,
+		VIPLevelName:          vipLevel.LevelName,
+		VIPLevelCode:          vipLevel.LevelCode,
+		VIPLevelRank:          vipLevel.LevelRank,
+		AssignedAt:            assignment.AssignedAt,
+		AssignmentType:        AssignmentType(assignment.AssignmentType),
+		TotalConversionVolume: assignment.TotalConversionVolume,
+		IsActive:              assignment.IsActive,
 	}
 }

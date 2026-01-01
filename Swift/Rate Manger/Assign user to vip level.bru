@@ -4,12 +4,24 @@ meta {
   seq: 3
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/rate-manager/admin/vip-assignments
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "user_id": 1,
+    "vip_level_id": "497e3723-491e-4207-af78-d9e34549fb05"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

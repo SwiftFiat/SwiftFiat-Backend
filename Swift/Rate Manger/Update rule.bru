@@ -1,0 +1,26 @@
+meta {
+  name: Update rule
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{BaseURl}}/rate-manager/admin/rules/48e11aff-fc13-42cd-833e-0fa942cf08fd
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "is_active": false
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

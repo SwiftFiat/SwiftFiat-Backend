@@ -620,27 +620,27 @@ func (q *Queries) GetTotalOutflowTransactions(ctx context.Context) (int32, error
 }
 
 const getTotalTransactionVolume = `-- name: GetTotalTransactionVolume :one
-SELECT SUM(amount_usd) AS total_volume
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_volume
 FROM transactions  
 WHERE status = 'successful'
 `
 
-func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int64, error) {
+func (q *Queries) GetTotalTransactionVolume(ctx context.Context) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalTransactionVolume)
-	var total_volume int64
+	var total_volume int32
 	err := row.Scan(&total_volume)
 	return total_volume, err
 }
 
 const getTotalTransactionVolumeForUser = `-- name: GetTotalTransactionVolumeForUser :one
-SELECT SUM(amount_usd) AS total_volume
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_volume
 FROM transactions  
 WHERE user_id = $1 AND status = 'successful'
 `
 
-func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID int64) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalTransactionVolumeForUser, userID)
-	var total_volume int64
+	var total_volume int32
 	err := row.Scan(&total_volume)
 	return total_volume, err
 }
