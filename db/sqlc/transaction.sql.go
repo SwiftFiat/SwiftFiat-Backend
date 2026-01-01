@@ -581,37 +581,40 @@ func (q *Queries) GetTotalCryptoTransactionAmount(ctx context.Context) (GetTotal
 }
 
 const getTotalInflowTransactions = `-- name: GetTotalInflowTransactions :one
-SELECT COUNT(*) AS total_inflow
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inflow
+FROM transactions
 WHERE transaction_flow = 'inflow'
 `
 
-func (q *Queries) GetTotalInflowTransactions(ctx context.Context) (int64, error) {
+func (q *Queries) GetTotalInflowTransactions(ctx context.Context) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalInflowTransactions)
-	var total_inflow int64
+	var total_inflow int32
 	err := row.Scan(&total_inflow)
 	return total_inflow, err
 }
 
 const getTotalInplatformTransactions = `-- name: GetTotalInplatformTransactions :one
-SELECT COUNT(*) AS total_inplatform
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inplatform
+FROM transactions
 WHERE transaction_flow = 'inplatform'
 `
 
-func (q *Queries) GetTotalInplatformTransactions(ctx context.Context) (int64, error) {
+func (q *Queries) GetTotalInplatformTransactions(ctx context.Context) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalInplatformTransactions)
-	var total_inplatform int64
+	var total_inplatform int32
 	err := row.Scan(&total_inplatform)
 	return total_inplatform, err
 }
 
 const getTotalOutflowTransactions = `-- name: GetTotalOutflowTransactions :one
-SELECT COUNT(*) AS total_outflow
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_outflow
+FROM transactions
 WHERE transaction_flow = 'outflow'
 `
 
-func (q *Queries) GetTotalOutflowTransactions(ctx context.Context) (int64, error) {
+func (q *Queries) GetTotalOutflowTransactions(ctx context.Context) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalOutflowTransactions)
-	var total_outflow int64
+	var total_outflow int32
 	err := row.Scan(&total_outflow)
 	return total_outflow, err
 }

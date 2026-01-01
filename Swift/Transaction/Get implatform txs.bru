@@ -1,0 +1,20 @@
+meta {
+  name: Get implatform txs
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{BaseURl}}/analytics/get-total-inplatform-transactions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -39,11 +39,11 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
 	serverGroupV1.GET("/transaction-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 	serverGroupV1.POST("/send-notification-to-all", h.server.authMiddleware.AuthenticatedMiddleware(), h.SendNotificationToAll)
-	serverGroupV1.GET("/total-reward-paid", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardPaid)
-	serverGroupV1.GET("/total-reward-earned", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardEarned)
-	serverGroupV1.GET("/total-outflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalOutflowTransactions)
-	serverGroupV1.GET("/total-inflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInflowTransactions)
-	serverGroupV1.GET("/total-inplatform-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInplatformTransactions)
+	serverGroupV1.GET("/get-total-reward-paid", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardPaid)
+	serverGroupV1.GET("/get-total-reward-earned", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardEarned)
+	serverGroupV1.GET("/get-total-outflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalOutflowTransactions)
+	serverGroupV1.GET("/get-total-inflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInflowTransactions)
+	serverGroupV1.GET("/get-total-inplatform-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalInplatformTransactions)
 	serverGroupV1.GET("/transactions-by-type", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListTransactionsByType)
 	serverGroupV1.GET("/transactions-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 	serverGroupV1.PUT("/update-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.UpdateSystemSettings)
@@ -237,17 +237,17 @@ func (h *Analytics) GetTransaction(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 func (h *Analytics) ListAllTransactions(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		h.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	h.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+	// 	return
+	// }
 
 	transactions, err := h.server.queries.ListAllTransactionsWithUsers(c)
 	if err != nil {
@@ -736,11 +736,11 @@ func (h *Analytics) SendNotificationToAll(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/get-total-reward-paid [get]
 func (h *Analytics) GetTotalRewardPaid(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil || activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	totalRewardPaid, err := h.server.queries.GetTotalRewardPaid(c)
 	if err != nil {
@@ -773,6 +773,7 @@ func (h *Analytics) GetTotalRewardEarned(c *gin.Context) {
 
 	totalRewardEarned, err := h.server.queries.GetTotalRewardEarned(c)
 	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total reward earned: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total reward earned"))
 		return
 	}
@@ -852,19 +853,25 @@ func (h *Analytics) GetTotalInflowTransactions(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/get-total-inplatform-transactions [get]
 func (h *Analytics) GetTotalInplatformTransactions(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
+
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+	// 	return
+	// }
 
 	totalInplatformTransactions, err := h.server.queries.GetTotalInplatformTransactions(c)
 	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching total inplatform transactions: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get total inplatform transactions"))
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Total inplatform transactions retrieved successfully", totalInplatformTransactions))
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Total inplatform transactions amount retrieved successfully", totalInplatformTransactions))
 }
 
 // GetSchedulerStats godoc

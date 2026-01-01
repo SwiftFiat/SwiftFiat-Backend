@@ -1,0 +1,20 @@
+meta {
+  name: Get total inflow
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{BaseURl}}/analytics/get-total-inflow-transactions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
