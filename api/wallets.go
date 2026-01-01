@@ -478,20 +478,20 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-	if err != nil {
-		if err == sql.ErrNoRows {
-			ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
+	// kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	// if err != nil {
+	// 	if err == sql.ErrNoRows {
+	// 		ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
+	// 		return
+	// 	}
+	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+	// 	return
+	// }
 
-	if kycUser.Status != "active" {
-		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
-		return
-	}
+	// if kycUser.Status != "active" {
+	// 	ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
+	// 	return
+	// }
 
 	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
@@ -503,10 +503,10 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	if kycUser.Tier < 1 {
-		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
-		return
-	}
+	// if kycUser.Tier < 1 {
+	// 	ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
+	// 	return
+	// }
 
 	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
@@ -531,17 +531,17 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
-	tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
-	if err != nil {
-		w.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
+	// tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
+	// if err != nil {
+	// 	w.server.logger.Error(err)
+	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+	// 	return
+	// }
 
-	if amount.GreaterThan(tierLimit) {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
-		return
-	}
+	// if amount.GreaterThan(tierLimit) {
+	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
+	// 	return
+	// }
 
 	tparams := transaction.IntraTransaction{
 		FromAccountID: sourceAccount,
