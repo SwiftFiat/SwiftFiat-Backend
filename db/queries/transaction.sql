@@ -1055,15 +1055,18 @@ FROM transactions
 WHERE user_id = $1 AND status = 'successful';
 
 -- name: GetTotalOutflowTransactions :one
-SELECT COUNT(*) AS total_outflow
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_outflow
+FROM transactions
 WHERE transaction_flow = 'outflow';
 
 -- name: GetTotalInflowTransactions :one
-SELECT COUNT(*) AS total_inflow
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inflow
+FROM transactions
 WHERE transaction_flow = 'inflow';
 
 -- name: GetTotalInplatformTransactions :one
-SELECT COUNT(*) AS total_inplatform
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inplatform
+FROM transactions
 WHERE transaction_flow = 'inplatform';
 
 -- name: ListUserTransactions :many

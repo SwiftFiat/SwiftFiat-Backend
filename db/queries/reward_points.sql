@@ -491,17 +491,19 @@ WHERE transaction_id = $1
 ORDER BY created_at DESC;
 
 -- name: GetTotalRewardPaid :one
-SELECT
+SELECT CAST(
     COALESCE(SUM(u.total_reward_redeemed), 0)
-  + COALESCE(SUM(re.withdrawn_balance), 0) AS total_reward_paid
+  + COALESCE(SUM(re.withdrawn_balance), 0) AS INTEGER
+) AS total_reward_paid
 FROM users u
 LEFT JOIN referral_earnings re
   ON re.user_id = u.id;
 
 -- name: GetTotalRewardEarned :one
-SELECT
+SELECT CAST(
     COALESCE(SUM(u.total_reward_earned), 0)
-  + COALESCE(SUM(rt.points_amount), 0) AS total_reward_earned
+  + COALESCE(SUM(rt.points_amount), 0) AS INTEGER
+) AS total_reward_earned
 FROM users u
 LEFT JOIN reward_transactions rt
   ON rt.user_id = u.id;

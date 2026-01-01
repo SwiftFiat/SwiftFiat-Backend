@@ -43,8 +43,8 @@ func (r Rewards) router(server *Server) {
 	rewards.GET("/admin/config", r.getRewardConfiguration)
 	rewards.GET("/admin/configurations", r.listRewardConfigurations)
 	rewards.PUT("/admin/configure/:id", r.updateRewardConfiguration)
-	rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
-	rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
+	// rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
+	// rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
 
 	// Analytics
 	rewards.GET("/admin/statistics", r.getRewardStatistics)
