@@ -301,7 +301,7 @@ CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_acti
     "next_estimated_charge_date" TIMESTAMPTZ NOT NULL, -- Predicted renewal
     
     -- Status
-    "status" VARCHAR(20) NOT NULL DEFAULT 'active',
+    "status" VARCHAR(20) NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'cancelled', 'failed', 'paused')),
     -- Status: 'active', 'cancelled', 'failed', 'paused'
     "confidence_score" DECIMAL(3, 2) NOT NULL DEFAULT 0.5, -- Detection confidence
     
@@ -310,7 +310,7 @@ CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_acti
     "failed_charges" INT NOT NULL DEFAULT 0,
     "last_failed_date" TIMESTAMPTZ,
     "last_failure_reason" TEXT,
-    
+     
     -- User preferences
     "reminder_enabled" BOOLEAN NOT NULL DEFAULT TRUE,
     "reminder_days_before" INT NOT NULL DEFAULT 3,

@@ -4527,7 +4527,11 @@ const updateSubscriptionStatus = `-- name: UpdateSubscriptionStatus :one
 UPDATE user_subscriptions
 SET 
     status = $2,
-    cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE cancelled_at END,
+    cancelled_at = CASE 
+        WHEN status = 'cancelled' 
+        THEN NOW() 
+        ELSE cancelled_at 
+    END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, category, amount, currency, billing_interval_days, first_charge_date, last_charge_date, next_estimated_charge_date, status, confidence_score, total_charges, failed_charges, last_failed_date, last_failure_reason, reminder_enabled, reminder_days_before, user_confirmed, custom_name, is_custom, custom_billing_cycle, custom_amount_override, auto_topup_buffer_percent, custom_reminder_timing, notes, created_at, updated_at, cancelled_at

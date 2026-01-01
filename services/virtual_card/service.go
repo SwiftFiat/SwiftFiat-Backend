@@ -783,12 +783,20 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		return "", fmt.Errorf("failed to marshal success data: %w", err)
 	}
 
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, success.Data.Currency)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
 	// Create transaction
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(transaction.Card),
 		Description:     sql.NullString{String: "Card Debit", Valid: true},
 		TransactionFlow: string(transaction.Outflow),
 		Status:          string(transaction.Success),
+		Amount: success.Data.Amount,
+		AmountUsd: amountUsd.String(),
+		UserID: card.UserID,
 	})
 	if err != nil {
 		return "", fmt.Errorf("failed to create transaction: %w", err)

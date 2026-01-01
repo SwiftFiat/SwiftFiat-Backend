@@ -83,10 +83,10 @@ func (v Subscriptions) router(server *Server) {
 }
 
 type CreateCustomSubscriptionRequest struct {
-	CardID                 string   `json:"card_id" binding:"required"`
-	MerchantName           string   `json:"merchant_name" binding:"required,min=1,max=255"`
-	DisplayName            string   `json:"display_name" binding:"required,min=1,max=255"`
-	Category               string   `json:"category" binding:"required,oneof=streaming cloud_storage gaming music productivity fitness news utilities other"`
+	CardID       string `json:"card_id" binding:"required"`
+	MerchantName string `json:"merchant_name" binding:"required,min=1,max=255"`
+	DisplayName  string `json:"display_name" binding:"required,min=1,max=255"`
+	Category     string `json:"category" binding:"required,oneof=streaming cloud_storage gaming music productivity fitness news utilities other"`
 	// Amount is provided and stored as whole dollars
 	Amount                 int64    `json:"amount" binding:"required"`
 	Currency               string   `json:"currency" binding:"required,oneof=USD"`
@@ -247,7 +247,7 @@ func (v *Subscriptions) GetCustomSubscriptions(c *gin.Context) {
 }
 
 type UpdateCustomSubscriptionRequest struct {
-	DisplayName            *string  `json:"display_name,omitempty"`
+	DisplayName *string `json:"display_name,omitempty"`
 	// Amount is specified in whole dollars
 	Amount                 *int64   `json:"amount,omitempty"`
 	BillingCycle           *string  `json:"billing_cycle,omitempty" binding:"omitempty,oneof=daily monthly yearly"`
@@ -264,6 +264,7 @@ type UpdateSystemSettingRequest struct {
 type BulkUpdateSettingsRequest struct {
 	Settings map[string]string `json:"settings" binding:"required"`
 }
+
 // UpdateCustomSubscription godoc
 // @Summary Update custom subscription
 // @Description Update a user-created custom subscription
@@ -510,8 +511,6 @@ func (v *Subscriptions) AdminValidateBillingCycle(c *gin.Context) {
 	}))
 }
 
-
-
 type UpdateSubscriptionPreferencesRequest struct {
 	ReminderEnabled    *bool  `json:"reminder_enabled"`
 	ReminderDaysBefore *int   `json:"reminder_days_before"`
@@ -520,7 +519,7 @@ type UpdateSubscriptionPreferencesRequest struct {
 }
 
 type UpdateStatusRequest struct {
-	Status string `json:"status" binding:"required,oneof=active cancelled paused failed"`
+	Status string `json:"status" binding:"required,oneof=active cancelled paused"`
 }
 
 type CreateMerchantRequest struct {
@@ -735,7 +734,7 @@ func (v *Subscriptions) AdminSetSubscriptionStatus(c *gin.Context) {
 	}
 
 	updated, err := v.server.queries.UpdateSubscriptionStatus(c, db.UpdateSubscriptionStatusParams{
-		ID:     subID,
+		ID:      subID,
 		Status: req.Status,
 	})
 	if err != nil {
@@ -1026,7 +1025,7 @@ func (v *Subscriptions) UpdateSubscriptionStatus(c *gin.Context) {
 	}
 
 	updated, err := v.server.queries.UpdateSubscriptionStatus(c, db.UpdateSubscriptionStatusParams{
-		ID:     subscriptionID,
+		ID:      subscriptionID,
 		Status: req.Status,
 	})
 

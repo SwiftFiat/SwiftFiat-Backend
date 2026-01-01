@@ -480,10 +480,16 @@ RETURNING *;
 UPDATE user_subscriptions
 SET 
     status = $2,
-    cancelled_at = CASE WHEN $2 = 'cancelled' THEN NOW() ELSE cancelled_at END,
+    cancelled_at = CASE 
+        WHEN status = 'cancelled' 
+        THEN NOW() 
+        ELSE cancelled_at 
+    END,
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
+
+
 
 -- name: UpdateSubscriptionPreferences :one
 UPDATE user_subscriptions
