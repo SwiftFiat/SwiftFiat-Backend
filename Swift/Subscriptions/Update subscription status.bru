@@ -1,0 +1,26 @@
+meta {
+  name: Update subscription status
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{BaseURl}}/subscriptions/20b67809-9e64-4347-b79b-92175a0956ef/status
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "status": "active"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
