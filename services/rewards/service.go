@@ -203,7 +203,10 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 	// Send notification asynchronously
 	go func() {
 		message := FormatRewardMessage(RewardTransactionTypeEarned, pointsEarned, params.ServiceInfo)
-		s.notif.SendRewardNotification(ctx, params.UserID, message, RewardTransactionTypeEarned, pointsEarned)
+		err := s.notif.SendRewardNotification(ctx, params.UserID, message, RewardTransactionTypeEarned, pointsEarned)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Error sending reward notification: %v", err))
+		}
 	}()
 
 	return MapRewardTransactionToResponse(&rewardTx), nil

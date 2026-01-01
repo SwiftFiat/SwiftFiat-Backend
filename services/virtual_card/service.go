@@ -18,6 +18,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
 )
@@ -570,7 +571,6 @@ func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID i
 	return cardDetails, nil
 }
 
-
 func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
 	// check if card belongs to user
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
@@ -613,25 +613,16 @@ func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardP
 	return s.bridgeCard.UpdateCardPin(ctx, req)
 }
 
-func (s *Service) AdminDeleteCard(ctx context.Context, cardID string, userID int64) (*bridgecards.CardResponse, error) {
+func (s *Service) AdminDeleteCard(ctx context.Context, cardID uuid.UUID, userID int64) (*bridgecards.CardResponse, error) {
 	// check if card belongs to user
-	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	card, err := s.store.GetVirtualCard(ctx, cardID)
 	if err != nil {
 		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
 	}
 
-	cardDetails, err := s.bridgeCard.DeleteCard(ctx, cardID)
+	cardDetails, err := s.bridgeCard.DeleteCard(ctx, card.BridgecardCardID)
 	if err != nil {
 		return nil, fmt.Errorf("delete card via bridgecard error: %w", err)
-	}
-
-	// update virtual card status
-	_, err = s.store.TerminateCard(ctx, db.TerminateCardParams{
-		ID:     card.ID,
-		UserID: userID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("terminate card error: %w", err)
 	}
 
 	// update virtual card status
@@ -643,25 +634,44 @@ func (s *Service) AdminDeleteCard(ctx context.Context, cardID string, userID int
 		return nil, fmt.Errorf("update virtual card status error: %w", err)
 	}
 
-	// TODO: send notifications
+	go func() {
+		err := s.pushSvc.AdminTerminateCardNotification(ctx, card.UserID, card.CardName)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Error sending admin terminate card push notification: %v", err))
+		}
+
+		_, err = s.notifySvc.Create(ctx, int32(card.UserID), "Virtual Card Terminated", "Your virtual card has been terminated by an administrator.")
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Error creating admin terminate card inapp notification: %v", err))
+		}
+	}()
 
 	return cardDetails, nil
 }
 
-func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (*bridgecards.CardResponse, error) {
+func (s *Service) DeleteCard(ctx context.Context, cardID uuid.UUID, userID int64) (*bridgecards.CardResponse, error) {
 	// check if card belongs to user
-	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
+	card, err := s.store.GetVirtualCard(ctx, cardID)
 	if err != nil {
-		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
+		return nil, fmt.Errorf("get virtual card error: %w", err)
 	}
 	if card.UserID != userID {
 		return nil, fmt.Errorf("card does not belong to user")
 	}
 
-	cardDetails, err := s.bridgeCard.DeleteCard(ctx, cardID)
+	cardDetails, err := s.bridgeCard.DeleteCard(ctx, card.BridgecardCardID)
 	if err != nil {
 		return nil, fmt.Errorf("delete card via bridgecard error: %w", err)
 	}
+
+	// // update virtual card status
+	// _, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
+	// 	ID:     card.ID,
+	// 	Status: string(VirtualCardStatusTerminated),
+	// })
+	// if err != nil {
+	// 	return nil, fmt.Errorf("update virtual card status error: %w", err)
+	// }
 
 	// update virtual card status
 	_, err = s.store.TerminateCard(ctx, db.TerminateCardParams{
@@ -670,15 +680,6 @@ func (s *Service) DeleteCard(ctx context.Context, cardID string, userID int64) (
 	})
 	if err != nil {
 		return nil, fmt.Errorf("terminate card error: %w", err)
-	}
-
-	// update virtual card status
-	_, err = s.store.UpdateCardStatus(ctx, db.UpdateCardStatusParams{
-		ID:     card.ID,
-		Status: string(VirtualCardStatusTerminated),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("update virtual card status error: %w", err)
 	}
 
 	// TODO: send notifications

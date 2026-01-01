@@ -4,12 +4,17 @@ meta {
   seq: 16
 }
 
-get {
-  url: 
+patch {
+  url: {{BaseURl}}/vault/admin/goals/cec886a3-19a1-4d29-86df-92cb7980efc3/recurring/resume
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

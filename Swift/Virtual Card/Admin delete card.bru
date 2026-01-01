@@ -1,0 +1,24 @@
+meta {
+  name: Admin delete card
+  type: http
+  seq: 24
+}
+
+delete {
+  url: {{BaseURl}}/cards/admin/delete-card/?card_id=4d9f6bc4-8a5d-4324-8547-3b974a73d7be
+  body: none
+  auth: bearer
+}
+
+params:query {
+  card_id: 4d9f6bc4-8a5d-4324-8547-3b974a73d7be
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

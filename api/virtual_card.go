@@ -32,7 +32,7 @@ func (v Virtualcard) router(server *Server) {
 	v1 := server.router.Group("/api/v1/cards")
 	// v1.Use(server.authMiddleware.AuthenticatedMiddleware())
 	{
-		v1.POST("/create", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)                                         //done
+		v1.POST("/create", server.authMiddleware.AuthenticatedMiddleware(), v.CreateCard)                                   //done
 		v1.POST("/register-card-holder", server.authMiddleware.AuthenticatedMiddleware(), v.RegisterCardHolder)             //done
 		v1.POST("/webhook", v.Webhook)                                                                                      //done
 		v1.GET("/get-card-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetCardBalance)                      // done
@@ -848,23 +848,18 @@ func (v *Virtualcard) DeleteCard(c *gin.Context) {
 		return
 	}
 	cardID := c.Query("card_id")
+
+	cardUUID, err := uuid.Parse(cardID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid card_id format"))
+		return
+	}
+
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
-
-	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	if card.UserID != activeUser.UserID {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	response, err := v.virtualCardSvc.DeleteCard(c, cardID, activeUser.UserID)
+	response, err := v.virtualCardSvc.DeleteCard(c, cardUUID, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -892,24 +887,19 @@ func (v *Virtualcard) AdminDeleteCard(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	cardID := c.Query("card_id")
 	if cardID == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing card_id query parameter"))
 		return
 	}
+	cardUUID := uuid.MustParse(cardID)
 
-	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, cardID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	response, err := v.virtualCardSvc.AdminDeleteCard(c, cardID, activeUser.UserID)
+	response, err := v.virtualCardSvc.AdminDeleteCard(c, cardUUID, activeUser.UserID)
 	if err != nil {
 		errMsg := err.Error()
 		// audit log
@@ -917,8 +907,8 @@ func (v *Virtualcard) AdminDeleteCard(c *gin.Context) {
 			c,
 			audit.CategoryCard,
 			audit.EventDeleteCard,
-			card.ID.String(),
-			fmt.Sprintf("admin deleted card %s", card.ID.String()),
+			cardUUID.String(),
+			fmt.Sprintf("admin deleted card %s", cardUUID.String()),
 			&activeUser.UserID,
 			activeUser.Role,
 			false,
@@ -934,8 +924,8 @@ func (v *Virtualcard) AdminDeleteCard(c *gin.Context) {
 		c,
 		audit.CategoryCard,
 		audit.EventDeleteCard,
-		card.ID.String(),
-		fmt.Sprintf("admin deleted card %s", card.ID.String()),
+		cardUUID.String(),
+		fmt.Sprintf("admin deleted card %s", cardUUID.String()),
 		&activeUser.UserID,
 		activeUser.Role,
 		true,
@@ -1024,7 +1014,6 @@ func (v *Virtualcard) ListCards(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
-
 
 	var UserCardResponse []GetUserCardsRowResponse
 	for _, card := range cards {
