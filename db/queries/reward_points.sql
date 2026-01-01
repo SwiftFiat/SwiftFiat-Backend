@@ -59,18 +59,17 @@ ORDER BY created_at DESC;
 
 -- name: UpdateRewardConfiguration :one
 UPDATE reward_configurations
-SET config_name = COALESCE($2, config_name),
-    reward_rate = COALESCE($3, reward_rate),
-    transaction_type = COALESCE($4, transaction_type),
-    min_transaction_amount = COALESCE($5, min_transaction_amount),
-    max_points_per_transaction = $6, -- Can be set to NULL
-    is_active = COALESCE($7, is_active),
-    valid_from = COALESCE($8, valid_from),
-    valid_until = $9, -- Can be set to NULL
+SET config_name = COALESCE(sqlc.narg('config_name'), config_name),
+    reward_rate = COALESCE(sqlc.narg('reward_rate'), reward_rate),
+    transaction_type = COALESCE(sqlc.narg('transaction_type'), transaction_type),
+    min_transaction_amount = COALESCE(sqlc.narg('min_transaction_amount'), min_transaction_amount),
+    max_points_per_transaction = sqlc.narg('max_points_per_transaction'), -- Can be set to NULL
+    is_active = COALESCE(sqlc.narg('is_active'), is_active),
+    valid_from = COALESCE(sqlc.narg('valid_from'), valid_from),
+    valid_until = sqlc.narg('valid_until'), -- Can be set to NULL
     updated_at = NOW()
 WHERE id = $1
 RETURNING *;
-
 -- name: ActivateRewardConfiguration :one
 UPDATE reward_configurations
 SET is_active = true,

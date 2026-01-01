@@ -588,26 +588,53 @@ func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req Creat
 }
 
 // UpdateRewardConfiguration updates an existing reward configuration (admin only)
+// UpdateRewardConfiguration updates an existing reward configuration (admin only)
 func (s *RewardService) UpdateRewardConfiguration(ctx context.Context, configID int64, req UpdateRewardConfigRequest) (*RewardConfigurationResponse, error) {
-	config, err := s.store.UpdateRewardConfiguration(ctx, db.UpdateRewardConfigurationParams{
-		ID:                      configID,
-		ConfigName:              *req.ConfigName,
-		RewardRate:              *req.RewardRate,
-		TransactionType:         *req.TransactionType,
-		MinTransactionAmount:    *req.MinTransactionAmount,
-		MaxPointsPerTransaction: sql.NullString{String: *req.MaxPointsPerTransaction, Valid: true},
-		IsActive:                *req.IsActive,
-		ValidFrom:               *req.ValidFrom,
-		ValidUntil:              sql.NullTime{Time: *req.ValidUntil, Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update reward configuration: %w", err)
-	}
+    params := db.UpdateRewardConfigurationParams{
+        ID: configID,
+    }
 
-	// Clear cache
-	s.cache.Delete(fmt.Sprintf("reward:config:%d", configID))
+    if req.ConfigName != "" {
+        params.ConfigName = sql.NullString{String: req.ConfigName, Valid: true}
+    }
 
-	return MapRewardConfigToResponse(&config), nil
+    if req.RewardRate != "" {
+        params.RewardRate = sql.NullString{String: req.RewardRate, Valid: true}
+    }
+
+    if req.TransactionType != "" {
+        params.TransactionType = sql.NullString{String: req.TransactionType, Valid: true}
+    }
+
+    if req.MinTransactionAmount != "" {
+        params.MinTransactionAmount = sql.NullString{String: req.MinTransactionAmount, Valid: true}
+    }
+
+    if req.MaxPointsPerTransaction != "" {
+        params.MaxPointsPerTransaction = sql.NullString{String: req.MaxPointsPerTransaction, Valid: true}
+    }
+
+    if req.IsActive != nil {
+        params.IsActive = sql.NullBool{Bool: *req.IsActive, Valid: true}
+    }
+
+    if !req.ValidFrom.IsZero() {
+        params.ValidFrom = sql.NullTime{Time: req.ValidFrom, Valid: true}
+    }
+
+    if !req.ValidUntil.IsZero() {
+        params.ValidUntil = sql.NullTime{Time: req.ValidUntil, Valid: true}
+    }
+
+    config, err := s.store.UpdateRewardConfiguration(ctx, params)
+    if err != nil {
+        return nil, fmt.Errorf("failed to update reward configuration: %w", err)
+    }
+
+    // Clear cache
+    s.cache.Delete(fmt.Sprintf("reward:config:%d", configID))
+
+    return MapRewardConfigToResponse(&config), nil
 }
 
 // ============================================================================

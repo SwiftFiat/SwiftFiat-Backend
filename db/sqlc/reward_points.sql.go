@@ -1691,13 +1691,13 @@ RETURNING id, config_name, reward_rate, transaction_type, min_transaction_amount
 
 type UpdateRewardConfigurationParams struct {
 	ID                      int64          `json:"id"`
-	ConfigName              string         `json:"config_name"`
-	RewardRate              string         `json:"reward_rate"`
-	TransactionType         string         `json:"transaction_type"`
-	MinTransactionAmount    string         `json:"min_transaction_amount"`
+	ConfigName              sql.NullString `json:"config_name"`
+	RewardRate              sql.NullString `json:"reward_rate"`
+	TransactionType         sql.NullString `json:"transaction_type"`
+	MinTransactionAmount    sql.NullString `json:"min_transaction_amount"`
 	MaxPointsPerTransaction sql.NullString `json:"max_points_per_transaction"`
-	IsActive                bool           `json:"is_active"`
-	ValidFrom               time.Time      `json:"valid_from"`
+	IsActive                sql.NullBool   `json:"is_active"`
+	ValidFrom               sql.NullTime   `json:"valid_from"`
 	ValidUntil              sql.NullTime   `json:"valid_until"`
 }
 
