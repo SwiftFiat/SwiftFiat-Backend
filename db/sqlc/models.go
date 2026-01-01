@@ -1349,17 +1349,17 @@ type UserTransactionVolume struct {
 
 // User VIP level assignments and tier progression tracking
 type UserVipAssignment struct {
-	ID                     uuid.UUID     `json:"id"`
-	UserID                 int64         `json:"user_id"`
-	VipLevelID             uuid.UUID     `json:"vip_level_id"`
-	AssignedAt             time.Time     `json:"assigned_at"`
-	AssignedBy             sql.NullInt64 `json:"assigned_by"`
-	AssignmentType         string        `json:"assignment_type"`
-	TotalTransactionVolume string        `json:"total_transaction_volume"`
-	IsActive               bool          `json:"is_active"`
-	ExpiresAt              sql.NullTime  `json:"expires_at"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
+	ID                    uuid.UUID     `json:"id"`
+	UserID                int64         `json:"user_id"`
+	VipLevelID            uuid.UUID     `json:"vip_level_id"`
+	AssignedAt            time.Time     `json:"assigned_at"`
+	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignmentType        string        `json:"assignment_type"`
+	TotalConversionVolume string        `json:"total_conversion_volume"`
+	IsActive              bool          `json:"is_active"`
+	ExpiresAt             sql.NullTime  `json:"expires_at"`
+	CreatedAt             time.Time     `json:"created_at"`
+	UpdatedAt             time.Time     `json:"updated_at"`
 }
 
 // Historical record of VIP level changes
@@ -1474,22 +1474,22 @@ type VaultYieldConfig struct {
 
 // VIP tier definitions with transaction volume thresholds
 type VipLevel struct {
-	ID                   uuid.UUID      `json:"id"`
-	LevelName            string         `json:"level_name"`
-	LevelCode            string         `json:"level_code"`
-	LevelRank            int32          `json:"level_rank"`
-	MinTransactionVolume string         `json:"min_transaction_volume"`
-	Description          sql.NullString `json:"description"`
-	BenefitsDescription  sql.NullString `json:"benefits_description"`
-	BadgeColor           sql.NullString `json:"badge_color"`
-	IconUrl              sql.NullString `json:"icon_url"`
-	IsActive             bool           `json:"is_active"`
-	IsDefault            bool           `json:"is_default"`
-	CreatedBy            sql.NullInt64  `json:"created_by"`
-	UpdatedBy            sql.NullInt64  `json:"updated_by"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	DeletedAt            sql.NullTime   `json:"deleted_at"`
+	ID                  uuid.UUID      `json:"id"`
+	LevelName           string         `json:"level_name"`
+	LevelCode           string         `json:"level_code"`
+	LevelRank           int32          `json:"level_rank"`
+	MinConversionVolume string         `json:"min_conversion_volume"`
+	Description         sql.NullString `json:"description"`
+	BenefitsDescription sql.NullString `json:"benefits_description"`
+	BadgeColor          sql.NullString `json:"badge_color"`
+	IconUrl             sql.NullString `json:"icon_url"`
+	IsActive            bool           `json:"is_active"`
+	IsDefault           bool           `json:"is_default"`
+	CreatedBy           sql.NullInt64  `json:"created_by"`
+	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	DeletedAt           sql.NullTime   `json:"deleted_at"`
 }
 
 type VirtualCard struct {

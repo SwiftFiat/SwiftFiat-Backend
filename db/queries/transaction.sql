@@ -1045,12 +1045,12 @@ JOIN transactions t ON gtm.transaction_id = t.id
 ORDER BY t.created_at DESC;
 
 -- name: GetTotalTransactionVolume :one
-SELECT SUM(amount_usd) AS total_volume
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_volume
 FROM transactions  
 WHERE status = 'successful';
 
 -- name: GetTotalTransactionVolumeForUser :one
-SELECT SUM(amount_usd) AS total_volume
+SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_volume
 FROM transactions  
 WHERE user_id = $1 AND status = 'successful';
 

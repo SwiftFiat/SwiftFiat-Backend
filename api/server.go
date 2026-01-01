@@ -193,22 +193,11 @@ func NewServer(envPath string) *Server {
 	// give PN the user service so it can resolve tokens
 	pn.SetUserService(us)
 
-	// qrcode service
-	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c)
-
 	// bridgecard service (needs config and logger)
 	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
 
 	// subscriptons service
 	ss := subscriptions.NewService(q, l, bridgecard)
-
-	qrScheduler := rapidramp.NewRapidRampScheduler(
-		t,
-		qr,
-		q,
-		l,
-		1*time.Minute,
-	)
 
 	// streak
 	streak := streaks.NewStreakService(q, l)
@@ -232,6 +221,17 @@ func NewServer(envPath string) *Server {
 
 	// Rates manager
 	rm := ratemanager.NewService(q, scex, ads, l)
+
+	// qrcode service
+	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c, rm)
+
+	qrScheduler := rapidramp.NewRapidRampScheduler(
+		t,
+		qr,
+		q,
+		l,
+		1*time.Minute,
+	)
 
 	// smart conversion service
 	scs := smartconversion.NewConversionService(q, l, rm, scex, txs, streakScheduler)

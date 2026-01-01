@@ -15,7 +15,7 @@ import (
 
 const getExpiredVIPAssignments = `-- name: GetExpiredVIPAssignments :many
 SELECT 
-    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_transaction_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
+    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_conversion_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
     u.email,
     vl.level_name
 FROM user_vip_assignments uva
@@ -27,19 +27,19 @@ WHERE uva.is_active = TRUE
 `
 
 type GetExpiredVIPAssignmentsRow struct {
-	ID                     uuid.UUID     `json:"id"`
-	UserID                 int64         `json:"user_id"`
-	VipLevelID             uuid.UUID     `json:"vip_level_id"`
-	AssignedAt             time.Time     `json:"assigned_at"`
-	AssignedBy             sql.NullInt64 `json:"assigned_by"`
-	AssignmentType         string        `json:"assignment_type"`
-	TotalTransactionVolume string        `json:"total_transaction_volume"`
-	IsActive               bool          `json:"is_active"`
-	ExpiresAt              sql.NullTime  `json:"expires_at"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
-	Email                  string        `json:"email"`
-	LevelName              string        `json:"level_name"`
+	ID                    uuid.UUID     `json:"id"`
+	UserID                int64         `json:"user_id"`
+	VipLevelID            uuid.UUID     `json:"vip_level_id"`
+	AssignedAt            time.Time     `json:"assigned_at"`
+	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignmentType        string        `json:"assignment_type"`
+	TotalConversionVolume string        `json:"total_conversion_volume"`
+	IsActive              bool          `json:"is_active"`
+	ExpiresAt             sql.NullTime  `json:"expires_at"`
+	CreatedAt             time.Time     `json:"created_at"`
+	UpdatedAt             time.Time     `json:"updated_at"`
+	Email                 string        `json:"email"`
+	LevelName             string        `json:"level_name"`
 }
 
 // 9. Get Expired VIP Assignments
@@ -59,7 +59,7 @@ func (q *Queries) GetExpiredVIPAssignments(ctx context.Context) ([]GetExpiredVIP
 			&i.AssignedAt,
 			&i.AssignedBy,
 			&i.AssignmentType,
-			&i.TotalTransactionVolume,
+			&i.TotalConversionVolume,
 			&i.IsActive,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -183,7 +183,7 @@ CROSS JOIN LATERAL (
         AND t.deleted_at IS NULL
 ) AS metrics
 CROSS JOIN LATERAL (
-    SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
+    SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
     FROM vip_levels
     WHERE min_transaction_volume <= metrics.total_volume
         AND is_active = TRUE

@@ -12,6 +12,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
@@ -20,11 +21,12 @@ import (
 )
 
 type QRCodeService struct {
-	store             *db.Store
-	logger            *logging.Logger
-	cryptomusProvider *cryptocurrency.CryptomusProvider
-	providerService   *providers.ProviderService
-	config            *utils.Config
+	store              *db.Store
+	logger             *logging.Logger
+	cryptomusProvider  *cryptocurrency.CryptomusProvider
+	providerService    *providers.ProviderService
+	config             *utils.Config
+	rateManagerService *ratemanager.Service
 }
 
 func NewQRCodeService(
@@ -33,13 +35,15 @@ func NewQRCodeService(
 	cryptomusProvider *cryptocurrency.CryptomusProvider,
 	providerService *providers.ProviderService,
 	config *utils.Config,
+	rateManagerService *ratemanager.Service,
 ) *QRCodeService {
 	return &QRCodeService{
-		store:             store,
-		logger:            logger,
-		cryptomusProvider: cryptomusProvider,
-		providerService:   providerService,
-		config:            config,
+		store:              store,
+		logger:             logger,
+		cryptomusProvider:  cryptomusProvider,
+		providerService:    providerService,
+		config:             config,
+		rateManagerService: rateManagerService,
 	}
 }
 
@@ -547,6 +551,13 @@ func (s *QRCodeService) payoutQRTransaction(ctx context.Context, tx *db.QrTransa
 			s.logger.Error(fmt.Sprintf("Failed to mark payout as completed: %v", err))
 		} else {
 			s.logger.Info(fmt.Sprintf("Payout completed for transaction %s", tx.ID))
+
+			// Increment user's conversion volume for VIP tracking
+			if netAmount, err := decimal.NewFromString(tx.NetAmount.String); err == nil {
+				if err := s.rateManagerService.IncrementUserConversionVolume(ctx, tx.UserID, netAmount); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to increment conversion volume for user %d: %v", tx.UserID, err))
+				}
+			}
 		}
 
 		s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{

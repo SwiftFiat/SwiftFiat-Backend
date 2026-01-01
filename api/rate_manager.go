@@ -2,10 +2,13 @@ package api
 
 import (
 	"database/sql"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -40,7 +43,6 @@ func (r RateManagerHandler) router(server *Server) {
 	v.GET("/admin/rules", r.ListRateAdjustmentRules)
 	v.PUT("/admin/rules/:id", r.UpdateRateAdjustmentRule)
 	v.DELETE("/admin/rules/:id", r.DeleteRateAdjustmentRule)
-	v.PATCH("/admin/rules/:id/toggle", r.ToggleRateAdjustmentRule)
 	v.POST("/admin/simulate", r.SimulateRateAdjustment)
 	v.POST("/admin/vip-assignments", r.AssignUserToVIPLevel)
 }
@@ -294,10 +296,10 @@ func (r *RateManagerHandler) CreateRateAdjustmentRule(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	user, err := r.server.queries.GetUserByID(c, activeUser.UserID)
 	if err != nil {
@@ -362,42 +364,42 @@ func (r *RateManagerHandler) GetRateAdjustmentRule(c *gin.Context) {
 // @Produce json
 // @Security BearerAuth
 // @Param page query int false "Page number" default(1)
-// @Param page_size query int false "Page size" default(20)
-// @Param active_only query bool false "Filter active rules only"
+// @Param page_size query int false "Number of items per page" default(20)
 // @Success 200 {object} ratemanager.PaginatedResponse
-// @Router /admin/rate-manager/rules [get]
+// @Router /api/v1/rate-manager/admin/rules [get]
 func (r *RateManagerHandler) ListRateAdjustmentRules(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	r.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
+
+	limit, err := strconv.Atoi(c.DefaultQuery("page_size", "20"))
+	if err != nil || limit <= 0 {
+		limit = 20
+	}
+
+	page, err := strconv.Atoi(c.DefaultQuery("page", "1"))
+	if err != nil || page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * limit
+
+	rules, err := r.server.queries.ListRateAdjustmentRules(c.Request.Context(), db.ListRateAdjustmentRulesParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
 	if err != nil {
-		r.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		r.server.logger.Errorf("failed to list rate adjustment rules: %v", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to list rate adjustment rules"))
 		return
 	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	var params ratemanager.PaginationParams
-	if err := c.ShouldBindQuery(&params); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	activeOnly := c.Query("active_only") == "true"
-
-	var rules []ratemanager.RateAdjustmentRuleResponse
-
-	if activeOnly {
-		// TODO: Implement ListActiveRateAdjustmentRules in service
-		c.JSON(http.StatusNotImplemented, basemodels.NewError("Active-only filtering not yet implemented"))
-		return
-	}
-
-	// Implement ListRateAdjustmentRules in service
-	_ = rules
-	_ = err
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", rules))
 }
@@ -423,12 +425,12 @@ func (r *RateManagerHandler) UpdateRateAdjustmentRule(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
-	_, err = uuid.Parse(c.Param("id"))
+	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
@@ -440,8 +442,29 @@ func (r *RateManagerHandler) UpdateRateAdjustmentRule(c *gin.Context) {
 		return
 	}
 
-	// TODO: Implement UpdateRateAdjustmentRule in service
-	c.JSON(http.StatusNotImplemented, basemodels.NewSuccess("Not yet implemented", nil))
+	r.server.logger.Info(fmt.Sprintf("UpdateRateAdjustmentRule request: %+v", req))
+
+	rule, err := r.service.GetRateAdjustmentRule(c.Request.Context(), id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, basemodels.NewError("Rule not found"))
+		return
+	}
+
+	user, err := r.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		r.server.logger.Errorf("failed to get user: %v", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user"))
+		return
+	}
+	updatedRule, err := r.service.UpdateRateAdjustmentRule(c.Request.Context(), rule.ID, &req, &user)
+	if err != nil {
+		r.server.logger.Errorf("failed to update adjustment rule: %v", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update adjustment rule"))
+		return
+	}
+
+	r.server.logger.Info(fmt.Sprintf("UpdateRateAdjustmentRule updated rule: %+v", updatedRule))
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Rule updated successfully", updatedRule))
 }
 
 // DeleteRateAdjustmentRule godoc
@@ -478,44 +501,6 @@ func (r *RateManagerHandler) DeleteRateAdjustmentRule(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, basemodels.NewSuccess("Not yet implemented", nil))
 }
 
-// ToggleRateAdjustmentRule godoc
-// @Summary Toggle rate adjustment rule
-// @Description Enable or disable a rate adjustment rule
-// @Tags Rate Manager - Rules
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "Rule ID"
-// @Param enabled query bool true "Enable/disable rule"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 404 {object} basemodels.ErrorResponse
-// @Router /admin/rate-manager/rules/{id}/toggle [patch]
-func (r *RateManagerHandler) ToggleRateAdjustmentRule(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		r.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	id, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid rule ID"))
-		return
-	}
-
-	enabled := c.Query("enabled") == "true"
-	_ = id
-	_ = enabled
-
-	// Implement ToggleRateAdjustmentRule in service
-	c.JSON(http.StatusNotImplemented, basemodels.NewSuccess("Not yet implemented", nil))
-}
 
 // SimulateRateAdjustment godoc
 // @Summary Simulate rate adjustment
@@ -622,10 +607,10 @@ func (r *RateManagerHandler) AssignUserToVIPLevel(c *gin.Context) {
 		return
 	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
 
 	var req ratemanager.AssignVIPLevelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

@@ -86,13 +86,13 @@ func (s *Service) CreateVIPLevel(ctx context.Context, req *CreateVIPLevelRequest
 	}
 
 	params := db.CreateVIPLevelParams{
-		LevelName:            req.LevelName,
-		LevelCode:            req.LevelCode,
-		LevelRank:            req.LevelRank,
-		MinTransactionVolume: req.MinTransactionVolume,
-		IsActive:             isActive,
-		CreatedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
-		UpdatedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
+		LevelName:           req.LevelName,
+		LevelCode:           req.LevelCode,
+		LevelRank:           req.LevelRank,
+		MinConversionVolume: req.MinConversionVolume,
+		IsActive:            isActive,
+		CreatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
+		UpdatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
 	}
 
 	if req.Description != nil {
@@ -126,10 +126,10 @@ func (s *Service) CreateVIPLevel(ctx context.Context, req *CreateVIPLevelRequest
 		Action:        audit.ActionCreate,
 		Description:   fmt.Sprintf("Created VIP level: %s", req.LevelName),
 		NewValues: map[string]any{
-			"level_name":             req.LevelName,
-			"level_code":             req.LevelCode,
-			"level_rank":             req.LevelRank,
-			"min_transaction_volume": req.MinTransactionVolume,
+			"level_name":            req.LevelName,
+			"level_code":            req.LevelCode,
+			"level_rank":            req.LevelRank,
+			"min_conversion_volume": req.MinConversionVolume,
 		},
 		Success: true,
 	})
@@ -268,10 +268,10 @@ func (s *Service) UpdateVIPLevel(ctx context.Context, id uuid.UUID, req *UpdateV
 		oldValues["level_rank"] = existing.LevelRank
 		newValues["level_rank"] = *req.LevelRank
 	}
-	if req.MinTransactionVolume != nil {
-		params.MinTransactionVolume = sql.NullString{String: *req.MinTransactionVolume, Valid: true}
-		oldValues["min_transaction_volume"] = existing.MinTransactionVolume
-		newValues["min_transaction_volume"] = *req.MinTransactionVolume
+	if req.MinConversionVolume != nil {
+		params.MinConversionVolume = sql.NullString{String: *req.MinConversionVolume, Valid: true}
+		oldValues["min_conversion_volume"] = existing.MinConversionVolume
+		newValues["min_conversion_volume"] = *req.MinConversionVolume
 	}
 	params.Description = sql.NullString{String: *req.Description, Valid: true}
 	if req.BenefitsDescription != nil {
@@ -753,8 +753,6 @@ func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, en
 // 	// }, nil
 // }
 
-
-
 func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPStatusResponse, error) {
 	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %d", userID))
 
@@ -769,15 +767,15 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 			}
 
 			return &UserVIPStatusResponse{
-				UserID:           userID,
-				VIPLevelID:       defaultLevel.ID,
-				VIPLevelName:     defaultLevel.LevelName,
-				VIPLevelCode:     defaultLevel.LevelCode,
-				VIPLevelRank:     defaultLevel.LevelRank,
-				IsActive:         true,
-				AssignmentType:   "automatic",
-				BadgeColor:       &defaultLevel.BadgeColor.String,
-				BenefitsDesc:     &defaultLevel.BenefitsDescription.String,
+				UserID:            userID,
+				VIPLevelID:        defaultLevel.ID,
+				VIPLevelName:      defaultLevel.LevelName,
+				VIPLevelCode:      defaultLevel.LevelCode,
+				VIPLevelRank:      defaultLevel.LevelRank,
+				IsActive:          true,
+				AssignmentType:    "automatic",
+				BadgeColor:        &defaultLevel.BadgeColor.String,
+				BenefitsDesc:      &defaultLevel.BenefitsDescription.String,
 				HasActiveBenefits: true,
 			}, nil
 		}
@@ -791,9 +789,10 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 	}
 
 	// Get user metrics
-	txVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, userID)
+	totalTransactionVolume, err := decimal.NewFromString(assignment.TotalConversionVolume)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
+		s.logger.Error(fmt.Sprintf("Failed to parse total conversion volume: %v", err))
+		totalTransactionVolume = decimal.Zero
 	}
 
 	// Get next VIP level (if any)
@@ -809,16 +808,14 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 		s.logger.Error(fmt.Sprintf("Failed to get active rules: %v", err))
 	}
 
-	totalTransactionVolume := decimal.NewFromInt(txVolume)
-
 	// Calculate progress to next level
 	var progressPercentage float64
 	var volumeToNextLevel string
 
 	if nextLevel != nil {
-		nextVolume, _ := decimal.NewFromString(nextLevel.MinTransactionVolume)
+		nextVolume, _ := decimal.NewFromString(nextLevel.MinConversionVolume)
 		remaining := nextVolume.Sub(totalTransactionVolume)
-		
+
 		if remaining.IsPositive() {
 			volumeToNextLevel = remaining.String()
 			progressPercentage = totalTransactionVolume.Div(nextVolume).Mul(decimal.NewFromInt(100)).InexactFloat64()
@@ -826,48 +823,47 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 	}
 
 	return &UserVIPStatusResponse{
-		UserID:                   userID,
-		VIPLevelID:               vipLevel.ID,
-		VIPLevelName:             vipLevel.LevelName,
-		VIPLevelCode:             vipLevel.LevelCode,
-		VIPLevelRank:             vipLevel.LevelRank,
-		AssignedAt:               assignment.AssignedAt,
-		AssignmentType:           AssignmentType(assignment.AssignmentType),
-		IsActive:                 assignment.IsActive,
-		ExpiresAt:                assignment.ExpiresAt,
-		BadgeColor:               &vipLevel.BadgeColor.String,
-		BenefitsDesc:             &vipLevel.BenefitsDescription.String,
-		TotalTransactionVolume:   totalTransactionVolume.String(),
-		ActiveRulesCount:         int64(len(activeRules)),
-		NextLevel:                nextLevel,
-		ProgressToNextLevel:      progressPercentage,
-		VolumeToNextLevel:        volumeToNextLevel,
-		HasActiveBenefits:        assignment.IsActive && (assignment.ExpiresAt.Time.IsZero() || assignment.ExpiresAt.Time.After(time.Now())),
+		UserID:                userID,
+		VIPLevelID:            vipLevel.ID,
+		VIPLevelName:          vipLevel.LevelName,
+		VIPLevelCode:          vipLevel.LevelCode,
+		VIPLevelRank:          vipLevel.LevelRank,
+		AssignedAt:            assignment.AssignedAt,
+		AssignmentType:        AssignmentType(assignment.AssignmentType),
+		IsActive:              assignment.IsActive,
+		ExpiresAt:             assignment.ExpiresAt,
+		BadgeColor:            &vipLevel.BadgeColor.String,
+		BenefitsDesc:          &vipLevel.BenefitsDescription.String,
+		TotalConversionVolume: totalTransactionVolume.String(),
+		ActiveRulesCount:      int64(len(activeRules)),
+		NextLevel:             nextLevel,
+		ProgressToNextLevel:   progressPercentage,
+		VolumeToNextLevel:     volumeToNextLevel,
+		HasActiveBenefits:     assignment.IsActive && (assignment.ExpiresAt.Time.IsZero() || assignment.ExpiresAt.Time.After(time.Now())),
 	}, nil
 }
 
 type UserVIPStatusResponse struct {
-	UserID                 int64           `json:"user_id"`
-	VIPLevelID             uuid.UUID       `json:"vip_level_id"`
-	VIPLevelName           string          `json:"vip_level_name"`
-	VIPLevelCode           string          `json:"vip_level_code"`
-	VIPLevelRank           int32           `json:"vip_level_rank"`
-	AssignedAt             time.Time       `json:"assigned_at,omitempty"`
-	AssignmentType         AssignmentType  `json:"assignment_type"`
-	IsActive               bool            `json:"is_active"`
-	ExpiresAt              sql.NullTime    `json:"expires_at,omitempty"`
-	BadgeColor             *string         `json:"badge_color,omitempty"`
-	BenefitsDesc           *string         `json:"benefits_description,omitempty"`
-	TotalTransactionVolume string          `json:"total_transaction_volume"`
-	TotalConversionCount   int64           `json:"total_conversion_count"`
-	MonthlyVolume          string          `json:"monthly_volume"`
-	ActiveRulesCount       int64           `json:"active_rules_count"`
-	NextLevel              *VIPLevel       `json:"next_level,omitempty"`
-	ProgressToNextLevel    float64         `json:"progress_to_next_level"`
-	VolumeToNextLevel      string          `json:"volume_to_next_level,omitempty"`
-	HasActiveBenefits      bool            `json:"has_active_benefits"`
+	UserID                int64          `json:"user_id"`
+	VIPLevelID            uuid.UUID      `json:"vip_level_id"`
+	VIPLevelName          string         `json:"vip_level_name"`
+	VIPLevelCode          string         `json:"vip_level_code"`
+	VIPLevelRank          int32          `json:"vip_level_rank"`
+	AssignedAt            time.Time      `json:"assigned_at,omitempty"`
+	AssignmentType        AssignmentType `json:"assignment_type"`
+	IsActive              bool           `json:"is_active"`
+	ExpiresAt             sql.NullTime   `json:"expires_at,omitempty"`
+	BadgeColor            *string        `json:"badge_color,omitempty"`
+	BenefitsDesc          *string        `json:"benefits_description,omitempty"`
+	TotalConversionVolume string         `json:"total_conversion_volume"`
+	TotalConversionCount  int64          `json:"total_conversion_count"`
+	MonthlyVolume         string         `json:"monthly_volume"`
+	ActiveRulesCount      int64          `json:"active_rules_count"`
+	NextLevel             *VIPLevel      `json:"next_level,omitempty"`
+	ProgressToNextLevel   float64        `json:"progress_to_next_level"`
+	VolumeToNextLevel     string         `json:"volume_to_next_level,omitempty"`
+	HasActiveBenefits     bool           `json:"has_active_benefits"`
 }
-
 
 // =====================================================
 // RATE CALCULATION WITH ADJUSTMENTS
@@ -1009,7 +1005,7 @@ func (s *Service) SimulateRateAdjustment(ctx context.Context, req *RateSimulatio
 		adjustedRate, adjustmentAmount = s.applyRateAdjustment(
 			baseRate.Rate,
 			string(*req.AdjustmentType),
-			req.AdjustmentValue.String(),
+			*req.AdjustmentValue,
 			string(*req.AdjustmentDirection),
 		)
 	} else {
@@ -1056,21 +1052,19 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		return nil, fmt.Errorf("failed to get VIP level: %w", err)
 	}
 
-	// Get user transaction metrics
-	// totalTxVolume, err := s.store.GetTotalTransactionVolumeForUser(ctx, req.UserID)
-	// if err != nil {
-	// 	s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
-	// 	return nil, fmt.Errorf("failed to get user metrics: %w", err)
-	// }
-
-	// totalVolume := decimal.NewFromInt(totalTxVolume)
+	// Get user conversion metrics
+	totalVolume, err := s.store.GetTotalConversionVolumeForUser(ctx, req.UserID)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
+		return nil, fmt.Errorf("failed to get user metrics: %w", err)
+	}
 
 	params := db.AssignUserToVIPLevelParams{
-		UserID:                 req.UserID,
-		VipLevelID:             req.VIPLevelID,
-		AssignedBy:             sql.NullInt64{Int64: user.ID, Valid: true},
-		AssignmentType:         string(AssignmentTypeManual),
-		TotalTransactionVolume: "35",
+		UserID:                req.UserID,
+		VipLevelID:            req.VIPLevelID,
+		AssignedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
+		AssignmentType:        string(AssignmentTypeManual),
+		TotalConversionVolume: fmt.Sprintf("%d", totalVolume),
 	}
 
 	if req.ExpiresAt != nil {
@@ -1126,12 +1120,12 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 // AutoAssignUserVIPLevel automatically assigns VIP level based on user metrics
 func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) error {
 	// Get user transaction metrics
-	volume, err := s.store.GetTotalTransactionVolumeForUser(ctx, userID)
+	volume, err := s.store.GetTotalConversionVolumeForUser(ctx, userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user metrics: %w", err)
 	}
 
-	totalVolume := decimal.NewFromInt(volume)
+	totalVolume := decimal.NewFromInt(int64(volume))
 
 	// Find appropriate VIP level
 	vipLevel, err := s.store.GetVIPLevelForVolume(ctx, totalVolume.String())
@@ -1146,10 +1140,10 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 
 	// Assign user to VIP level
 	params := db.AssignUserToVIPLevelParams{
-		UserID:                 userID,
-		VipLevelID:             vipLevel.ID,
-		AssignmentType:         string(AssignmentTypeAutomatic),
-		TotalTransactionVolume: totalVolume.String(),
+		UserID:                userID,
+		VipLevelID:            vipLevel.ID,
+		AssignmentType:        string(AssignmentTypeAutomatic),
+		TotalConversionVolume: totalVolume.String(),
 	}
 
 	_, err = s.store.AssignUserToVIPLevel(ctx, params)
@@ -1165,4 +1159,12 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 func (s *Service) sendVIPAssignmentEmail(ctx context.Context, user *db.User, vipLevel *db.VipLevel) {
 	//TODO: Implement email sending logic similar to plunk.go examples
 	s.logger.Info(fmt.Sprintf("Sending VIP assignment email to %s for level %s", user.Email, vipLevel.LevelName))
+}
+
+// IncrementUserConversionVolume increments the user's total conversion volume
+func (s *Service) IncrementUserConversionVolume(ctx context.Context, userID int64, amount decimal.Decimal) error {
+	return s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
+		UserID:                userID,
+		TotalConversionVolume: amount.String(),
+	})
 }

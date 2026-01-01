@@ -21,9 +21,9 @@ INSERT INTO user_vip_assignments (
     vip_level_id,
     assigned_by,
     assignment_type,
-    total_transaction_volume,
+    total_conversion_volume,
     -- total_conversion_count,
-    expires_at
+    expires_at 
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
@@ -33,20 +33,19 @@ DO UPDATE SET
     assigned_at = NOW(),
     assigned_by = EXCLUDED.assigned_by,
     assignment_type = EXCLUDED.assignment_type,
-    total_transaction_volume = EXCLUDED.total_transaction_volume,
-    total_conversion_count = EXCLUDED.total_conversion_count,
+    total_conversion_volume = EXCLUDED.total_conversion_volume,
     expires_at = EXCLUDED.expires_at,
     updated_at = NOW()
-RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_transaction_volume, is_active, expires_at, created_at, updated_at
+RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at
 `
 
 type AssignUserToVIPLevelParams struct {
-	UserID                 int64         `json:"user_id"`
-	VipLevelID             uuid.UUID     `json:"vip_level_id"`
-	AssignedBy             sql.NullInt64 `json:"assigned_by"`
-	AssignmentType         string        `json:"assignment_type"`
-	TotalTransactionVolume string        `json:"total_transaction_volume"`
-	ExpiresAt              sql.NullTime  `json:"expires_at"`
+	UserID                int64         `json:"user_id"`
+	VipLevelID            uuid.UUID     `json:"vip_level_id"`
+	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignmentType        string        `json:"assignment_type"`
+	TotalConversionVolume string        `json:"total_conversion_volume"`
+	ExpiresAt             sql.NullTime  `json:"expires_at"`
 }
 
 // =====================================================
@@ -58,7 +57,7 @@ func (q *Queries) AssignUserToVIPLevel(ctx context.Context, arg AssignUserToVIPL
 		arg.VipLevelID,
 		arg.AssignedBy,
 		arg.AssignmentType,
-		arg.TotalTransactionVolume,
+		arg.TotalConversionVolume,
 		arg.ExpiresAt,
 	)
 	var i UserVipAssignment
@@ -69,7 +68,7 @@ func (q *Queries) AssignUserToVIPLevel(ctx context.Context, arg AssignUserToVIPL
 		&i.AssignedAt,
 		&i.AssignedBy,
 		&i.AssignmentType,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.IsActive,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -79,7 +78,7 @@ func (q *Queries) AssignUserToVIPLevel(ctx context.Context, arg AssignUserToVIPL
 }
 
 const checkExpiredVIPAssignments = `-- name: CheckExpiredVIPAssignments :many
-SELECT id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_transaction_volume, is_active, expires_at, created_at, updated_at FROM user_vip_assignments
+SELECT id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at FROM user_vip_assignments
 WHERE is_active = TRUE 
   AND expires_at IS NOT NULL 
   AND expires_at <= NOW()
@@ -101,7 +100,7 @@ func (q *Queries) CheckExpiredVIPAssignments(ctx context.Context) ([]UserVipAssi
 			&i.AssignedAt,
 			&i.AssignedBy,
 			&i.AssignmentType,
-			&i.TotalTransactionVolume,
+			&i.TotalConversionVolume,
 			&i.IsActive,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -408,7 +407,7 @@ INSERT INTO vip_levels (
     level_name,
     level_code,
     level_rank,
-    min_transaction_volume,
+    min_conversion_volume,
     description,
     benefits_description,
     badge_color,
@@ -418,21 +417,21 @@ INSERT INTO vip_levels (
     updated_by
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-) RETURNING id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
+) RETURNING id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
 `
 
 type CreateVIPLevelParams struct {
-	LevelName            string         `json:"level_name"`
-	LevelCode            string         `json:"level_code"`
-	LevelRank            int32          `json:"level_rank"`
-	MinTransactionVolume string         `json:"min_transaction_volume"`
-	Description          sql.NullString `json:"description"`
-	BenefitsDescription  sql.NullString `json:"benefits_description"`
-	BadgeColor           sql.NullString `json:"badge_color"`
-	IconUrl              sql.NullString `json:"icon_url"`
-	IsActive             bool           `json:"is_active"`
-	CreatedBy            sql.NullInt64  `json:"created_by"`
-	UpdatedBy            sql.NullInt64  `json:"updated_by"`
+	LevelName           string         `json:"level_name"`
+	LevelCode           string         `json:"level_code"`
+	LevelRank           int32          `json:"level_rank"`
+	MinConversionVolume string         `json:"min_conversion_volume"`
+	Description         sql.NullString `json:"description"`
+	BenefitsDescription sql.NullString `json:"benefits_description"`
+	BadgeColor          sql.NullString `json:"badge_color"`
+	IconUrl             sql.NullString `json:"icon_url"`
+	IsActive            bool           `json:"is_active"`
+	CreatedBy           sql.NullInt64  `json:"created_by"`
+	UpdatedBy           sql.NullInt64  `json:"updated_by"`
 }
 
 // =====================================================
@@ -446,7 +445,7 @@ func (q *Queries) CreateVIPLevel(ctx context.Context, arg CreateVIPLevelParams) 
 		arg.LevelName,
 		arg.LevelCode,
 		arg.LevelRank,
-		arg.MinTransactionVolume,
+		arg.MinConversionVolume,
 		arg.Description,
 		arg.BenefitsDescription,
 		arg.BadgeColor,
@@ -461,7 +460,7 @@ func (q *Queries) CreateVIPLevel(ctx context.Context, arg CreateVIPLevelParams) 
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -481,7 +480,7 @@ const deactivateUserVIPAssignment = `-- name: DeactivateUserVIPAssignment :one
 UPDATE user_vip_assignments
 SET is_active = FALSE, updated_at = NOW()
 WHERE user_id = $1 AND is_active = TRUE
-RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_transaction_volume, is_active, expires_at, created_at, updated_at
+RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at
 `
 
 func (q *Queries) DeactivateUserVIPAssignment(ctx context.Context, userID int64) (UserVipAssignment, error) {
@@ -494,7 +493,7 @@ func (q *Queries) DeactivateUserVIPAssignment(ctx context.Context, userID int64)
 		&i.AssignedAt,
 		&i.AssignedBy,
 		&i.AssignmentType,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.IsActive,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -507,7 +506,7 @@ const deactivateVIPAssignment = `-- name: DeactivateVIPAssignment :one
 UPDATE user_vip_assignments
 SET is_active = FALSE, updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_transaction_volume, is_active, expires_at, created_at, updated_at
+RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at
 `
 
 func (q *Queries) DeactivateVIPAssignment(ctx context.Context, id uuid.UUID) (UserVipAssignment, error) {
@@ -520,7 +519,7 @@ func (q *Queries) DeactivateVIPAssignment(ctx context.Context, id uuid.UUID) (Us
 		&i.AssignedAt,
 		&i.AssignedBy,
 		&i.AssignmentType,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.IsActive,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -584,7 +583,7 @@ const deleteVIPLevel = `-- name: DeleteVIPLevel :one
 UPDATE vip_levels
 SET deleted_at = NOW(), updated_by = $2
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
+RETURNING id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
 `
 
 type DeleteVIPLevelParams struct {
@@ -600,7 +599,7 @@ func (q *Queries) DeleteVIPLevel(ctx context.Context, arg DeleteVIPLevelParams) 
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -776,7 +775,7 @@ func (q *Queries) GetActiveRulesForUser(ctx context.Context, vipLevelID uuid.UUI
 }
 
 const getActiveVIPAssignment = `-- name: GetActiveVIPAssignment :one
-SELECT id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_transaction_volume, is_active, expires_at, created_at, updated_at FROM user_vip_assignments
+SELECT id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at FROM user_vip_assignments
 WHERE user_id = $1
     AND is_active = TRUE
     AND (expires_at IS NULL OR expires_at > NOW())
@@ -793,7 +792,7 @@ func (q *Queries) GetActiveVIPAssignment(ctx context.Context, userID int64) (Use
 		&i.AssignedAt,
 		&i.AssignedBy,
 		&i.AssignmentType,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.IsActive,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -914,7 +913,7 @@ func (q *Queries) GetApplicableRulesForUser(ctx context.Context, arg GetApplicab
 }
 
 const getDefaultVIPLevel = `-- name: GetDefaultVIPLevel :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE is_default = TRUE AND deleted_at IS NULL AND is_active = TRUE
 LIMIT 1
 `
@@ -927,7 +926,7 @@ func (q *Queries) GetDefaultVIPLevel(ctx context.Context) (VipLevel, error) {
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -944,7 +943,7 @@ func (q *Queries) GetDefaultVIPLevel(ctx context.Context) (VipLevel, error) {
 }
 
 const getNextVIPLevel = `-- name: GetNextVIPLevel :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE level_rank > $1
     AND is_active = TRUE
     AND deleted_at IS NULL
@@ -960,7 +959,7 @@ func (q *Queries) GetNextVIPLevel(ctx context.Context, levelRank int32) (VipLeve
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1263,23 +1262,23 @@ SELECT
     u.email,
     u.first_name,
     u.last_name,
-    uva.total_transaction_volume,
+    uva.total_conversion_volume,
     v.level_name as vip_level
 FROM user_vip_assignments uva
 JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
 JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
 WHERE uva.is_active = TRUE
-ORDER BY uva.total_transaction_volume DESC
+ORDER BY uva.total_conversion_volume DESC
 LIMIT $1
 `
 
 type GetTopVIPUsersRow struct {
-	ID                     int64          `json:"id"`
-	Email                  string         `json:"email"`
-	FirstName              sql.NullString `json:"first_name"`
-	LastName               sql.NullString `json:"last_name"`
-	TotalTransactionVolume string         `json:"total_transaction_volume"`
-	VipLevel               string         `json:"vip_level"`
+	ID                    int64          `json:"id"`
+	Email                 string         `json:"email"`
+	FirstName             sql.NullString `json:"first_name"`
+	LastName              sql.NullString `json:"last_name"`
+	TotalConversionVolume string         `json:"total_conversion_volume"`
+	VipLevel              string         `json:"vip_level"`
 }
 
 func (q *Queries) GetTopVIPUsers(ctx context.Context, limit int32) ([]GetTopVIPUsersRow, error) {
@@ -1296,7 +1295,7 @@ func (q *Queries) GetTopVIPUsers(ctx context.Context, limit int32) ([]GetTopVIPU
 			&i.Email,
 			&i.FirstName,
 			&i.LastName,
-			&i.TotalTransactionVolume,
+			&i.TotalConversionVolume,
 			&i.VipLevel,
 		); err != nil {
 			return nil, err
@@ -1312,9 +1311,22 @@ func (q *Queries) GetTopVIPUsers(ctx context.Context, limit int32) ([]GetTopVIPU
 	return items, nil
 }
 
+const getTotalConversionVolumeForUser = `-- name: GetTotalConversionVolumeForUser :one
+SELECT CAST(COALESCE(SUM(CAST(total_conversion_volume AS DECIMAL(20, 2))), 0) AS INTEGER) AS total_volume
+FROM user_vip_assignments
+WHERE user_id = $1 AND is_active = TRUE
+`
+
+func (q *Queries) GetTotalConversionVolumeForUser(ctx context.Context, userID int64) (int32, error) {
+	row := q.db.QueryRowContext(ctx, getTotalConversionVolumeForUser, userID)
+	var total_volume int32
+	err := row.Scan(&total_volume)
+	return total_volume, err
+}
+
 const getUserVIPAssignment = `-- name: GetUserVIPAssignment :one
 SELECT 
-    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_transaction_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
+    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_conversion_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
     v.level_name,
     v.level_code,
     v.level_rank,
@@ -1327,22 +1339,22 @@ LIMIT 1
 `
 
 type GetUserVIPAssignmentRow struct {
-	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
-	VipLevelID             uuid.UUID      `json:"vip_level_id"`
-	AssignedAt             time.Time      `json:"assigned_at"`
-	AssignedBy             sql.NullInt64  `json:"assigned_by"`
-	AssignmentType         string         `json:"assignment_type"`
-	TotalTransactionVolume string         `json:"total_transaction_volume"`
-	IsActive               bool           `json:"is_active"`
-	ExpiresAt              sql.NullTime   `json:"expires_at"`
-	CreatedAt              time.Time      `json:"created_at"`
-	UpdatedAt              time.Time      `json:"updated_at"`
-	LevelName              string         `json:"level_name"`
-	LevelCode              string         `json:"level_code"`
-	LevelRank              int32          `json:"level_rank"`
-	BadgeColor             sql.NullString `json:"badge_color"`
-	BenefitsDescription    sql.NullString `json:"benefits_description"`
+	ID                    uuid.UUID      `json:"id"`
+	UserID                int64          `json:"user_id"`
+	VipLevelID            uuid.UUID      `json:"vip_level_id"`
+	AssignedAt            time.Time      `json:"assigned_at"`
+	AssignedBy            sql.NullInt64  `json:"assigned_by"`
+	AssignmentType        string         `json:"assignment_type"`
+	TotalConversionVolume string         `json:"total_conversion_volume"`
+	IsActive              bool           `json:"is_active"`
+	ExpiresAt             sql.NullTime   `json:"expires_at"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	LevelName             string         `json:"level_name"`
+	LevelCode             string         `json:"level_code"`
+	LevelRank             int32          `json:"level_rank"`
+	BadgeColor            sql.NullString `json:"badge_color"`
+	BenefitsDescription   sql.NullString `json:"benefits_description"`
 }
 
 func (q *Queries) GetUserVIPAssignment(ctx context.Context, userID int64) (GetUserVIPAssignmentRow, error) {
@@ -1355,7 +1367,7 @@ func (q *Queries) GetUserVIPAssignment(ctx context.Context, userID int64) (GetUs
 		&i.AssignedAt,
 		&i.AssignedBy,
 		&i.AssignmentType,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.IsActive,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -1370,7 +1382,7 @@ func (q *Queries) GetUserVIPAssignment(ctx context.Context, userID int64) (GetUs
 }
 
 const getUserVIPLevel = `-- name: GetUserVIPLevel :one
-SELECT v.id, v.level_name, v.level_code, v.level_rank, v.min_transaction_volume, v.description, v.benefits_description, v.badge_color, v.icon_url, v.is_active, v.is_default, v.created_by, v.updated_by, v.created_at, v.updated_at, v.deleted_at
+SELECT v.id, v.level_name, v.level_code, v.level_rank, v.min_conversion_volume, v.description, v.benefits_description, v.badge_color, v.icon_url, v.is_active, v.is_default, v.created_by, v.updated_by, v.created_at, v.updated_at, v.deleted_at
 FROM user_vip_assignments uva
 JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
 WHERE uva.user_id = $1 AND uva.is_active = TRUE
@@ -1385,7 +1397,7 @@ func (q *Queries) GetUserVIPLevel(ctx context.Context, userID int64) (VipLevel, 
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1407,11 +1419,11 @@ SELECT
     uva.user_id,
     uva.vip_level_id,
     uva.is_active,
-    uva.total_transaction_volume,
+    uva.total_conversion_volume,
     v.level_name as vip_level,
     v.level_code as vip_code,
     v.level_rank as vip_rank,
-    v.min_transaction_volume as vip_min_volume,
+    v.min_conversion_volume as vip_min_volume,
     v.description as vip_description,
     v.benefits_description as vip_benefits_description,
     v.badge_color as vip_badge_color,
@@ -1431,7 +1443,7 @@ type GetUserVIPStatusRow struct {
 	UserID                 int64          `json:"user_id"`
 	VipLevelID             uuid.UUID      `json:"vip_level_id"`
 	IsActive               bool           `json:"is_active"`
-	TotalTransactionVolume string         `json:"total_transaction_volume"`
+	TotalConversionVolume  string         `json:"total_conversion_volume"`
 	VipLevel               string         `json:"vip_level"`
 	VipCode                string         `json:"vip_code"`
 	VipRank                int32          `json:"vip_rank"`
@@ -1454,7 +1466,7 @@ func (q *Queries) GetUserVIPStatus(ctx context.Context, userID int64) (GetUserVI
 		&i.UserID,
 		&i.VipLevelID,
 		&i.IsActive,
-		&i.TotalTransactionVolume,
+		&i.TotalConversionVolume,
 		&i.VipLevel,
 		&i.VipCode,
 		&i.VipRank,
@@ -1472,7 +1484,7 @@ func (q *Queries) GetUserVIPStatus(ctx context.Context, userID int64) (GetUserVI
 }
 
 const getVIPLevelByCode = `-- name: GetVIPLevelByCode :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE level_code = $1 AND deleted_at IS NULL
 `
 
@@ -1484,7 +1496,7 @@ func (q *Queries) GetVIPLevelByCode(ctx context.Context, levelCode string) (VipL
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1501,7 +1513,7 @@ func (q *Queries) GetVIPLevelByCode(ctx context.Context, levelCode string) (VipL
 }
 
 const getVIPLevelByID = `-- name: GetVIPLevelByID :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE id = $1 AND deleted_at IS NULL
 `
 
@@ -1513,7 +1525,7 @@ func (q *Queries) GetVIPLevelByID(ctx context.Context, id uuid.UUID) (VipLevel, 
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1530,7 +1542,7 @@ func (q *Queries) GetVIPLevelByID(ctx context.Context, id uuid.UUID) (VipLevel, 
 }
 
 const getVIPLevelByRank = `-- name: GetVIPLevelByRank :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE level_rank = $1 AND deleted_at IS NULL AND is_active = TRUE
 `
 
@@ -1542,7 +1554,7 @@ func (q *Queries) GetVIPLevelByRank(ctx context.Context, levelRank int32) (VipLe
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1565,7 +1577,7 @@ SELECT
     v.level_code,
     v.level_rank,
     COUNT(uva.id) as user_count,
-    SUM(uva.total_transaction_volume) as total_volume
+    SUM(uva.total_conversion_volume) as total_volume
 FROM vip_levels v
 LEFT JOIN user_vip_assignments uva ON v.id = uva.vip_level_id AND uva.is_active = TRUE
 WHERE v.deleted_at IS NULL AND v.is_active = TRUE
@@ -1614,23 +1626,23 @@ func (q *Queries) GetVIPLevelDistribution(ctx context.Context) ([]GetVIPLevelDis
 }
 
 const getVIPLevelForVolume = `-- name: GetVIPLevelForVolume :one
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
-WHERE min_transaction_volume <= $1 
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+WHERE min_conversion_volume <= $1 
   AND deleted_at IS NULL 
   AND is_active = TRUE
-ORDER BY min_transaction_volume DESC
+ORDER BY min_conversion_volume DESC
 LIMIT 1
 `
 
-func (q *Queries) GetVIPLevelForVolume(ctx context.Context, minTransactionVolume string) (VipLevel, error) {
-	row := q.db.QueryRowContext(ctx, getVIPLevelForVolume, minTransactionVolume)
+func (q *Queries) GetVIPLevelForVolume(ctx context.Context, minConversionVolume string) (VipLevel, error) {
+	row := q.db.QueryRowContext(ctx, getVIPLevelForVolume, minConversionVolume)
 	var i VipLevel
 	err := row.Scan(
 		&i.ID,
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,
@@ -1644,6 +1656,23 @@ func (q *Queries) GetVIPLevelForVolume(ctx context.Context, minTransactionVolume
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const incrementUserConversionVolume = `-- name: IncrementUserConversionVolume :exec
+UPDATE user_vip_assignments
+SET total_conversion_volume = (CAST(total_conversion_volume AS DECIMAL(20, 2)) + $2)::TEXT,
+    updated_at = NOW()
+WHERE user_id = $1 AND is_active = TRUE
+`
+
+type IncrementUserConversionVolumeParams struct {
+	UserID                int64  `json:"user_id"`
+	TotalConversionVolume string `json:"total_conversion_volume"`
+}
+
+func (q *Queries) IncrementUserConversionVolume(ctx context.Context, arg IncrementUserConversionVolumeParams) error {
+	_, err := q.db.ExecContext(ctx, incrementUserConversionVolume, arg.UserID, arg.TotalConversionVolume)
+	return err
 }
 
 const listActiveRateAdjustmentRules = `-- name: ListActiveRateAdjustmentRules :many
@@ -1734,7 +1763,7 @@ func (q *Queries) ListActiveRateAdjustmentRules(ctx context.Context) ([]ListActi
 }
 
 const listActiveVIPLevels = `-- name: ListActiveVIPLevels :many
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE deleted_at IS NULL AND is_active = TRUE
 ORDER BY level_rank ASC
 `
@@ -1753,7 +1782,7 @@ func (q *Queries) ListActiveVIPLevels(ctx context.Context) ([]VipLevel, error) {
 			&i.LevelName,
 			&i.LevelCode,
 			&i.LevelRank,
-			&i.MinTransactionVolume,
+			&i.MinConversionVolume,
 			&i.Description,
 			&i.BenefitsDescription,
 			&i.BadgeColor,
@@ -2018,7 +2047,7 @@ func (q *Queries) ListRateChanges(ctx context.Context, arg ListRateChangesParams
 
 const listUserVIPHistory = `-- name: ListUserVIPHistory :many
 SELECT 
-    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_transaction_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
+    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_conversion_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
     v.level_name,
     v.level_code,
     v.level_rank
@@ -2036,20 +2065,20 @@ type ListUserVIPHistoryParams struct {
 }
 
 type ListUserVIPHistoryRow struct {
-	ID                     uuid.UUID     `json:"id"`
-	UserID                 int64         `json:"user_id"`
-	VipLevelID             uuid.UUID     `json:"vip_level_id"`
-	AssignedAt             time.Time     `json:"assigned_at"`
-	AssignedBy             sql.NullInt64 `json:"assigned_by"`
-	AssignmentType         string        `json:"assignment_type"`
-	TotalTransactionVolume string        `json:"total_transaction_volume"`
-	IsActive               bool          `json:"is_active"`
-	ExpiresAt              sql.NullTime  `json:"expires_at"`
-	CreatedAt              time.Time     `json:"created_at"`
-	UpdatedAt              time.Time     `json:"updated_at"`
-	LevelName              string        `json:"level_name"`
-	LevelCode              string        `json:"level_code"`
-	LevelRank              int32         `json:"level_rank"`
+	ID                    uuid.UUID     `json:"id"`
+	UserID                int64         `json:"user_id"`
+	VipLevelID            uuid.UUID     `json:"vip_level_id"`
+	AssignedAt            time.Time     `json:"assigned_at"`
+	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignmentType        string        `json:"assignment_type"`
+	TotalConversionVolume string        `json:"total_conversion_volume"`
+	IsActive              bool          `json:"is_active"`
+	ExpiresAt             sql.NullTime  `json:"expires_at"`
+	CreatedAt             time.Time     `json:"created_at"`
+	UpdatedAt             time.Time     `json:"updated_at"`
+	LevelName             string        `json:"level_name"`
+	LevelCode             string        `json:"level_code"`
+	LevelRank             int32         `json:"level_rank"`
 }
 
 func (q *Queries) ListUserVIPHistory(ctx context.Context, arg ListUserVIPHistoryParams) ([]ListUserVIPHistoryRow, error) {
@@ -2068,7 +2097,7 @@ func (q *Queries) ListUserVIPHistory(ctx context.Context, arg ListUserVIPHistory
 			&i.AssignedAt,
 			&i.AssignedBy,
 			&i.AssignmentType,
-			&i.TotalTransactionVolume,
+			&i.TotalConversionVolume,
 			&i.IsActive,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -2092,7 +2121,7 @@ func (q *Queries) ListUserVIPHistory(ctx context.Context, arg ListUserVIPHistory
 
 const listUsersInVIPLevel = `-- name: ListUsersInVIPLevel :many
 SELECT 
-    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_transaction_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
+    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_conversion_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
     u.email,
     u.first_name,
     u.last_name
@@ -2110,20 +2139,20 @@ type ListUsersInVIPLevelParams struct {
 }
 
 type ListUsersInVIPLevelRow struct {
-	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
-	VipLevelID             uuid.UUID      `json:"vip_level_id"`
-	AssignedAt             time.Time      `json:"assigned_at"`
-	AssignedBy             sql.NullInt64  `json:"assigned_by"`
-	AssignmentType         string         `json:"assignment_type"`
-	TotalTransactionVolume string         `json:"total_transaction_volume"`
-	IsActive               bool           `json:"is_active"`
-	ExpiresAt              sql.NullTime   `json:"expires_at"`
-	CreatedAt              time.Time      `json:"created_at"`
-	UpdatedAt              time.Time      `json:"updated_at"`
-	Email                  string         `json:"email"`
-	FirstName              sql.NullString `json:"first_name"`
-	LastName               sql.NullString `json:"last_name"`
+	ID                    uuid.UUID      `json:"id"`
+	UserID                int64          `json:"user_id"`
+	VipLevelID            uuid.UUID      `json:"vip_level_id"`
+	AssignedAt            time.Time      `json:"assigned_at"`
+	AssignedBy            sql.NullInt64  `json:"assigned_by"`
+	AssignmentType        string         `json:"assignment_type"`
+	TotalConversionVolume string         `json:"total_conversion_volume"`
+	IsActive              bool           `json:"is_active"`
+	ExpiresAt             sql.NullTime   `json:"expires_at"`
+	CreatedAt             time.Time      `json:"created_at"`
+	UpdatedAt             time.Time      `json:"updated_at"`
+	Email                 string         `json:"email"`
+	FirstName             sql.NullString `json:"first_name"`
+	LastName              sql.NullString `json:"last_name"`
 }
 
 func (q *Queries) ListUsersInVIPLevel(ctx context.Context, arg ListUsersInVIPLevelParams) ([]ListUsersInVIPLevelRow, error) {
@@ -2142,7 +2171,7 @@ func (q *Queries) ListUsersInVIPLevel(ctx context.Context, arg ListUsersInVIPLev
 			&i.AssignedAt,
 			&i.AssignedBy,
 			&i.AssignmentType,
-			&i.TotalTransactionVolume,
+			&i.TotalConversionVolume,
 			&i.IsActive,
 			&i.ExpiresAt,
 			&i.CreatedAt,
@@ -2165,7 +2194,7 @@ func (q *Queries) ListUsersInVIPLevel(ctx context.Context, arg ListUsersInVIPLev
 }
 
 const listVIPLevels = `-- name: ListVIPLevels :many
-SELECT id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
+SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE deleted_at IS NULL
 ORDER BY level_rank ASC
 `
@@ -2184,7 +2213,7 @@ func (q *Queries) ListVIPLevels(ctx context.Context) ([]VipLevel, error) {
 			&i.LevelName,
 			&i.LevelCode,
 			&i.LevelRank,
-			&i.MinTransactionVolume,
+			&i.MinConversionVolume,
 			&i.Description,
 			&i.BenefitsDescription,
 			&i.BadgeColor,
@@ -2460,7 +2489,7 @@ SET
     level_name = COALESCE($3, level_name),
     level_code = COALESCE($4, level_code),
     level_rank = COALESCE($5, level_rank),
-    min_transaction_volume = COALESCE($6, min_transaction_volume),
+    min_conversion_volume = COALESCE($6, min_conversion_volume),
     description = COALESCE($7, description),
     benefits_description = COALESCE($8, benefits_description),
     badge_color = COALESCE($9, badge_color),
@@ -2468,21 +2497,21 @@ SET
     is_active = COALESCE($11, is_active),
     updated_by = $2
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, level_name, level_code, level_rank, min_transaction_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
+RETURNING id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at
 `
 
 type UpdateVIPLevelParams struct {
-	ID                   uuid.UUID      `json:"id"`
-	UpdatedBy            sql.NullInt64  `json:"updated_by"`
-	LevelName            sql.NullString `json:"level_name"`
-	LevelCode            sql.NullString `json:"level_code"`
-	LevelRank            sql.NullInt32  `json:"level_rank"`
-	MinTransactionVolume sql.NullString `json:"min_transaction_volume"`
-	Description          sql.NullString `json:"description"`
-	BenefitsDescription  sql.NullString `json:"benefits_description"`
-	BadgeColor           sql.NullString `json:"badge_color"`
-	IconUrl              sql.NullString `json:"icon_url"`
-	IsActive             sql.NullBool   `json:"is_active"`
+	ID                  uuid.UUID      `json:"id"`
+	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	LevelName           sql.NullString `json:"level_name"`
+	LevelCode           sql.NullString `json:"level_code"`
+	LevelRank           sql.NullInt32  `json:"level_rank"`
+	MinConversionVolume sql.NullString `json:"min_conversion_volume"`
+	Description         sql.NullString `json:"description"`
+	BenefitsDescription sql.NullString `json:"benefits_description"`
+	BadgeColor          sql.NullString `json:"badge_color"`
+	IconUrl             sql.NullString `json:"icon_url"`
+	IsActive            sql.NullBool   `json:"is_active"`
 }
 
 func (q *Queries) UpdateVIPLevel(ctx context.Context, arg UpdateVIPLevelParams) (VipLevel, error) {
@@ -2492,7 +2521,7 @@ func (q *Queries) UpdateVIPLevel(ctx context.Context, arg UpdateVIPLevelParams) 
 		arg.LevelName,
 		arg.LevelCode,
 		arg.LevelRank,
-		arg.MinTransactionVolume,
+		arg.MinConversionVolume,
 		arg.Description,
 		arg.BenefitsDescription,
 		arg.BadgeColor,
@@ -2505,7 +2534,7 @@ func (q *Queries) UpdateVIPLevel(ctx context.Context, arg UpdateVIPLevelParams) 
 		&i.LevelName,
 		&i.LevelCode,
 		&i.LevelRank,
-		&i.MinTransactionVolume,
+		&i.MinConversionVolume,
 		&i.Description,
 		&i.BenefitsDescription,
 		&i.BadgeColor,

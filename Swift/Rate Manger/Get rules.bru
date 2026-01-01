@@ -1,12 +1,12 @@
 meta {
-  name: get my tickets
+  name: Get rules
   type: http
-  seq: 2
+  seq: 5
 }
 
 get {
-  url: {{BaseURl}}/chat/my-tickets
-  body: none
+  url: {{BaseURl}}/rate-manager/admin/rules
+  body: json
   auth: bearer
 }
 

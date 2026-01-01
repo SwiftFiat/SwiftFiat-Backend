@@ -458,6 +458,12 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		return nil, err
 	}
 
+	// Increment user's conversion volume for VIP tracking
+	if err := s.rateManagerService.IncrementUserConversionVolume(ctx, params.userID, params.targetAmount); err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to increment conversion volume for user %d: %v", params.userID, err))
+		// Don't fail the conversion for this
+	}
+
 	return &history, nil
 }
 

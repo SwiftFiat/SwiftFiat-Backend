@@ -17,14 +17,14 @@
  */
  CREATE TABLE IF NOT EXISTS "vip_levels" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    
+     
     -- VIP level identification
     "level_name" VARCHAR(50) UNIQUE NOT NULL, -- e.g., "VIP 1", "VIP Elite"
     "level_code" VARCHAR(20) UNIQUE NOT NULL, -- e.g., "VIP1", "ELITE"
     "level_rank" INTEGER UNIQUE NOT NULL,     -- Ordering: 1, 2, 3... (higher = better)
     
     -- Eligibility criteria
-    "min_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0, -- Lifetime transaction volume in USD    
+    "min_conversion_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0, -- Lifetime conversion volume in USD    
     -- Metadata
     "description" TEXT,
     "benefits_description" TEXT,  -- User-facing benefits text
@@ -43,7 +43,7 @@
     "deleted_at" TIMESTAMPTZ,
     
     -- Constraints
-    CONSTRAINT "positive_transaction_volume" CHECK ("min_transaction_volume" >= 0),
+    CONSTRAINT "positive_conversion_volume" CHECK ("min_conversion_volume" >= 0),
     CONSTRAINT "valid_level_rank" CHECK ("level_rank" > 0)
 );
 
@@ -53,7 +53,7 @@
         WHERE is_default = TRUE AND deleted_at IS NULL;
 CREATE INDEX "idx_vip_levels_active" ON "vip_levels"("is_active") WHERE "deleted_at" IS NULL;
 CREATE INDEX "idx_vip_levels_rank" ON "vip_levels"("level_rank") WHERE "deleted_at" IS NULL;
-CREATE INDEX "idx_vip_levels_volume" ON "vip_levels"("min_transaction_volume") WHERE "deleted_at" IS NULL;
+CREATE INDEX "idx_vip_levels_volume" ON "vip_levels"("min_conversion_volume") WHERE "deleted_at" IS NULL;
 
 -- =====================================================
 -- RATE ADJUSTMENT RULES TABLE
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS "user_vip_assignments" (
     "assignment_type" VARCHAR(20) NOT NULL DEFAULT 'automatic', -- 'automatic' or 'manual'
     
     -- Metrics at time of assignment
-    "total_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0,    
+    "total_conversion_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0,    
     -- Status
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     "expires_at" TIMESTAMPTZ, -- Optional expiration for temporary VIP status
@@ -299,7 +299,7 @@ INSERT INTO "vip_levels" (
     "level_name", 
     "level_code", 
     "level_rank", 
-    "min_transaction_volume",
+    "min_conversion_volume",
     "description",
     "benefits_description",
     "badge_color",

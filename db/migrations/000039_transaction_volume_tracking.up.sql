@@ -298,13 +298,13 @@ SELECT
     next_level.level_name AS eligible_level_name,
     next_level.level_rank AS eligible_level_rank,
     next_level.id AS eligible_level_id,
-    (next_level.min_transaction_volume - umc.total_transaction_volume) AS volume_to_next_level
+    (next_level.min_conversion_volume - umc.total_transaction_volume) AS volume_to_next_level
 FROM users u
 JOIN user_vip_metrics_cache umc ON umc.user_id = u.id
 CROSS JOIN LATERAL (
     SELECT *
     FROM vip_levels
-    WHERE min_transaction_volume <= umc.total_transaction_volume
+    WHERE min_conversion_volume <= umc.total_transaction_volume
         AND is_active = TRUE
         AND deleted_at IS NULL
         AND level_rank > COALESCE(umc.current_vip_level_rank, 0)

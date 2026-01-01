@@ -11,7 +11,7 @@ INSERT INTO vip_levels (
     level_name,
     level_code,
     level_rank,
-    min_transaction_volume,
+    min_conversion_volume,
     description,
     benefits_description,
     badge_color,
@@ -52,10 +52,10 @@ LIMIT 1;
 
 -- name: GetVIPLevelForVolume :one
 SELECT * FROM vip_levels
-WHERE min_transaction_volume <= $1 
+WHERE min_conversion_volume <= $1 
   AND deleted_at IS NULL 
   AND is_active = TRUE
-ORDER BY min_transaction_volume DESC
+ORDER BY min_conversion_volume DESC
 LIMIT 1;
 
 -- name: UpdateVIPLevel :one
@@ -64,7 +64,7 @@ SET
     level_name = COALESCE(sqlc.narg('level_name'), level_name),
     level_code = COALESCE(sqlc.narg('level_code'), level_code),
     level_rank = COALESCE(sqlc.narg('level_rank'), level_rank),
-    min_transaction_volume = COALESCE(sqlc.narg('min_transaction_volume'), min_transaction_volume),
+    min_conversion_volume = COALESCE(sqlc.narg('min_conversion_volume'), min_conversion_volume),
     description = COALESCE(sqlc.narg('description'), description),
     benefits_description = COALESCE(sqlc.narg('benefits_description'), benefits_description),
     badge_color = COALESCE(sqlc.narg('badge_color'), badge_color),
@@ -279,9 +279,9 @@ INSERT INTO user_vip_assignments (
     vip_level_id,
     assigned_by,
     assignment_type,
-    total_transaction_volume,
+    total_conversion_volume,
     -- total_conversion_count,
-    expires_at
+    expires_at 
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
@@ -291,8 +291,7 @@ DO UPDATE SET
     assigned_at = NOW(),
     assigned_by = EXCLUDED.assigned_by,
     assignment_type = EXCLUDED.assignment_type,
-    total_transaction_volume = EXCLUDED.total_transaction_volume,
-    total_conversion_count = EXCLUDED.total_conversion_count,
+    total_conversion_volume = EXCLUDED.total_conversion_volume,
     expires_at = EXCLUDED.expires_at,
     updated_at = NOW()
 RETURNING *;
@@ -488,7 +487,7 @@ SELECT
     v.level_code,
     v.level_rank,
     COUNT(uva.id) as user_count,
-    SUM(uva.total_transaction_volume) as total_volume
+    SUM(uva.total_conversion_volume) as total_volume
 FROM vip_levels v
 LEFT JOIN user_vip_assignments uva ON v.id = uva.vip_level_id AND uva.is_active = TRUE
 WHERE v.deleted_at IS NULL AND v.is_active = TRUE
@@ -512,13 +511,13 @@ SELECT
     u.email,
     u.first_name,
     u.last_name,
-    uva.total_transaction_volume,
+    uva.total_conversion_volume,
     v.level_name as vip_level
 FROM user_vip_assignments uva
 JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
 JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
 WHERE uva.is_active = TRUE
-ORDER BY uva.total_transaction_volume DESC
+ORDER BY uva.total_conversion_volume DESC
 LIMIT $1;
 
 -- name: DeactivateVIPAssignment :one
@@ -534,11 +533,11 @@ SELECT
     uva.user_id,
     uva.vip_level_id,
     uva.is_active,
-    uva.total_transaction_volume,
+    uva.total_conversion_volume,
     v.level_name as vip_level,
     v.level_code as vip_code,
     v.level_rank as vip_rank,
-    v.min_transaction_volume as vip_min_volume,
+    v.min_conversion_volume as vip_min_volume,
     v.description as vip_description,
     v.benefits_description as vip_benefits_description,
     v.badge_color as vip_badge_color,
@@ -551,3 +550,14 @@ FROM user_vip_assignments uva
 JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
 WHERE uva.user_id = $1 AND uva.is_active = TRUE
 LIMIT 1;
+
+-- name: IncrementUserConversionVolume :exec
+UPDATE user_vip_assignments
+SET total_conversion_volume = (CAST(total_conversion_volume AS DECIMAL(20, 2)) + $2)::TEXT,
+    updated_at = NOW()
+WHERE user_id = $1 AND is_active = TRUE;
+
+-- name: GetTotalConversionVolumeForUser :one
+SELECT CAST(COALESCE(SUM(CAST(total_conversion_volume AS DECIMAL(20, 2))), 0) AS INTEGER) AS total_volume
+FROM user_vip_assignments
+WHERE user_id = $1 AND is_active = TRUE;
