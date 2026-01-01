@@ -29,6 +29,7 @@ type Bills struct {
 	server             *Server
 	transactionService *tx.TransactionService
 	notifr             *service.Notification
+	push               *service.PushNotificationService
 	walletService      *wallet.WalletService
 	currencyService    *currency.CurrencyService
 	audit              *audit.Service
@@ -43,6 +44,7 @@ func (b Bills) router(server *Server) {
 	b.transactionService = server.transactionService
 	b.audit = server.auditService
 	b.streakScheduler = server.streakScheduler
+	b.push = server.pushNotification
 
 	serverGroupV1 := server.router.Group("/api/v1/bills")
 	serverGroupV1.GET("categories", b.server.authMiddleware.AuthenticatedMiddleware(), b.getCategories)
@@ -470,9 +472,13 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 
 	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", notificationMsg)
 
-	// TODO: add push notofication
+	// add push notofication
+	err = b.push.SuccessfulAirtimePurchase(ctx, activeUser.UserID, request.Amount, request.Phone)
+	if err != nil {
+		b.server.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
+	}
 
-	b.server.logger.Info("transaction (airtime purchase) completed successfully", map[string]interface{}{
+	b.server.logger.Info("transaction (airtime purchase) completed successfully", map[string]any{
 		"transaction_id":   tInfo.ID,
 		"user_id":          userInfo.ID,
 		"original_amount":  originalAmount.InexactFloat64(),

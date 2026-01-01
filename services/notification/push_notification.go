@@ -581,3 +581,171 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 	}
 	return nil
 }
+
+func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Context, userID int64, name string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Card Terminated"
+	Message := fmt.Sprintf("Your virtual card %s has been terminated by an administrator.", name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Context, userID int64, name string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Card Frozen"
+	Message := fmt.Sprintf("Your virtual card %s has been frozen by an administrator.", name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:	  PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Context, userID int64, name string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))	
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Card Unfrozen"
+	Message := fmt.Sprintf("Your virtual card %s has been unfrozen by an administrator.", name)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:	  PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context, userID, amount int64, phoneNumber string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Airtime Purchase Successful"
+	Message := fmt.Sprintf("Your airtime purchase of ₦%d from %s to %s was successful.", amount, "SWIIFT", phoneNumber)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}	
