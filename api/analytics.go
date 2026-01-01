@@ -853,16 +853,16 @@ func (h *Analytics) GetTotalInflowTransactions(c *gin.Context) {
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/get-total-inplatform-transactions [get]
 func (h *Analytics) GetTotalInplatformTransactions(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil {
-	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
-	// if activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	totalInplatformTransactions, err := h.server.queries.GetTotalInplatformTransactions(c)
 	if err != nil {
