@@ -1,31 +1,36 @@
 package models
 
-import db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+import (
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+)
 
 func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 	return &UserResponse{
-		ID:                  user.ID,
-		FirstName:           user.FirstName.String,
-		LastName:            user.LastName.String,
-		Email:               user.Email,
-		UserTag:             user.UserTag.String,
-		AvatarURL:           user.AvatarUrl.String,
-		Role:                user.Role,
-		PhoneNumber:         user.PhoneNumber,
-		Verified:            user.Verified,
-		IsKycVerified:       user.IsKycVerified,
-		BridgeCardHolderID:  user.BridgecardCardholderID.String,
-		HasPin:              user.HashedPin.Valid,
-		HasPasscode:         user.HashedPasscode.Valid,
-		FreshChatID:         user.FreshChatID.String,
-		IsActive:            user.IsActive,
-		TwofaSecret:         user.TwofaSecret.String,
-		TwofaEnabled:        user.TwofaEnabled.Bool,
-		RewardBalance:       user.RewardBalance,
-		TotalRewardEarned:   user.TotalRewardEarned,
-		TotalRewardRedeemed: user.TotalRewardRedeemed,
-		CreatedAt:           user.CreatedAt,
-		UpdatedAt:           user.UpdatedAt,
+		ID:                     user.ID,
+		FirstName:              user.FirstName.String,
+		LastName:               user.LastName.String,
+		Email:                  user.Email,
+		UserTag:                user.UserTag.String,
+		AvatarURL:              user.AvatarUrl.String,
+		Role:                   user.Role,
+		PhoneNumber:            user.PhoneNumber,
+		Verified:               user.Verified,
+		IsKycVerified:          user.IsKycVerified,
+		BridgeCardHolderID:     user.BridgecardCardholderID.String,
+		HasPin:                 user.HashedPin.Valid,
+		HasPasscode:            user.HashedPasscode.Valid,
+		FreshChatID:            user.FreshChatID.String,
+		IsActive:               user.IsActive,
+		TwofaSecret:            user.TwofaSecret.String,
+		TwofaEnabled:           user.TwofaEnabled.Bool,
+		RewardBalance:          user.RewardBalance,
+		TotalRewardEarned:      user.TotalRewardEarned,
+		TotalRewardRedeemed:    user.TotalRewardRedeemed,
+		TotalConversionVolume:  &user.TotalConversionVolume.String,
+		TotalTransactionVolume: &user.TotalTransactionVolume.String,
+		CurrentVipLevelID:      &user.CurrentVipLevelID.UUID,
+		CreatedAt:              user.CreatedAt,
+		UpdatedAt:              user.UpdatedAt,
 	}
 }
 

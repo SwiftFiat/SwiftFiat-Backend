@@ -1452,6 +1452,45 @@ func (q *Queries) GetUserVIPStatus(ctx context.Context, userID int64) (GetUserVI
 	return i, err
 }
 
+const getUserWithVIPFields = `-- name: GetUserWithVIPFields :one
+SELECT u.id, u.total_conversion_volume, u.total_transaction_volume, u.current_vip_level_id,
+       vl.level_name, vl.level_code, vl.level_rank, vl.min_conversion_volume, vl.badge_color, vl.benefits_description
+FROM users u
+LEFT JOIN vip_levels vl ON u.current_vip_level_id = vl.id AND vl.deleted_at IS NULL
+WHERE u.id = $1 AND u.deleted_at IS NULL
+`
+
+type GetUserWithVIPFieldsRow struct {
+	ID                     int64          `json:"id"`
+	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
+	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
+	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
+	LevelName              sql.NullString `json:"level_name"`
+	LevelCode              sql.NullString `json:"level_code"`
+	LevelRank              sql.NullInt32  `json:"level_rank"`
+	MinConversionVolume    sql.NullString `json:"min_conversion_volume"`
+	BadgeColor             sql.NullString `json:"badge_color"`
+	BenefitsDescription    sql.NullString `json:"benefits_description"`
+}
+
+func (q *Queries) GetUserWithVIPFields(ctx context.Context, id int64) (GetUserWithVIPFieldsRow, error) {
+	row := q.db.QueryRowContext(ctx, getUserWithVIPFields, id)
+	var i GetUserWithVIPFieldsRow
+	err := row.Scan(
+		&i.ID,
+		&i.TotalConversionVolume,
+		&i.TotalTransactionVolume,
+		&i.CurrentVipLevelID,
+		&i.LevelName,
+		&i.LevelCode,
+		&i.LevelRank,
+		&i.MinConversionVolume,
+		&i.BadgeColor,
+		&i.BenefitsDescription,
+	)
+	return i, err
+}
+
 const getVIPLevelByCode = `-- name: GetVIPLevelByCode :one
 SELECT id, level_name, level_code, level_rank, min_conversion_volume, description, benefits_description, badge_color, icon_url, is_active, is_default, created_by, updated_by, created_at, updated_at, deleted_at FROM vip_levels
 WHERE level_code = $1 AND deleted_at IS NULL
@@ -2450,6 +2489,32 @@ func (q *Queries) UpdateRateAdjustmentRule(ctx context.Context, arg UpdateRateAd
 		&i.DeletedAt,
 	)
 	return i, err
+}
+
+const updateUserVIPFields = `-- name: UpdateUserVIPFields :exec
+UPDATE users
+SET total_conversion_volume = $2,
+    total_transaction_volume = $3,
+    current_vip_level_id = $4,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type UpdateUserVIPFieldsParams struct {
+	ID                     int64          `json:"id"`
+	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
+	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
+	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
+}
+
+func (q *Queries) UpdateUserVIPFields(ctx context.Context, arg UpdateUserVIPFieldsParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserVIPFields,
+		arg.ID,
+		arg.TotalConversionVolume,
+		arg.TotalTransactionVolume,
+		arg.CurrentVipLevelID,
+	)
+	return err
 }
 
 const updateVIPLevel = `-- name: UpdateVIPLevel :one

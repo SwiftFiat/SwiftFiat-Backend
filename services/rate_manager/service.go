@@ -753,11 +753,11 @@ func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, en
 func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPStatusResponse, error) {
 	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %d", userID))
 
-	// Get active assignment
-	assignment, err := s.store.GetActiveVIPAssignment(ctx, userID)
+	// Get user with VIP fields
+	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			// User has no VIP level, return default
+			// User not found or has no VIP data, return default
 			defaultLevel, err := s.store.GetDefaultVIPLevel(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get default VIP level: %w", err)
@@ -776,33 +776,102 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 				HasActiveBenefits: true,
 			}, nil
 		}
-		return nil, fmt.Errorf("failed to get VIP assignment: %w", err)
+		return nil, fmt.Errorf("failed to get user VIP data: %w", err)
 	}
 
-	// Get VIP level details
-	vipLevel, err := s.store.GetVIPLevelByID(ctx, assignment.VipLevelID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get VIP level: %w", err)
-	}
-
-	// Get user metrics
-	totalTransactionVolume, err := decimal.NewFromString(assignment.TotalConversionVolume)
+	// Parse volumes
+	totalConversionVolume, err := decimal.NewFromString(userVIP.TotalConversionVolume.String)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to parse total conversion volume: %v", err))
-		totalTransactionVolume = decimal.Zero
+		totalConversionVolume = decimal.Zero
+	}
+
+	// Determine current VIP level
+	var vipLevelID uuid.UUID
+	var vipLevelName string
+	var vipLevelCode string
+	var vipLevelRank int32
+	var badgeColor *string
+	var benefitsDesc *string
+
+	if userVIP.CurrentVipLevelID.Valid {
+		// User has an assigned VIP level
+		vipLevel, err := s.store.GetVIPLevelByID(ctx, userVIP.CurrentVipLevelID.UUID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get VIP level: %w", err)
+		}
+		vipLevelID = vipLevel.ID
+		vipLevelName = vipLevel.LevelName
+		vipLevelCode = vipLevel.LevelCode
+		vipLevelRank = vipLevel.LevelRank
+		badgeColor = &vipLevel.BadgeColor.String
+		benefitsDesc = &vipLevel.BenefitsDescription.String
+
+		// Check if the current VIP level is still appropriate based on conversion volume
+		// If not, auto-assign the correct level
+		appropriateLevel, err := s.store.GetVIPLevelForVolume(ctx, totalConversionVolume.String())
+		if err == nil && appropriateLevel.ID != vipLevel.ID {
+			// User's conversion volume qualifies for a different level, update it
+			err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
+				ID:                     userID,
+				TotalConversionVolume:  sql.NullString{String: totalConversionVolume.String(), Valid: true},
+				TotalTransactionVolume: sql.NullString{String: userVIP.TotalTransactionVolume.String, Valid: true},
+				CurrentVipLevelID:      uuid.NullUUID{UUID: appropriateLevel.ID, Valid: true},
+			})
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("Failed to update VIP level for user %d: %v", userID, err))
+			} else {
+				// Use the new level for the response
+				vipLevelID = appropriateLevel.ID
+				vipLevelName = appropriateLevel.LevelName
+				vipLevelCode = appropriateLevel.LevelCode
+				vipLevelRank = appropriateLevel.LevelRank
+				badgeColor = &appropriateLevel.BadgeColor.String
+				benefitsDesc = &appropriateLevel.BenefitsDescription.String
+			}
+		}
+	} else {
+		// User doesn't have a VIP level assigned, determine based on conversion volume
+		vipLevel, err := s.store.GetVIPLevelForVolume(ctx, totalConversionVolume.String())
+		if err != nil {
+			// Fall back to default level
+			defaultLevel, err := s.store.GetDefaultVIPLevel(ctx)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get default VIP level: %w", err)
+			}
+			vipLevel = defaultLevel
+		}
+
+		// Auto-assign this level to the user
+		err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
+			ID:                     userID,
+			TotalConversionVolume:  sql.NullString{String: totalConversionVolume.String(), Valid: true},
+			TotalTransactionVolume: sql.NullString{String: userVIP.TotalTransactionVolume.String, Valid: true},
+			CurrentVipLevelID:      uuid.NullUUID{UUID: vipLevel.ID, Valid: true},
+		})
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to auto-assign VIP level for user %d: %v", userID, err))
+		}
+
+		vipLevelID = vipLevel.ID
+		vipLevelName = vipLevel.LevelName
+		vipLevelCode = vipLevel.LevelCode
+		vipLevelRank = vipLevel.LevelRank
+		badgeColor = &vipLevel.BadgeColor.String
+		benefitsDesc = &vipLevel.BenefitsDescription.String
+	}
+
+	// Get active rate rules for this user
+	activeRules, err := s.store.GetActiveRulesForUser(ctx, vipLevelID)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to get active rules: %v", err))
 	}
 
 	// Get next VIP level (if any)
 	var nextLevel *VIPLevel
-	nextLevelInfo, err := s.store.GetNextVIPLevel(ctx, vipLevel.LevelRank)
+	nextLevelInfo, err := s.store.GetNextVIPLevel(ctx, vipLevelRank)
 	if err == nil {
 		nextLevel = toVIPLevelModel(&nextLevelInfo)
-	}
-
-	// Get active rate rules for this user
-	activeRules, err := s.store.GetActiveRulesForUser(ctx, assignment.VipLevelID)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get active rules: %v", err))
 	}
 
 	// Calculate progress to next level
@@ -811,32 +880,31 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 
 	if nextLevel != nil {
 		nextVolume, _ := decimal.NewFromString(nextLevel.MinConversionVolume)
-		remaining := nextVolume.Sub(totalTransactionVolume)
+		remaining := nextVolume.Sub(totalConversionVolume)
 
 		if remaining.IsPositive() {
 			volumeToNextLevel = remaining.String()
-			progressPercentage = totalTransactionVolume.Div(nextVolume).Mul(decimal.NewFromInt(100)).InexactFloat64()
+			progressPercentage = totalConversionVolume.Div(nextVolume).Mul(decimal.NewFromInt(100)).InexactFloat64()
 		}
 	}
 
 	return &UserVIPStatusResponse{
 		UserID:                userID,
-		VIPLevelID:            vipLevel.ID,
-		VIPLevelName:          vipLevel.LevelName,
-		VIPLevelCode:          vipLevel.LevelCode,
-		VIPLevelRank:          vipLevel.LevelRank,
-		AssignedAt:            assignment.AssignedAt,
-		AssignmentType:        AssignmentType(assignment.AssignmentType),
-		IsActive:              assignment.IsActive,
-		ExpiresAt:             assignment.ExpiresAt,
-		BadgeColor:            &vipLevel.BadgeColor.String,
-		BenefitsDesc:          &vipLevel.BenefitsDescription.String,
-		TotalConversionVolume: totalTransactionVolume.String(),
+		VIPLevelID:            vipLevelID,
+		VIPLevelName:          vipLevelName,
+		VIPLevelCode:          vipLevelCode,
+		VIPLevelRank:          vipLevelRank,
+		AssignedAt:            time.Now(), // Since we're using direct fields, use current time
+		AssignmentType:        "automatic",
+		IsActive:              true,
+		BadgeColor:            badgeColor,
+		BenefitsDesc:          benefitsDesc,
+		TotalConversionVolume: totalConversionVolume.String(),
 		ActiveRulesCount:      int64(len(activeRules)),
 		NextLevel:             nextLevel,
 		ProgressToNextLevel:   progressPercentage,
 		VolumeToNextLevel:     volumeToNextLevel,
-		HasActiveBenefits:     assignment.IsActive && (assignment.ExpiresAt.Time.IsZero() || assignment.ExpiresAt.Time.After(time.Now())),
+		HasActiveBenefits:     true,
 	}, nil
 }
 
@@ -1049,28 +1117,25 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		return nil, fmt.Errorf("failed to get VIP level: %w", err)
 	}
 
-	// Get user conversion metrics
-	totalVolume, err := s.store.GetTotalConversionVolumeForUser(ctx, req.UserID)
+	// Get current user VIP data
+	userVIP, err := s.store.GetUserWithVIPFields(ctx, req.UserID)
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to get user metrics: %v", err))
-		return nil, fmt.Errorf("failed to get user metrics: %w", err)
+		return nil, fmt.Errorf("failed to get user VIP data: %w", err)
 	}
 
-	params := db.AssignUserToVIPLevelParams{
-		UserID:                req.UserID,
-		VipLevelID:            req.VIPLevelID,
-		AssignedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
-		AssignmentType:        string(AssignmentTypeManual),
-		TotalConversionVolume: fmt.Sprintf("%d", totalVolume),
-	}
+	// Parse current volumes
+	totalConversionVolume, _ := decimal.NewFromString(userVIP.TotalConversionVolume.String)
+	totalTransactionVolume, _ := decimal.NewFromString(userVIP.TotalTransactionVolume.String)
 
-	if req.ExpiresAt != nil {
-		params.ExpiresAt = sql.NullTime{Time: *req.ExpiresAt, Valid: true}
-	}
-
-	assignment, err := s.store.AssignUserToVIPLevel(ctx, params)
+	// Update user VIP fields
+	err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
+		ID:                     req.UserID,
+		TotalConversionVolume:  sql.NullString{String: totalConversionVolume.String(), Valid: true},
+		TotalTransactionVolume: sql.NullString{String: totalTransactionVolume.String(), Valid: true},
+		CurrentVipLevelID:      uuid.NullUUID{UUID: req.VIPLevelID, Valid: true},
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to assign user to VIP level: %w", err)
+		return nil, fmt.Errorf("failed to update user VIP fields: %w", err)
 	}
 
 	// Get user for notification
@@ -1087,7 +1152,7 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 	// )
 
 	// Send email notification
-	if user.Email != "" {
+	if assigned_user.Email != "" {
 		go s.sendVIPAssignmentEmail(context.Background(), &assigned_user, &vipLevel)
 	}
 
@@ -1099,35 +1164,48 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		ActorType:     user.Role,
 		ActorID:       &user.ID,
 		ActorEmail:    &user.Email,
-		EntityType:    "user_vip_assignment",
-		EntityID:      assignment.ID.String(),
-		Action:        audit.ActionCreate,
+		EntityType:    "user",
+		EntityID:      fmt.Sprintf("%d", req.UserID),
+		Action:        audit.ActionUpdate,
 		Description:   fmt.Sprintf("Assigned user %d to VIP level %s", req.UserID, vipLevel.LevelName),
 		NewValues: map[string]any{
-			"user_id":        req.UserID,
-			"vip_level_id":   req.VIPLevelID,
-			"vip_level_name": vipLevel.LevelName,
+			"user_id":              req.UserID,
+			"current_vip_level_id": req.VIPLevelID,
+			"vip_level_name":       vipLevel.LevelName,
 		},
 		Success: true,
 	})
 
-	return toUserVIPAssignmentResponse(&assignment, &assigned_user, &vipLevel), nil
+	// Create a mock assignment response since we're not using the assignments table anymore
+	return &UserVIPAssignmentResponse{
+		ID:                    uuid.New(), // Generate a new UUID for response
+		UserID:                req.UserID,
+		VIPLevelID:            req.VIPLevelID,
+		VIPLevelName:          vipLevel.LevelName,
+		VIPLevelCode:          vipLevel.LevelCode,
+		VIPLevelRank:          vipLevel.LevelRank,
+		AssignedAt:            time.Now(),
+		AssignmentType:        AssignmentTypeManual,
+		IsActive:              true,
+		TotalConversionVolume: totalConversionVolume.String(),
+		UserEmail:             assigned_user.Email,
+	}, nil
 }
 
 // AutoAssignUserVIPLevel automatically assigns VIP level based on user metrics
 func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) error {
-	// Get user transaction metrics
-	volume, err := s.store.GetTotalConversionVolumeForUser(ctx, userID)
+	// Get current user VIP data
+	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
 	if err != nil {
-		return fmt.Errorf("failed to get user metrics: %w", err)
+		return fmt.Errorf("failed to get user VIP data: %w", err)
 	}
 
-	totalVolume := decimal.NewFromInt(int64(volume))
+	totalConversionVolume, _ := decimal.NewFromString(userVIP.TotalConversionVolume.String)
 
 	// Find appropriate VIP level
-	vipLevel, err := s.store.GetVIPLevelForVolume(ctx, totalVolume.String())
+	vipLevel, err := s.store.GetVIPLevelForVolume(ctx, totalConversionVolume.String())
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to find VIP level for volume %s: %v", totalVolume, err))
+		s.logger.Error(fmt.Sprintf("Failed to find VIP level for volume %s: %v", totalConversionVolume, err))
 		// Assign default level
 		vipLevel, err = s.store.GetDefaultVIPLevel(ctx)
 		if err != nil {
@@ -1135,15 +1213,13 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 		}
 	}
 
-	// Assign user to VIP level
-	params := db.AssignUserToVIPLevelParams{
-		UserID:                userID,
-		VipLevelID:            vipLevel.ID,
-		AssignmentType:        string(AssignmentTypeAutomatic),
-		TotalConversionVolume: totalVolume.String(),
-	}
-
-	_, err = s.store.AssignUserToVIPLevel(ctx, params)
+	// Update user VIP fields
+	err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
+		ID:                     userID,
+		TotalConversionVolume:  sql.NullString{String: totalConversionVolume.String(), Valid: true},
+		TotalTransactionVolume: userVIP.TotalTransactionVolume,
+		CurrentVipLevelID:      uuid.NullUUID{UUID: vipLevel.ID, Valid: true},
+	})
 	if err != nil {
 		return fmt.Errorf("failed to auto-assign VIP level: %w", err)
 	}
@@ -1160,8 +1236,37 @@ func (s *Service) sendVIPAssignmentEmail(ctx context.Context, user *db.User, vip
 
 // IncrementUserConversionVolume increments the user's total conversion volume
 func (s *Service) IncrementUserConversionVolume(ctx context.Context, userID int64, amount decimal.Decimal) error {
-	return s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
-		UserID:                userID,
-		TotalConversionVolume: amount.String(),
+	// Get current user VIP data
+	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
+	if err != nil {
+		return fmt.Errorf("failed to get user VIP data: %w", err)
+	}
+
+	// Parse current volumes
+	currentConversionVolume, _ := decimal.NewFromString(userVIP.TotalConversionVolume.String)
+	currentTransactionVolume, _ := decimal.NewFromString(userVIP.TotalTransactionVolume.String)
+
+	// Increment conversion volume
+	newConversionVolume := currentConversionVolume.Add(amount)
+
+	// Update user VIP fields
+	err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
+		ID:                     userID,
+		TotalConversionVolume:  sql.NullString{String: newConversionVolume.String(), Valid: true},
+		TotalTransactionVolume: sql.NullString{String: currentTransactionVolume.String(), Valid: true},
+		CurrentVipLevelID:      userVIP.CurrentVipLevelID,
 	})
+	if err != nil {
+		return fmt.Errorf("failed to increment user conversion volume: %w", err)
+	}
+
+	// Check if user should be auto-assigned to a higher VIP level
+	go func() {
+		ctx := context.Background()
+		if err := s.AutoAssignUserVIPLevel(ctx, userID); err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to auto-assign VIP level after volume increment: %v", err))
+		}
+	}()
+
+	return nil
 }

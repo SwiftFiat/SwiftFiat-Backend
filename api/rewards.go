@@ -512,7 +512,7 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-	if activeUser.Role != models.USER {
+	if activeUser.Role == models.USER {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}

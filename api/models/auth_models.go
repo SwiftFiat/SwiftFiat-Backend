@@ -4,6 +4,7 @@ import (
 	"time"
 
 	_ "github.com/go-playground/validator/v10"
+	"github.com/google/uuid"
 )
 
 type UserLoginParams struct {
@@ -46,23 +47,26 @@ type UserResponse struct {
 	Email     string `json:"email"`
 	AvatarURL string `json:"avatar_url"`
 	// AvatarBlob  []byte    `json:"avatar_blob"`
-	Role                string    `json:"role"`
-	UserTag             string    `json:"user_tag"`
-	PhoneNumber         string    `json:"phone_number"`
-	Verified            bool      `json:"verified"`
-	IsKycVerified       bool      `json:"is_kyc_verified"`
-	HasPin              bool      `json:"has_pin"`
-	HasPasscode         bool      `json:"has_passcode"`
-	FreshChatID         string    `json:"fresh_chat_id"`
-	BridgeCardHolderID  string    `json:"card_holder_id"`
-	IsActive            bool      `json:"is_active"`
-	TwofaSecret         string    `json:"twofa_secret"`
-	TwofaEnabled        bool      `json:"twofa_enabled"`
-	RewardBalance       string    `json:"reward_balance"`
-	TotalRewardEarned   string    `json:"total_reward_earned"`
-	TotalRewardRedeemed string    `json:"total_reward_redeemed"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	Role                   string     `json:"role"`
+	UserTag                string     `json:"user_tag"`
+	PhoneNumber            string     `json:"phone_number"`
+	Verified               bool       `json:"verified"`
+	IsKycVerified          bool       `json:"is_kyc_verified"`
+	HasPin                 bool       `json:"has_pin"`
+	HasPasscode            bool       `json:"has_passcode"`
+	FreshChatID            string     `json:"fresh_chat_id"`
+	BridgeCardHolderID     string     `json:"card_holder_id"`
+	IsActive               bool       `json:"is_active"`
+	TwofaSecret            string     `json:"twofa_secret"`
+	TwofaEnabled           bool       `json:"twofa_enabled"`
+	RewardBalance          string     `json:"reward_balance"`
+	TotalRewardEarned      string     `json:"total_reward_earned"`
+	TotalRewardRedeemed    string     `json:"total_reward_redeemed"`
+	TotalConversionVolume  *string    `json:"total_conversion_volume"`
+	TotalTransactionVolume *string    `json:"total_transaction_volume"`
+	CurrentVipLevelID      *uuid.UUID `json:"current_vip_level_id"`
+	CreatedAt              time.Time  `json:"created_at"`
+	UpdatedAt              time.Time  `json:"updated_at"`
 }
 
 type UserWithToken struct {

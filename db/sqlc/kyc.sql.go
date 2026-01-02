@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -309,7 +310,7 @@ func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
 
 const getUserAndKYCByID = `-- name: GetUserAndKYCByID :one
 SELECT 
-    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.bridgecard_verification_status, u.bridgecard_cardholder_id, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed,
+    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.bridgecard_verification_status, u.bridgecard_cardholder_id, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed, u.total_conversion_volume, u.total_transaction_volume, u.current_vip_level_id,
     k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -344,6 +345,9 @@ type GetUserAndKYCByIDRow struct {
 	RewardBalance                sql.NullString        `json:"reward_balance"`
 	TotalRewardEarned            sql.NullString        `json:"total_reward_earned"`
 	TotalRewardRedeemed          sql.NullString        `json:"total_reward_redeemed"`
+	TotalConversionVolume        sql.NullString        `json:"total_conversion_volume"`
+	TotalTransactionVolume       sql.NullString        `json:"total_transaction_volume"`
+	CurrentVipLevelID            uuid.NullUUID         `json:"current_vip_level_id"`
 	ID_2                         int64                 `json:"id_2"`
 	UserID                       int32                 `json:"user_id"`
 	Tier                         int32                 `json:"tier"`
@@ -405,6 +409,9 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 		&i.RewardBalance,
 		&i.TotalRewardEarned,
 		&i.TotalRewardRedeemed,
+		&i.TotalConversionVolume,
+		&i.TotalTransactionVolume,
+		&i.CurrentVipLevelID,
 		&i.ID_2,
 		&i.UserID,
 		&i.Tier,
