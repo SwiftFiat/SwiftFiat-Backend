@@ -1,7 +1,6 @@
 package api
 
 import (
-	"database/sql"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -89,7 +88,7 @@ func (r *RateManagerHandler) CreateVIPLevel(c *gin.Context) {
 	vipLevel, err := r.service.CreateVIPLevel(c.Request.Context(), &req, &user)
 	if err != nil {
 		r.server.logger.Errorf("failed to create vip level: %v", err)
-		c.JSON(500, basemodels.NewError("failed to create vip level"))
+		c.JSON(500, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -511,7 +510,6 @@ func (r *RateManagerHandler) DeleteRateAdjustmentRule(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Rule deleted successfully", nil))
 }
 
-
 // SimulateRateAdjustment godoc
 // @Summary Simulate rate adjustment
 // @Description Preview rate adjustment before applying
@@ -662,16 +660,13 @@ func (r *RateManagerHandler) GetUserVIPLevel(c *gin.Context) {
 		return
 	}
 
-	// Implement GetUserVIPStatus in service
-	level, err := r.server.queries.GetUserVIPLevel(c, activeUser.UserID)
+	// Use the service method which handles the new users table fields and auto-updates VIP levels
+	vipStatus, err := r.service.GetUserVIPStatus(c.Request.Context(), int64(activeUser.UserID))
 	if err != nil {
-		r.server.logger.Errorf("failed to get user vip level: %v", err)
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, basemodels.NewError("user not assigned any vip levels yet"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user vip level"))
+		r.server.logger.Errorf("failed to get user vip status: %v", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user vip status"))
 		return
 	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("User vip status retrieved successfully", level))
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("User vip status retrieved successfully", vipStatus))
 }

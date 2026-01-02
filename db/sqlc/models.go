@@ -1245,7 +1245,10 @@ type User struct {
 	// Lifetime total reward points earned
 	TotalRewardEarned string `json:"total_reward_earned"`
 	// Lifetime total reward points redeemed
-	TotalRewardRedeemed string `json:"total_reward_redeemed"`
+	TotalRewardRedeemed    string         `json:"total_reward_redeemed"`
+	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
+	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
+	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
 }
 
 type UserActivityTimeline struct {

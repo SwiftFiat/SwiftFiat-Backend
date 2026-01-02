@@ -559,3 +559,18 @@ WHERE user_id = $1 AND is_active = TRUE;
 SELECT CAST(COALESCE(SUM(CAST(total_conversion_volume AS DECIMAL(20, 2))), 0) AS INTEGER) AS total_volume
 FROM user_vip_assignments
 WHERE user_id = $1 AND is_active = TRUE;
+
+-- name: GetUserWithVIPFields :one
+SELECT u.id, u.total_conversion_volume, u.total_transaction_volume, u.current_vip_level_id,
+       vl.level_name, vl.level_code, vl.level_rank, vl.min_conversion_volume, vl.badge_color, vl.benefits_description
+FROM users u
+LEFT JOIN vip_levels vl ON u.current_vip_level_id = vl.id AND vl.deleted_at IS NULL
+WHERE u.id = $1 AND u.deleted_at IS NULL;
+
+-- name: UpdateUserVIPFields :exec
+UPDATE users
+SET total_conversion_volume = $2,
+    total_transaction_volume = $3,
+    current_vip_level_id = $4,
+    updated_at = NOW()
+WHERE id = $1;
