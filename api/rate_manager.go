@@ -144,17 +144,17 @@ func (r *RateManagerHandler) GetVIPLevel(c *gin.Context) {
 // @Success 200 {array} ratemanager.VIPLevelResponse
 // @Router /admin/rate-manager/vip-levels [get]
 func (r *RateManagerHandler) ListVIPLevels(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		r.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(c)
+	// if err != nil {
+	// 	r.server.logger.Error(err.Error())
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	activeOnly := c.Query("active_only") == "true"
 
@@ -615,10 +615,10 @@ func (r *RateManagerHandler) AssignUserToVIPLevel(c *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+	// 	return
+	// }
 
 	var req ratemanager.AssignVIPLevelRequest
 	if err := c.ShouldBindJSON(&req); err != nil {

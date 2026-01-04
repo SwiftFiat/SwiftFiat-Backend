@@ -850,7 +850,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(Transfer),
+			Type:            string(CryptoInflowTransaction),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: string(Inflow),
 			Status:          string(Success),
@@ -940,7 +940,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(Transfer),
+			Type:            string(GiftCard),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: string(Outflow),
 			Status:          string(Success),
@@ -1109,7 +1109,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(Transfer),
+			Type:            string(tx.Type),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 			TransactionFlow: string(Outflow),
 			Status:          string(Success),

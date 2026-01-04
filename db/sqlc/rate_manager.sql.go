@@ -226,24 +226,24 @@ func (q *Queries) CountUnreadRateAdminNotifications(ctx context.Context) (int64,
 }
 
 const countUsersInVIPLevel = `-- name: CountUsersInVIPLevel :one
-SELECT COUNT(*) FROM user_vip_assignments
-WHERE vip_level_id = $1 AND is_active = TRUE
+SELECT COUNT(*) FROM users
+WHERE current_vip_level_id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) CountUsersInVIPLevel(ctx context.Context, vipLevelID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUsersInVIPLevel, vipLevelID)
+func (q *Queries) CountUsersInVIPLevel(ctx context.Context, currentVipLevelID uuid.NullUUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countUsersInVIPLevel, currentVipLevelID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
 }
 
 const countVIPLevelUsers = `-- name: CountVIPLevelUsers :one
-SELECT COUNT(*) FROM user_vip_assignments
-WHERE vip_level_id = $1 AND is_active = TRUE
+SELECT COUNT(*) FROM users
+WHERE current_vip_level_id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) CountVIPLevelUsers(ctx context.Context, vipLevelID uuid.UUID) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countVIPLevelUsers, vipLevelID)
+func (q *Queries) CountVIPLevelUsers(ctx context.Context, currentVipLevelID uuid.NullUUID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countVIPLevelUsers, currentVipLevelID)
 	var count int64
 	err := row.Scan(&count)
 	return count, err
@@ -1226,18 +1226,17 @@ func (q *Queries) GetRateStatistics(ctx context.Context, arg GetRateStatisticsPa
 }
 
 const getTopVIPUsers = `-- name: GetTopVIPUsers :many
-SELECT 
+SELECT
     u.id,
     u.email,
     u.first_name,
     u.last_name,
-    uva.total_conversion_volume,
+    u.total_conversion_volume,
     v.level_name as vip_level
-FROM user_vip_assignments uva
-JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
-JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
-WHERE uva.is_active = TRUE
-ORDER BY uva.total_conversion_volume DESC
+FROM users u
+JOIN vip_levels v ON u.current_vip_level_id = v.id AND v.deleted_at IS NULL
+WHERE u.deleted_at IS NULL AND u.current_vip_level_id IS NOT NULL
+ORDER BY u.total_conversion_volume DESC
 LIMIT $1
 `
 
@@ -1246,7 +1245,7 @@ type GetTopVIPUsersRow struct {
 	Email                 string         `json:"email"`
 	FirstName             sql.NullString `json:"first_name"`
 	LastName              sql.NullString `json:"last_name"`
-	TotalConversionVolume string         `json:"total_conversion_volume"`
+	TotalConversionVolume sql.NullString `json:"total_conversion_volume"`
 	VipLevel              string         `json:"vip_level"`
 }
 
@@ -2128,43 +2127,46 @@ func (q *Queries) ListUserVIPHistory(ctx context.Context, arg ListUserVIPHistory
 }
 
 const listUsersInVIPLevel = `-- name: ListUsersInVIPLevel :many
-SELECT 
-    uva.id, uva.user_id, uva.vip_level_id, uva.assigned_at, uva.assigned_by, uva.assignment_type, uva.total_conversion_volume, uva.is_active, uva.expires_at, uva.created_at, uva.updated_at,
+SELECT
+    u.id,
     u.email,
     u.first_name,
-    u.last_name
-FROM user_vip_assignments uva
-JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
-WHERE uva.vip_level_id = $1 AND uva.is_active = TRUE
-ORDER BY uva.assigned_at DESC
+    u.last_name,
+    u.total_conversion_volume,
+    u.total_transaction_volume,
+    u.current_vip_level_id,
+    u.created_at as assigned_at,
+    'automatic' as assignment_type,
+    true as is_active,
+    null as expires_at
+FROM users u
+WHERE u.current_vip_level_id = $1 AND u.deleted_at IS NULL
+ORDER BY u.created_at DESC
 LIMIT $2 OFFSET $3
 `
 
 type ListUsersInVIPLevelParams struct {
-	VipLevelID uuid.UUID `json:"vip_level_id"`
-	Limit      int32     `json:"limit"`
-	Offset     int32     `json:"offset"`
+	CurrentVipLevelID uuid.NullUUID `json:"current_vip_level_id"`
+	Limit             int32         `json:"limit"`
+	Offset            int32         `json:"offset"`
 }
 
 type ListUsersInVIPLevelRow struct {
-	ID                    uuid.UUID      `json:"id"`
-	UserID                int64          `json:"user_id"`
-	VipLevelID            uuid.UUID      `json:"vip_level_id"`
-	AssignedAt            time.Time      `json:"assigned_at"`
-	AssignedBy            sql.NullInt64  `json:"assigned_by"`
-	AssignmentType        string         `json:"assignment_type"`
-	TotalConversionVolume string         `json:"total_conversion_volume"`
-	IsActive              bool           `json:"is_active"`
-	ExpiresAt             sql.NullTime   `json:"expires_at"`
-	CreatedAt             time.Time      `json:"created_at"`
-	UpdatedAt             time.Time      `json:"updated_at"`
-	Email                 string         `json:"email"`
-	FirstName             sql.NullString `json:"first_name"`
-	LastName              sql.NullString `json:"last_name"`
+	ID                     int64          `json:"id"`
+	Email                  string         `json:"email"`
+	FirstName              sql.NullString `json:"first_name"`
+	LastName               sql.NullString `json:"last_name"`
+	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
+	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
+	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
+	AssignedAt             time.Time      `json:"assigned_at"`
+	AssignmentType         string         `json:"assignment_type"`
+	IsActive               bool           `json:"is_active"`
+	ExpiresAt              interface{}    `json:"expires_at"`
 }
 
 func (q *Queries) ListUsersInVIPLevel(ctx context.Context, arg ListUsersInVIPLevelParams) ([]ListUsersInVIPLevelRow, error) {
-	rows, err := q.db.QueryContext(ctx, listUsersInVIPLevel, arg.VipLevelID, arg.Limit, arg.Offset)
+	rows, err := q.db.QueryContext(ctx, listUsersInVIPLevel, arg.CurrentVipLevelID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -2174,19 +2176,16 @@ func (q *Queries) ListUsersInVIPLevel(ctx context.Context, arg ListUsersInVIPLev
 		var i ListUsersInVIPLevelRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
-			&i.VipLevelID,
-			&i.AssignedAt,
-			&i.AssignedBy,
-			&i.AssignmentType,
-			&i.TotalConversionVolume,
-			&i.IsActive,
-			&i.ExpiresAt,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 			&i.Email,
 			&i.FirstName,
 			&i.LastName,
+			&i.TotalConversionVolume,
+			&i.TotalTransactionVolume,
+			&i.CurrentVipLevelID,
+			&i.AssignedAt,
+			&i.AssignmentType,
+			&i.IsActive,
+			&i.ExpiresAt,
 		); err != nil {
 			return nil, err
 		}

@@ -396,7 +396,7 @@ func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTran
 }
 
 const getDailyTransactionSummary = `-- name: GetDailyTransactionSummary :many
-SELECT 
+SELECT
     date,
     SUM(crypto_usd) AS crypto_total_usd,
     SUM(giftcard_usd) AS giftcard_total_usd,
@@ -405,67 +405,74 @@ SELECT
     SUM(vaults) AS vaults_created
 FROM (
     -- Crypto transactions (amount in USD)
-    SELECT 
-        DATE(created_at) AS date,
-        amount_usd AS crypto_usd,
+    SELECT
+        DATE(t.created_at) AS date,
+        COALESCE(SUM(t.amount_usd), 0) AS crypto_usd,
         0 AS giftcard_usd,
         0 AS bill_ngn,
         0 AS virtual_cards,
         0 AS vaults
-    FROM transactions 
-    WHERE type = 'crypto' AND status = 'successful'
-    
+    FROM transactions t
+    JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+    WHERE t.type = 'crypto' AND t.status = 'successful'
+    GROUP BY DATE(t.created_at)
+
     UNION ALL
-    
+
     -- Giftcard transactions (amount in USD)
-    SELECT 
-        DATE(created_at) AS date,
-        0,
-        amount_usd,
-        0,
-        0,
-        0
-    FROM transactions 
-    WHERE type = 'giftcard' AND status = 'successful'
-    
-    UNION ALL
-    
-    -- Bill payments (services like airtime, data, tv_subscription, utility_payment, electricity in NGN)
-    SELECT 
+    SELECT
         DATE(t.created_at) AS date,
-        0,
-        0,
-        CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END,
-        0,
-        0
+        0 AS crypto_usd,
+        COALESCE(SUM(t.amount_usd), 0) AS giftcard_usd,
+        0 AS bill_ngn,
+        0 AS virtual_cards,
+        0 AS vaults
+    FROM transactions t
+    JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
+    WHERE t.type = 'giftcard' AND t.status = 'successful'
+    GROUP BY DATE(t.created_at)
+
+    UNION ALL
+
+    -- Bill payments (services like airtime, data, tv_subscription, utility_payment, electricity in NGN)
+    SELECT
+        DATE(t.created_at) AS date,
+        0 AS crypto_usd,
+        0 AS giftcard_usd,
+        COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0) AS bill_ngn,
+        0 AS virtual_cards,
+        0 AS vaults
     FROM transactions t
     JOIN services_metadata sm ON t.id = sm.transaction_id
     WHERE t.type = 'service' AND t.status = 'successful'
-    
+    GROUP BY DATE(t.created_at)
+
     UNION ALL
-    
+
     -- Virtual cards created
-    SELECT 
+    SELECT
         DATE(created_at) AS date,
-        0,
-        0,
-        0,
-        1,
-        0
+        0 AS crypto_usd,
+        0 AS giftcard_usd,
+        0 AS bill_ngn,
+        COUNT(*) AS virtual_cards,
+        0 AS vaults
     FROM virtual_cards
     WHERE terminated_at IS NULL
-    
+    GROUP BY DATE(created_at)
+
     UNION ALL
-    
+
     -- Vaults created
-    SELECT 
+    SELECT
         DATE(created_at) AS date,
-        0,
-        0,
-        0,
-        0,
-        1
+        0 AS crypto_usd,
+        0 AS giftcard_usd,
+        0 AS bill_ngn,
+        0 AS virtual_cards,
+        COUNT(*) AS vaults
     FROM vault_savings
+    GROUP BY DATE(created_at)
 ) AS daily_data
 GROUP BY date
 ORDER BY date DESC
@@ -1899,6 +1906,9 @@ SELECT
     t.description AS transaction_description,
     t.transaction_flow,
     t.status AS transaction_status,
+    t.amount AS amount,
+    t.currency AS currency,
+    t.amount_usd AS amount_usd,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
 
@@ -1929,6 +1939,9 @@ type ListAllTransactionsWithUsersRow struct {
 	TransactionDescription sql.NullString `json:"transaction_description"`
 	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
+	Amount                 string         `json:"amount"`
+	Currency               string         `json:"currency"`
+	AmountUsd              string         `json:"amount_usd"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
 	UserID                 int64          `json:"user_id"`
@@ -1954,6 +1967,9 @@ func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTr
 			&i.TransactionDescription,
 			&i.TransactionFlow,
 			&i.TransactionStatus,
+			&i.Amount,
+			&i.Currency,
+			&i.AmountUsd,
 			&i.TransactionCreatedAt,
 			&i.TransactionUpdatedAt,
 			&i.UserID,

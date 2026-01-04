@@ -233,7 +233,7 @@ func (h *Analytics) GetTransaction(c *gin.Context) {
 // @Failure      400  {object}  basemodels.ErrorResponse
 // @Failure      401  {object}  basemodels.ErrorResponse
 // @Failure      403  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/analytics/transactions [get]4
+// @Router       /api/v1/analytics/transactions [get]
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 func (h *Analytics) ListAllTransactions(c *gin.Context) {

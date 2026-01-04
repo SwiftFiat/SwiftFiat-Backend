@@ -150,7 +150,7 @@ func (s *Service) GetVIPLevel(ctx context.Context, id uuid.UUID) (*VIPLevelRespo
 	}
 
 	// Get user count
-	userCount, err := s.store.CountVIPLevelUsers(ctx, id)
+	userCount, err := s.store.CountVIPLevelUsers(ctx, uuid.NullUUID{UUID: id, Valid: true})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to count VIP level users: %v", err))
 		userCount = 0
@@ -183,7 +183,7 @@ func (s *Service) ListVIPLevels(ctx context.Context, activeOnly bool) ([]*VIPLev
 
 	responses := make([]*VIPLevelResponse, len(vipLevels))
 	for i, vipLevel := range vipLevels {
-		userCount, _ := s.store.CountVIPLevelUsers(ctx, vipLevel.ID)
+		userCount, _ := s.store.CountVIPLevelUsers(ctx, uuid.NullUUID{UUID: vipLevel.ID, Valid: true})
 		rulesCount, _ := s.store.CountRateAdjustmentRulesByVIPLevel(ctx, uuid.NullUUID{UUID: vipLevel.ID, Valid: true})
 		responses[i] = toVIPLevelResponse(&vipLevel, userCount, rulesCount)
 	}
@@ -320,7 +320,7 @@ func (s *Service) DeleteVIPLevel(ctx context.Context, id uuid.UUID, user *db.Use
 	s.logger.Info(fmt.Sprintf("Deleting VIP level: %s", id))
 
 	// Check if level has users
-	userCount, err := s.store.CountVIPLevelUsers(ctx, id)
+	userCount, err := s.store.CountVIPLevelUsers(ctx, uuid.NullUUID{UUID: id, Valid: true})
 	if err != nil {
 		return fmt.Errorf("failed to count VIP level users: %w", err)
 	}
