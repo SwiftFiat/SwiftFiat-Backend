@@ -99,8 +99,8 @@ SELECT EXISTS(
 ) AS exists;
 
 -- name: CountVIPLevelUsers :one
-SELECT COUNT(*) FROM user_vip_assignments
-WHERE vip_level_id = $1 AND is_active = TRUE;
+SELECT COUNT(*) FROM users
+WHERE current_vip_level_id = $1 AND deleted_at IS NULL;
 
 -- =====================================================
 -- RATE ADJUSTMENT RULES QUERIES
@@ -340,20 +340,26 @@ ORDER BY uva.assigned_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: ListUsersInVIPLevel :many
-SELECT 
-    uva.*,
+SELECT
+    u.id,
     u.email,
     u.first_name,
-    u.last_name
-FROM user_vip_assignments uva
-JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
-WHERE uva.vip_level_id = $1 AND uva.is_active = TRUE
-ORDER BY uva.assigned_at DESC
+    u.last_name,
+    u.total_conversion_volume,
+    u.total_transaction_volume,
+    u.current_vip_level_id,
+    u.created_at as assigned_at,
+    'automatic' as assignment_type,
+    true as is_active,
+    null as expires_at
+FROM users u
+WHERE u.current_vip_level_id = $1 AND u.deleted_at IS NULL
+ORDER BY u.created_at DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountUsersInVIPLevel :one
-SELECT COUNT(*) FROM user_vip_assignments
-WHERE vip_level_id = $1 AND is_active = TRUE;
+SELECT COUNT(*) FROM users
+WHERE current_vip_level_id = $1 AND deleted_at IS NULL;
 
 -- name: CheckExpiredVIPAssignments :many
 SELECT * FROM user_vip_assignments
@@ -504,18 +510,17 @@ WHERE rule_id = $1
   AND created_at <= $3;
 
 -- name: GetTopVIPUsers :many
-SELECT 
+SELECT
     u.id,
     u.email,
     u.first_name,
     u.last_name,
-    uva.total_conversion_volume,
+    u.total_conversion_volume,
     v.level_name as vip_level
-FROM user_vip_assignments uva
-JOIN users u ON uva.user_id = u.id AND u.deleted_at IS NULL
-JOIN vip_levels v ON uva.vip_level_id = v.id AND v.deleted_at IS NULL
-WHERE uva.is_active = TRUE
-ORDER BY uva.total_conversion_volume DESC
+FROM users u
+JOIN vip_levels v ON u.current_vip_level_id = v.id AND v.deleted_at IS NULL
+WHERE u.deleted_at IS NULL AND u.current_vip_level_id IS NOT NULL
+ORDER BY u.total_conversion_volume DESC
 LIMIT $1;
 
 -- name: DeactivateVIPAssignment :one
