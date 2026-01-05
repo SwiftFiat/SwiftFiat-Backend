@@ -62,7 +62,7 @@ type CreateRewardConfigRequest struct {
 // UpdateRewardConfigRequest represents the request to update reward configuration
 type UpdateRewardConfigRequest struct {
 	ConfigName              string    `json:"config_name,omitempty"`
-	RewardRate              string    `json:"reward_rate,omitempty" binding:"omitempty,gt=0,lte=1"`
+	RewardRate              string    `json:"reward_rate,omitempty"`
 	TransactionType         string    `json:"transaction_type,omitempty"`
 	MinTransactionAmount    string    `json:"min_transaction_amount,omitempty" binding:"omitempty,gte=0"`
 	MaxPointsPerTransaction string    `json:"max_points_per_transaction,omitempty"`
