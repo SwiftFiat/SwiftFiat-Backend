@@ -1023,7 +1023,7 @@ SELECT
     cm.service_transaction_id
 FROM transactions t
 JOIN crypto_transaction_metadata cm ON t.id = cm.transaction_id
-WHERE t.type = 'deposit'
+WHERE t.type = 'crypto'
 ORDER BY t.created_at DESC;
 
 -- name: ListGiftcardTransactions :many
