@@ -124,7 +124,7 @@ LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
 LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
 LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
-LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
+LEFT JOIN card_transactions card_tx ON t.id = card_tx.transaction_id
 WHERE t.id = $1 LIMIT 1;
 
 -- name: GetTransactionByIDForUpdate :one
