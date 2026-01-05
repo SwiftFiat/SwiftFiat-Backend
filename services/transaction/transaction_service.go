@@ -1094,10 +1094,10 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		}
 
 		return &response, nil
-
 	}
 
-	if platform == BillOutflowTransaction {
+		if platform == BillOutflowTransaction {
+
 		tx, ok := txx.(*BillTransaction)
 		if !ok {
 			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
