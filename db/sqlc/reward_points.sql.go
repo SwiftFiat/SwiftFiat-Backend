@@ -1082,8 +1082,9 @@ func (q *Queries) GetTopUsersByRewardsEarned(ctx context.Context, limit int32) (
 }
 
 const getTotalRewardEarned = `-- name: GetTotalRewardEarned :one
-SELECT 
-    COALESCE(SUM(u.total_reward_earned), 0) + COALESCE(SUM(re.total_earned), 0) AS total_reward_earned
+SELECT CAST(
+    COALESCE(SUM(u.total_reward_earned), 0) + COALESCE(SUM(re.total_earned), 0) AS INTEGER
+) AS total_reward_earned
 FROM users u
 LEFT JOIN referral_earnings re ON re.user_id = u.id
 `
