@@ -398,18 +398,18 @@ func (q *Queries) GetCryptoTransactionCounts(ctx context.Context) (GetCryptoTran
 const getDailyTransactionSummary = `-- name: GetDailyTransactionSummary :many
 SELECT
     date,
-    SUM(crypto_usd) AS crypto_total_usd,
-    SUM(giftcard_usd) AS giftcard_total_usd,
-    SUM(bill_ngn) AS bill_payment_total_ngn,
+    SUM(crypto_usd)::float8 AS crypto_total_usd,
+    SUM(giftcard_usd)::float8 AS giftcard_total_usd,
+    SUM(bill_ngn)::float8 AS bill_payment_total_ngn,
     SUM(virtual_cards) AS virtual_cards_created,
     SUM(vaults) AS vaults_created
 FROM (
     -- Crypto transactions (amount in USD)
     SELECT
         DATE(t.created_at) AS date,
-        COALESCE(SUM(t.amount_usd), 0) AS crypto_usd,
-        0 AS giftcard_usd,
-        0 AS bill_ngn,
+        COALESCE(SUM(t.amount_usd), 0)::float8 AS crypto_usd,
+        0::float8 AS giftcard_usd,
+        0::float8 AS bill_ngn,
         0 AS virtual_cards,
         0 AS vaults
     FROM transactions t
@@ -422,9 +422,9 @@ FROM (
     -- Giftcard transactions (amount in USD)
     SELECT
         DATE(t.created_at) AS date,
-        0 AS crypto_usd,
-        COALESCE(SUM(t.amount_usd), 0) AS giftcard_usd,
-        0 AS bill_ngn,
+        0::float8 AS crypto_usd,
+        COALESCE(SUM(t.amount_usd), 0)::float8 AS giftcard_usd,
+        0::float8 AS bill_ngn,
         0 AS virtual_cards,
         0 AS vaults
     FROM transactions t
@@ -437,24 +437,68 @@ FROM (
     -- Bill payments (services like airtime, data, tv_subscription, utility_payment, electricity in NGN)
     SELECT
         DATE(t.created_at) AS date,
-        0 AS crypto_usd,
-        0 AS giftcard_usd,
-        COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0) AS bill_ngn,
+        0::float8 AS crypto_usd,
+        0::float8 AS giftcard_usd,
+        COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0)::float8 AS bill_ngn,
         0 AS virtual_cards,
         0 AS vaults
     FROM transactions t
     JOIN services_metadata sm ON t.id = sm.transaction_id
-    WHERE t.type = 'service' AND t.status = 'successful'
+    WHERE t.type = 'airtime' AND t.status = 'successful'
     GROUP BY DATE(t.created_at)
 
     UNION ALL
 
+        -- Bill payments (services like, data, tv_subscription, utility_payment, electricity in NGN)
+        SELECT
+            DATE(t.created_at) AS date,
+            0::float8 AS crypto_usd,
+            0::float8 AS giftcard_usd,
+            COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0)::float8 AS bill_ngn,
+            0 AS virtual_cards,
+            0 AS vaults
+        FROM transactions t
+        JOIN services_metadata sm ON t.id = sm.transaction_id
+        WHERE t.type = 'data' AND t.status = 'successful'
+        GROUP BY DATE(t.created_at)
+
+        UNION ALL
+
+        -- Bill payments (services like, tv_subscription, utility_payment, electricity in NGN)
+        SELECT
+            DATE(t.created_at) AS date,
+            0::float8 AS crypto_usd,
+            0::float8 AS giftcard_usd,
+            COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0)::float8 AS bill_ngn,
+            0 AS virtual_cards, 
+            0 AS vaults
+        FROM transactions t
+        JOIN services_metadata sm ON t.id = sm.transaction_id
+        WHERE t.type = 'tv' AND t.status = 'successful'
+        GROUP BY DATE(t.created_at)
+    
+        UNION ALL
+
+        SELECT
+            DATE(t.created_at) AS date,
+            0::float8 AS crypto_usd,
+            0::float8 AS giftcard_usd,
+            COALESCE(SUM(CASE WHEN t.currency = 'NGN' THEN t.amount ELSE 0 END), 0)::float8 AS bill_ngn,
+            0 AS virtual_cards, 
+            0 AS vaults
+        FROM transactions t
+        JOIN services_metadata sm ON t.id = sm.transaction_id
+        WHERE t.type = 'electricity' AND t.status = 'successful'
+        GROUP BY DATE(t.created_at)
+    
+        UNION ALL
+
     -- Virtual cards created
     SELECT
         DATE(created_at) AS date,
-        0 AS crypto_usd,
-        0 AS giftcard_usd,
-        0 AS bill_ngn,
+        0::float8 AS crypto_usd,
+        0::float8 AS giftcard_usd,
+        0::float8 AS bill_ngn,
         COUNT(*) AS virtual_cards,
         0 AS vaults
     FROM virtual_cards
@@ -466,9 +510,9 @@ FROM (
     -- Vaults created
     SELECT
         DATE(created_at) AS date,
-        0 AS crypto_usd,
-        0 AS giftcard_usd,
-        0 AS bill_ngn,
+        0::float8 AS crypto_usd,
+        0::float8 AS giftcard_usd,
+        0::float8 AS bill_ngn,
         0 AS virtual_cards,
         COUNT(*) AS vaults
     FROM vault_savings
@@ -480,9 +524,9 @@ ORDER BY date DESC
 
 type GetDailyTransactionSummaryRow struct {
 	Date                time.Time `json:"date"`
-	CryptoTotalUsd      int64     `json:"crypto_total_usd"`
-	GiftcardTotalUsd    int64     `json:"giftcard_total_usd"`
-	BillPaymentTotalNgn int64     `json:"bill_payment_total_ngn"`
+	CryptoTotalUsd      float64   `json:"crypto_total_usd"`
+	GiftcardTotalUsd    float64   `json:"giftcard_total_usd"`
+	BillPaymentTotalNgn float64   `json:"bill_payment_total_ngn"`
 	VirtualCardsCreated int64     `json:"virtual_cards_created"`
 	VaultsCreated       int64     `json:"vaults_created"`
 }

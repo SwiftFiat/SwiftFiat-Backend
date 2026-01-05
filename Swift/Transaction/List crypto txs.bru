@@ -5,11 +5,16 @@ meta {
 }
 
 get {
-  url: 
+  url: {{BaseURl}}/analytics/crypto-transactions
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoxLCJ1c2VyX3JvbGUiOiJzdXBlcl9hZG1pbiIsInVzZXJfdmVyaWZpZWQiOnRydWUsImV4cCI6MTc3MDIwMTcxMn0.XJ7zo8Q667BrIBaLoE9HM5v5BkziJAwizHhbF9ZavJk
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }
