@@ -1818,30 +1818,53 @@ func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTra
 
 const listAllCryptoTransactions = `-- name: ListAllCryptoTransactions :many
 SELECT
-    id,
-    destination_wallet,
-    transaction_id,
-    coin,
-    source_hash,
-    rate,
-    fees,
-    received_amount,
-    sent_amount,
-    service_provider,
-    service_transaction_id
-FROM crypto_transaction_metadata
-ORDER BY id
+    ctm.id,
+    ctm.destination_wallet,
+    ctm.transaction_id,
+    ctm.coin,
+    ctm.source_hash,
+    ctm.rate,
+    ctm.fees,
+    ctm.received_amount,
+    ctm.sent_amount,
+    ctm.service_provider,
+    ctm.service_transaction_id,
+
+    u.first_name,
+    u.last_name
+FROM crypto_transaction_metadata ctm
+JOIN transactions t
+    ON t.id = ctm.transaction_id
+JOIN users u
+    ON u.id = t.user_id
+ORDER BY t.created_at DESC
 `
 
-func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]CryptoTransactionMetadatum, error) {
+type ListAllCryptoTransactionsRow struct {
+	ID                   uuid.UUID      `json:"id"`
+	DestinationWallet    uuid.NullUUID  `json:"destination_wallet"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Coin                 string         `json:"coin"`
+	SourceHash           sql.NullString `json:"source_hash"`
+	Rate                 sql.NullString `json:"rate"`
+	Fees                 sql.NullString `json:"fees"`
+	ReceivedAmount       sql.NullString `json:"received_amount"`
+	SentAmount           sql.NullString `json:"sent_amount"`
+	ServiceProvider      string         `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+	FirstName            sql.NullString `json:"first_name"`
+	LastName             sql.NullString `json:"last_name"`
+}
+
+func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]ListAllCryptoTransactionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listAllCryptoTransactions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []CryptoTransactionMetadatum{}
+	items := []ListAllCryptoTransactionsRow{}
 	for rows.Next() {
-		var i CryptoTransactionMetadatum
+		var i ListAllCryptoTransactionsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.DestinationWallet,
@@ -1854,6 +1877,8 @@ func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]CryptoTransa
 			&i.SentAmount,
 			&i.ServiceProvider,
 			&i.ServiceTransactionID,
+			&i.FirstName,
+			&i.LastName,
 		); err != nil {
 			return nil, err
 		}

@@ -1005,19 +1005,27 @@ WHERE t.type = 'crypto';
 
 -- name: ListAllCryptoTransactions :many
 SELECT
-    id,
-    destination_wallet,
-    transaction_id,
-    coin,
-    source_hash,
-    rate,
-    fees,
-    received_amount,
-    sent_amount,
-    service_provider,
-    service_transaction_id
-FROM crypto_transaction_metadata
-ORDER BY id;
+    ctm.id,
+    ctm.destination_wallet,
+    ctm.transaction_id,
+    ctm.coin,
+    ctm.source_hash,
+    ctm.rate,
+    ctm.fees,
+    ctm.received_amount,
+    ctm.sent_amount,
+    ctm.service_provider,
+    ctm.service_transaction_id,
+
+    u.first_name,
+    u.last_name
+FROM crypto_transaction_metadata ctm
+JOIN transactions t
+    ON t.id = ctm.transaction_id
+JOIN users u
+    ON u.id = t.user_id
+ORDER BY t.created_at DESC;
+
 -- ORDER BY t.created_at DESC;
 
 -- name: ListGiftcardTransactions :many
