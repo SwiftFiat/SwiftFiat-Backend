@@ -1818,65 +1818,34 @@ func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTra
 
 const listAllCryptoTransactions = `-- name: ListAllCryptoTransactions :many
 SELECT
-    t.id AS transaction_id,
-    t.type AS transaction_type,
-    t.description AS transaction_description,
-    t.transaction_flow,
-    t.status AS transaction_status,
-    t.created_at AS transaction_created_at,
-    t.updated_at AS transaction_updated_at,
-    cm.destination_wallet,
-    cm.coin,
-    cm.source_hash,
-    cm.rate,
-    cm.fees,
-    cm.received_amount,
-    cm.sent_amount,
-    cm.service_provider,
-    cm.service_transaction_id
-FROM transactions t
-JOIN crypto_transaction_metadata cm ON t.id = cm.transaction_id
-WHERE t.type = 'crypto'
-ORDER BY t.created_at DESC
+    id,
+    destination_wallet,
+    transaction_id,
+    coin,
+    source_hash,
+    rate,
+    fees,
+    received_amount,
+    sent_amount,
+    service_provider,
+    service_transaction_id
+FROM crypto_transaction_metadata
+ORDER BY id
 `
 
-type ListAllCryptoTransactionsRow struct {
-	TransactionID          uuid.UUID      `json:"transaction_id"`
-	TransactionType        string         `json:"transaction_type"`
-	TransactionDescription sql.NullString `json:"transaction_description"`
-	TransactionFlow        string         `json:"transaction_flow"`
-	TransactionStatus      string         `json:"transaction_status"`
-	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
-	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
-	DestinationWallet      uuid.NullUUID  `json:"destination_wallet"`
-	Coin                   string         `json:"coin"`
-	SourceHash             sql.NullString `json:"source_hash"`
-	Rate                   sql.NullString `json:"rate"`
-	Fees                   sql.NullString `json:"fees"`
-	ReceivedAmount         sql.NullString `json:"received_amount"`
-	SentAmount             sql.NullString `json:"sent_amount"`
-	ServiceProvider        string         `json:"service_provider"`
-	ServiceTransactionID   sql.NullString `json:"service_transaction_id"`
-}
-
-func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]ListAllCryptoTransactionsRow, error) {
+func (q *Queries) ListAllCryptoTransactions(ctx context.Context) ([]CryptoTransactionMetadatum, error) {
 	rows, err := q.db.QueryContext(ctx, listAllCryptoTransactions)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListAllCryptoTransactionsRow{}
+	items := []CryptoTransactionMetadatum{}
 	for rows.Next() {
-		var i ListAllCryptoTransactionsRow
+		var i CryptoTransactionMetadatum
 		if err := rows.Scan(
-			&i.TransactionID,
-			&i.TransactionType,
-			&i.TransactionDescription,
-			&i.TransactionFlow,
-			&i.TransactionStatus,
-			&i.TransactionCreatedAt,
-			&i.TransactionUpdatedAt,
+			&i.ID,
 			&i.DestinationWallet,
+			&i.TransactionID,
 			&i.Coin,
 			&i.SourceHash,
 			&i.Rate,
@@ -1992,6 +1961,7 @@ func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTr
 }
 
 const listGiftcardTransactions = `-- name: ListGiftcardTransactions :many
+
 SELECT
     gtm.id AS metadata_id,
     gtm.source_wallet,
@@ -2031,6 +2001,7 @@ type ListGiftcardTransactionsRow struct {
 	UpdatedAt            time.Time      `json:"updated_at"`
 }
 
+// ORDER BY t.created_at DESC;
 func (q *Queries) ListGiftcardTransactions(ctx context.Context) ([]ListGiftcardTransactionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listGiftcardTransactions)
 	if err != nil {
