@@ -1041,7 +1041,7 @@ func(h *Analytics) GetDailyTransactions(c *gin.Context) {
 
 	dailyTransactions, err := h.server.queries.GetDailyTransactionSummary(c)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get daily transactions"))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
