@@ -95,7 +95,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 	openTicketCount, err := c.server.queries.CountUserOpenTickets(ctx, activeUser.UserID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to check open tickets"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to check open tickets" + err.Error()))
 		return
 	}
 
@@ -128,7 +128,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 		})
 		if err != nil {
 			c.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create ticket"))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create ticket" + err.Error()))
 			return
 		}
 		ticketID = ticket.ID
@@ -175,7 +175,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 			Offset: 0,
 		})
 		if err != nil || len(tickets) == 0 {
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve ticket"))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve ticket" + err.Error()))
 			return
 		}
 		ticketID = tickets[0].ID
@@ -193,7 +193,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 		})
 		if err != nil {
 			c.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message"))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message" + err.Error()))
 			return
 		}
 	}
@@ -246,7 +246,7 @@ func (c *ChatSupport) getMessages(ctx *gin.Context) {
 	messages, err := c.chatService.GetConversationHistory(ctx, ticketID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve messages"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve messages" + err.Error()))
 		return
 	}
 
@@ -278,7 +278,7 @@ func (c *ChatSupport) getMyTickets(ctx *gin.Context) {
 	tickets, err := c.ticketService.GetTicketsByUser(ctx, activeUser.UserID, int32(limit), int32(offset))
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets" + err.Error()))
 		return
 	}
 
@@ -342,14 +342,14 @@ func (c *ChatSupport) requestEscalation(ctx *gin.Context) {
 	}
 
 	ticketIDStr := ctx.Param("ticketId")
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
 	}
 
 	// Verify ticket belongs to user
-	ticket, err := c.server.queries.GetTicketByID(ctx, ticketID)
+	ticket, err := c.server.queries.GetTicketByID(ctx, int64(ticketID))
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, basemodels.NewError("ticket not found"))
 		return
@@ -360,16 +360,16 @@ func (c *ChatSupport) requestEscalation(ctx *gin.Context) {
 		return
 	}
 	// Auto-assign to available agent
-	_, err = c.ticketService.AutoAssignTicket(ctx, ticketID)
+	_, err = c.ticketService.AutoAssignTicket(ctx, int64(ticketID))
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("escalation failed"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("escalation failed" + err.Error()))
 		return
 	}
 
 	// Send system message
 	_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
-		TicketID:    ticketID,
+		TicketID:    int64(ticketID),
 		SenderID:    0,
 		SenderType:  "system",
 		MessageText: "A support agent will join your conversation shortly.",
@@ -421,7 +421,7 @@ func (c *ChatSupport) listTickets(ctx *gin.Context) {
 
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets" + err.Error()))
 		return
 	}
 
@@ -502,7 +502,7 @@ func (c *ChatSupport) getUnassignedTickets(ctx *gin.Context) {
 	tickets, err := c.ticketService.GetUnassignedTickets(ctx, int32(limit), int32(offset))
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets" + err.Error()))
 		return
 	}
 
@@ -593,7 +593,7 @@ func (c *ChatSupport) getTicketDetails(ctx *gin.Context) {
 	messages, err := c.chatService.GetConversationHistory(ctx, ticketID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve messages"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve messages" + err.Error()))
 		return
 	}
 
@@ -649,7 +649,7 @@ func (c *ChatSupport) claimTicket(ctx *gin.Context) {
 	}
 
 	ticketIDStr := ctx.Param("ticketId")
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
@@ -663,14 +663,14 @@ func (c *ChatSupport) claimTicket(ctx *gin.Context) {
 			return
 		}
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve admin profile"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve admin profile" + err.Error()))
 		return
 	}
 
-	ticket, err := c.ticketService.ClaimTicket(ctx, ticketID, supportAdmin.ID)
+	ticket, err := c.ticketService.ClaimTicket(ctx, int64(ticketID), supportAdmin.ID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to claim ticket"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to claim ticket" + err.Error()))
 		return
 	}
 
@@ -718,7 +718,7 @@ func (c *ChatSupport) assignTicket(ctx *gin.Context) {
 	}
 
 	ticketIDStr := ctx.Param("ticketId")
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
@@ -733,10 +733,10 @@ func (c *ChatSupport) assignTicket(ctx *gin.Context) {
 		return
 	}
 
-	ticket, err := c.ticketService.AssignTicket(ctx, ticketID, req.AdminID, activeUser.UserID)
+	ticket, err := c.ticketService.AssignTicket(ctx, int64(ticketID), req.AdminID, activeUser.UserID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to assign ticket"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to assign ticket" + err.Error()))
 		return
 	}
 
@@ -784,7 +784,7 @@ func (c *ChatSupport) updateTicketStatus(ctx *gin.Context) {
 	}
 
 	ticketIDStr := ctx.Param("ticketId")
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
@@ -799,10 +799,10 @@ func (c *ChatSupport) updateTicketStatus(ctx *gin.Context) {
 		return
 	}
 
-	ticket, err := c.ticketService.UpdateTicketStatus(ctx, ticketID, req.Status)
+	ticket, err := c.ticketService.UpdateTicketStatus(ctx, int64(ticketID), req.Status)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update ticket status"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update ticket status" + err.Error()))
 		return
 	}
 
@@ -849,16 +849,16 @@ func (c *ChatSupport) resolveTicket(ctx *gin.Context) {
 	}
 
 	ticketIDStr := ctx.Param("ticketId")
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
 	}
 
-	ticket, err := c.ticketService.ResolveTicket(ctx, ticketID)
+	ticket, err := c.ticketService.ResolveTicket(ctx, int64(ticketID))
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to resolve ticket"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to resolve ticket" + err.Error()))
 		return
 	}
 
@@ -908,7 +908,7 @@ func (c *ChatSupport) sendAdminMessage(ctx *gin.Context) {
 	}
 	ticketIDStr := ctx.Param("ticketId")
 
-	ticketID, err := strconv.ParseInt(ticketIDStr, 10, 64)
+	ticketID, err := strconv.Atoi(ticketIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid ticket ID"))
 		return
@@ -924,7 +924,7 @@ func (c *ChatSupport) sendAdminMessage(ctx *gin.Context) {
 	files := form.File["attachment"]
 
 	message, err := c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
-		TicketID:    ticketID,
+		TicketID:    int64(ticketID),
 		SenderID:    activeUser.UserID,
 		SenderType:  "admin",
 		MessageText: messageText,
@@ -932,7 +932,7 @@ func (c *ChatSupport) sendAdminMessage(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message" + err.Error()))
 		return
 	}
 
@@ -975,7 +975,7 @@ func (c *ChatSupport) getStatistics(ctx *gin.Context) {
 	stats, err := c.ticketService.GetTicketStatistics(ctx, since)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve statistics"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve statistics" + err.Error()))
 		return
 	}
 
@@ -1015,7 +1015,7 @@ func (c *ChatSupport) getMyAssignedTickets(ctx *gin.Context) {
 			return
 		}
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve admin profile"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve admin profile" + err.Error()))
 		return
 	}
 
@@ -1025,7 +1025,7 @@ func (c *ChatSupport) getMyAssignedTickets(ctx *gin.Context) {
 	tickets, err := c.ticketService.GetTicketsByAssignedAdmin(ctx, supportAdmin.ID, int32(limit), int32(offset))
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve tickets" + err.Error()))
 		return
 	}
 
@@ -1108,7 +1108,7 @@ func (c *ChatSupport) createFAQ(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create FAQ"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create FAQ" + err.Error()))
 		return
 	}
 
@@ -1182,7 +1182,7 @@ func (c *ChatSupport) listFAQs(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve FAQs"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve FAQs" + err.Error()))
 		return
 	}
 
@@ -1221,7 +1221,7 @@ func (c *ChatSupport) getFAQ(ctx *gin.Context) {
 			return
 		}
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve FAQ"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve FAQ" + err.Error()))
 		return
 	}
 
@@ -1282,7 +1282,7 @@ func (c *ChatSupport) updateFAQ(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update FAQ"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update FAQ" + err.Error()))
 		return
 	}
 
@@ -1338,7 +1338,7 @@ func (c *ChatSupport) deleteFAQ(ctx *gin.Context) {
 	err = c.server.queries.DeactivateFAQDocument(ctx, faqID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete FAQ"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to delete FAQ" + err.Error()))
 		return
 	}
 
@@ -1381,7 +1381,7 @@ func (c *ChatSupport) markFAQHelpful(ctx *gin.Context) {
 	err = c.aiService.MarkFAQHelpful(ctx, faqID)
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to mark FAQ as helpful"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to mark FAQ as helpful" + err.Error()))
 		return
 	}
 
