@@ -147,7 +147,7 @@ func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, 
 		ReferrerID:   int32(referrerID),
 		RefereeID:    int32(refereeID),
 		EarnedAmount: amount.String(),
-		Status:       string(ReferralStatusPending),
+		Status:       status,
 	}
 
 	referral, err := r.queries.CreateReferral(ctx, params)
@@ -180,7 +180,7 @@ func (r *Repo) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, 
 			ReferrerID:   int64(ref.ReferrerID),
 			RefereeID:    int64(ref.RefereeID),
 			EarnedAmount: amount,
-			Status:       ReferralStatusPending,
+			Status: ReferralStatus(ref.Status),
 			CreatedAt:    ref.CreatedAt,
 		}
 	}

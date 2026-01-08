@@ -1,7 +1,7 @@
 -- name: CreateReferral :one
 INSERT INTO user_referrals (referrer_id, referee_id, earned_amount, status)
 VALUES ($1, $2, $3, $4)
-    RETURNING *;
+    RETURNING id, referrer_id, referee_id, earned_amount, status, created_at;
 
 -- name: GetReferralByRefereeID :one
 SELECT * FROM user_referrals WHERE referee_id = $1;

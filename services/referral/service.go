@@ -17,15 +17,16 @@ type Service struct {
 	repo    *Repo
 	logger  *logging.Logger
 	notifyr *service.Notification
+	push    *service.PushNotificationService
 	//notifier  NotificationService // assuming you have a notification service
 }
 
-func NewReferralService(repo *Repo, logger *logging.Logger, notifyr *service.Notification) *Service {
+func NewReferralService(repo *Repo, logger *logging.Logger, notifyr *service.Notification, push *service.PushNotificationService) *Service {
 	return &Service{
 		repo:    repo,
 		logger:  logger,
 		notifyr: notifyr,
-		//notifier: notifier,
+		push:    push,
 	}
 }
 
@@ -37,14 +38,14 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 			s.logger.Error(fmt.Errorf("invalid referral code: %s", referralCode))
 			return nil, errors.New("invalid referral code")
 		}
-		return nil, err
+		return nil, fmt.Errorf("an error occurred while fetching referral record: %w", err)
 	}
 	referrerID := int64(referralRecord.UserID)
 
 	// Step 2: Check if referee was already referred
 	existing, err := s.repo.queries.GetReferralByRefereeID(ctx, int32(refereeID))
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		return nil, err
+		return nil, fmt.Errorf("an error occurred while checking existing referral: %w", err)
 	}
 	if existing != (db.UserReferral{}) {
 		s.logger.Error(fmt.Errorf("referrer with id %d already exists", refereeID))
@@ -52,49 +53,40 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 	}
 
 	// Step 4: Create the referral
-	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount, string(ReferralStatusPending))
+	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount, string(ReferralStatusActive))
+	if err != nil {
+		s.logger.Error(err)
+		return nil, fmt.Errorf("an error occurred while creating referral: %w", err)
+	}
+
+	// Ensure referral earnings record exists for the referrer
+	_, err = s.repo.GetReferralEarnings(ctx, referrerID)
 	if err != nil {
 		s.logger.Error(err)
 		return nil, err
 	}
 
-	// Check if referree kyc is 1
-	kyc, err := s.repo.queries.GetKYCByUserID(ctx, int32(refereeID))
+	params := db.UpdateReferralEarningsParams{
+		UserID:      int32(referrerID),
+		TotalEarned: referralAmount.String(),
+	}
+
+	_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			s.logger.Info(fmt.Sprintf("Referred user %d has not completed KYC yet", refereeID))
-			s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s, pending KYC approval of the referred user.", referralAmount.String()))
-			return referral, nil
-		}
 		s.logger.Error(err)
 		return nil, err
 	}
-
-	if kyc.Status == "active" && kyc.Tier >= 1 {
-		params := db.UpdateReferralEarningsParams{
-			UserID:      int32(referrerID),
-			TotalEarned: referralAmount.String(),
-		}
-
-		_, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
-		if err != nil {
-			s.logger.Error(err)
-			return nil, err
-		}
-		err = s.repo.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
-			Status:    string(ReferralStatusActive),
-			RefereeID: int32(refereeID),
-		})
-		if err != nil {
-			s.logger.Error(err)
-		}
-
-		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
-		// TODO: Notify the referrer about the earnings
-	} else {
-		s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have earned a referral bonus of %s pending KYC verification of the referred user", referralAmount.String()))
-		// TODO: Send email notification to the referrer saying they have earned a referral bonus pending KYC approval of the referee
+	err = s.repo.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
+		Status:    string(ReferralStatusActive),
+		RefereeID: int32(refereeID),
+	})
+	if err != nil {
+		s.logger.Error(err)
+		return nil, fmt.Errorf("an error occurred : %v", err)
 	}
+
+	s.push.ReferralBonusEarned(ctx, refereeID, referralAmount.String())
+	s.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have recieved a referral bonus of %s for referring a new user", referralAmount.String()))
 
 	return referral, nil
 }

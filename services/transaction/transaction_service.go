@@ -127,7 +127,7 @@ func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx Int
 	tx.Rate = rate
 
 	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, string(Inflow), fromAccount.CustomerID)
+	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, string(InPlatform), fromAccount.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("create transaction record: %w", err)
 	}
@@ -781,7 +781,7 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 			Type:            string(Transfer),
 			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: string(Outflow),
+			TransactionFlow: string(transactionFlow),
 			Status:          string(Success),
 			AmountUsd:       amountUsd.String(),
 			Amount:          tx.SentAmount.String(),

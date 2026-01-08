@@ -786,7 +786,7 @@ SELECT
                         'service_provider', gm.service_provider,
                         'service_transaction_id', gm.service_transaction_id
                     )::jsonb
-                    FROM public.giftcard_transaction_metadata gm
+                    FROM public.giftcard_transaction_metadata gm 
                     WHERE gm.transaction_id = t.id
                 )
                 WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
