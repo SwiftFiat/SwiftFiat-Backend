@@ -540,7 +540,49 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 	return nil
 }
 
-func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID int64, amount float64, message string) error {
+func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, userID int64, amount float64) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Wallet Transfer Received"
+	Message := fmt.Sprintf("You have received a wallet transfer of %.2f.", amount)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:	  PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID int64, amount float64) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
@@ -553,7 +595,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 	}
 
 	Title := "Wallet Transfer"
-	Message := fmt.Sprintf("Your wallet transfer of %.2f was successful. %s", amount, message)
+	Message := fmt.Sprintf("Your wallet transfer of %.2f was successful.", amount)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(&PushNotificationInfo{
@@ -749,3 +791,45 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 	}
 	return nil
 }	
+
+func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userID int64, amount string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := "Referral Bonus Earned"
+	Message := fmt.Sprintf("You have earned a referral bonus of %s.", amount)
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(&PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:	  PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+		}
+	}
+	return nil
+}

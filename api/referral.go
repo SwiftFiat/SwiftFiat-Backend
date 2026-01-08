@@ -35,7 +35,7 @@ func (r Referral) router(server *Server) {
 	r.AmountEarnedPerReferral = decimal.NewFromFloat(1000.00) // TODO: make this configurable
 	r.logger = r.server.logger
 	r.notifyr = service.NewNotificationService(r.server.queries)
-	r.service = referral.NewReferralService(r.repo, r.logger, r.notifyr)
+	r.service = referral.NewReferralService(r.repo, r.logger, r.notifyr, r.server.pushNotification)
 	r.audit = r.server.auditService
 
 	serverGroupV1 := server.router.Group("/api/v1/referral")
@@ -117,13 +117,32 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("user not found"))
 		return
 	}
-	ref, err := r.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, decimal.NewFromFloat(1000))
+
+	config, err := r.server.queries.GetReferralConfig(c)
 	if err != nil {
-		r.server.logger.Error(logrus.ErrorLevel, err)
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		r.server.logger.Error("Failed to get referral config", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get referral config"))
+		return
+	}
+
+	refAmount, err := decimal.NewFromString(config.ReferralAmount)
+	if err != nil {
+		r.server.logger.Error("Failed to parse referral amount", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse referral amount"))
+		return
+	}
+
+	ref, err := r.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, refAmount)
+	if err != nil {
+		r.server.logger.Error("Failed to track referral", logrus.Fields{
+			"error":         err,
+			"referral_code": request.ReferralCode,
+			"user_id":       activeUser.UserID,
+		})
+		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to track referral: "+err.Error()))
 		return
 	}
 

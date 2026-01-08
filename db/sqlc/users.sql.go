@@ -588,18 +588,25 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 }
 
 const getUserNameByUserTag = `-- name: GetUserNameByUserTag :one
-SELECT first_name, last_name FROM users WHERE user_tag = $1
+SELECT first_name, last_name, email, id FROM users WHERE user_tag = $1
 `
 
 type GetUserNameByUserTagRow struct {
 	FirstName sql.NullString `json:"first_name"`
 	LastName  sql.NullString `json:"last_name"`
+	Email     string         `json:"email"`
+	ID        int64          `json:"id"`
 }
 
 func (q *Queries) GetUserNameByUserTag(ctx context.Context, userTag sql.NullString) (GetUserNameByUserTagRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserNameByUserTag, userTag)
 	var i GetUserNameByUserTagRow
-	err := row.Scan(&i.FirstName, &i.LastName)
+	err := row.Scan(
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.ID,
+	)
 	return i, err
 }
 

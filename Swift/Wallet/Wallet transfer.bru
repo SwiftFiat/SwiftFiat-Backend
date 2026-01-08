@@ -1,0 +1,31 @@
+meta {
+  name: Wallet transfer
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{BaseURl}}/wallets/transfer
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "source_account": "31d56891-7a3b-414b-8a14-1e135f137673",
+    "destination_account": "cad1196a-2378-421c-8f58-5de6d7a777f1",
+    "amount": 10,
+    "target_user_tag": "mayor",
+    "description": "test",
+    "pin": "1234"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

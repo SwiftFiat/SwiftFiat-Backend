@@ -53,6 +53,7 @@ func (w Wallet) router(server *Server) {
 	w.audit = server.auditService
 	w.pushService = server.pushNotification
 
+
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
 	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
@@ -478,21 +479,6 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	// kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-	// if err != nil {
-	// 	if err == sql.ErrNoRows {
-	// 		ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
-	// 		return
-	// 	}
-	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-	// 	return
-	// }
-
-	// if kycUser.Status != "active" {
-	// 	ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
-	// 	return
-	// }
-
 	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -502,11 +488,6 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
-
-	// if kycUser.Tier < 1 {
-	// 	ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
-	// 	return
-	// }
 
 	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
@@ -530,18 +511,13 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	amount := decimal.NewFromFloat(request.Amount)
-	// tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
-	// if err != nil {
-	// 	w.server.logger.Error(err)
-	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-	// 	return
-	// }
+	wallett, err := w.server.queries.GetWallet(ctx, sourceAccount)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account not found"))
+		return
+	}
 
-	// if amount.GreaterThan(tierLimit) {
-	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
-	// 	return
-	// }
+	amount := decimal.NewFromFloat(request.Amount)
 
 	tparams := transaction.IntraTransaction{
 		FromAccountID: sourceAccount,
@@ -578,13 +554,23 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		"type":                tObj.Type,
 		"status":              tObj.Status,
 	}
+	w.audit.Log(entry)
+
+	destUser, err := w.server.queries.GetUserNameByUserTag(ctx, sql.NullString{String: request.DestinationUserTag, Valid: true})
+	hasDestUser := true
+	if err != nil {
+		w.server.logger.Error(fmt.Errorf("failed to get destination user for wallet transfer notification: %s", err))
+		hasDestUser = false
+	}
 
 	go func() {
-		w.audit.Log(entry)
-
 		// Notifications
-		w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Wallet Transfer", fmt.Sprintf("Transfer of %.2f was successful", request.Amount))
-		w.pushService.SendWalletTransfer(ctx, activeUser.UserID, request.Amount, "")
+		w.notifr.Create(ctx, int32(activeUser.UserID), "Outgoing Wallet Transfer", fmt.Sprintf("Transfer of %.2f %s was successful", request.Amount, wallett.Currency))
+		w.pushService.SendWalletTransfer(ctx, activeUser.UserID, request.Amount)
+		if hasDestUser {
+			w.notifr.Create(ctx, int32(destUser.ID), "Incoming Wallet Transfer", fmt.Sprintf("You have received a transfer of %.2f %s", request.Amount, wallett.Currency))
+			w.pushService.RecieveWalletTransfer(ctx, int64(destUser.ID), request.Amount)
+		}
 	}()
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))

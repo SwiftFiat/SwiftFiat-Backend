@@ -8,12 +8,13 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 )
 
 const createReferral = `-- name: CreateReferral :one
 INSERT INTO user_referrals (referrer_id, referee_id, earned_amount, status)
 VALUES ($1, $2, $3, $4)
-    RETURNING id, referrer_id, referee_id, earned_amount, created_at, status
+    RETURNING id, referrer_id, referee_id, earned_amount, status, created_at
 `
 
 type CreateReferralParams struct {
@@ -23,21 +24,30 @@ type CreateReferralParams struct {
 	Status       string `json:"status"`
 }
 
-func (q *Queries) CreateReferral(ctx context.Context, arg CreateReferralParams) (UserReferral, error) {
+type CreateReferralRow struct {
+	ID           int32     `json:"id"`
+	ReferrerID   int32     `json:"referrer_id"`
+	RefereeID    int32     `json:"referee_id"`
+	EarnedAmount string    `json:"earned_amount"`
+	Status       string    `json:"status"`
+	CreatedAt    time.Time `json:"created_at"`
+}
+
+func (q *Queries) CreateReferral(ctx context.Context, arg CreateReferralParams) (CreateReferralRow, error) {
 	row := q.db.QueryRowContext(ctx, createReferral,
 		arg.ReferrerID,
 		arg.RefereeID,
 		arg.EarnedAmount,
 		arg.Status,
 	)
-	var i UserReferral
+	var i CreateReferralRow
 	err := row.Scan(
 		&i.ID,
 		&i.ReferrerID,
 		&i.RefereeID,
 		&i.EarnedAmount,
-		&i.CreatedAt,
 		&i.Status,
+		&i.CreatedAt,
 	)
 	return i, err
 }
