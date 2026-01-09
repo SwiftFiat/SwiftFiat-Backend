@@ -3,6 +3,7 @@ package chatsupport
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,7 +19,7 @@ import (
 const (
 	ConfidenceThreshold = 0.55
 	OpenAIBaseURL       = "https://api.openai.com/v1"
-	OpenAIModel         = "gpt-5-nano"
+	OpenAIModel         = "gpt-3.5-turbo"
 	MaxContextMessages  = 10
 )
 
@@ -66,10 +67,14 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 
 	// Step 3: Call OpenAI API
 	aiResponse, err := s.callOpenAI(ctx, messages)
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("OpenAI API error: %v", err))
-		// return nil, ErrAIServiceUnavailable
-		return nil, err
+	if err != nil || aiResponse == "" {
+		s.logger.Error(fmt.Sprintf("OpenAI API error or empty response: %v", err))
+		// Fallback to mock response
+		aiResponse = "I'm sorry, but I'm having trouble connecting to my knowledge base right now. Please try rephrasing your question or contact support for immediate assistance."
+		// If we have FAQ sources, use the FAQ content instead
+		if len(faqSources) > 0 {
+			aiResponse = fmt.Sprintf("Based on our FAQ '%s': %s", faqSources[0].Title, faqSources[0].Snippet)
+		}
 	}
 
 	// Step 4: Calculate confidence score
@@ -97,20 +102,105 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 
 // retrieveRelevantFAQs uses vector similarity search to find relevant FAQ documents
 func (s *AIService) retrieveRelevantFAQs(ctx context.Context, query string) ([]FAQSource, error) {
-	// In production, this would use a vector database (Pinecone, Weaviate, etc.)
-	// For now, we'll do a simple text search
-	searchPattern := fmt.Sprintf("%%%s%%", query)
-
-	faqs, err := s.store.SearchFAQDocuments(ctx, db.SearchFAQDocumentsParams{
-		Title: searchPattern,
-		Limit: 5,
-	})
-	if err != nil {
-		return nil, err
+	// Keywords to match
+	keywords := []string{
+		"virtual", 
+		"card", 
+		"vault", 
+		"savings", 
+		"conversion", 
+		"ramp", 
+		"airtime", 
+		"bill", 
+		"payment", 
+		"transfer", 
+		"withdraw", 
+		"deposit", 
+		"account", 
+		"verification", 
+		"kyc", 
+		"limits", 
+		"fees", 
+		"security", 
+		"support", 
+		"app", 
+		"transaction", 
+		"balance", 
+		"gift", 
+		"subscription", 
+		"crypto", 
+		"fiat", 
+		"currency", 
+		"exchange", 
+		"top-up",
+		"referrals",
+		"crypto",
+		"rewards",
+		"qr",
+		"totp",
+		"streaks",
 	}
 
+	// Split query into words
+	words := strings.Fields(strings.ToLower(query))
+
+	// Find matching keywords in the query
+	var matchingKeywords []string
+	for _, word := range words {
+		for _, keyword := range keywords {
+			if strings.Contains(word, keyword) || strings.Contains(keyword, word) {
+				matchingKeywords = append(matchingKeywords, keyword)
+			}
+		}
+	}
+
+	// Remove duplicates
+	seen := make(map[string]bool)
+	var uniqueKeywords []string
+	for _, k := range matchingKeywords {
+		if !seen[k] {
+			seen[k] = true
+			uniqueKeywords = append(uniqueKeywords, k)
+		}
+	}
+
+	if len(uniqueKeywords) == 0 {
+		return []FAQSource{}, nil
+	}
+
+	// Search for FAQs that contain any of the matching keywords in title
+	var allFaqs []db.FaqDocument
+	for _, keyword := range uniqueKeywords {
+		faqs, err := s.store.SearchFAQDocuments(ctx, db.SearchFAQDocumentsParams{
+			Column1: sql.NullString{String: "%" + keyword + "%", Valid: true},
+			Limit:   10, // higher limit to get more
+		})
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("error searching for keyword %s: %v", keyword, err))
+			continue
+		}
+		allFaqs = append(allFaqs, faqs...)
+	}
+
+	// Remove duplicates
+	seenFaq := make(map[int64]bool)
+	var uniqueFaqs []db.FaqDocument
+	for _, faq := range allFaqs {
+		if !seenFaq[faq.ID] {
+			seenFaq[faq.ID] = true
+			uniqueFaqs = append(uniqueFaqs, faq)
+		}
+	}
+
+	// Limit to 5
+	if len(uniqueFaqs) > 5 {
+		uniqueFaqs = uniqueFaqs[:5]
+	}
+
+	s.logger.Info(fmt.Sprintf("Searching FAQs for query: %s, found %d FAQs", query, len(uniqueFaqs)))
+
 	var sources []FAQSource
-	for _, faq := range faqs {
+	for _, faq := range uniqueFaqs {
 		// Create snippet (first 200 characters)
 		snippet := faq.Content
 		if len(snippet) > 200 {
@@ -184,6 +274,16 @@ func (s *AIService) buildMessages(systemPrompt, userMessage string, context []Co
 
 // callOpenAI makes the API call to OpenAI
 func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessage) (string, error) {
+	// Check if API key is configured
+	if s.config.OpenAIAPIKey == "" {
+		s.logger.Warn("OpenAI API key not configured - using fallback response")
+		return "", errors.New("api_key_not_configured")
+	}
+
+	// Log the API key length for debugging (don't log the actual key)
+	s.logger.Info(fmt.Sprintf("Calling OpenAI with model: %s, API key length: %d, messages count: %d",
+		OpenAIModel, len(s.config.OpenAIAPIKey), len(messages)))
+
 	reqBody := OpenAIRequest{
 		Model:               OpenAIModel,
 		Messages:            messages,
@@ -193,16 +293,18 @@ func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessa
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to marshal request body: %v", err))
 		return "", err
 	}
 
 	req, err := http.NewRequestWithContext(
 		ctx,
 		"POST",
-		OpenAIBaseURL+"/chat/completions", //change to /responses
+		OpenAIBaseURL+"/chat/completions",
 		bytes.NewBuffer(jsonBody),
 	)
 	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to create HTTP request: %v", err))
 		return "", err
 	}
 
@@ -211,25 +313,36 @@ func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessa
 
 	resp, err := s.httpClient.Do(req)
 	if err != nil {
+		s.logger.Error(fmt.Sprintf("HTTP request failed: %v", err))
 		return "", err
 	}
 	defer resp.Body.Close()
 
+	body, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("OpenAI API error: %d - %s", resp.StatusCode, string(body))
+		s.logger.Error(fmt.Sprintf("OpenAI API error: status=%d, response=%s", resp.StatusCode, string(body)))
+		return "", fmt.Errorf("openai_api_error: %d - %s", resp.StatusCode, string(body))
 	}
 
 	var openAIResp OpenAIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&openAIResp); err != nil {
+	if err := json.Unmarshal(body, &openAIResp); err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to decode OpenAI response: %v, body: %s", err, string(body)))
 		return "", err
 	}
 
 	if len(openAIResp.Choices) == 0 {
+		s.logger.Error("No choices in OpenAI response")
 		return "", errors.New("no response from OpenAI")
 	}
 
-	return openAIResp.Choices[0].Message.Content, nil
+	content := openAIResp.Choices[0].Message.Content
+	preview := content
+	if len(preview) > 50 {
+		preview = preview[:50]
+	}
+	s.logger.Info(fmt.Sprintf("Successfully got OpenAI response: %s", preview))
+	return content, nil
 }
 
 // calculateConfidence determines confidence score based on various factors

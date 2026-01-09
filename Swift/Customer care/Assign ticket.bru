@@ -1,11 +1,11 @@
 meta {
-  name: Track referral
+  name: Assign ticket
   type: http
-  seq: 8
+  seq: 4
 }
 
-post {
-  url: {{BaseURl}}/referral/track
+patch {
+  url: {{BaseURl}}/chat/admin/support/tickets/9/assign
   body: json
   auth: bearer
 }
@@ -16,7 +16,7 @@ auth:bearer {
 
 body:json {
   {
-    "referral_code": "SWF-KRAPB3G3"
+    "admin_id": 2
   }
 }
 

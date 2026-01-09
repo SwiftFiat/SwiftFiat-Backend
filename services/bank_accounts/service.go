@@ -57,19 +57,10 @@ func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64
 		return nil, fmt.Errorf("failed to verify bank account: %w", err)
 	}
 
-	// Check if account name matches (basic verification)
-	// In production, you might want more sophisticated name matching
-	if accountInfo.AccountName != req.AccountName {
-		s.logger.Warn(fmt.Sprintf("Account name mismatch: provided=%s, resolved=%s",
-			req.AccountName, accountInfo.AccountName))
-		// You can choose to use the resolved name or reject
-		req.AccountName = accountInfo.AccountName // Use Paystack's verified name
-	}
-
 	// Create bank account in database
 	params := db.CreateBankAccountParams{
 		UserID:        userID,
-		AccountName:   req.AccountName,
+		AccountName:   accountInfo.AccountName,
 		AccountNumber: req.AccountNumber,
 		BankCode:      req.BankCode,
 		BankName:      req.BankName,

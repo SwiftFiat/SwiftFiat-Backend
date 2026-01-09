@@ -201,7 +201,7 @@ ORDER BY created_at DESC;
 -- name: SearchFAQDocuments :many
 SELECT * FROM faq_documents
 WHERE is_active = TRUE
-AND (title ILIKE $1 OR content ILIKE $1 OR $1 = ANY(tags))
+AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
 ORDER BY view_count DESC, helpful_count DESC
 LIMIT $2;
 

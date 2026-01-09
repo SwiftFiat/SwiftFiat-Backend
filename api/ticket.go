@@ -712,10 +712,10 @@ func (c *ChatSupport) assignTicket(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER || activeUser.Role == models.CUSTOMER_REP {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
-		return
-	}
+	// if activeUser.Role == models.USER || activeUser.Role == models.CUSTOMER_REP {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+	// 	return
+	// }
 
 	ticketIDStr := ctx.Param("ticketId")
 	ticketID, err := strconv.Atoi(ticketIDStr)
@@ -1078,10 +1078,10 @@ func (c *ChatSupport) createFAQ(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+	// 	return
+	// }
 
 	var req struct {
 		Title    string   `json:"title" binding:"required"`
@@ -1205,7 +1205,7 @@ func (c *ChatSupport) listFAQs(ctx *gin.Context) {
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 404 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/admin/faq/{faqId} [get]
+// @Router /api/v1/admin/{faqId} [get]
 func (c *ChatSupport) getFAQ(ctx *gin.Context) {
 	faqIDStr := ctx.Param("faqId")
 	faqID, err := strconv.ParseInt(faqIDStr, 10, 64)

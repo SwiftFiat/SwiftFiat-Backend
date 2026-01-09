@@ -72,6 +72,9 @@ CREATE TABLE IF NOT EXISTS "faq_documents" (
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE faq_documents ADD COLUMN tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || content)) STORED;
+CREATE INDEX idx_faq_documents_tsv ON faq_documents USING gin(tsv);
+
 -- Ticket Assignment History for audit trail
 CREATE TABLE IF NOT EXISTS "ticket_assignment_history" (
     "id" BIGSERIAL PRIMARY KEY,
