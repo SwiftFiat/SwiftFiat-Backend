@@ -212,7 +212,7 @@ func (s *MarketInsightsService) startBackgroundMonitoring() {
 		case <-ticker.C:
 			s.checkForNewArticles(ctx)
 		}
-	} 
+	}
 }
 
 // checkForNewArticles fetches latest articles and notifies users of new ones
@@ -343,7 +343,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, tokens
 	badge := 1
 
 	if fcmToken != "" {
-		err := s.pushNotification.SendPush(&service.PushNotificationInfo{
+		err := s.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
 			Title:          title,
 			Message:        message,
 			Provider:       service.PushProviderFCM,
@@ -357,7 +357,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, tokens
 	}
 
 	if expoToken != "" {
-		err := s.pushNotification.SendPush(&service.PushNotificationInfo{
+		err := s.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
 			Title:         title,
 			Message:       message,
 			Provider:      service.PushProviderExpo,
