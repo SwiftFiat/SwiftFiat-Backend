@@ -229,6 +229,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -241,6 +242,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -271,6 +273,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -283,6 +286,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -313,6 +317,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -325,6 +330,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -355,6 +361,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -367,6 +374,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -397,6 +405,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -409,6 +418,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -439,6 +449,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -451,6 +462,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -481,6 +493,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -493,6 +506,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -523,6 +537,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -535,6 +550,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -565,6 +581,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -572,11 +589,12 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 		err = p.SendPush(&PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
-			Provider:	  PushProviderExpo,
+			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -607,6 +625,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -619,6 +638,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -649,6 +669,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -661,6 +682,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -691,6 +713,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -698,11 +721,12 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 		err = p.SendPush(&PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
-			Provider:	  PushProviderExpo,
+			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -711,7 +735,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Context, userID int64, name string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
-		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))	
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
@@ -733,6 +757,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -740,11 +765,12 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 		err = p.SendPush(&PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
-			Provider:	  PushProviderExpo,
+			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
@@ -775,6 +801,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -787,10 +814,11 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil
-}	
+}
 
 func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userID int64, amount string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
@@ -817,6 +845,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
 		}
 	}
 
@@ -824,11 +853,12 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 		err = p.SendPush(&PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
-			Provider:	  PushProviderExpo,
+			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})
 		if err != nil {
 			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
 		}
 	}
 	return nil

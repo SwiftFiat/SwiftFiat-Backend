@@ -207,23 +207,26 @@ func (ys *YieldService) ProcessVaultYield(ctx context.Context, vaultID uuid.UUID
 	// Skip if vault has no balance
 	balance, err := decimal.NewFromString(vault.CurrentBalance.String)
 	if err != nil || balance.LessThanOrEqual(decimal.Zero) {
-		ys.logger.Info(fmt.Sprintf("Vault %s has no balance, skipping yield", vaultID))
+		ys.logger.Info(fmt.Sprintf("Vault %s has no balance (balance=%s), skipping yield", vaultID, vault.CurrentBalance.String))
 		return nil
 	}
 
 	// Get active yield config for this currency
 	yieldConfig, err := ys.store.GetActiveYieldConfigByCurrency(ctx, vault.Currency)
 	if err != nil {
-		ys.logger.Warn(fmt.Sprintf("No active yield config for currency %s", vault.Currency))
+		ys.logger.Warn(fmt.Sprintf("No active yield config for currency %s: %v", vault.Currency, err))
 		return nil // Not an error, just no yield available
 	}
 
 	// Check if balance meets minimum requirement
 	minBalance, _ := decimal.NewFromString(yieldConfig.MinBalanceForYield)
 	if balance.LessThan(minBalance) {
-		ys.logger.Info(fmt.Sprintf("Vault %s balance below minimum for yield", vaultID))
+		ys.logger.Info(fmt.Sprintf("Vault %s balance (%.4f) below minimum (%.4f) for yield, skipping", vaultID, balance, minBalance))
 		return nil
 	}
+
+	ys.logger.Info(fmt.Sprintf("Vault %s passed all checks. Currency=%s, Balance=%.4f, MinBalance=%.4f, APY=%s",
+		vaultID, vault.Currency, balance, minBalance, yieldConfig.ApyRate))
 
 	// Determine calculation period
 	var periodStart time.Time
@@ -295,7 +298,7 @@ func (ys *YieldService) creditYieldToVault(
 	periodStart := vault.LastYieldCalculation.Time
 	if !vault.LastYieldCalculation.Valid {
 		periodStart = vault.CreatedAt
-	} 
+	}
 
 	yieldRecord, err := qtx.CreateVaultYield(ctx, db.CreateVaultYieldParams{
 		UserID:                 vault.UserID,
@@ -434,6 +437,10 @@ func (ys *YieldService) ProcessAllDueYields(ctx context.Context, limit int32) (i
 	}
 
 	ys.logger.Info(fmt.Sprintf("Found %d vaults due for yield calculation", len(vaults)))
+	for i, v := range vaults {
+		ys.logger.Info(fmt.Sprintf("  [%d] Vault ID=%s, Currency=%s, Balance=%s, NextYieldCalc=%v, LastYieldCalc=%v",
+			i+1, v.ID, v.Currency, v.CurrentBalance.String, v.NextYieldCalculation, v.LastYieldCalculation.Time))
+	}
 
 	successCount := 0
 	failureCount := 0
