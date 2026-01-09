@@ -112,7 +112,7 @@ func (u *User) testPush(ctx *gin.Context) {
 		provider = service.PushProviderExpo
 	}
 
-	err = u.server.pushNotification.SendPush(&service.PushNotificationInfo{
+	err = u.server.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
 		Title:          "Test Push",
 		Message:        "Current USER Testing Push Notifications",
 		Provider:       provider,

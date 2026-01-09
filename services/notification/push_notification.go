@@ -72,20 +72,30 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 	}
 }
 
-func (p *PushNotificationService) SendPush(info *PushNotificationInfo) error {
+func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotificationInfo) error {
 
 	if info.Provider == PushProviderExpo {
 		err := p.SendPushExpo(info)
 		return err
 	}
 
-	client, err := p.app.Messaging(context.Background())
+	client, err := p.app.Messaging(ctx)
 	if err != nil {
 		return err
 	}
 
+	// Add data payload for better notification handling
+	data := map[string]string{
+		"title": info.Title,
+		"body":  info.Message,
+	}
+	if info.AnalyticsLabel != "" {
+		data["analytics_label"] = info.AnalyticsLabel
+	}
+
 	newMessage := messaging.Message{
 		Token: info.UserFCMToken,
+		Data:  data,
 		Notification: &messaging.Notification{
 			Title: info.Title, // Assuming `info.Title` holds a more appropriate title.
 			Body:  info.Message,
@@ -125,7 +135,7 @@ func (p *PushNotificationService) SendPush(info *PushNotificationInfo) error {
 		},
 	}
 
-	didSend, err := client.Send(context.Background(), &newMessage)
+	didSend, err := client.Send(ctx, &newMessage)
 	if err != nil {
 		return err
 	}
@@ -235,7 +245,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 
 	if tokens.FCMToken != "" {
 		p.logger.Info(fmt.Sprintf("Sending FCM push to user %d", userID))
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -250,7 +260,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 
 	if tokens.ExpoToken != "" {
 		p.logger.Info(fmt.Sprintf("Sending Expo push to user %d", userID))
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -280,7 +290,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 	Message := fmt.Sprintf("Congratulations! Your vault goal '%s' has been completed.", name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -294,7 +304,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -324,7 +334,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 	Message := fmt.Sprintf("Your vault deposit of %s %s to '%s' was successful.", amount, currency, name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -338,7 +348,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -368,7 +378,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 	Message := fmt.Sprintf("Your vault withdrawal of %s %s from '%s' was successful.", amount, currency, name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -382,7 +392,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -412,7 +422,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 	Message := fmt.Sprintf("Your vault recurring deposit of %s %s to '%s' was successful.", amount, currency, name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -426,7 +436,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -456,7 +466,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 	Message := fmt.Sprintf("Your vault recurring deposit to '%s' has failed. Reason: %s", name, reason)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -470,7 +480,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -500,7 +510,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 	Message := fmt.Sprintf("Your vault '%s' has been credited with %s %s as yield.", name, amount, currency)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -514,7 +524,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -544,7 +554,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 	Message := fmt.Sprintf("%s You have earned %d points from %s.", message, pointEarned, txType)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -558,7 +568,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -588,7 +598,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 	Message := fmt.Sprintf("You have received a wallet transfer of %.2f.", amount)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -602,7 +612,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -632,7 +642,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 	Message := fmt.Sprintf("Your wallet transfer of %.2f was successful.", amount)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -646,7 +656,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -676,7 +686,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 	Message := fmt.Sprintf("Your virtual card %s has been terminated by an administrator.", name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -690,7 +700,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -720,7 +730,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 	Message := fmt.Sprintf("Your virtual card %s has been frozen by an administrator.", name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -734,7 +744,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -764,7 +774,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 	Message := fmt.Sprintf("Your virtual card %s has been unfrozen by an administrator.", name)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -778,7 +788,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -808,7 +818,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 	Message := fmt.Sprintf("Your airtime purchase of ₦%d from %s to %s was successful.", amount, "SWIIFT", phoneNumber)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -822,7 +832,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -852,7 +862,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 	Message := fmt.Sprintf("You have earned a referral bonus of %s.", amount)
 
 	if tokens.FCMToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -866,7 +876,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 	}
 
 	if tokens.ExpoToken != "" {
-		err = p.SendPush(&PushNotificationInfo{
+		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
