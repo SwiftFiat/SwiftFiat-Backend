@@ -377,12 +377,12 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, order
 	)
 
 	// Stablecoin branch: USDT/USDC -> credit same coin wallet 1:1
-	if strings.EqualFold(coinSym, "USDT") || strings.EqualFold(coinSym, "USDC") {
-		destCurrency = coinSym
-		rate = decimal.New(1, 0)
-		amount = coinAmount
-		currFlow = destCurrency + " to " + destCurrency
-	} else {
+	// if strings.EqualFold(coinSym, "USDT") || strings.EqualFold(coinSym, "USDC") {
+	// 	destCurrency = coinSym
+	// 	rate = decimal.New(1, 0)
+	// 	amount = coinAmount
+	// 	currFlow = destCurrency + " to " + destCurrency
+	// } else {
 		// Other coins: convert to USD -> credit USD wallet
 		rate, err = s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
 		if err != nil {
@@ -391,7 +391,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(ctx context.Context, order
 		destCurrency = "USD"
 		amount = coinAmount.Mul(rate)
 		currFlow = coinSym + " to USD"
-	}
+	// }
 
 	// Pull destination wallet by currency and lock
 	walletParams := db.GetWalletByCurrencyForUpdateParams{

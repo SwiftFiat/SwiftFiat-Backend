@@ -212,7 +212,7 @@ func (s *MarketInsightsService) startBackgroundMonitoring() {
 		case <-ticker.C:
 			s.checkForNewArticles(ctx)
 		}
-	}
+	} 
 }
 
 // checkForNewArticles fetches latest articles and notifies users of new ones
