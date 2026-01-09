@@ -221,12 +221,12 @@ func (ys *YieldService) ProcessVaultYield(ctx context.Context, vaultID uuid.UUID
 	// Check if balance meets minimum requirement
 	minBalance, _ := decimal.NewFromString(yieldConfig.MinBalanceForYield)
 	if balance.LessThan(minBalance) {
-		ys.logger.Info(fmt.Sprintf("Vault %s balance (%.4f) below minimum (%.4f) for yield, skipping", vaultID, balance, minBalance))
+		ys.logger.Info(fmt.Sprintf("Vault %s balance (%.2f) below minimum (%.2f) for yield, skipping", vaultID, balance.InexactFloat64(), minBalance.InexactFloat64()))
 		return nil
 	}
 
-	ys.logger.Info(fmt.Sprintf("Vault %s passed all checks. Currency=%s, Balance=%.4f, MinBalance=%.4f, APY=%s",
-		vaultID, vault.Currency, balance, minBalance, yieldConfig.ApyRate))
+	ys.logger.Info(fmt.Sprintf("Vault %s passed all checks. Currency=%s, Balance=%.2f, MinBalance=%.2f, APY=%s",
+		vaultID, vault.Currency, balance.InexactFloat64(), minBalance.InexactFloat64(), yieldConfig.ApyRate))
 
 	// Determine calculation period
 	var periodStart time.Time
