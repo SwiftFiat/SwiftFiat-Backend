@@ -14,7 +14,7 @@ const (
 	DeactivatedAccount        = "your account has been deactivated, please contact support"
 
 	/// Core Functionality Error
-	ServerError = "a server error occurred, please try again later"
+	ServerError        = "a server error occurred, please try again later"
 	InvalidRequestData = "invalid request data"
 
 	/// KYC Related Strings
@@ -32,4 +32,6 @@ const (
 	InvalidTransactionInput = "check 'source_account' or 'amount' keys, invalid request"
 	InvalidTransactionID    = "entered ID is invalid"
 	InvalidTransactionPIN   = "incorrect PIN, please try again"
+	PasswordsDoNotMatch     = "passwords do not match"
+	InvalidOTP              = "invalid or expired OTP"
 )

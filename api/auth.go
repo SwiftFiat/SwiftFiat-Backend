@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"image/png"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -57,10 +56,9 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("register-admin", a.registerAdmin)
 	// serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
 	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
-	serverGroupV1.POST("change-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.changePassword)
 	serverGroupV1.POST("forgot-password", a.forgotPassword)
-	serverGroupV1.POST("reset-password", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPassword)
-	serverGroupV1.POST("forgot-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPasscode)
+	serverGroupV1.POST("reset-password", a.resetPassword)
+	// serverGroupV1.POST("forgot-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPasscode)
 	serverGroupV1.POST("reset-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPasscode)
 	serverGroupV1.POST("create-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPasscode)
 	serverGroupV1.POST("create-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPin)
@@ -1289,69 +1287,136 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/auth/forgot-password [post]
 func (a *Auth) forgotPassword(ctx *gin.Context) {
-	email := new(models.ForgotPasswordParams)
+	req := new(models.ForgotPasswordParams)
 
-	err := ctx.ShouldBindJSON(&email)
+	err := ctx.ShouldBindJSON(&req)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("please provide a valid email address"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid email address"))
 		return
 	}
 
-	user, err := a.server.queries.GetUserByEmail(context.Background(), email.Email)
+	user, err := a.server.queries.GetUserByEmail(context.Background(), req.Email)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
 		return
 	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
 	otp := utils.GenerateOTP()
-	newParam := db.UpsertOTPParams{
-		UserID:    int32(user.ID),
-		Otp:       otp,
-		Expired:   false,
-		ExpiresAt: time.Now().Add(time.Minute * 30),
-	}
+	redisKey := fmt.Sprintf("password_reset_otp:%s", req.Email)
 
-	log.Default().Output(0, fmt.Sprintf("newParam Expiry: %v", newParam.ExpiresAt.Local()))
-
-	/// Add OTP to DB
-	resp, err := a.server.queries.UpsertOTP(context.Background(), newParam)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+	// Store OTP in Redis with 10-minute expiration
+	if err := a.server.redis.Set(ctx, redisKey, otp, 10*time.Minute); err != nil {
+		a.server.logger.Error(fmt.Sprintf("failed to store password reset OTP in redis: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
-		PhoneNumber: user.PhoneNumber,
-		Email:       user.Email,
-		Name:        user.FirstName.String,
-		Config:      a.server.config,
-	}
+	// Send OTP email asynchronously
+	go func() {
+		tplData := map[string]any{
+			"Name": user.FirstName.String,
+			"OTP":  otp,
+		}
 
-	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
-	log.Default().Output(0, fmt.Sprintf("FetchedOTP Expiry: %v", resp.ExpiresAt.Local()))
+		body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
+		if err != nil {
+			a.server.logger.Error(fmt.Sprintf("failed to render password reset template: %v", err))
+			return
+		}
 
-	err = em.SendOTP(resp.Otp)
-	if err != nil {
-		log.Default().Output(6, err.Error())
-
-		// Log audit
-		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, fmt.Sprintf("User %s requested password reset", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
-		a.audit.Log(entry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error sending OTP please try again later"))
-		return
-	}
+		subject := "SwiftFiat - Password Reset OTP"
+		if err := a.server.emailService.SendEmail(user.Email, subject, body); err != nil {
+			a.server.logger.Error(fmt.Sprintf("failed to send password reset email to %s: %v", user.Email, err))
+		}
+	}()
 
 	// Log audit
 	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordResetRequested, fmt.Sprintf("User %s requested password reset", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("OTP sent successfully to your email", struct{}{}))
+}
+
+// resetPassword godoc
+// @Summary Reset password
+// @Description Reset user's password using the provided OTP and new password
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body models.ResetPasswordParams true "reset password request"
+// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/reset-password [post]
+func (a *Auth) resetPassword(ctx *gin.Context) {
+	var req models.ResetPasswordParams
+
+	err := ctx.ShouldBindJSON(&req)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidRequestData))
+		return
+	}
+
+	if req.Password != req.ConfirmPassword {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.PasswordsDoNotMatch))
+		return
+	}
+
+	redisKey := fmt.Sprintf("password_reset_otp:%s", req.Email)
+	storedOTP, err := a.server.redis.Get(ctx, redisKey)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidOTP))
+		return
+	}
+
+	if storedOTP != req.OTP {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidOTP))
+		return
+	}
+
+	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), req.Email)
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	hashedPassword, err := utils.GenerateHashValue(req.Password)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	updateParams := db.UpdateUserPasswordParams{
+		HashedPassword: sql.NullString{String: hashedPassword, Valid: true},
+		ID:             dbUser.ID,
+		UpdatedAt:      time.Now(),
+	}
+
+	user, err := a.server.queries.UpdateUserPassword(context.Background(), updateParams)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Delete OTP from Redis
+	_ = a.server.redis.Delete(ctx, redisKey)
+
+	// Clear user sessions from Redis
+	tokenKey := fmt.Sprintf("user:%d", dbUser.ID)
+	_ = a.server.redis.Delete(ctx, tokenKey)
+
+	// Log audit
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s reset password", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	a.audit.Log(entry)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", models.UserResponse{}.ToUserResponse(&user)))
 }
 
 // resetPassword godoc
@@ -1430,83 +1495,6 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
 }
 
-// changePassword godoc
-// @Summary Change password
-// @Description Change the authenticated user's password
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param data body models.ChangePasswordParams true "change password request"
-// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/auth/change-password [post]
-func (a *Auth) changePassword(ctx *gin.Context) {
-	newPassword := new(models.ChangePasswordParams)
-
-	err := ctx.ShouldBindJSON(&newPassword)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'password'"))
-		return
-	}
-
-	hashedPassword, err := utils.GenerateHashValue(newPassword.Password)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-		return
-	}
-
-	updateParams := db.UpdateUserPasswordParams{
-		HashedPassword: sql.NullString{String: hashedPassword, Valid: true},
-		ID:             activeUser.UserID,
-	}
-
-	user, err := a.server.queries.UpdateUserPassword(context.Background(), updateParams)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-		return
-	} else if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
-
-	tplData := map[string]any{
-		"FirstName": user.FirstName.String,
-		"Field":     "Password",
-		"Timestamp": time.Now().Format("02 Jan 2006 15:04 MST"),
-		"Year":      time.Now().Year(),
-	}
-	body, err := utils.RenderEmailTemplate("templates/account_update.html", tplData)
-	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err.Error())
-	} else {
-		subject := "SwiftFiat - Account Password Changed"
-		err = email.SendEmail(user.Email, subject, body)
-		if err != nil {
-			a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send change password email: %v", err))
-		}
-	}
-
-	userResponse := models.UserResponse{}.ToUserResponse(&user)
-
-	// audit log
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s changed password", user.Email), &user.ID, &user.Email, user.Role, true, nil)
-	a.audit.Log(entry)
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password changed successfully", userResponse))
-}
-
 // createPasscode godoc
 // @Summary Create passcode
 // @Description Create a new passcode for the authenticated user
@@ -1564,74 +1552,6 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 	a.notifr.Create(ctx, int32(user.ID), "Passcode Created", fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String))
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode created successfully", userResponse))
-}
-
-// forgotPasscode godoc
-// @Summary Forgot passcode
-// @Description Initiate passcode reset process by sending an OTP to the user's email
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param data body models.ForgotPasscodeParams true "forgot passcode request"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/auth/forgot-passcode [post]
-func (a *Auth) forgotPasscode(ctx *gin.Context) {
-	email := new(models.ForgotPasscodeParams)
-
-	err := ctx.ShouldBindJSON(&email)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid email address"))
-		return
-	}
-
-	user, err := a.server.queries.GetUserByEmail(ctx, email.Email)
-	if err != nil {
-		a.server.logger.Error(err.Error())
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	otp := utils.GenerateOTP()
-	newParam := db.UpsertOTPParams{
-		UserID:    int32(user.ID),
-		Otp:       otp,
-		Expired:   false,
-		ExpiresAt: time.Now().Add(time.Minute * 30),
-	}
-
-	log.Default().Output(0, fmt.Sprintf("newParam Expiry: %v", newParam.ExpiresAt.Local()))
-
-	/// Add OTP to DB
-	resp, err := a.server.queries.UpsertOTP(context.Background(), newParam)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	em := service.OtpNotification{
-		Channel:     service.EMAIL,
-		PhoneNumber: user.PhoneNumber,
-		Email:       user.Email,
-		Name:        user.FirstName.String,
-		Config:      a.server.config,
-	}
-
-	log.Default().Output(0, fmt.Sprintf("Generated OTP: %v; FetchedOTP: %v", otp, resp.Otp))
-	log.Default().Output(0, fmt.Sprintf("FetchedOTP Expiry: %v", resp.ExpiresAt.Local()))
-
-	err = em.SendOTP(resp.Otp)
-	if err != nil {
-		log.Default().Output(6, err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("error sending OTP please try again later"))
-		return
-	}
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("OTP Sent successfully to your %v", em.Channel), struct{}{}))
 }
 
 // createPin godoc
@@ -1799,79 +1719,6 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("pin updated successfully", struct{}{}))
-}
-
-// resetPassword godoc
-// @Summary Reset password
-// @Description Reset user's password using the provided OTP and new password
-// @Tags auth
-// @Accept json
-// @Produce json
-// @Param data body models.ResetPasswordParams true "reset password request"
-// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/auth/reset-password [post]
-func (a *Auth) resetPassword(ctx *gin.Context) {
-	resetPassword := new(models.ResetPasswordParams)
-
-	err := ctx.ShouldBindJSON(&resetPassword)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'password'"))
-		return
-	}
-
-	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), resetPassword.Email)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
-		return
-	}
-
-	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(dbUser.ID))
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-
-	ok := utils.CompareOTP(resetPassword.OTP, utils.OTPObject{
-		OTP:    dbOTP.Otp,
-		Expiry: dbOTP.ExpiresAt,
-	})
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-
-	if resetPassword.Password != resetPassword.ConfirmPassword {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("password and confirm password do not match"))
-		return
-	}
-
-	hashedPassword, err := utils.GenerateHashValue(resetPassword.Password)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	updateParams := db.UpdateUserPasswordParams{
-		HashedPassword: sql.NullString{String: hashedPassword, Valid: true},
-		ID:             dbUser.ID,
-	}
-
-	user, err := a.server.queries.UpdateUserPassword(context.Background(), updateParams)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasswordChanged, fmt.Sprintf("User %s changed password", user.Email), &user.ID, &user.Email, user.Role, true, nil)
-	a.audit.Log(entry)
-
-	userResponse := models.UserResponse{}.ToUserResponse(&user)
-	/// Delete user token from redis
-	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", userResponse))
 }
 
 // DeleteAccountRequest is the request payload for deleting an account.
