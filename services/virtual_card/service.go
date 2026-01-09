@@ -794,7 +794,7 @@ func (s *Service) handleCardDebitEventSuccess(ctx context.Context, success *brid
 		Description:     sql.NullString{String: "Card Debit", Valid: true},
 		TransactionFlow: string(transaction.Outflow),
 		Status:          string(transaction.Success),
-		Amount:          amount.Div(decimal.NewFromInt(100)).String(), // store in dollars
+		Amount:          amount.String(), // store in dollars
 		AmountUsd:       amountUsd.String(),
 		UserID:          card.UserID,
 	})
