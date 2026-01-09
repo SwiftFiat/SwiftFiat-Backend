@@ -914,6 +914,22 @@ SELECT
                     FROM public.reward_transactions rt
                     WHERE rt.transaction_id = t.id
                 )
+                WHEN t.type IN ('crypto') THEN (
+                    SELECT jsonb_build_object(
+                        'destination_wallet', cm.destination_wallet,
+                        'coin', cm.coin,
+                        'rate', cm.rate,
+                        'source_hash', cm.source_hash,
+                        'fees', cm.fees,
+                        'received_amount', cm.received_amount,
+                        'sent_amount', cm.sent_amount,
+                        'service_provider', cm.service_provider,
+                        'service_transaction_id', cm.service_transaction_id
+                    )::jsonb
+                    FROM public.crypto_transaction_metadata cm
+                    WHERE cm.transaction_id = t.id
+                )
+                ELSE NULL
             END
         )
     ) as result
