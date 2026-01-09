@@ -244,7 +244,7 @@ const createFAQDocument = `-- name: CreateFAQDocument :one
 
 INSERT INTO faq_documents (title, content, category, tags, embedding_id, created_by)
 VALUES ($1, $2, $3, $4, $5, $6)
-RETURNING id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at
+RETURNING id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv
 `
 
 type CreateFAQDocumentParams struct {
@@ -282,6 +282,7 @@ func (q *Queries) CreateFAQDocument(ctx context.Context, arg CreateFAQDocumentPa
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tsv,
 	)
 	return i, err
 }
@@ -607,7 +608,7 @@ func (q *Queries) GetChatMessageByID(ctx context.Context, id int64) (ChatMessage
 }
 
 const getFAQDocumentByID = `-- name: GetFAQDocumentByID :one
-SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at FROM faq_documents WHERE id = $1 AND is_active = TRUE LIMIT 1
+SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv FROM faq_documents WHERE id = $1 AND is_active = TRUE LIMIT 1
 `
 
 func (q *Queries) GetFAQDocumentByID(ctx context.Context, id int64) (FaqDocument, error) {
@@ -626,6 +627,7 @@ func (q *Queries) GetFAQDocumentByID(ctx context.Context, id int64) (FaqDocument
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tsv,
 	)
 	return i, err
 }
@@ -1168,7 +1170,7 @@ func (q *Queries) ListChatMessagesByTicket(ctx context.Context, ticketID int64) 
 }
 
 const listFAQDocuments = `-- name: ListFAQDocuments :many
-SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at FROM faq_documents
+SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv FROM faq_documents
 WHERE is_active = TRUE
 ORDER BY created_at DESC
 LIMIT $1 OFFSET $2
@@ -1201,6 +1203,7 @@ func (q *Queries) ListFAQDocuments(ctx context.Context, arg ListFAQDocumentsPara
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tsv,
 		); err != nil {
 			return nil, err
 		}
@@ -1216,7 +1219,7 @@ func (q *Queries) ListFAQDocuments(ctx context.Context, arg ListFAQDocumentsPara
 }
 
 const listFAQDocumentsByCategory = `-- name: ListFAQDocumentsByCategory :many
-SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at FROM faq_documents
+SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv FROM faq_documents
 WHERE category = $1 AND is_active = TRUE
 ORDER BY created_at DESC
 `
@@ -1243,6 +1246,7 @@ func (q *Queries) ListFAQDocumentsByCategory(ctx context.Context, category sql.N
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tsv,
 		); err != nil {
 			return nil, err
 		}
@@ -1617,20 +1621,20 @@ func (q *Queries) ResolveTicket(ctx context.Context, id int64) (Ticket, error) {
 }
 
 const searchFAQDocuments = `-- name: SearchFAQDocuments :many
-SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at FROM faq_documents
+SELECT id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv FROM faq_documents
 WHERE is_active = TRUE
-AND (title ILIKE $1 OR content ILIKE $1 OR $1 = ANY(tags))
+AND (title ILIKE '%' || $1 || '%' OR content ILIKE '%' || $1 || '%')
 ORDER BY view_count DESC, helpful_count DESC
 LIMIT $2
 `
 
 type SearchFAQDocumentsParams struct {
-	Title string `json:"title"`
-	Limit int32  `json:"limit"`
+	Column1 sql.NullString `json:"column_1"`
+	Limit   int32          `json:"limit"`
 }
 
 func (q *Queries) SearchFAQDocuments(ctx context.Context, arg SearchFAQDocumentsParams) ([]FaqDocument, error) {
-	rows, err := q.db.QueryContext(ctx, searchFAQDocuments, arg.Title, arg.Limit)
+	rows, err := q.db.QueryContext(ctx, searchFAQDocuments, arg.Column1, arg.Limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1651,6 +1655,7 @@ func (q *Queries) SearchFAQDocuments(ctx context.Context, arg SearchFAQDocuments
 			&i.CreatedBy,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Tsv,
 		); err != nil {
 			return nil, err
 		}
@@ -1738,7 +1743,7 @@ const updateFAQDocument = `-- name: UpdateFAQDocument :one
 UPDATE faq_documents
 SET title = $2, content = $3, category = $4, tags = $5
 WHERE id = $1
-RETURNING id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at
+RETURNING id, title, content, category, tags, embedding_id, is_active, view_count, helpful_count, created_by, created_at, updated_at, tsv
 `
 
 type UpdateFAQDocumentParams struct {
@@ -1771,6 +1776,7 @@ func (q *Queries) UpdateFAQDocument(ctx context.Context, arg UpdateFAQDocumentPa
 		&i.CreatedBy,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Tsv,
 	)
 	return i, err
 }
