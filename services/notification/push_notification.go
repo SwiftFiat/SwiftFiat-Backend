@@ -181,17 +181,29 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 	}
 	tokens, err := p.userService.GetUserPushTokens(ctx, userID)
 	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error retrieving push tokens for user %d: %v", userID, err))
 		return nil, err
 	}
+
+	p.logger.Info(fmt.Sprintf("Retrieved %d push tokens for user %d", len(*tokens), userID))
+
 	var fcmToken, expoToken string
 	for _, token := range *tokens {
+		p.logger.Debug(fmt.Sprintf("Token for user %d: Provider=%s, Token=%s...", userID, token.Provider, token.Token[:20]))
 		switch PushProvider(token.Provider) {
 		case PushProviderFCM:
-			fcmToken = token.Token
+			if fcmToken == "" {
+				fcmToken = token.Token
+			}
 		case PushProviderExpo:
-			expoToken = token.Token
+			if expoToken == "" {
+				expoToken = token.Token
+			}
 		}
 	}
+
+	p.logger.Info(fmt.Sprintf("Selected tokens for user %d: FCM=%t, Expo=%t", userID, fcmToken != "", expoToken != ""))
+
 	return &struct {
 		FCMToken  string
 		ExpoToken string
@@ -205,6 +217,8 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 // Vault Savings
 // ======================================
 func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID int64, name string) error {
+	p.logger.Info(fmt.Sprintf("Attempting to send vault goal created push for user %d, goal name: %s", userID, name))
+
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
@@ -212,7 +226,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	}
 
 	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
-		p.logger.Info("No push tokens found for user")
+		p.logger.Info(fmt.Sprintf("No push tokens found for user %d", userID))
 		return nil
 	}
 
@@ -220,6 +234,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	Message := fmt.Sprintf("Your vault goal '%s' as been created", name)
 
 	if tokens.FCMToken != "" {
+		p.logger.Info(fmt.Sprintf("Sending FCM push to user %d", userID))
 		err = p.SendPush(&PushNotificationInfo{
 			Title:        Title,
 			Message:      Message,
@@ -234,6 +249,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	}
 
 	if tokens.ExpoToken != "" {
+		p.logger.Info(fmt.Sprintf("Sending Expo push to user %d", userID))
 		err = p.SendPush(&PushNotificationInfo{
 			Title:         Title,
 			Message:       Message,
