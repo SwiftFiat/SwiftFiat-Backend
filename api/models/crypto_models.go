@@ -2,8 +2,9 @@ package models
 
 import (
 	"fmt"
-	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"strings"
+
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 )
@@ -26,6 +27,10 @@ type CryptoServicesResponse struct {
 	Coin      string `json:"coin"`
 	CoinAsset string `json:"coinAsset"`
 	Network   string `json:"network"`
+	MaxAmount string `json:"max_amount"`
+	MinAmount string `json:"min_amount"`
+	FeeAmount string `json:"fee_amount"`
+	Percent   string `json:"percent"`
 }
 
 func ToCryptoWalletResponse(wallet *cryptocurrency.Wallet) *CryptoWalletResponse {
@@ -57,6 +62,10 @@ func ToCryptoServiceResponse(service *cryptocurrency.CryptomusService) *CryptoSe
 		Coin:      service.Currency,
 		Network:   service.Network,
 		CoinAsset: fmt.Sprintf("/crypto/assets/%s.svg", strings.ToLower(service.Currency)),
+		MaxAmount: service.Limit.MaxAmount,
+		MinAmount: service.Limit.MinAmount,
+		FeeAmount: service.Commission.FeeAmount,
+		Percent:   service.Commission.Percent,
 	}
 }
 
