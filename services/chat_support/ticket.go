@@ -300,6 +300,19 @@ func (s *TicketService) GetTicketsByStatus(ctx context.Context, status string, l
 	return tickets, nil
 }
 
+// GetAllTickets retrieves all tickets with pagination
+func (s *TicketService) GetAllTickets(ctx context.Context, limit, offset int32) ([]db.ListAllTicketsRow, error) {
+	tickets, err := s.store.ListAllTickets(ctx, db.ListAllTicketsParams{
+		Limit:  limit,
+		Offset: offset,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to get all tickets: %v", err))
+		return nil, err
+	}
+	return tickets, nil
+}
+
 // GetTicketsByAssignedAdmin retrieves tickets assigned to a specific admin
 func (s *TicketService) GetTicketsByAssignedAdmin(ctx context.Context, adminID int64, limit, offset int32) ([]db.ListTicketsByAssignedAdminRow, error) {
 	tickets, err := s.store.ListTicketsByAssignedAdmin(ctx, db.ListTicketsByAssignedAdminParams{

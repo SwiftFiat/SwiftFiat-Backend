@@ -63,6 +63,13 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListAllTickets :many
+SELECT t.*, u.first_name, u.last_name, u.email
+FROM tickets t
+JOIN users u ON t.user_id = u.id
+ORDER BY t.created_at DESC
+LIMIT $1 OFFSET $2;
+
 -- name: ListTicketsByStatus :many
 SELECT t.*, u.first_name, u.last_name, u.email
 FROM tickets t

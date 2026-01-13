@@ -953,6 +953,76 @@ func (q *Queries) ListAllSupportAdmins(ctx context.Context) ([]ListAllSupportAdm
 	return items, nil
 }
 
+const listAllTickets = `-- name: ListAllTickets :many
+SELECT t.id, t.user_id, t.status, t.assigned_to, t.escalation_reason, t.priority, t.category, t.resolved_at, t.first_response_at, t.average_response_time, t.created_at, t.updated_at, u.first_name, u.last_name, u.email
+FROM tickets t
+JOIN users u ON t.user_id = u.id
+ORDER BY t.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAllTicketsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListAllTicketsRow struct {
+	ID                  int64          `json:"id"`
+	UserID              int64          `json:"user_id"`
+	Status              string         `json:"status"`
+	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	EscalationReason    sql.NullString `json:"escalation_reason"`
+	Priority            string         `json:"priority"`
+	Category            sql.NullString `json:"category"`
+	ResolvedAt          sql.NullTime   `json:"resolved_at"`
+	FirstResponseAt     sql.NullTime   `json:"first_response_at"`
+	AverageResponseTime sql.NullInt32  `json:"average_response_time"`
+	CreatedAt           time.Time      `json:"created_at"`
+	UpdatedAt           time.Time      `json:"updated_at"`
+	FirstName           sql.NullString `json:"first_name"`
+	LastName            sql.NullString `json:"last_name"`
+	Email               string         `json:"email"`
+}
+
+func (q *Queries) ListAllTickets(ctx context.Context, arg ListAllTicketsParams) ([]ListAllTicketsRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllTickets, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllTicketsRow{}
+	for rows.Next() {
+		var i ListAllTicketsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Status,
+			&i.AssignedTo,
+			&i.EscalationReason,
+			&i.Priority,
+			&i.Category,
+			&i.ResolvedAt,
+			&i.FirstResponseAt,
+			&i.AverageResponseTime,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.FirstName,
+			&i.LastName,
+			&i.Email,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttachmentsByMessage = `-- name: ListAttachmentsByMessage :many
 SELECT id, message_id, file_url, file_name, file_size, mime_type, type, created_at FROM attachments WHERE message_id = $1
 `
