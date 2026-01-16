@@ -22,20 +22,27 @@ func NewAuthMiddleware(redisClient *redis.RedisService) *AuthMiddleware {
 func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		token := ctx.GetHeader("Authorization")
+		var tokenString string
+
 		if token == "" {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unuathorized Request, token is empty"))
-			ctx.Abort()
-			return
+			// Check query parameter for WebSocket support
+			tokenString = ctx.Query("token")
+			if tokenString == "" {
+				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unauthorized Request, token is empty"))
+				ctx.Abort()
+				return
+			}
+		} else {
+			tokenSplit := strings.Split(token, " ")
+			if len(tokenSplit) != 2 || strings.ToLower(tokenSplit[0]) != "bearer" {
+				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid token, expects bearer token"))
+				ctx.Abort()
+				return
+			}
+			tokenString = tokenSplit[1]
 		}
 
-		tokenSplit := strings.Split(token, " ")
-		if len(tokenSplit) != 2 || strings.ToLower(tokenSplit[0]) != "bearer" {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid token, expects bearer token"))
-			ctx.Abort()
-			return
-		}
-
-		user, err := TokenController.VerifyToken(tokenSplit[1])
+		user, err := TokenController.VerifyToken(tokenString)
 		if err != nil {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
 			ctx.Abort()
@@ -48,7 +55,7 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Not Found"))
 				ctx.Abort()
 				return
-			} 
+			}
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(fmt.Sprintf("Unknown Error: %v", err.Error())))
 			ctx.Abort()
 			return
@@ -56,7 +63,7 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 
 		// fmt.Println("Token:", token)
 		// fmt.Println("User Token:", userToken)
-		if userToken != tokenSplit[1] {
+		if userToken != tokenString {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User Token Mismatch"))
 			ctx.Abort()
 			return
@@ -76,19 +83,19 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 }
 
 func CORSMiddleware() gin.HandlerFunc {
-    return func(c *gin.Context) {
-        c.Header("Access-Control-Allow-Origin", "*")
-        c.Header("Access-Control-Allow-Credentials", "true")
-        // These are critical for POST/PUT/DELETE requests
-        c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-        c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
+	return func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Credentials", "true")
+		// These are critical for POST/PUT/DELETE requests
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
+		c.Header("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT, DELETE, PATCH")
 
-        // Important: Browser sends an OPTIONS request before the actual POST request
-        if c.Request.Method == "OPTIONS" {
-            c.AbortWithStatus(204)
-            return
-        }
+		// Important: Browser sends an OPTIONS request before the actual POST request
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
 
-        c.Next()
-    }
+		c.Next()
+	}
 }
