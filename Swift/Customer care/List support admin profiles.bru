@@ -1,0 +1,20 @@
+meta {
+  name: List support admin profiles
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{BaseURl}}/supports
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

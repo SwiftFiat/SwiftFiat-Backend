@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/syslog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -63,9 +64,18 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 			c.Request.Body = io.NopCloser(bytes.NewBuffer(requestBody))
 		}
 
+		// Check if this is a WebSocket upgrade request (case-insensitive)
+		upgradeHeader := strings.ToLower(c.GetHeader("Upgrade"))
+		connectionHeader := strings.ToLower(c.GetHeader("Connection"))
+		isWebSocket := upgradeHeader == "websocket" || strings.Contains(connectionHeader, "upgrade")
+
 		// Create a custom response writer to capture the response body
-		w := &responseBodyWriter{body: &bytes.Buffer{}, ResponseWriter: c.Writer}
-		c.Writer = w
+		// Skip for WebSockets as it interferes with the Hijack process
+		var w *responseBodyWriter
+		if !isWebSocket {
+			w = &responseBodyWriter{body: &bytes.Buffer{}, ResponseWriter: c.Writer}
+			c.Writer = w
+		}
 
 		// Process request
 		c.Next()
@@ -73,6 +83,19 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 		// Log after request is processed
 		duration := time.Since(start)
 		statusCode := c.Writer.Status()
+
+		// For WebSockets, we don't capture the body
+		if isWebSocket {
+			fields := logrus.Fields{
+				"method":   c.Request.Method,
+				"path":     c.Request.URL.Path,
+				"status":   statusCode,
+				"duration": duration,
+				"type":     "websocket",
+			}
+			l.WithFields(fields).Info("WebSocket Connection")
+			return
+		}
 
 		var requestJson any
 		var responseJson any

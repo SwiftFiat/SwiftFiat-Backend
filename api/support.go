@@ -150,17 +150,17 @@ func (sa *SupportAdmin) createSupportAdmin(ctx *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/supports [get]
 func (sa *SupportAdmin) listAllSupportAdmins(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		sa.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	sa.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	if activeUser.Role == models.USER || activeUser.Role == models.CUSTOMER_REP {
-		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
-		return
-	}
+	// if activeUser.Role == models.USER || activeUser.Role == models.CUSTOMER_REP {
+	// 	ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
+	// 	return
+	// }
 
 	admins, err := sa.adminService.ListAllAdmins(ctx)
 	if err != nil {

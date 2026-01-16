@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
-	"time" 
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
@@ -272,7 +272,10 @@ func (ws *WebSocketHandler) handleUserWebSocket(c *gin.Context) {
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		ws.server.logger.Error(fmt.Sprintf("Failed to upgrade connection: %v", err))
+		ws.server.logger.WithFields(map[string]any{
+			"headers": c.Request.Header,
+			"error":   err.Error(),
+		}).Error("Failed to upgrade connection")
 		return
 	}
 
@@ -335,7 +338,10 @@ func (ws *WebSocketHandler) handleAdminWebSocket(ctx *gin.Context) {
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)
 	if err != nil {
-		ws.server.logger.Error(fmt.Sprintf("Failed to upgrade connection: %v", err))
+		ws.server.logger.WithFields(map[string]any{
+			"headers": ctx.Request.Header,
+			"error":   err.Error(),
+		}).Error("Failed to upgrade connection (admin)")
 		return
 	}
 
@@ -378,20 +384,20 @@ func (ws *WebSocketHandler) handleAdminWebSocket(ctx *gin.Context) {
 
 // ws.onmessage = (event) => {
 //     const message = JSON.parse(event.data);
-    
+
 //     switch(message.type) {
 //         case 'connection:established':
 //             console.log('Connected:', message.data);
 //             break;
-            
+
 //         case 'message:new':
 //             displayMessage(message.data);
 //             break;
-            
+
 //         case 'ticket:assigned':
 //             showNotification('A support agent has joined the chat');
 //             break;
-            
+
 //         case 'user:typing':
 //             showTypingIndicator(message.data.user_id);
 //             break;
@@ -411,13 +417,12 @@ func (ws *WebSocketHandler) handleAdminWebSocket(ctx *gin.Context) {
 //     ws.send(JSON.stringify({ type: 'ping' }));
 // }, 30000);
 
-
 // Admin connecting to support dashboard
 // const adminWs = new WebSocket('wss://api.example.com/api/v1/ws/admin/support');
 
 // adminWs.onmessage = (event) => {
 //     const message = JSON.parse(event.data);
-    
+
 //     switch(message.type) {
 //         case 'ticket:assigned':
 //             if (message.metadata.assigned_to === currentAdminId) {
@@ -425,7 +430,7 @@ func (ws *WebSocketHandler) handleAdminWebSocket(ctx *gin.Context) {
 //                 refreshTicketList();
 //             }
 //             break;
-            
+
 //         case 'message:new':
 //             updateTicketPreview(message.ticket_id);
 //             playNotificationSound();
