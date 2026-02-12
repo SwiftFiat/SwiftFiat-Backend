@@ -37,8 +37,8 @@ type Identity struct {
 }
 
 type CreateCardRequest struct {
-	CardHolderID         string         `json:"cardholder_id"`                // Your internal user ID
-	CardType             string         `json:"card_type" binding:"required"` // virtual
+	CardHolderID         string         `json:"cardholder_id" binding:"required"` // Your internal user ID
+	CardType             string         `json:"card_type" binding:"required"`     // virtual
 	CardLimit            string         `json:"card_limit"`
 	Brand                string         `json:"card_brand"`     // "visa" or "mastercard"
 	Currency             string         `json:"card_currency"`  // "USD"
@@ -51,6 +51,8 @@ type CreateCardRequest struct {
 	CardName             string         `json:"-"`
 	CardColor            string         `json:"-"`
 	SourceWalletID       uuid.UUID      `json:"-"`
+	IdempotencyKey       string         `json:"idempotency_key" binding:"required"`
+	IdempotencyKey2      string         `json:"idempotency_key_2" binding:"required"`
 }
 
 type CreateCardResponse struct {

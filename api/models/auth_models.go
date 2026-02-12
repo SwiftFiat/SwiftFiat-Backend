@@ -20,6 +20,7 @@ type UserPasscodeLoginParams struct {
 type RegisterUserParams struct {
 	FirstName   string `json:"first_name" binding:"required"`
 	LastName    string `json:"last_name" binding:"required"`
+	SwiftTag    string `json:"swiift_tag" binding:"required"`
 	Email       string `json:"email" binding:"required"`
 	PhoneNumber string `json:"phone_number" binding:"required"`
 	Password    string `json:"password" binding:"required"`
@@ -57,6 +58,7 @@ type UserResponse struct {
 	FreshChatID            string     `json:"fresh_chat_id"`
 	BridgeCardHolderID     string     `json:"card_holder_id"`
 	IsActive               bool       `json:"is_active"`
+	IsRapidRampOn          bool       `json:"is_rapid_ramp_on"`
 	TwofaSecret            string     `json:"twofa_secret"`
 	TwofaEnabled           bool       `json:"twofa_enabled"`
 	RewardBalance          string     `json:"reward_balance"`

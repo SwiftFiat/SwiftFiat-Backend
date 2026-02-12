@@ -1,0 +1,20 @@
+meta {
+  name: Pause alert
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BaseURl}}/price-alerts/2e303dc7-2b7e-4be7-a53f-bad0f4b91673/pause
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

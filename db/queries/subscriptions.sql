@@ -242,9 +242,9 @@ WHERE vc.status = 'active'
 -- name: CreateCardFunding :one
 INSERT INTO card_funding_history (
     card_id, user_id, source_wallet_id, amount, currency,
-    source_currency, exchange_rate, funding_type, initiated_by, status
+    source_currency, exchange_rate, funding_type, initiated_by, status, transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: GetCardFunding :one
@@ -579,9 +579,9 @@ LIMIT $2 OFFSET $3;
 -- name: CreateCardBilling :one
 INSERT INTO card_billing_history (
     card_id, user_id, card_plan_id, billing_type, amount,
-    currency, billing_period_start, billing_period_end, source_wallet_id, status
+    currency, billing_period_start, billing_period_end, source_wallet_id, status, transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: UpdateCardBillingStatus :one

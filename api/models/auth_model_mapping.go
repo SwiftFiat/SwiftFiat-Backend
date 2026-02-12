@@ -21,6 +21,7 @@ func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 		HasPasscode:            user.HashedPasscode.Valid,
 		FreshChatID:            user.FreshChatID.String,
 		IsActive:               user.IsActive,
+		IsRapidRampOn:          user.IsRapidRampOn,
 		TwofaSecret:            user.TwofaSecret.String,
 		TwofaEnabled:           user.TwofaEnabled.Bool,
 		RewardBalance:          user.RewardBalance,

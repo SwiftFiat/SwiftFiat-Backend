@@ -391,7 +391,7 @@ func (c *ChatSupport) requestEscalation(ctx *gin.Context) {
 // @Param status query string false "Filter by status"
 // @Param limit query int false "Limit" default(50)
 // @Param offset query int false "Offset" default(0)
-// @Success 200 {object} basemodels.SuccessResponse{data=[]ListTicketsByStatusRow}
+// @Success 200 {object} basemodels.SuccessResponse{data=[]ListAllTicketsRow}
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/chat/admin/support/tickets [get]

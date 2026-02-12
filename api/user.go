@@ -55,17 +55,13 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("referral", u.referral)
 	serverGroupV1.GET("get-new-users-today", u.GetNewUsersToday)
 	serverGroupV1.GET("list-users", u.ListUsers)
-	serverGroupV1.GET("list-kyc", u.ListKYCs)
 	serverGroupV1.GET("notifications", u.GetNotifications)
 	serverGroupV1.POST("delete-user/:id", u.DeleteUser)
 	serverGroupV1.GET("get-user/:id", u.GetUserByID)
 	serverGroupV1.PUT("/notification/mark-as-read/:id", u.MarkNotificationAsRead)
-	serverGroupV1.DELETE("/notification/delete/:id", u.DeleteNotification)
+	// serverGroupV1.DELETE("/notification/delete/:id", u.DeleteNotification)
 	serverGroupV1.GET("/notification/mark-all-as-read", u.MarkAllNotificationsAsRead)
 	serverGroupV1.GET("/notification/count-unread", u.CountUnreadNotifications)
-	serverGroupV1.GET("/notification/count-all", u.CountAllNotifications)
-	serverGroupV1.GET("/notification/delete-all", u.DeleteAllNotifications)
-	serverGroupV1.DELETE("/notification/delete-all-read", u.DeleteAllReadNotifications)
 	serverGroupV1.PUT("update-status/:id", u.UpdateUserStatus)
 	serverGroupV1.POST("/bank-accounts", u.createBankAccount)
 	serverGroupV1.GET("/bank-accounts", u.GetBankAccounts)
@@ -75,6 +71,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/admin/bank-accounts", u.GetAllBankAccounts)
 	serverGroupV1.GET("/transactions", u.ListUserTransactions)
 	serverGroupV1.GET("/transactions/:transaction_id", u.GetTransactionDetails)
+	serverGroupV1.PUT("/toggle-rapid-ramp", u.ToggleRapidRamp)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.testPush)
 }
@@ -245,46 +242,46 @@ func (u *User) checkTag(ctx *gin.Context) {
 // @Router /api/v1/user/usertag [post]
 func (u *User) userTag(ctx *gin.Context) {
 
-	request := struct {
-		Tag string `json:"tag" binding:"required"`
-	}{}
+	// request := struct {
+	// 	Tag string `json:"tag" binding:"required"`
+	// }{}
 
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter tag"))
-		return
-	}
+	// err := ctx.ShouldBindJSON(&request)
+	// if err != nil {
+	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter tag"))
+	// 	return
+	// }
 
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
+	// activeUser, err := utils.GetActiveUser(ctx)
+	// if err != nil {
+	// 	u.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+	// 	return
+	// }
 
-	userInfo, err := u.userService.UpdateUserTag(ctx, activeUser.UserID, request.Tag)
+	// userInfo, err := u.userService.UpdateUserTag(ctx, activeUser.UserID, request.Tag)
 
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
+	// if err != nil {
+	// 	u.server.logger.Error(err.Error())
+	// 	ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+	// 	return
+	// }
 
-	// Audit log
-	logentry := audit.NewUserLog(
-		ctx,
-		audit.EventUserTagUpdated,
-		fmt.Sprint(userInfo.ID),
-		activeUser.Role,
-		fmt.Sprintf("User %d updated their user tag", activeUser.UserID),
-		&activeUser.UserID,
-		audit.SeverityInfo,
-		audit.ActionCreate,
-		true,
-	)
+	// // Audit log
+	// logentry := audit.NewUserLog(
+	// 	ctx,
+	// 	audit.EventUserTagUpdated,
+	// 	fmt.Sprint(userInfo.ID),
+	// 	activeUser.Role,
+	// 	fmt.Sprintf("User %d updated their user tag", activeUser.UserID),
+	// 	&activeUser.UserID,
+	// 	audit.SeverityInfo,
+	// 	audit.ActionCreate,
+	// 	true,
+	// )
 
-	u.audit.Log(logentry)
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user tag set successfully", models.UserResponse{}.ToUserResponse(userInfo)))
+	// u.audit.Log(logentry)
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("DEPRECATED", nil))
 }
 
 // freshChatID godoc
@@ -747,46 +744,6 @@ type KYCListResponse struct {
 	Count int                          `json:"count"`
 }
 
-// ListKYCs godoc
-// @Summary List KYCs
-// @Description Retrieve a list of all KYC submissions (admin only)
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} KYCListResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/list-kyc [get]
-func (u *User) ListKYCs(ctx *gin.Context) {
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
-		return
-	}
-
-	kycList, err := u.userService.ListAllKYC(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
-
-	var response KYCListResponse
-	for _, kyc := range kycList {
-		kf := models.ToUserKYCInformation(&kyc)
-		response.KYCs = append(response.KYCs, kf)
-	}
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("users fetched successfully", KYCListResponse{
-		KYCs:  response.KYCs,
-		Count: len(kycList),
-	}))
-}
 
 type NotificationListResponse struct {
 	Notifications []*models.NotificationResponse `json:"notifications"`
@@ -800,7 +757,7 @@ type NotificationListResponse struct {
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Success 200 {object} NotificationListResponse
+// @Success 200 {object} map[string]any
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/user/notifications [get]
@@ -812,22 +769,22 @@ func (u *User) GetNotifications(ctx *gin.Context) {
 		return
 	}
 
-	notifications, err := u.notifyr.Get(ctx, int32(activeUser.UserID))
+	notifications, err := u.notifyr.GetAllForUser(ctx, activeUser.UserID, 50, 0)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
 
-	var response NotificationListResponse
-	for _, not := range notifications {
-		nf := models.ToNotificationResponse(&not)
-		response.Notifications = append(response.Notifications, nf)
+	var responses []*models.NotificationResponse
+	for _, not := range *notifications {
+		v := models.ToNotificationResponse(&not)
+		responses = append(responses, v)
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user notifications fetched successfully", NotificationListResponse{
-		Notifications: response.Notifications,
-		Count:         len(response.Notifications),
+		Notifications: responses,
+		Count:         len(responses),
 	}))
 }
 
@@ -847,59 +804,13 @@ func (u *User) GetNotifications(ctx *gin.Context) {
 func (u *User) MarkNotificationAsRead(ctx *gin.Context) {
 	notID := ctx.Param("id")
 
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
 	notificationID, err := strconv.Atoi(notID)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid notification ID"))
 		return
 	}
-	err = u.notifyr.MaskAsRead(ctx, int32(activeUser.UserID), int32(notificationID))
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "marked as read"})
-
-}
-
-// DeleteNotification godoc
-// @Summary Delete Notification
-// @Description Delete a specific notification for the authenticated user
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param id path string true "Notification ID"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/notification/delete/{id} [delete]
-func (u *User) DeleteNotification(ctx *gin.Context) {
-	notID := ctx.Param("id")
-
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	notificationID, err := strconv.Atoi(notID)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid notification ID"))
-		return
-	}
-	err = u.notifyr.Delete(ctx, int32(activeUser.UserID), int32(notificationID))
+	err = u.notifyr.MarkAsRead(ctx, int64(notificationID))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
 		return
@@ -929,13 +840,13 @@ func (u *User) MarkAllNotificationsAsRead(c *gin.Context) {
 		return
 	}
 
-	err = u.notifyr.MaskAllNotificationsAsRead(c, int32(activeUser.UserID))
+	err = u.notifyr.MarkAllAsRead(c, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "deleted successfully"})
+	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "marked all as read"})
 }
 
 // CountUnreadNotifications godoc
@@ -958,100 +869,13 @@ func (u *User) CountUnreadNotifications(c *gin.Context) {
 		return
 	}
 
-	count, err := u.notifyr.CountUnreadNotifications(c, int32(activeUser.UserID))
+	count, err := u.notifyr.CountUnreadForUser(c, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
-}
-
-// CountUnreadNotifications godoc
-// @Summary Count All Notifications
-// @Description Count the total number of notifications for the authenticated user
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} basemodels.SuccessResponse{data=object{count=int}}
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/notifications/count-all [get]
-func (u *User) CountAllNotifications(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	count, err := u.notifyr.CountAllNotifications(c, int32(activeUser.UserID))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("", gin.H{"count": count}))
-}
-
-// DeleteAllNotifications godoc
-// @Summary Delete All Notifications
-// @Description Delete all notifications for the authenticated user
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/notifications/delete-all [delete]
-func (u *User) DeleteAllNotifications(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	err = u.notifyr.DeleteAllNotifications(c, int32(activeUser.UserID))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
-}
-
-// DeleteAllReadNotifications godoc
-// @Summary Delete All Read Notifications
-// @Description Delete all read notifications for the authenticated user
-// @Tags user
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/notifications/delete-all-read [delete]
-func (u *User) DeleteAllReadNotifications(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		u.server.logger.Error(err.Error())
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	err = u.notifyr.DeleteAllReadNotifications(c, int32(activeUser.UserID))
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	c.JSON(http.StatusOK, basemodels.SuccessResponse{Message: "Deleted successfully"})
+	c.JSON(http.StatusOK, basemodels.NewSuccess("", count))
 }
 
 // DeleteUser godoc
@@ -1596,4 +1420,46 @@ func (u *User) GetTransactionDetails(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", transaction))
+}
+
+
+func (u *User) ToggleRapidRamp(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	b, err := u.userService.ToggleRapidRamp(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return 
+	}
+
+	var status, msg string
+
+	if !b {
+		status = "inactive"
+		msg = fmt.Sprintf("user %s deactivated rapid ramp", activeUser.UserTag)
+	} else {
+		status = "active"
+		msg = fmt.Sprintf("user %s activated rapid ramp", activeUser.UserTag)
+	}
+
+	logEntry := audit.NewUserLog(
+		c,
+		audit.EventRapidRampToggle,
+		"",
+		activeUser.Role,
+		msg,
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+
+	u.audit.Log(logEntry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("rapid ramp toggled", status))
 }

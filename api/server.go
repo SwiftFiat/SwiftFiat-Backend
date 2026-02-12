@@ -27,6 +27,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	pricealert "github.com/SwiftFiat/SwiftFiat-Backend/services/price_alert"
 	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
 	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
@@ -94,6 +95,8 @@ type Server struct {
 	streakScheduler          *streaks.StreakScheduler
 	streakService            *streaks.StreakService
 	marketInsightsService    *coindesk.MarketInsightsService
+	priceAlertSvc            *pricealert.PriceAlertService
+	priceAlertScheduler      *pricealert.AlertScheduler
 }
 
 func NewServer(envPath string) *Server {
@@ -128,6 +131,22 @@ func NewServer(envPath string) *Server {
 	p := providers.NewProviderService()
 	pn := service.NewPushNotificationService(l)
 	email := service.NewPlunkService(c)
+
+	// Log Redis connection details (remove in production)
+	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
+
+	// Initialize Redis
+	redisConfig := &redis.RedisConfig{
+		Host:     c.RedisHost,
+		Port:     c.RedisPort,
+		Password: c.RedisPassword,
+		DB:       0,
+	}
+
+	r, err := redis.NewRedisService(redisConfig)
+	if err != nil {
+		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
+	}
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
@@ -179,7 +198,7 @@ func NewServer(envPath string) *Server {
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)
 
-	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 1*time.Hour)
+	yieldScheduler := vaultsavings.NewYieldScheduler(t, ys, q, l, 1*time.Minute)
 
 	// reward service
 	rs := rewards.NewRewardService(q, l, pn, security.NewCache())
@@ -214,7 +233,7 @@ func NewServer(envPath string) *Server {
 	cs := currency.NewCurrencyService(q, l)
 
 	// transaction service
-	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, streakScheduler)
+	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, pn, streakScheduler, bp, rs, ads, r)
 
 	// smart conversion exchange rate service
 	scex := exchangerate.NewExchangeRateService(cryptomus, l)
@@ -257,28 +276,16 @@ func NewServer(envPath string) *Server {
 	// admin support
 	support := chatsupport.NewSupportAdminService(q, l)
 
+	// price alert
+	pa := pricealert.NewPriceAlertService(q, l, scex, ns, pn, 0)
+	pas := pricealert.NewAlertScheduler(t, q, pa, l, 0)
+
 	// Initialize WebSocket Hub
 	wsHub := NewHub(l)
 	go wsHub.Run()
 
 	// market insight
 	insights := coindesk.NewMarketInsightsService(l, pn, us)
-
-	// Log Redis connection details (remove in production)
-	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
-
-	// Initialize Redis
-	redisConfig := &redis.RedisConfig{
-		Host:     c.RedisHost,
-		Port:     c.RedisPort,
-		Password: c.RedisPassword,
-		DB:       0,
-	}
-
-	r, err := redis.NewRedisService(redisConfig)
-	if err != nil {
-		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
-	}
 
 	am := NewAuthMiddleware(r)
 
@@ -327,6 +334,8 @@ func NewServer(envPath string) *Server {
 		streakScheduler:          streakScheduler,
 		streakService:            streak,
 		marketInsightsService:    insights,
+		priceAlertSvc:            pa,
+		priceAlertScheduler:      pas,
 	}
 }
 
@@ -369,6 +378,7 @@ func (s *Server) Start() error {
 	SupportAdmin{}.router(s)
 	WebSocketHandler{}.router(s)
 	MarketInsights{}.router(s)
+	PriceAlertHandler{}.router(s)
 
 	/// TODO: Register all server dependent services to be accessible from SERVER
 	// e.g. s.RegisterService({services.wallet, WalletService})
@@ -377,12 +387,14 @@ func (s *Server) Start() error {
 	if s.vaultScheduler != nil {
 		if err := s.vaultScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault scheduler", "error", err)
+			// TODO: Alert the team via email or slack
 		}
 	}
 
 	if s.yieldScheduler != nil {
 		if err := s.yieldScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
+			// TODO: Alert the team via email or slack
 		}
 	}
 
@@ -390,6 +402,7 @@ func (s *Server) Start() error {
 	if s.qrcodeScheduler != nil {
 		if err := s.qrcodeScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
+			// TODO: Alert the team via email or slack
 		}
 	}
 
@@ -397,6 +410,7 @@ func (s *Server) Start() error {
 	if s.smartConversionScheduler != nil {
 		if err := s.smartConversionScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start smart conversion scheduler", "error", err)
+			// TODO: Alert the team via email or slack
 		}
 	}
 
@@ -404,6 +418,7 @@ func (s *Server) Start() error {
 	if s.subscriptionScheduler != nil {
 		if err := s.subscriptionScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start subscription scheduler", "error", err)
+			// TODO: Alert the team via email or slack
 		}
 	}
 
@@ -411,6 +426,14 @@ func (s *Server) Start() error {
 	if s.streakScheduler != nil {
 		if err := s.streakScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start streak scheduler", "error", err)
+			// TODO: Alert the team via email or slack
+		}
+	}
+
+	// start price alert scheduler
+	if s.priceAlertScheduler != nil {
+		if err := s.priceAlertScheduler.Start(); err != nil {
+			s.logger.Error("Failed to start price alert scheduler", "error", err)
 		}
 	}
 
@@ -462,6 +485,13 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		if s.streakScheduler != nil {
 			if err := s.streakScheduler.Stop(); err != nil {
 				s.logger.Warn("Error stopping streak scheduler", "error", err)
+			}
+		}
+
+		// stop price alert scheduler
+		if s.priceAlertScheduler != nil {
+			if err := s.priceAlertScheduler.Stop(); err != nil {
+				s.logger.Error("Failed to stop price alert scheduler", "error", err)
 			}
 		}
 

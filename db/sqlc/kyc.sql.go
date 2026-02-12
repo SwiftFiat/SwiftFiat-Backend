@@ -10,41 +10,52 @@ import (
 	"database/sql"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
+const bulkRejectExpiredDocuments = `-- name: BulkRejectExpiredDocuments :exec
+UPDATE kyc
+SET 
+    status = 'rejected',
+    additional_info = jsonb_set(
+        additional_info,
+        '{rejection_reason}',
+        '"Proof of address document expired (older than 6 months)"'
+    ),
+    updated_at = now()
+WHERE 
+    status = 'verified'
+    AND proof_of_address_date < (CURRENT_DATE - INTERVAL '6 months')
+`
+
+func (q *Queries) BulkRejectExpiredDocuments(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, bulkRejectExpiredDocuments)
+	return err
+}
+
 const createNewKYC = `-- name: CreateNewKYC :one
 INSERT INTO kyc (
-    user_id,
-    tier,
-    status
-) VALUES ($1, $2, 'pending') RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+    user_id
+) VALUES (
+    $1
+) RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-type CreateNewKYCParams struct {
-	UserID int32 `json:"user_id"`
-	Tier   int32 `json:"tier"`
-}
-
-func (q *Queries) CreateNewKYC(ctx context.Context, arg CreateNewKYCParams) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, createNewKYC, arg.UserID, arg.Tier)
+func (q *Queries) CreateNewKYC(ctx context.Context, userID int32) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, createNewKYC, userID)
 	var i Kyc
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -53,6 +64,8 @@ func (q *Queries) CreateNewKYC(ctx context.Context, arg CreateNewKYCParams) (Kyc
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -63,88 +76,128 @@ func (q *Queries) CreateNewKYC(ctx context.Context, arg CreateNewKYCParams) (Kyc
 	return i, err
 }
 
-const deleteKYC = `-- name: DeleteKYC :execrows
-DELETE FROM kyc WHERE id = $1
+const getIncompleteKYCFields = `-- name: GetIncompleteKYCFields :one
+SELECT 
+    CASE WHEN full_name IS NULL OR full_name = '' THEN true ELSE false END as needs_full_name,
+    CASE WHEN phone_number IS NULL OR phone_number = '' THEN true ELSE false END as needs_phone,
+    CASE WHEN email IS NULL OR email = '' THEN true ELSE false END as needs_email,
+    CASE WHEN (bvn IS NULL OR bvn = '') AND (nin IS NULL OR nin = '') THEN true ELSE false END as needs_bvn_or_nin,
+    CASE WHEN gender IS NULL OR gender = '' THEN true ELSE false END as needs_gender,
+    CASE WHEN selfie_url IS NULL OR selfie_url = '' THEN true ELSE false END as needs_selfie,
+    CASE WHEN id_type IS NULL OR id_number IS NULL OR id_image_url IS NULL THEN true ELSE false END as needs_govt_id,
+    CASE WHEN state IS NULL OR lga IS NULL OR house_number IS NULL OR street_name IS NULL THEN true ELSE false END as needs_address,
+    CASE WHEN proof_of_address_type IS NULL OR proof_of_address_url IS NULL OR proof_of_address_date IS NULL THEN true ELSE false END as needs_proof_of_address,
+    CASE WHEN proof_of_address_date IS NOT NULL AND proof_of_address_date < (CURRENT_DATE - INTERVAL '6 months') THEN true ELSE false END as proof_expired
+FROM kyc
+WHERE id = $1
 `
 
-func (q *Queries) DeleteKYC(ctx context.Context, id int64) (int64, error) {
-	result, err := q.db.ExecContext(ctx, deleteKYC, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected()
+type GetIncompleteKYCFieldsRow struct {
+	NeedsFullName       bool `json:"needs_full_name"`
+	NeedsPhone          bool `json:"needs_phone"`
+	NeedsEmail          bool `json:"needs_email"`
+	NeedsBvnOrNin       bool `json:"needs_bvn_or_nin"`
+	NeedsGender         bool `json:"needs_gender"`
+	NeedsSelfie         bool `json:"needs_selfie"`
+	NeedsGovtID         bool `json:"needs_govt_id"`
+	NeedsAddress        bool `json:"needs_address"`
+	NeedsProofOfAddress bool `json:"needs_proof_of_address"`
+	ProofExpired        bool `json:"proof_expired"`
 }
 
-const getKYCByID = `-- name: GetKYCByID :one
-SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc WHERE id = $1 LIMIT 1
-`
-
-func (q *Queries) GetKYCByID(ctx context.Context, id int64) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, getKYCByID, id)
-	var i Kyc
+func (q *Queries) GetIncompleteKYCFields(ctx context.Context, id int64) (GetIncompleteKYCFieldsRow, error) {
+	row := q.db.QueryRowContext(ctx, getIncompleteKYCFields, id)
+	var i GetIncompleteKYCFieldsRow
 	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
-		&i.Status,
-		&i.VerificationDate,
-		&i.FullName,
-		&i.PhoneNumber,
-		&i.Email,
-		&i.Bvn,
-		&i.Nin,
-		&i.Gender,
-		&i.SelfieUrl,
-		&i.IDType,
-		&i.IDNumber,
-		&i.IDImageUrl,
-		&i.State,
-		&i.Lga,
-		&i.HouseNumber,
-		&i.StreetName,
-		&i.NearestLandmark,
-		&i.ProofOfAddressType,
-		&i.ProofOfAddressUrl,
-		&i.ProofOfAddressDate,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.AdditionalInfo,
+		&i.NeedsFullName,
+		&i.NeedsPhone,
+		&i.NeedsEmail,
+		&i.NeedsBvnOrNin,
+		&i.NeedsGender,
+		&i.NeedsSelfie,
+		&i.NeedsGovtID,
+		&i.NeedsAddress,
+		&i.NeedsProofOfAddress,
+		&i.ProofExpired,
 	)
 	return i, err
 }
 
-const getKYCByTier = `-- name: GetKYCByTier :many
-SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc 
-WHERE tier = $1 
-ORDER BY created_at DESC
+const getKYCByStatus = `-- name: GetKYCByStatus :many
+SELECT 
+    k.id, k.user_id, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.phone_number as user_phone
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+WHERE k.status = $1
+ORDER BY k.created_at DESC
+LIMIT $2 OFFSET $3
 `
 
-func (q *Queries) GetKYCByTier(ctx context.Context, tier int32) ([]Kyc, error) {
-	rows, err := q.db.QueryContext(ctx, getKYCByTier, tier)
+type GetKYCByStatusParams struct {
+	Status string `json:"status"`
+	Limit  int32  `json:"limit"`
+	Offset int32  `json:"offset"`
+}
+
+type GetKYCByStatusRow struct {
+	ID                 int64                 `json:"id"`
+	UserID             int32                 `json:"user_id"`
+	Status             string                `json:"status"`
+	VerificationDate   sql.NullTime          `json:"verification_date"`
+	FullName           sql.NullString        `json:"full_name"`
+	PhoneNumber        sql.NullString        `json:"phone_number"`
+	Email              sql.NullString        `json:"email"`
+	Gender             sql.NullString        `json:"gender"`
+	SelfieUrl          sql.NullString        `json:"selfie_url"`
+	Bvn                sql.NullString        `json:"bvn"`
+	Nin                sql.NullString        `json:"nin"`
+	IDType             sql.NullString        `json:"id_type"`
+	IDNumber           sql.NullString        `json:"id_number"`
+	IDImageUrl         sql.NullString        `json:"id_image_url"`
+	State              sql.NullString        `json:"state"`
+	Lga                sql.NullString        `json:"lga"`
+	HouseNumber        sql.NullString        `json:"house_number"`
+	StreetName         sql.NullString        `json:"street_name"`
+	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
+	PostalCode         sql.NullString        `json:"postal_code"`
+	Country            sql.NullString        `json:"country"`
+	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	AdditionalInfo     pqtype.NullRawMessage `json:"additional_info"`
+	Email_2            string                `json:"email_2"`
+	FirstName          sql.NullString        `json:"first_name"`
+	LastName           sql.NullString        `json:"last_name"`
+	UserPhone          string                `json:"user_phone"`
+}
+
+func (q *Queries) GetKYCByStatus(ctx context.Context, arg GetKYCByStatusParams) ([]GetKYCByStatusRow, error) {
+	rows, err := q.db.QueryContext(ctx, getKYCByStatus, arg.Status, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Kyc{}
+	items := []GetKYCByStatusRow{}
 	for rows.Next() {
-		var i Kyc
+		var i GetKYCByStatusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Tier,
-			&i.DailyTransferLimitNgn,
-			&i.WalletBalanceLimitNgn,
 			&i.Status,
 			&i.VerificationDate,
 			&i.FullName,
 			&i.PhoneNumber,
 			&i.Email,
-			&i.Bvn,
-			&i.Nin,
 			&i.Gender,
 			&i.SelfieUrl,
+			&i.Bvn,
+			&i.Nin,
 			&i.IDType,
 			&i.IDNumber,
 			&i.IDImageUrl,
@@ -153,12 +206,18 @@ func (q *Queries) GetKYCByTier(ctx context.Context, tier int32) ([]Kyc, error) {
 			&i.HouseNumber,
 			&i.StreetName,
 			&i.NearestLandmark,
+			&i.PostalCode,
+			&i.Country,
 			&i.ProofOfAddressType,
 			&i.ProofOfAddressUrl,
 			&i.ProofOfAddressDate,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AdditionalInfo,
+			&i.Email_2,
+			&i.FirstName,
+			&i.LastName,
+			&i.UserPhone,
 		); err != nil {
 			return nil, err
 		}
@@ -174,7 +233,8 @@ func (q *Queries) GetKYCByTier(ctx context.Context, tier int32) ([]Kyc, error) {
 }
 
 const getKYCByUserID = `-- name: GetKYCByUserID :one
-SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc WHERE user_id = $1 LIMIT 1
+SELECT id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc
+WHERE user_id = $1
 `
 
 func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error) {
@@ -183,18 +243,15 @@ func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error)
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -203,6 +260,8 @@ func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error)
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -213,87 +272,47 @@ func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error)
 	return i, err
 }
 
-const getKYCStats = `-- name: GetKYCStats :one
+const getKYCDocumentExpirations = `-- name: GetKYCDocumentExpirations :many
 SELECT 
-    COUNT(*) as total_kyc,
-    COUNT(CASE WHEN status = 'pending' THEN 1 END) as pending_count,
-    COUNT(CASE WHEN status = 'active' THEN 1 END) as active_count,
-    COUNT(CASE WHEN status = 'rejected' THEN 1 END) as rejected_count,
-    COUNT(CASE WHEN tier = 1 THEN 1 END) as tier1_count,
-    COUNT(CASE WHEN tier = 2 THEN 1 END) as tier2_count,
-    COUNT(CASE WHEN tier = 3 THEN 1 END) as tier3_count
-FROM kyc
+    k.id,
+    k.user_id,
+    u.email,
+    k.proof_of_address_date,
+    k.proof_of_address_type,
+    (CURRENT_DATE - k.proof_of_address_date) as days_old
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+WHERE 
+    k.status = 'verified'
+    AND k.proof_of_address_date < (CURRENT_DATE - INTERVAL '5 months')
+ORDER BY k.proof_of_address_date ASC
 `
 
-type GetKYCStatsRow struct {
-	TotalKyc      int64 `json:"total_kyc"`
-	PendingCount  int64 `json:"pending_count"`
-	ActiveCount   int64 `json:"active_count"`
-	RejectedCount int64 `json:"rejected_count"`
-	Tier1Count    int64 `json:"tier1_count"`
-	Tier2Count    int64 `json:"tier2_count"`
-	Tier3Count    int64 `json:"tier3_count"`
+type GetKYCDocumentExpirationsRow struct {
+	ID                 int64          `json:"id"`
+	UserID             int32          `json:"user_id"`
+	Email              string         `json:"email"`
+	ProofOfAddressDate sql.NullTime   `json:"proof_of_address_date"`
+	ProofOfAddressType sql.NullString `json:"proof_of_address_type"`
+	DaysOld            int32          `json:"days_old"`
 }
 
-func (q *Queries) GetKYCStats(ctx context.Context) (GetKYCStatsRow, error) {
-	row := q.db.QueryRowContext(ctx, getKYCStats)
-	var i GetKYCStatsRow
-	err := row.Scan(
-		&i.TotalKyc,
-		&i.PendingCount,
-		&i.ActiveCount,
-		&i.RejectedCount,
-		&i.Tier1Count,
-		&i.Tier2Count,
-		&i.Tier3Count,
-	)
-	return i, err
-}
-
-const getPendingKYCRequests = `-- name: GetPendingKYCRequests :many
-SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc 
-WHERE status = 'pending' 
-ORDER BY created_at ASC
-`
-
-func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingKYCRequests)
+func (q *Queries) GetKYCDocumentExpirations(ctx context.Context) ([]GetKYCDocumentExpirationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getKYCDocumentExpirations)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Kyc{}
+	items := []GetKYCDocumentExpirationsRow{}
 	for rows.Next() {
-		var i Kyc
+		var i GetKYCDocumentExpirationsRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Tier,
-			&i.DailyTransferLimitNgn,
-			&i.WalletBalanceLimitNgn,
-			&i.Status,
-			&i.VerificationDate,
-			&i.FullName,
-			&i.PhoneNumber,
 			&i.Email,
-			&i.Bvn,
-			&i.Nin,
-			&i.Gender,
-			&i.SelfieUrl,
-			&i.IDType,
-			&i.IDNumber,
-			&i.IDImageUrl,
-			&i.State,
-			&i.Lga,
-			&i.HouseNumber,
-			&i.StreetName,
-			&i.NearestLandmark,
-			&i.ProofOfAddressType,
-			&i.ProofOfAddressUrl,
 			&i.ProofOfAddressDate,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.AdditionalInfo,
+			&i.ProofOfAddressType,
+			&i.DaysOld,
 		); err != nil {
 			return nil, err
 		}
@@ -308,124 +327,104 @@ func (q *Queries) GetPendingKYCRequests(ctx context.Context) ([]Kyc, error) {
 	return items, nil
 }
 
-const getUserAndKYCByID = `-- name: GetUserAndKYCByID :one
+const getKYCStatistics = `-- name: GetKYCStatistics :one
 SELECT 
-    u.id, u.avatar_url, u.avatar_blob, u.first_name, u.last_name, u.email, u.hashed_password, u.hashed_passcode, u.hashed_pin, u.phone_number, u.role, u.verified, u.is_kyc_verified, u.bridgecard_verification_status, u.bridgecard_cardholder_id, u.created_at, u.updated_at, u.deleted_at, u.has_wallets, u.user_tag, u.fresh_chat_id, u.is_active, u.twofa_secret, u.twofa_enabled, u.reward_balance, u.total_reward_earned, u.total_reward_redeemed, u.total_conversion_volume, u.total_transaction_volume, u.current_vip_level_id,
-    k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info
-FROM kyc k
-LEFT JOIN users u ON k.user_id = u.id 
-WHERE k.id = $1 LIMIT 1
+    COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+    COUNT(*) FILTER (WHERE status = 'verified') as verified_count,
+    COUNT(*) FILTER (WHERE status = 'rejected') as rejected_count,
+    COUNT(*) as total_count,
+    AVG(EXTRACT(EPOCH FROM (verification_date - created_at))/3600) FILTER (WHERE verification_date IS NOT NULL) as avg_verification_hours
+FROM kyc
 `
 
-type GetUserAndKYCByIDRow struct {
-	ID                           sql.NullInt64         `json:"id"`
-	AvatarUrl                    sql.NullString        `json:"avatar_url"`
-	AvatarBlob                   []byte                `json:"avatar_blob"`
-	FirstName                    sql.NullString        `json:"first_name"`
-	LastName                     sql.NullString        `json:"last_name"`
-	Email                        sql.NullString        `json:"email"`
-	HashedPassword               sql.NullString        `json:"hashed_password"`
-	HashedPasscode               sql.NullString        `json:"hashed_passcode"`
-	HashedPin                    sql.NullString        `json:"hashed_pin"`
-	PhoneNumber                  sql.NullString        `json:"phone_number"`
-	Role                         sql.NullString        `json:"role"`
-	Verified                     sql.NullBool          `json:"verified"`
-	IsKycVerified                sql.NullBool          `json:"is_kyc_verified"`
-	BridgecardVerificationStatus sql.NullString        `json:"bridgecard_verification_status"`
-	BridgecardCardholderID       sql.NullString        `json:"bridgecard_cardholder_id"`
-	CreatedAt                    sql.NullTime          `json:"created_at"`
-	UpdatedAt                    sql.NullTime          `json:"updated_at"`
-	DeletedAt                    sql.NullTime          `json:"deleted_at"`
-	HasWallets                   sql.NullBool          `json:"has_wallets"`
-	UserTag                      sql.NullString        `json:"user_tag"`
-	FreshChatID                  sql.NullString        `json:"fresh_chat_id"`
-	IsActive                     sql.NullBool          `json:"is_active"`
-	TwofaSecret                  sql.NullString        `json:"twofa_secret"`
-	TwofaEnabled                 sql.NullBool          `json:"twofa_enabled"`
-	RewardBalance                sql.NullString        `json:"reward_balance"`
-	TotalRewardEarned            sql.NullString        `json:"total_reward_earned"`
-	TotalRewardRedeemed          sql.NullString        `json:"total_reward_redeemed"`
-	TotalConversionVolume        sql.NullString        `json:"total_conversion_volume"`
-	TotalTransactionVolume       sql.NullString        `json:"total_transaction_volume"`
-	CurrentVipLevelID            uuid.NullUUID         `json:"current_vip_level_id"`
-	ID_2                         int64                 `json:"id_2"`
-	UserID                       int32                 `json:"user_id"`
-	Tier                         int32                 `json:"tier"`
-	DailyTransferLimitNgn        sql.NullString        `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn        sql.NullString        `json:"wallet_balance_limit_ngn"`
-	Status                       string                `json:"status"`
-	VerificationDate             sql.NullTime          `json:"verification_date"`
-	FullName                     sql.NullString        `json:"full_name"`
-	PhoneNumber_2                sql.NullString        `json:"phone_number_2"`
-	Email_2                      sql.NullString        `json:"email_2"`
-	Bvn                          sql.NullString        `json:"bvn"`
-	Nin                          sql.NullString        `json:"nin"`
-	Gender                       sql.NullString        `json:"gender"`
-	SelfieUrl                    sql.NullString        `json:"selfie_url"`
-	IDType                       sql.NullString        `json:"id_type"`
-	IDNumber                     sql.NullString        `json:"id_number"`
-	IDImageUrl                   sql.NullString        `json:"id_image_url"`
-	State                        sql.NullString        `json:"state"`
-	Lga                          sql.NullString        `json:"lga"`
-	HouseNumber                  sql.NullString        `json:"house_number"`
-	StreetName                   sql.NullString        `json:"street_name"`
-	NearestLandmark              sql.NullString        `json:"nearest_landmark"`
-	ProofOfAddressType           sql.NullString        `json:"proof_of_address_type"`
-	ProofOfAddressUrl            sql.NullString        `json:"proof_of_address_url"`
-	ProofOfAddressDate           sql.NullTime          `json:"proof_of_address_date"`
-	CreatedAt_2                  time.Time             `json:"created_at_2"`
-	UpdatedAt_2                  time.Time             `json:"updated_at_2"`
-	AdditionalInfo               pqtype.NullRawMessage `json:"additional_info"`
+type GetKYCStatisticsRow struct {
+	PendingCount         int64   `json:"pending_count"`
+	VerifiedCount        int64   `json:"verified_count"`
+	RejectedCount        int64   `json:"rejected_count"`
+	TotalCount           int64   `json:"total_count"`
+	AvgVerificationHours float64 `json:"avg_verification_hours"`
 }
 
-func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKYCByIDRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserAndKYCByID, id)
-	var i GetUserAndKYCByIDRow
+func (q *Queries) GetKYCStatistics(ctx context.Context) (GetKYCStatisticsRow, error) {
+	row := q.db.QueryRowContext(ctx, getKYCStatistics)
+	var i GetKYCStatisticsRow
+	err := row.Scan(
+		&i.PendingCount,
+		&i.VerifiedCount,
+		&i.RejectedCount,
+		&i.TotalCount,
+		&i.AvgVerificationHours,
+	)
+	return i, err
+}
+
+const getKYCWithUserDetails = `-- name: GetKYCWithUserDetails :one
+SELECT 
+    k.id, k.user_id, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.phone_number as user_phone,
+    u.verified as user_verified,
+    u.is_kyc_verified,
+    u.created_at as user_created_at
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+WHERE k.id = $1
+`
+
+type GetKYCWithUserDetailsRow struct {
+	ID                 int64                 `json:"id"`
+	UserID             int32                 `json:"user_id"`
+	Status             string                `json:"status"`
+	VerificationDate   sql.NullTime          `json:"verification_date"`
+	FullName           sql.NullString        `json:"full_name"`
+	PhoneNumber        sql.NullString        `json:"phone_number"`
+	Email              sql.NullString        `json:"email"`
+	Gender             sql.NullString        `json:"gender"`
+	SelfieUrl          sql.NullString        `json:"selfie_url"`
+	Bvn                sql.NullString        `json:"bvn"`
+	Nin                sql.NullString        `json:"nin"`
+	IDType             sql.NullString        `json:"id_type"`
+	IDNumber           sql.NullString        `json:"id_number"`
+	IDImageUrl         sql.NullString        `json:"id_image_url"`
+	State              sql.NullString        `json:"state"`
+	Lga                sql.NullString        `json:"lga"`
+	HouseNumber        sql.NullString        `json:"house_number"`
+	StreetName         sql.NullString        `json:"street_name"`
+	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
+	PostalCode         sql.NullString        `json:"postal_code"`
+	Country            sql.NullString        `json:"country"`
+	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	AdditionalInfo     pqtype.NullRawMessage `json:"additional_info"`
+	Email_2            string                `json:"email_2"`
+	FirstName          sql.NullString        `json:"first_name"`
+	LastName           sql.NullString        `json:"last_name"`
+	UserPhone          string                `json:"user_phone"`
+	UserVerified       bool                  `json:"user_verified"`
+	IsKycVerified      bool                  `json:"is_kyc_verified"`
+	UserCreatedAt      time.Time             `json:"user_created_at"`
+}
+
+func (q *Queries) GetKYCWithUserDetails(ctx context.Context, id int64) (GetKYCWithUserDetailsRow, error) {
+	row := q.db.QueryRowContext(ctx, getKYCWithUserDetails, id)
+	var i GetKYCWithUserDetailsRow
 	err := row.Scan(
 		&i.ID,
-		&i.AvatarUrl,
-		&i.AvatarBlob,
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.HashedPassword,
-		&i.HashedPasscode,
-		&i.HashedPin,
-		&i.PhoneNumber,
-		&i.Role,
-		&i.Verified,
-		&i.IsKycVerified,
-		&i.BridgecardVerificationStatus,
-		&i.BridgecardCardholderID,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DeletedAt,
-		&i.HasWallets,
-		&i.UserTag,
-		&i.FreshChatID,
-		&i.IsActive,
-		&i.TwofaSecret,
-		&i.TwofaEnabled,
-		&i.RewardBalance,
-		&i.TotalRewardEarned,
-		&i.TotalRewardRedeemed,
-		&i.TotalConversionVolume,
-		&i.TotalTransactionVolume,
-		&i.CurrentVipLevelID,
-		&i.ID_2,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
-		&i.PhoneNumber_2,
-		&i.Email_2,
-		&i.Bvn,
-		&i.Nin,
+		&i.PhoneNumber,
+		&i.Email,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -434,46 +433,339 @@ func (q *Queries) GetUserAndKYCByID(ctx context.Context, id int64) (GetUserAndKY
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
-		&i.CreatedAt_2,
-		&i.UpdatedAt_2,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AdditionalInfo,
+		&i.Email_2,
+		&i.FirstName,
+		&i.LastName,
+		&i.UserPhone,
+		&i.UserVerified,
+		&i.IsKycVerified,
+		&i.UserCreatedAt,
+	)
+	return i, err
+}
+
+const getPendingKYCCount = `-- name: GetPendingKYCCount :one
+SELECT COUNT(*) FROM kyc
+WHERE status = 'pending'
+`
+
+func (q *Queries) GetPendingKYCCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getPendingKYCCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getRecentVerifications = `-- name: GetRecentVerifications :many
+SELECT 
+    k.id,
+    k.user_id,
+    k.verification_date,
+    k.status,
+    u.email,
+    u.first_name,
+    u.last_name
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+WHERE k.verification_date >= $1
+ORDER BY k.verification_date DESC
+`
+
+type GetRecentVerificationsRow struct {
+	ID               int64          `json:"id"`
+	UserID           int32          `json:"user_id"`
+	VerificationDate sql.NullTime   `json:"verification_date"`
+	Status           string         `json:"status"`
+	Email            string         `json:"email"`
+	FirstName        sql.NullString `json:"first_name"`
+	LastName         sql.NullString `json:"last_name"`
+}
+
+func (q *Queries) GetRecentVerifications(ctx context.Context, verificationDate sql.NullTime) ([]GetRecentVerificationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getRecentVerifications, verificationDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetRecentVerificationsRow{}
+	for rows.Next() {
+		var i GetRecentVerificationsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.VerificationDate,
+			&i.Status,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRejectedKYCCount = `-- name: GetRejectedKYCCount :one
+SELECT COUNT(*) FROM kyc
+WHERE status = 'rejected'
+`
+
+func (q *Queries) GetRejectedKYCCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getRejectedKYCCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getUsersNeedingKYCReminder = `-- name: GetUsersNeedingKYCReminder :many
+SELECT 
+    u.id,
+    u.email,
+    u.first_name,
+    u.last_name,
+    k.created_at as kyc_started_at,
+    k.status
+FROM users u
+LEFT JOIN kyc k ON k.user_id = u.id
+WHERE 
+    u.verified = true 
+    AND u.is_kyc_verified = false
+    AND (k.status IS NULL OR k.status = 'pending')
+    AND k.created_at < (now() - INTERVAL '7 days')
+ORDER BY k.created_at ASC
+`
+
+type GetUsersNeedingKYCReminderRow struct {
+	ID           int64          `json:"id"`
+	Email        string         `json:"email"`
+	FirstName    sql.NullString `json:"first_name"`
+	LastName     sql.NullString `json:"last_name"`
+	KycStartedAt sql.NullTime   `json:"kyc_started_at"`
+	Status       sql.NullString `json:"status"`
+}
+
+func (q *Queries) GetUsersNeedingKYCReminder(ctx context.Context) ([]GetUsersNeedingKYCReminderRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUsersNeedingKYCReminder)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []GetUsersNeedingKYCReminderRow{}
+	for rows.Next() {
+		var i GetUsersNeedingKYCReminderRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.FirstName,
+			&i.LastName,
+			&i.KycStartedAt,
+			&i.Status,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getVerifiedKYCCount = `-- name: GetVerifiedKYCCount :one
+SELECT COUNT(*) FROM kyc
+WHERE status = 'verified'
+`
+
+func (q *Queries) GetVerifiedKYCCount(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getVerifiedKYCCount)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const manuallyVerifyKYC = `-- name: ManuallyVerifyKYC :one
+UPDATE kyc
+SET 
+    status = 'verified',
+    verification_date = COALESCE(verification_date, now()),
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+`
+
+func (q *Queries) ManuallyVerifyKYC(ctx context.Context, id int64) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, manuallyVerifyKYC, id)
+	var i Kyc
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationDate,
+		&i.FullName,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.Gender,
+		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
+		&i.IDType,
+		&i.IDNumber,
+		&i.IDImageUrl,
+		&i.State,
+		&i.Lga,
+		&i.HouseNumber,
+		&i.StreetName,
+		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
+		&i.ProofOfAddressType,
+		&i.ProofOfAddressUrl,
+		&i.ProofOfAddressDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.AdditionalInfo,
 	)
 	return i, err
 }
 
-const listAllKYC = `-- name: ListAllKYC :many
-SELECT id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info 
-FROM kyc 
-ORDER BY created_at DESC
+const rejectKYC = `-- name: RejectKYC :one
+UPDATE kyc
+SET 
+    status = 'rejected',
+    additional_info = jsonb_set(
+        additional_info,
+        '{rejection_reason}',
+        to_jsonb($2::text)
+    ),
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-func (q *Queries) ListAllKYC(ctx context.Context) ([]Kyc, error) {
-	rows, err := q.db.QueryContext(ctx, listAllKYC)
+type RejectKYCParams struct {
+	ID      int64  `json:"id"`
+	Column2 string `json:"column_2"`
+}
+
+func (q *Queries) RejectKYC(ctx context.Context, arg RejectKYCParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, rejectKYC, arg.ID, arg.Column2)
+	var i Kyc
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationDate,
+		&i.FullName,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.Gender,
+		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
+		&i.IDType,
+		&i.IDNumber,
+		&i.IDImageUrl,
+		&i.State,
+		&i.Lga,
+		&i.HouseNumber,
+		&i.StreetName,
+		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
+		&i.ProofOfAddressType,
+		&i.ProofOfAddressUrl,
+		&i.ProofOfAddressDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AdditionalInfo,
+	)
+	return i, err
+}
+
+const searchKYCByEmail = `-- name: SearchKYCByEmail :many
+SELECT 
+    k.id, k.user_id, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    u.email,
+    u.first_name,
+    u.last_name
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+WHERE u.email ILIKE $1
+ORDER BY k.created_at DESC
+`
+
+type SearchKYCByEmailRow struct {
+	ID                 int64                 `json:"id"`
+	UserID             int32                 `json:"user_id"`
+	Status             string                `json:"status"`
+	VerificationDate   sql.NullTime          `json:"verification_date"`
+	FullName           sql.NullString        `json:"full_name"`
+	PhoneNumber        sql.NullString        `json:"phone_number"`
+	Email              sql.NullString        `json:"email"`
+	Gender             sql.NullString        `json:"gender"`
+	SelfieUrl          sql.NullString        `json:"selfie_url"`
+	Bvn                sql.NullString        `json:"bvn"`
+	Nin                sql.NullString        `json:"nin"`
+	IDType             sql.NullString        `json:"id_type"`
+	IDNumber           sql.NullString        `json:"id_number"`
+	IDImageUrl         sql.NullString        `json:"id_image_url"`
+	State              sql.NullString        `json:"state"`
+	Lga                sql.NullString        `json:"lga"`
+	HouseNumber        sql.NullString        `json:"house_number"`
+	StreetName         sql.NullString        `json:"street_name"`
+	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
+	PostalCode         sql.NullString        `json:"postal_code"`
+	Country            sql.NullString        `json:"country"`
+	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	AdditionalInfo     pqtype.NullRawMessage `json:"additional_info"`
+	Email_2            string                `json:"email_2"`
+	FirstName          sql.NullString        `json:"first_name"`
+	LastName           sql.NullString        `json:"last_name"`
+}
+
+func (q *Queries) SearchKYCByEmail(ctx context.Context, email string) ([]SearchKYCByEmailRow, error) {
+	rows, err := q.db.QueryContext(ctx, searchKYCByEmail, email)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Kyc{}
+	items := []SearchKYCByEmailRow{}
 	for rows.Next() {
-		var i Kyc
+		var i SearchKYCByEmailRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.UserID,
-			&i.Tier,
-			&i.DailyTransferLimitNgn,
-			&i.WalletBalanceLimitNgn,
 			&i.Status,
 			&i.VerificationDate,
 			&i.FullName,
 			&i.PhoneNumber,
 			&i.Email,
-			&i.Bvn,
-			&i.Nin,
 			&i.Gender,
 			&i.SelfieUrl,
+			&i.Bvn,
+			&i.Nin,
 			&i.IDType,
 			&i.IDNumber,
 			&i.IDImageUrl,
@@ -482,12 +774,17 @@ func (q *Queries) ListAllKYC(ctx context.Context) ([]Kyc, error) {
 			&i.HouseNumber,
 			&i.StreetName,
 			&i.NearestLandmark,
+			&i.PostalCode,
+			&i.Country,
 			&i.ProofOfAddressType,
 			&i.ProofOfAddressUrl,
 			&i.ProofOfAddressDate,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.AdditionalInfo,
+			&i.Email_2,
+			&i.FirstName,
+			&i.LastName,
 		); err != nil {
 			return nil, err
 		}
@@ -503,7 +800,7 @@ func (q *Queries) ListAllKYC(ctx context.Context) ([]Kyc, error) {
 }
 
 const updateKYCAddress = `-- name: UpdateKYCAddress :one
-UPDATE kyc 
+UPDATE kyc
 SET 
     state = $2,
     lga = $3,
@@ -511,8 +808,8 @@ SET
     street_name = $5,
     nearest_landmark = $6,
     updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCAddressParams struct {
@@ -537,18 +834,15 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -557,6 +851,8 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -567,8 +863,8 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 	return i, err
 }
 
-const updateKYCLevel1 = `-- name: UpdateKYCLevel1 :one
-UPDATE kyc 
+const updateKYCBasicInfo = `-- name: UpdateKYCBasicInfo :one
+UPDATE kyc
 SET 
     full_name = $2,
     phone_number = $3,
@@ -576,12 +872,14 @@ SET
     bvn = $5,
     gender = $6,
     selfie_url = $7,
+    postal_code = $8,
+    country = $9,
     updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-type UpdateKYCLevel1Params struct {
+type UpdateKYCBasicInfoParams struct {
 	ID          int64          `json:"id"`
 	FullName    sql.NullString `json:"full_name"`
 	PhoneNumber sql.NullString `json:"phone_number"`
@@ -589,10 +887,12 @@ type UpdateKYCLevel1Params struct {
 	Bvn         sql.NullString `json:"bvn"`
 	Gender      sql.NullString `json:"gender"`
 	SelfieUrl   sql.NullString `json:"selfie_url"`
+	PostalCode  sql.NullString `json:"postal_code"`
+	Country     sql.NullString `json:"country"`
 }
 
-func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCLevel1,
+func (q *Queries) UpdateKYCBasicInfo(ctx context.Context, arg UpdateKYCBasicInfoParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCBasicInfo,
 		arg.ID,
 		arg.FullName,
 		arg.PhoneNumber,
@@ -600,23 +900,22 @@ func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params
 		arg.Bvn,
 		arg.Gender,
 		arg.SelfieUrl,
+		arg.PostalCode,
+		arg.Country,
 	)
 	var i Kyc
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -625,6 +924,8 @@ func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -635,26 +936,142 @@ func (q *Queries) UpdateKYCLevel1(ctx context.Context, arg UpdateKYCLevel1Params
 	return i, err
 }
 
-const updateKYCLevel3 = `-- name: UpdateKYCLevel3 :one
-UPDATE kyc 
+const updateKYCGovernmentID = `-- name: UpdateKYCGovernmentID :one
+UPDATE kyc
+SET 
+    id_type = $2,
+    id_number = $3,
+    id_image_url = $4,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+`
+
+type UpdateKYCGovernmentIDParams struct {
+	ID         int64          `json:"id"`
+	IDType     sql.NullString `json:"id_type"`
+	IDNumber   sql.NullString `json:"id_number"`
+	IDImageUrl sql.NullString `json:"id_image_url"`
+}
+
+func (q *Queries) UpdateKYCGovernmentID(ctx context.Context, arg UpdateKYCGovernmentIDParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCGovernmentID,
+		arg.ID,
+		arg.IDType,
+		arg.IDNumber,
+		arg.IDImageUrl,
+	)
+	var i Kyc
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationDate,
+		&i.FullName,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.Gender,
+		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
+		&i.IDType,
+		&i.IDNumber,
+		&i.IDImageUrl,
+		&i.State,
+		&i.Lga,
+		&i.HouseNumber,
+		&i.StreetName,
+		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
+		&i.ProofOfAddressType,
+		&i.ProofOfAddressUrl,
+		&i.ProofOfAddressDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AdditionalInfo,
+	)
+	return i, err
+}
+
+const updateKYCNINInfo = `-- name: UpdateKYCNINInfo :one
+UPDATE kyc
+SET 
+    nin = $2,
+    gender = $3,
+    selfie_url = $4,
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+`
+
+type UpdateKYCNINInfoParams struct {
+	ID        int64          `json:"id"`
+	Nin       sql.NullString `json:"nin"`
+	Gender    sql.NullString `json:"gender"`
+	SelfieUrl sql.NullString `json:"selfie_url"`
+}
+
+func (q *Queries) UpdateKYCNINInfo(ctx context.Context, arg UpdateKYCNINInfoParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCNINInfo,
+		arg.ID,
+		arg.Nin,
+		arg.Gender,
+		arg.SelfieUrl,
+	)
+	var i Kyc
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Status,
+		&i.VerificationDate,
+		&i.FullName,
+		&i.PhoneNumber,
+		&i.Email,
+		&i.Gender,
+		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
+		&i.IDType,
+		&i.IDNumber,
+		&i.IDImageUrl,
+		&i.State,
+		&i.Lga,
+		&i.HouseNumber,
+		&i.StreetName,
+		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
+		&i.ProofOfAddressType,
+		&i.ProofOfAddressUrl,
+		&i.ProofOfAddressDate,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AdditionalInfo,
+	)
+	return i, err
+}
+
+const updateKYCProofOfAddress = `-- name: UpdateKYCProofOfAddress :one
+UPDATE kyc
 SET 
     proof_of_address_type = $2,
     proof_of_address_url = $3,
     proof_of_address_date = $4,
     updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-type UpdateKYCLevel3Params struct {
+type UpdateKYCProofOfAddressParams struct {
 	ID                 int64          `json:"id"`
 	ProofOfAddressType sql.NullString `json:"proof_of_address_type"`
 	ProofOfAddressUrl  sql.NullString `json:"proof_of_address_url"`
 	ProofOfAddressDate sql.NullTime   `json:"proof_of_address_date"`
 }
 
-func (q *Queries) UpdateKYCLevel3(ctx context.Context, arg UpdateKYCLevel3Params) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCLevel3,
+func (q *Queries) UpdateKYCProofOfAddress(ctx context.Context, arg UpdateKYCProofOfAddressParams) (Kyc, error) {
+	row := q.db.QueryRowContext(ctx, updateKYCProofOfAddress,
 		arg.ID,
 		arg.ProofOfAddressType,
 		arg.ProofOfAddressUrl,
@@ -664,18 +1081,15 @@ func (q *Queries) UpdateKYCLevel3(ctx context.Context, arg UpdateKYCLevel3Params
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -684,108 +1098,8 @@ func (q *Queries) UpdateKYCLevel3(ctx context.Context, arg UpdateKYCLevel3Params
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
-		&i.ProofOfAddressType,
-		&i.ProofOfAddressUrl,
-		&i.ProofOfAddressDate,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.AdditionalInfo,
-	)
-	return i, err
-}
-
-const updateKYCLimits = `-- name: UpdateKYCLimits :one
-UPDATE kyc 
-SET 
-    daily_transfer_limit_ngn = $2,
-    wallet_balance_limit_ngn = $3,
-    updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
-`
-
-type UpdateKYCLimitsParams struct {
-	ID                    int64          `json:"id"`
-	DailyTransferLimitNgn sql.NullString `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn sql.NullString `json:"wallet_balance_limit_ngn"`
-}
-
-func (q *Queries) UpdateKYCLimits(ctx context.Context, arg UpdateKYCLimitsParams) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCLimits, arg.ID, arg.DailyTransferLimitNgn, arg.WalletBalanceLimitNgn)
-	var i Kyc
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
-		&i.Status,
-		&i.VerificationDate,
-		&i.FullName,
-		&i.PhoneNumber,
-		&i.Email,
-		&i.Bvn,
-		&i.Nin,
-		&i.Gender,
-		&i.SelfieUrl,
-		&i.IDType,
-		&i.IDNumber,
-		&i.IDImageUrl,
-		&i.State,
-		&i.Lga,
-		&i.HouseNumber,
-		&i.StreetName,
-		&i.NearestLandmark,
-		&i.ProofOfAddressType,
-		&i.ProofOfAddressUrl,
-		&i.ProofOfAddressDate,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.AdditionalInfo,
-	)
-	return i, err
-}
-
-const updateKYCNIN = `-- name: UpdateKYCNIN :one
-UPDATE kyc 
-SET 
-    nin = $2,
-    updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
-`
-
-type UpdateKYCNINParams struct {
-	ID  int64          `json:"id"`
-	Nin sql.NullString `json:"nin"`
-}
-
-func (q *Queries) UpdateKYCNIN(ctx context.Context, arg UpdateKYCNINParams) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCNIN, arg.ID, arg.Nin)
-	var i Kyc
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
-		&i.Status,
-		&i.VerificationDate,
-		&i.FullName,
-		&i.PhoneNumber,
-		&i.Email,
-		&i.Bvn,
-		&i.Nin,
-		&i.Gender,
-		&i.SelfieUrl,
-		&i.IDType,
-		&i.IDNumber,
-		&i.IDImageUrl,
-		&i.State,
-		&i.Lga,
-		&i.HouseNumber,
-		&i.StreetName,
-		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -797,16 +1111,12 @@ func (q *Queries) UpdateKYCNIN(ctx context.Context, arg UpdateKYCNINParams) (Kyc
 }
 
 const updateKYCStatus = `-- name: UpdateKYCStatus :one
-UPDATE kyc 
+UPDATE kyc
 SET 
     status = $2,
-    updated_at = now(),
-    verification_date = CASE 
-        WHEN $2 = 'active' THEN now() 
-        ELSE verification_date 
-    END
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+    updated_at = now()
+WHERE id = $1
+RETURNING id, user_id, status, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCStatusParams struct {
@@ -820,18 +1130,15 @@ func (q *Queries) UpdateKYCStatus(ctx context.Context, arg UpdateKYCStatusParams
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -840,6 +1147,8 @@ func (q *Queries) UpdateKYCStatus(ctx context.Context, arg UpdateKYCStatusParams
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -850,52 +1159,59 @@ func (q *Queries) UpdateKYCStatus(ctx context.Context, arg UpdateKYCStatusParams
 	return i, err
 }
 
-const updateKYCTier = `-- name: UpdateKYCTier :one
-UPDATE kyc 
+const updateUserKYCVerificationStatus = `-- name: UpdateUserKYCVerificationStatus :one
+UPDATE users
 SET 
-    tier = $2,
-    updated_at = now()
-WHERE id = $1 
-RETURNING id, user_id, tier, daily_transfer_limit_ngn, wallet_balance_limit_ngn, status, verification_date, full_name, phone_number, email, bvn, nin, gender, selfie_url, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+    is_kyc_verified = $2,
+    updated_at = $3
+WHERE id = $1
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
-type UpdateKYCTierParams struct {
-	ID   int64 `json:"id"`
-	Tier int32 `json:"tier"`
+type UpdateUserKYCVerificationStatusParams struct {
+	ID            int64     `json:"id"`
+	IsKycVerified bool      `json:"is_kyc_verified"`
+	UpdatedAt     time.Time `json:"updated_at"`
 }
 
-func (q *Queries) UpdateKYCTier(ctx context.Context, arg UpdateKYCTierParams) (Kyc, error) {
-	row := q.db.QueryRowContext(ctx, updateKYCTier, arg.ID, arg.Tier)
-	var i Kyc
+func (q *Queries) UpdateUserKYCVerificationStatus(ctx context.Context, arg UpdateUserKYCVerificationStatusParams) (User, error) {
+	row := q.db.QueryRowContext(ctx, updateUserKYCVerificationStatus, arg.ID, arg.IsKycVerified, arg.UpdatedAt)
+	var i User
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
-		&i.Status,
-		&i.VerificationDate,
-		&i.FullName,
-		&i.PhoneNumber,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
+		&i.FirstName,
+		&i.LastName,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
-		&i.Gender,
-		&i.SelfieUrl,
-		&i.IDType,
-		&i.IDNumber,
-		&i.IDImageUrl,
-		&i.State,
-		&i.Lga,
-		&i.HouseNumber,
-		&i.StreetName,
-		&i.NearestLandmark,
-		&i.ProofOfAddressType,
-		&i.ProofOfAddressUrl,
-		&i.ProofOfAddressDate,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.IsKycVerified,
+		&i.BridgecardVerificationStatus,
+		&i.BridgecardCardholderID,
+		&i.IsRapidRampOn,
+		&i.HasCompletedFirstConversion,
+		&i.FirstConversionID,
+		&i.FirstConversionAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
-		&i.AdditionalInfo,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+		&i.IsActive,
+		&i.TwofaSecret,
+		&i.TwofaEnabled,
+		&i.RewardBalance,
+		&i.TotalRewardEarned,
+		&i.TotalRewardRedeemed,
+		&i.TotalConversionVolume,
+		&i.TotalTransactionVolume,
+		&i.CurrentVipLevelID,
 	)
 	return i, err
 }

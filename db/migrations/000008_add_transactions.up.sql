@@ -2,16 +2,21 @@
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE SET NULL,
-    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity', 'qr_code', 'card', 'rewards', 'service')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
+    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity', 'qr_code', 'card', 'rewards', 'service', 'referral')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
     "description" TEXT, -- e.g. User entered transaction description
     "transaction_flow" VARCHAR(50) CHECK (transaction_flow IN ('inflow', 'outflow', 'inplatform')) NOT NULL, -- e.g. inflow -> USD | outflow -> USD | inplatform
     "amount" DECIMAL(20, 2) NOT NULL,
+    "idempotency_key" VARCHAR(255) UNIQUE NOT NULL,
+    "t_from" VARCHAR(50) NOT NULL,
+    "t_to" VARCHAR(50) NOT NULL,
+    "direction" VARCHAR(10) NOT NULL CHECK (direction IN ('credit', 'debit')),
     "currency" VARCHAR(10) NOT NULL,
     "amount_usd" DECIMAL(20, 2) NOT NULL,  -- Pre-converted to USD
-    "status" VARCHAR(20) NOT NULL CHECK (status IN ('failed', 'pending', 'successful', 'unknown')), -- e.g success | pending | failed | unknown
+    "status" VARCHAR(20) NOT NULL CHECK (status IN ('failed', 'pending', 'successful')), -- e.g success | pending | failed
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
  
 -- Swift Wallet Transactions metadata for transfer or swap
 CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
@@ -42,6 +47,7 @@ CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
     "received_amount" DECIMAL(40,20), -- amount entered into destination wallet
     "sent_amount" DECIMAL(19,4), -- coin value sent by user on other platform
     "service_provider" VARCHAR(100) NOT NULL, -- e.g., BitGo
+    "order_id" VARCHAR(200) NOT NULL,
     "service_transaction_id" VARCHAR(100), -- e.g to track the crypto inflow at service provider level
     CONSTRAINT "unique_transaction_crypto" UNIQUE (transaction_id)
 );

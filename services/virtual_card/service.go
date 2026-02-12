@@ -67,15 +67,6 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		"user_id": userID,
 	}
 
-	// err = s.store.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-	// 	BridgecardVerificationStatus: sql.NullString{String: "pending", Valid: true},
-	// 	UpdatedAt:                    time.Now(),
-	// 	ID:                           int64(userID),
-	// })
-
-	// if err != nil {
-	// 	return nil, fmt.Errorf("update cardholder verification status error: %w", err)
-	// }
 	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
 	if err != nil {
 		return nil, err
@@ -89,6 +80,37 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 	defer dbTx.Rollback()
 
 	qtx := s.store.WithTx(dbTx)
+
+	if response.Status == "success" {
+		// TODO: use redis
+		user, err := qtx.GetUserByID(ctx, int64(userID))
+		if err != nil {
+			s.logger.Errorf("error getting user [CreateCardHolder]: %v", err)
+			return nil, err
+		}
+
+		if user.FirstName.String != req.FirstName || user.LastName.String != req.LastName {
+			_, err = s.store.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
+				FirstName: sql.NullString{String: req.FirstName, Valid: true},
+				UpdatedAt: time.Now(),
+				ID:        user.ID,
+			})
+			if err != nil {
+				s.logger.Errorf("error updating firstname from kyc: %v", err)
+				return nil, err
+			}
+
+			_, err = s.store.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
+				LastName:  sql.NullString{String: req.LastName, Valid: true},
+				ID:        user.ID,
+				UpdatedAt: time.Now(),
+			})
+			if err != nil {
+				s.logger.Errorf("error updating lastname from kyc: %v", err)
+				return nil, err
+			}
+		}
+	}
 
 	// set SetBridgeCardCardholderID to user
 	if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
@@ -105,10 +127,11 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		UpdatedAt:     time.Now(),
 		ID:            int64(userID),
 	})
-
 	if err != nil {
-		return nil, fmt.Errorf("updated user kyc error: %v", err)
+		return nil, fmt.Errorf("update user kyc status error: %v", err)
 	}
+
+	// fund referrer referral bonus
 
 	// Update cardholder verification status
 	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
@@ -246,6 +269,26 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	if sourceWallet.Balance.LessThan(totalCost) {
 		return nil, ErrInsufficientFunds
 	}
+
+	// create main tx record
+	cardCreationTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          params.UserID,
+		Type:            string(transaction.Card),
+		Description:     sql.NullString{String: "card-creation-fee", Valid: true},
+		Amount:          totalCost.String(),
+		Currency:        "USD",
+		AmountUsd:       totalCost.String(),
+		Status:          string(transaction.Pending),
+		TransactionFlow: string(transaction.Outflow),
+		IdempotencyKey:  params.IdempotencyKey,
+		TFrom:           string(transaction.Wallet),
+		TTo:             "card_provider",
+		Direction:       string(transaction.Debit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create card transaction failed: %w", err)
+	}
+
 	// 5. Create card in BridgeCard
 	bridgeCardReq := &bridgecards.CreateCardRequest{
 		CardHolderID:         params.CardHolderID, // get from user data
@@ -254,20 +297,46 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		Currency:             "USD",
 		CardLimit:            cardLimitCents,  // (can either be $5,000 i.e "500000" or $10,000 i.e "1000000")
 		FundingAmount:        fundingCentsStr, // (a minimum of $3 i.e "300" for cards with a spending limit of $5,000 and $4 i.e "400" for a card with a spending limit of $10,000)
-		TransactionReference: utils.NewTxRef("swiift_card"),
+		TransactionReference: utils.NewTxRef("c_"),
 		SourceWalletID:       usdWallet.ID,
 	}
 
 	s.logger.Infof("bridgeCardReq is : %v", bridgeCardReq)
 
+	// Attempt to create card in BridgeCard
 	bridgeCardDetails, err := s.bridgeCard.CreateCard(ctx, bridgeCardReq)
 	if err != nil {
 		return nil, fmt.Errorf("create card in bridgecard err: %v", err)
 	}
 
+	// Check BridgeCard response status.
+	// If not "success", return error
+	if bridgeCardDetails.Status != "success" {
+		errBytes, _ := json.Marshal(bridgeCardDetails)
+		return nil, fmt.Errorf("bridgecard create card failed: %s", string(errBytes))
+	}
+
 	// 6. Create card record in our database
 	now := time.Now()
 	nextBillingDate := now.AddDate(0, 1, 0) // One month from now
+
+	fundcardTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          params.UserID,
+		Type:            string(transaction.Card),
+		Description:     sql.NullString{String: "card-funding", Valid: true},
+		Amount:          fundingAmountDecimal.String(),
+		Currency:        "USD",
+		AmountUsd:       fundingAmountDecimal.String(),
+		Status:          string(transaction.Pending),
+		TransactionFlow: string(transaction.Outflow),
+		IdempotencyKey:  params.IdempotencyKey2,
+		TFrom:           string(transaction.Wallet),
+		TTo:             "card_provider",
+		Direction:       string(transaction.Debit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("card funding transaction failed: %w", err)
+	}
 
 	dbCard, err := qtx.CreateVirtualCard(ctx, db.CreateVirtualCardParams{
 		UserID:           params.UserID,
@@ -284,37 +353,47 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, fmt.Errorf("create card record in db error: %w", err)
 	}
 
-	// 7. Deduct funds from wallet for creation fee
-	totalDeduction := creationFee.Add(fundingAmountDecimal)
-	s.logger.Infof("total dudection is %s$", totalDeduction.String())
-	newBalance := sourceWallet.Balance.Sub(totalDeduction)
-	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		Amount: sql.NullString{String: newBalance.String(), Valid: true},
-		ID:     usdWallet.ID,
+	// create card transaction
+	dbCardtx, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  dbCard.ID,
+		UserID:                  params.UserID,
+		Amount:                  fundingAmountDecimal.IntPart(),
+		Currency:                "USD",
+		Status:                  string(transaction.Pending),
+		TransactionType:         string(transaction.Credit),
+		TransactionDate:         now,
+		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
+		BalanceAfter:            sql.NullString{String: fundingAmountDecimal.String(), Valid: true},
+		Mode:                    true,
+		TransactionTimestamp:    now,
+		BridgecardTransactionID: utils.NewTxRef("dummy"),
+		TransactionID:           cardCreationTx.ID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("deduct funds from wallet error: %w", err)
+		return nil, fmt.Errorf("create card transaction error: %w", err)
 	}
 
 	// Log creation fee billing
-	_, err = qtx.CreateCardBilling(ctx, db.CreateCardBillingParams{
+	// TODO: card billing should point to a transaction record
+	billingTx, err := qtx.CreateCardBilling(ctx, db.CreateCardBillingParams{
 		CardID:             dbCard.ID,
 		UserID:             params.UserID,
 		CardPlanID:         params.CardPlanID,
-		BillingType:        "card_creation_fee",
+		BillingType:        "creation_fee",
 		Amount:             creationFee.String(),
 		Currency:           "USD",
 		BillingPeriodStart: now, // TODO: change this to the start of the billing period
 		BillingPeriodEnd:   now, // TODO: change this to the end of the billing period
 		SourceWalletID:     usdWallet.ID,
-		Status:             string(CardBillingHistoryStatusSuccessful),
+		Status:             string(transaction.Pending),
+		TransactionID:      cardCreationTx.ID,
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to log creation fee: %v", err))
 	}
 
 	// 9. Log funding record
-	_, err = qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
+	fundingTx, err := qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
 		CardID:         dbCard.ID,
 		UserID:         params.UserID,
 		SourceWalletID: usdWallet.ID,
@@ -323,56 +402,109 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		SourceCurrency: usdWallet.Currency,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
-		Status:         string(CardFundingStatusSuccessful),
+		Status:         string(transaction.Pending),
+		TransactionID:  fundcardTx.ID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create funding record: %w", err)
 	}
 
-	// create generic tx record
-	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          params.UserID,
-		Type:            string(transaction.Card),
-		Description:     sql.NullString{String: "card-creation", Valid: true},
-		Amount:          creationFee.String(),
-		Currency:        "USD",
-		AmountUsd:       creationFee.String(),
-		Status:          string(transaction.Success),
-		TransactionFlow: string(transaction.Outflow),
+	_, err = qtx.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: totalCost.String(), Valid: true},
+		ID:      usdWallet.ID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create transaction: %w", err)
+		return nil, fmt.Errorf("deduct funds from wallet error: %w", err)
 	}
 
-	// create card transaction
-	_, err = qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
-		CardID:                  dbCard.ID,
-		UserID:                  params.UserID,
-		Amount:                  totalCost.IntPart(),
-		Currency:                "USD",
-		Status:                  string(transaction.Success),
-		TransactionType:         "card_creation_fee",
-		TransactionDate:         now,
-		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
-		BalanceAfter:            sql.NullString{String: "0", Valid: true},
-		Mode:                    true,
-		TransactionTimestamp:    now,
-		BridgecardTransactionID: utils.NewTxRef("dummy"),
-		TransactionID:           txx.ID,
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     cardCreationTx.ID,
+		Status: string(transaction.Success),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create card transaction error: %w", err)
+		return nil, fmt.Errorf("update card creation transaction status error: %w", err)
+	}
+
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     fundcardTx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card funding transaction status error: %w", err)
+	}
+
+	_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
+		ID:     dbCardtx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card transaction status error: %w", err)
+	}
+
+	_, err = qtx.UpdateCardBillingStatus(ctx, db.UpdateCardBillingStatusParams{
+		ID:     billingTx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card billing status error: %w", err)
+	}
+
+	_, err = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		ID:     fundingTx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card funding status error: %w", err)
 	}
 
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     cardCreationTx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card creation transaction status error: %w", err)
+		}
+
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     fundcardTx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card funding transaction status error: %w", err)
+		}
+
+		_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
+			ID:     dbCardtx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card transaction status error: %w", err)
+		}
+
+		_, err = qtx.UpdateCardBillingStatus(ctx, db.UpdateCardBillingStatusParams{
+			ID:     billingTx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card billing status error: %w", err)
+		}
+
+		_, err = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+			ID:     fundingTx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card funding status error: %w", err)
+		}
 		return nil, fmt.Errorf("commit transaction error: %w", err)
 	}
 
 	// TODO: Send notification to user about card creation
 	go func() {
 		if s.notifySvc != nil {
-			if _, err := s.notifySvc.Create(ctx, int32(params.UserID), "Virtual card created", "Your virtual card has been created successfully"); err != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(ctx, nil, "Virtual card created", "Your virtual card has been created successfully", "system", []int64{params.UserID}); err != nil {
 				s.logger.Errorf("failed to create notification: %v", err)
 			}
 		}
@@ -640,7 +772,7 @@ func (s *Service) AdminDeleteCard(ctx context.Context, cardID uuid.UUID, userID 
 			s.logger.Error(fmt.Sprintf("Error sending admin terminate card push notification: %v", err))
 		}
 
-		_, err = s.notifySvc.Create(ctx, int32(card.UserID), "Virtual Card Terminated", "Your virtual card has been terminated by an administrator.")
+		_, err = s.notifySvc.CreateWithRecipients(ctx, nil, "Virtual Card Terminated", "Your virtual card has been terminated by an administrator.", "system", []int64{card.UserID})
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("Error creating admin terminate card inapp notification: %v", err))
 		}
@@ -1273,7 +1405,7 @@ func (s Service) handleCardCreditSuccess(ctx context.Context, success *bridgecar
 	go func() {
 		message := fmt.Sprintf("You have successfully credited your card with %s %s", success.Amount, success.Currency)
 		if s.notifySvc != nil {
-			if _, err := s.notifySvc.Create(ctx, int32(user.ID), "Virtual card credited", message); err != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(ctx, nil, "Virtual card credited", message, "system", []int64{user.ID}); err != nil {
 				s.logger.Errorf("failed to create notification: %v", err)
 			}
 		}

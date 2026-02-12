@@ -117,7 +117,7 @@ func (ss *StreakScheduler) resetBrokenStreaksTask(ctx context.Context) error {
 
 			// Non-blocking notification
 			go func(userID int64, msg string) {
-				_, err := ss.notifService.Create(ctx, int32(userID), "Streak At Risk", msg)
+				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Streak At Risk", msg, "system", []int64{userID})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("Failed to send streak notification to user %d: %v", userID, err))
 				}
@@ -166,7 +166,7 @@ func (ss *StreakScheduler) sendStreakReminders(ctx context.Context) error {
 
 			// Send notification asynchronously
 			go func(userID int64, msg string) {
-				_, err := ss.notifService.Create(ctx, int32(userID), "Daily Streak Reminder", msg)
+				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Daily Streak Reminder", msg, "system", []int64{userID})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("Failed to send reminder to user %d: %v", userID, err))
 				}
@@ -287,7 +287,7 @@ func (ss *StreakScheduler) handleStreakMilestone(
 
 	// Check notification service
 	if ss.notifService == nil {
-		ss.logger.Error(fmt.Sprintf("❌ Notification service is nil!"))
+		ss.logger.Error("❌ Notification service is nil!")
 		return
 	}
 
@@ -320,11 +320,11 @@ func (ss *StreakScheduler) handleStreakMilestone(
 			// Send celebration notification
 			go func(uid int64, msg string, badgeName string) {
 				ss.logger.Info(fmt.Sprintf("📬 Sending badge notification to user %d: %s", uid, badgeName))
-				_, err := ss.notifService.Create(context.Background(), int32(uid), "Badge Unlocked! 🏆", msg)
+				_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, "Badge Unlocked! 🏆", msg, "system", []int64{uid})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("❌ Failed to send badge notification: %v", err))
 				} else {
-					ss.logger.Info(fmt.Sprintf("✅ Badge notification sent successfully"))
+					ss.logger.Info("✅ Badge notification sent successfully")
 				}
 			}(userID, message, badge.Name)
 		}
@@ -361,7 +361,7 @@ func (ss *StreakScheduler) handleStreakMilestone(
 		// Send notification (use background context to avoid cancellation)
 		go func(uid int64, notifTitle, msg string) {
 			ss.logger.Info(fmt.Sprintf("📬 Sending milestone notification to user %d: %s", uid, notifTitle))
-			_, err := ss.notifService.Create(context.Background(), int32(uid), notifTitle, msg)
+			_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, notifTitle, msg, "system", []int64{uid})
 			if err != nil {
 				ss.logger.Error(fmt.Sprintf("❌ Failed to send milestone notification: %v", err))
 			} else {

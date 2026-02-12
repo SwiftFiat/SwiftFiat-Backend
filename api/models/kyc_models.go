@@ -14,10 +14,7 @@ type UserKYCInformationExtended struct {
 
 type UserKYCInformation struct {
 	ID                    ID        `json:"id"`
-	UserID                ID        `json:"user_id"`
-	Tier                  int32     `json:"tier"`
-	DailyTransferLimitNgn string    `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn string    `json:"wallet_balance_limit_ngn"`
+	UserID                int64        `json:"user_id"`
 	Status                string    `json:"status"`
 	VerificationDate      time.Time `json:"verification_date"`
 	FullName              string    `json:"full_name"`
@@ -25,6 +22,7 @@ type UserKYCInformation struct {
 	Email                 string    `json:"email"`
 	Bvn                   string    `json:"bvn"`
 	Nin                   string    `json:"nin"`
+	PostalCode            string    `json:"postal_code"`
 	Gender                string    `json:"gender"`
 	SelfieUrl             string    `json:"selfie_url"`
 	IDType                string    `json:"id_type"`

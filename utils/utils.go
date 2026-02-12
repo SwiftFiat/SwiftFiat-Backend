@@ -55,6 +55,14 @@ func ToDecimal(value string) (decimal.Decimal, error) {
 	return d, nil
 }
 
+func ToFloat(value string) (float64, error) {
+	d, err := decimal.NewFromString(value)
+	if err != nil {
+		return 0, err
+	}
+	return d.InexactFloat64(), nil
+}
+
 // DollarStringToCentsString converts e.g. "3.50" → "350"
 func DollarStringToCentsString(amount string) (string, error) {
 	d, err := decimal.NewFromString(amount)

@@ -127,6 +127,18 @@ type ActiveSubscriptionSetting struct {
 	BoolValue    interface{}    `json:"bool_value"`
 }
 
+type AdminAlert struct {
+	ID             int64          `json:"id"`
+	Severity       string         `json:"severity"`
+	Title          string         `json:"title"`
+	Message        string         `json:"message"`
+	Source         sql.NullString `json:"source"`
+	Acknowledged   bool           `json:"acknowledged"`
+	AcknowledgedAt sql.NullTime   `json:"acknowledged_at"`
+	AcknowledgedBy int64          `json:"acknowledged_by"`
+	CreatedAt      time.Time      `json:"created_at"`
+}
+
 type AgentMetric struct {
 	ID                        int64          `json:"id"`
 	SupportAdminID            int64          `json:"support_admin_id"`
@@ -137,6 +149,23 @@ type AgentMetric struct {
 	CustomerSatisfactionScore sql.NullString `json:"customer_satisfaction_score"`
 	Date                      time.Time      `json:"date"`
 	CreatedAt                 time.Time      `json:"created_at"`
+}
+
+// Historical log of when alerts were triggered
+type AlertTriggerHistory struct {
+	ID                    int64          `json:"id"`
+	AlertID               uuid.UUID      `json:"alert_id"`
+	UserID                int64          `json:"user_id"`
+	TriggeredAt           time.Time      `json:"triggered_at"`
+	CurrentRate           string         `json:"current_rate"`
+	PreviousRate          sql.NullString `json:"previous_rate"`
+	ChangePercent         sql.NullString `json:"change_percent"`
+	AlertCondition        string         `json:"alert_condition"`
+	TargetRate            sql.NullString `json:"target_rate"`
+	PushNotificationSent  sql.NullBool   `json:"push_notification_sent"`
+	InAppNotificationSent sql.NullBool   `json:"in_app_notification_sent"`
+	NotificationError     sql.NullString `json:"notification_error"`
+	CreatedAt             time.Time      `json:"created_at"`
 }
 
 type Attachment struct {
@@ -355,6 +384,7 @@ type CannedResponse struct {
 
 type CardBillingHistory struct {
 	ID                 uuid.UUID      `json:"id"`
+	TransactionID      uuid.UUID      `json:"transaction_id"`
 	CardID             uuid.UUID      `json:"card_id"`
 	UserID             int64          `json:"user_id"`
 	CardPlanID         int64          `json:"card_plan_id"`
@@ -372,6 +402,7 @@ type CardBillingHistory struct {
 
 type CardFundingHistory struct {
 	ID                      uuid.UUID      `json:"id"`
+	TransactionID           uuid.UUID      `json:"transaction_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	UserID                  int64          `json:"user_id"`
 	SourceWalletID          uuid.UUID      `json:"source_wallet_id"`
@@ -559,13 +590,15 @@ type CryptoTransactionMetadatum struct {
 	ReceivedAmount       sql.NullString `json:"received_amount"`
 	SentAmount           sql.NullString `json:"sent_amount"`
 	ServiceProvider      string         `json:"service_provider"`
+	OrderID              string         `json:"order_id"`
 	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
 }
 
 type CryptoTransactionTrail struct {
 	ID              uuid.UUID      `json:"id"`
 	AddressID       string         `json:"address_id"`
-	TransactionHash string         `json:"transaction_hash"`
+	OrderID         string         `json:"order_id"`
+	TransactionHash sql.NullString `json:"transaction_hash"`
 	Amount          sql.NullString `json:"amount"`
 	CreatedAt       time.Time      `json:"created_at"`
 	UpdatedAt       time.Time      `json:"updated_at"`
@@ -695,56 +728,64 @@ type GiftcardTransactionMetadatum struct {
 }
 
 type Kyc struct {
-	ID                    int64                 `json:"id"`
-	UserID                int32                 `json:"user_id"`
-	Tier                  int32                 `json:"tier"`
-	DailyTransferLimitNgn sql.NullString        `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn sql.NullString        `json:"wallet_balance_limit_ngn"`
-	Status                string                `json:"status"`
-	VerificationDate      sql.NullTime          `json:"verification_date"`
-	FullName              sql.NullString        `json:"full_name"`
-	PhoneNumber           sql.NullString        `json:"phone_number"`
-	Email                 sql.NullString        `json:"email"`
-	Bvn                   sql.NullString        `json:"bvn"`
-	Nin                   sql.NullString        `json:"nin"`
-	Gender                sql.NullString        `json:"gender"`
-	SelfieUrl             sql.NullString        `json:"selfie_url"`
-	IDType                sql.NullString        `json:"id_type"`
-	IDNumber              sql.NullString        `json:"id_number"`
-	IDImageUrl            sql.NullString        `json:"id_image_url"`
-	State                 sql.NullString        `json:"state"`
-	Lga                   sql.NullString        `json:"lga"`
-	HouseNumber           sql.NullString        `json:"house_number"`
-	StreetName            sql.NullString        `json:"street_name"`
-	NearestLandmark       sql.NullString        `json:"nearest_landmark"`
-	ProofOfAddressType    sql.NullString        `json:"proof_of_address_type"`
-	ProofOfAddressUrl     sql.NullString        `json:"proof_of_address_url"`
-	ProofOfAddressDate    sql.NullTime          `json:"proof_of_address_date"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
-	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
+	ID                 int64                 `json:"id"`
+	UserID             int32                 `json:"user_id"`
+	Status             string                `json:"status"`
+	VerificationDate   sql.NullTime          `json:"verification_date"`
+	FullName           sql.NullString        `json:"full_name"`
+	PhoneNumber        sql.NullString        `json:"phone_number"`
+	Email              sql.NullString        `json:"email"`
+	Gender             sql.NullString        `json:"gender"`
+	SelfieUrl          sql.NullString        `json:"selfie_url"`
+	Bvn                sql.NullString        `json:"bvn"`
+	Nin                sql.NullString        `json:"nin"`
+	IDType             sql.NullString        `json:"id_type"`
+	IDNumber           sql.NullString        `json:"id_number"`
+	IDImageUrl         sql.NullString        `json:"id_image_url"`
+	State              sql.NullString        `json:"state"`
+	Lga                sql.NullString        `json:"lga"`
+	HouseNumber        sql.NullString        `json:"house_number"`
+	StreetName         sql.NullString        `json:"street_name"`
+	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
+	PostalCode         sql.NullString        `json:"postal_code"`
+	Country            sql.NullString        `json:"country"`
+	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	AdditionalInfo     pqtype.NullRawMessage `json:"additional_info"`
 }
 
 type LedgerEntry struct {
 	ID               uuid.UUID     `json:"id"`
 	TransactionID    uuid.NullUUID `json:"transaction_id"`
 	WalletID         uuid.NullUUID `json:"wallet_id"`
-	Type             string        `json:"type"`
+	EntryType        string        `json:"entry_type"`
 	Amount           string        `json:"amount"`
-	Balance          string        `json:"balance"`
-	CreatedAt        time.Time     `json:"created_at"`
 	SourceType       string        `json:"source_type"`
 	DestinationType  string        `json:"destination_type"`
+	CreatedAt        time.Time     `json:"created_at"`
 	DeletedAccountID uuid.NullUUID `json:"deleted_account_id"`
 }
 
 type Notification struct {
-	ID        int32         `json:"id"`
-	UserID    sql.NullInt32 `json:"user_id"`
-	Message   string        `json:"message"`
-	Read      sql.NullBool  `json:"read"`
-	CreatedAt sql.NullTime  `json:"created_at"`
-	Title     string        `json:"title"`
+	ID            int64                 `json:"id"`
+	SenderAdminID sql.NullInt64         `json:"sender_admin_id"`
+	Source        string                `json:"source"`
+	Title         sql.NullString        `json:"title"`
+	Message       string                `json:"message"`
+	Metadata      pqtype.NullRawMessage `json:"metadata"`
+	CreatedAt     time.Time             `json:"created_at"`
+}
+
+type NotificationRecipient struct {
+	ID             int64        `json:"id"`
+	NotificationID int64        `json:"notification_id"`
+	UserID         int64        `json:"user_id"`
+	Read           bool         `json:"read"`
+	ReadAt         sql.NullTime `json:"read_at"`
+	CreatedAt      time.Time    `json:"created_at"`
 }
 
 type Otp struct {
@@ -755,6 +796,40 @@ type Otp struct {
 	CreatedAt time.Time `json:"created_at"`
 	ExpiresAt time.Time `json:"expires_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// Stores user-configured price alerts for cryptocurrency-to-fiat rate monitoring
+type PriceAlert struct {
+	ID             uuid.UUID `json:"id"`
+	UserID         int64     `json:"user_id"`
+	SourceCurrency string    `json:"source_currency"`
+	TargetCurrency string    `json:"target_currency"`
+	// Type of price condition: above, below, equals, percent_up, percent_down, range, breakout
+	AlertCondition string `json:"alert_condition"`
+	// Alert behavior: one_time (trigger once), recurring (trigger multiple times), trailing (dynamic stop-loss/buy)
+	AlertType        string         `json:"alert_type"`
+	Priority         string         `json:"priority"`
+	TargetRate       sql.NullString `json:"target_rate"`
+	PercentageChange sql.NullString `json:"percentage_change"`
+	RangeMin         sql.NullString `json:"range_min"`
+	RangeMax         sql.NullString `json:"range_max"`
+	BaselineRate     sql.NullString `json:"baseline_rate"`
+	// For trailing alerts: percentage distance from peak/trough (e.g., 5 for 5%)
+	TrailingDistance sql.NullString `json:"trailing_distance"`
+	MaxTrailingRate  sql.NullString `json:"max_trailing_rate"`
+	MinTrailingRate  sql.NullString `json:"min_trailing_rate"`
+	Description      sql.NullString `json:"description"`
+	Label            sql.NullString `json:"label"`
+	IsActive         bool           `json:"is_active"`
+	TriggeredCount   int32          `json:"triggered_count"`
+	LastTriggeredAt  sql.NullTime   `json:"last_triggered_at"`
+	LastCheckedAt    sql.NullTime   `json:"last_checked_at"`
+	ExpiresAt        sql.NullTime   `json:"expires_at"`
+	NotifyPush       bool           `json:"notify_push"`
+	NotifyInApp      bool           `json:"notify_in_app"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
+	DeletedAt        sql.NullTime   `json:"deleted_at"`
 }
 
 type ProofOfAddressImage struct {
@@ -935,12 +1010,12 @@ type Referral struct {
 }
 
 type ReferralConfig struct {
-	ID                         int64     `json:"id"`
-	ReferralAmount             string    `json:"referral_amount"`
-	MinimumWithdrawalThreshold string    `json:"minimum_withdrawal_threshold"`
-	Singleton                  bool      `json:"singleton"`
-	CreatedAt                  time.Time `json:"created_at"`
-	UpdatedAt                  time.Time `json:"updated_at"`
+	ID                                    int64     `json:"id"`
+	ReferralAmount                        string    `json:"referral_amount"`
+	ReferralPercentageEarnedPerConversion string    `json:"referral_percentage_earned_per_conversion"`
+	Singleton                             bool      `json:"singleton"`
+	CreatedAt                             time.Time `json:"created_at"`
+	UpdatedAt                             time.Time `json:"updated_at"`
 }
 
 type ReferralEarning struct {
@@ -962,6 +1037,18 @@ type ReferralEntry struct {
 	CreatedAt      time.Time    `json:"created_at"`
 	UpdatedAt      time.Time    `json:"updated_at"`
 	DeletedAt      sql.NullTime `json:"deleted_at"`
+}
+
+type ReferralTransaction struct {
+	ID              int64         `json:"id"`
+	UserID          int32         `json:"user_id"`
+	Amount          string        `json:"amount"`
+	TransactionID   uuid.NullUUID `json:"transaction_id"`
+	TransactionType string        `json:"transaction_type"`
+	Reference       string        `json:"reference"`
+	Status          string        `json:"status"`
+	CreatedAt       time.Time     `json:"created_at"`
+	UpdatedAt       time.Time     `json:"updated_at"`
 }
 
 // Admin-defined reward rate configurations
@@ -1127,6 +1214,22 @@ type SwiftWallet struct {
 	UpdatedAt  time.Time      `json:"updated_at"`
 }
 
+// System-wide metrics for monitoring alert system health
+type SystemAlertMetric struct {
+	TotalAlerts         int64   `json:"total_alerts"`
+	ActiveAlerts        int64   `json:"active_alerts"`
+	InactiveAlerts      int64   `json:"inactive_alerts"`
+	UniqueUsers         int64   `json:"unique_users"`
+	UniqueCurrencyPairs int64   `json:"unique_currency_pairs"`
+	AvgTriggersPerAlert float64 `json:"avg_triggers_per_alert"`
+	OneTimeAlerts       int64   `json:"one_time_alerts"`
+	RecurringAlerts     int64   `json:"recurring_alerts"`
+	TrailingAlerts      int64   `json:"trailing_alerts"`
+	CriticalAlerts      int64   `json:"critical_alerts"`
+	HighPriorityAlerts  int64   `json:"high_priority_alerts"`
+	ExpiredAlerts       int64   `json:"expired_alerts"`
+}
+
 type SystemSetting struct {
 	ID                      int32        `json:"id"`
 	RewardsEnabled          sql.NullBool `json:"rewards_enabled"`
@@ -1170,6 +1273,10 @@ type Transaction struct {
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      string         `json:"transaction_flow"`
 	Amount               string         `json:"amount"`
+	IdempotencyKey       string         `json:"idempotency_key"`
+	TFrom                string         `json:"t_from"`
+	TTo                  string         `json:"t_to"`
+	Direction            string         `json:"direction"`
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
@@ -1232,6 +1339,10 @@ type User struct {
 	IsKycVerified                bool           `json:"is_kyc_verified"`
 	BridgecardVerificationStatus sql.NullString `json:"bridgecard_verification_status"`
 	BridgecardCardholderID       sql.NullString `json:"bridgecard_cardholder_id"`
+	IsRapidRampOn                bool           `json:"is_rapid_ramp_on"`
+	HasCompletedFirstConversion  sql.NullBool   `json:"has_completed_first_conversion"`
+	FirstConversionID            uuid.NullUUID  `json:"first_conversion_id"`
+	FirstConversionAt            sql.NullTime   `json:"first_conversion_at"`
 	CreatedAt                    time.Time      `json:"created_at"`
 	UpdatedAt                    time.Time      `json:"updated_at"`
 	DeletedAt                    sql.NullTime   `json:"deleted_at"`
@@ -1263,6 +1374,17 @@ type UserActivityTimeline struct {
 	Success     bool           `json:"success"`
 	IpAddress   pqtype.Inet    `json:"ip_address"`
 	CreatedAt   time.Time      `json:"created_at"`
+}
+
+// Aggregated statistics per user for alert usage
+type UserAlertStat struct {
+	UserID          int64       `json:"user_id"`
+	TotalAlerts     int64       `json:"total_alerts"`
+	ActiveAlerts    int64       `json:"active_alerts"`
+	PausedAlerts    int64       `json:"paused_alerts"`
+	TotalTriggers   int64       `json:"total_triggers"`
+	UniquePairs     int64       `json:"unique_pairs"`
+	LastTriggerTime interface{} `json:"last_trigger_time"`
 }
 
 // Junction table tracking which badges users have earned
@@ -1550,13 +1672,4 @@ type VwVipUpgradeCandidate struct {
 	EligibleLevelRank      int32          `json:"eligible_level_rank"`
 	EligibleLevelID        uuid.UUID      `json:"eligible_level_id"`
 	VolumeToNextLevel      int32          `json:"volume_to_next_level"`
-}
-
-type WithdrawalRequest struct {
-	ID        int64     `json:"id"`
-	UserID    int32     `json:"user_id"`
-	Amount    string    `json:"amount"`
-	Status    string    `json:"status"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
 }

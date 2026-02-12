@@ -117,6 +117,7 @@ CREATE INDEX idx_virtual_cards_autotopup ON virtual_cards(auto_topup_enabled) WH
  */
  CREATE TABLE IF NOT EXISTS "card_funding_history" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE SET NULL,
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
@@ -171,7 +172,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     
     -- BridgeCard transaction reference
     "bridgecard_transaction_id" VARCHAR(255) UNIQUE NOT NULL,
-    "transaction_type" VARCHAR(50) NOT NULL, 
+    "transaction_type" VARCHAR(50) NOT NULL check (transaction_type IN ('debit', 'credit', 'reversal')),
     -- Types: 'debit', 'credit', 'reversal', 'refund'
     
     -- Merchant details (from BridgeCard webhook) 
@@ -189,8 +190,8 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     "billing_currency" VARCHAR(3),
     
     -- Status
-    "status" VARCHAR(20) NOT NULL,
-    -- Status: 'pending', 'successful', 'declined', 'reversed'
+    "status" VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'successful', 'failed', 'reversed')),
+    -- Status: 'pending', 'successful', 'failed', 'reversed'
     "decline_reason" TEXT,
     
     -- Classification (for subscription detection)
@@ -391,6 +392,7 @@ CREATE INDEX idx_subscription_reminders_status ON subscription_reminders(status)
  */
 CREATE TABLE IF NOT EXISTS "card_billing_history" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE SET NULL,
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,

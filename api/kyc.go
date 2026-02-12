@@ -31,19 +31,126 @@ func (k KYC) router(server *Server) {
 	k.server = server
 	k.notifyr = service.NewNotificationService(k.server.queries)
 
-	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
 	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
 	serverGroupV1.POST("validate-bvn", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateNIN)
 	serverGroupV1.POST("update-address", k.server.authMiddleware.AuthenticatedMiddleware(), k.updateAddress)
-	serverGroupV1.POST("submit-utility", k.server.authMiddleware.AuthenticatedMiddleware(), k.submitUtility)
 	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
 	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
+	
+	// New endpoint to check verification progress
+	serverGroupV1.GET("verification-progress", k.server.authMiddleware.AuthenticatedMiddleware(), k.getVerificationProgress)
+}
+
+// getVerificationProgress returns which fields are completed and what's still needed
+func (k *KYC) getVerificationProgress(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("No KYC record found", gin.H{
+			"completed_fields": []string{},
+			"pending_fields": []string{
+				"full_name", "phone_number", "email", "bvn_or_nin", 
+				"gender", "selfie", "government_id", "address", "proof_of_address",
+			},
+			"progress_percentage": 0,
+			"is_verified": false,
+		}))
+		return
+	} else if err != nil {
+		k.server.logger.Errorf("get progress failed [kyc/getVerificationProgress]: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Calculate progress
+	completedFields := []string{}
+	pendingFields := []string{}
+	totalFields := 9
+	completedCount := 0
+
+	// Check each requirement
+	if userKyc.FullName.Valid && userKyc.FullName.String != "" {
+		completedFields = append(completedFields, "full_name")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "full_name")
+	}
+
+	if userKyc.PhoneNumber.Valid && userKyc.PhoneNumber.String != "" {
+		completedFields = append(completedFields, "phone_number")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "phone_number")
+	}
+
+	if userKyc.Email.Valid && userKyc.Email.String != "" {
+		completedFields = append(completedFields, "email")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "email")
+	}
+
+	if (userKyc.Bvn.Valid && userKyc.Bvn.String != "") || (userKyc.Nin.Valid && userKyc.Nin.String != "") {
+		completedFields = append(completedFields, "bvn_or_nin")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "bvn_or_nin")
+	}
+
+	if userKyc.Gender.Valid && userKyc.Gender.String != "" {
+		completedFields = append(completedFields, "gender")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "gender")
+	}
+
+	if userKyc.SelfieUrl.Valid && userKyc.SelfieUrl.String != "" {
+		completedFields = append(completedFields, "selfie")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "selfie")
+	}
+
+	if userKyc.IDType.Valid && userKyc.IDNumber.Valid && userKyc.IDImageUrl.Valid {
+		completedFields = append(completedFields, "government_id")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "government_id")
+	}
+
+	if userKyc.State.Valid && userKyc.Lga.Valid && userKyc.HouseNumber.Valid && userKyc.StreetName.Valid && userKyc.PostalCode.Valid {
+		completedFields = append(completedFields, "address")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "address")
+	}
+
+	if userKyc.ProofOfAddressType.Valid && userKyc.ProofOfAddressUrl.Valid && userKyc.ProofOfAddressDate.Valid {
+		completedFields = append(completedFields, "proof_of_address")
+		completedCount++
+	} else {
+		pendingFields = append(pendingFields, "proof_of_address")
+	}
+
+	progressPercentage := (completedCount * 100) / totalFields
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("KYC Verification Progress", gin.H{
+		"completed_fields":    completedFields,
+		"pending_fields":      pendingFields,
+		"progress_percentage": progressPercentage,
+		"is_verified":         userKyc.Status == "verified",
+		"status":              userKyc.Status,
+	}))
 }
 
 func (k *KYC) getUserKyc(ctx *gin.Context) {
-	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -76,14 +183,12 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	/// Check if user exists
 	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -93,7 +198,6 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	/// check varification status
 	if !dbUser.Verified {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
@@ -116,41 +220,32 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 	verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, &request.DOB)
 	if err != nil {
 		k.server.logger.Error(err)
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure, please try again later: %s", err)))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure: %s", err)))
 		return
 	}
-	/// Log Verification DATA
+
 	k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
 
-	/// FirstName does not match First Name on BVN
 	if !verificationData.FirstName.Status {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
 		return
 	}
 
-	/// LastName does not match Last Name on BVN
 	if !verificationData.LastName.Status {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
 		return
 	}
 
-	/// DOB does not match DOB on BVN
 	if !verificationData.DOB.Status {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
 		return
 	}
 
-	/// Check for User's KYC file or create one if it doesn't exist
+	// Get or create KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
-		userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
-			UserID: int32(activeUser.UserID),
-			Tier:   0,
-		})
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-			return
-		} else if err != nil {
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, int32(activeUser.UserID))
+		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
 		}
@@ -159,15 +254,14 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	// Determine gender first
-	/// Default user's gender to male unless explicitly specified
-	/// Suggested by Joel SwiftFiat => 06/Oct/'24 - 5:41pm
+	// Default gender to male unless specified
 	genderString := "male"
 	if request.Gender != "" {
 		genderString = request.Gender
 	}
 
-	args := db.UpdateKYCLevel1Params{
+	// Update KYC with BVN information
+	args := db.UpdateKYCBasicInfoParams{
 		ID: userKyc.ID,
 		FullName: sql.NullString{
 			String: dbUser.FirstName.String + " " + dbUser.LastName.String,
@@ -195,43 +289,23 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		},
 	}
 
-	tx, err := k.server.queries.DB.Begin()
+	kyc, err := k.server.queries.UpdateKYCBasicInfo(ctx, args)
 	if err != nil {
 		k.server.logger.Error(err)
-		panic(err)
-	}
-	defer tx.Rollback()
-
-	kyc, err := k.server.queries.WithTx(tx).UpdateKYCLevel1(ctx, args)
-	if err != nil {
-		k.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC update failed at DB level"))
 		return
 	}
 
-	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		IsKycVerified: true,
-		ID:            activeUser.UserID,
-		UpdatedAt:     time.Now(),
-	})
-	if err != nil {
-		k.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-		return
+	// Check if user is now fully verified (will be handled by trigger)
+	// But we can still check and provide feedback
+	if kyc.Status == "verified" {
+		k.onKYCCompletion(ctx, activeUser.UserID)
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
+	} else {
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "BVN Verified", "Your BVN has been successfully verified. Please complete remaining KYC steps.")
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		k.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-		return
-	}
-
-	k.onKYCCompletion(ctx, activeUser.UserID)
-
-	k.notifyr.Create(ctx, int32(activeUser.UserID), "BVN Success", "Congratulatioon, your account has been verified and upgraded to Teir 1")
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN Success", models.ToUserKYCInformation(&kyc)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN verified successfully", models.ToUserKYCInformation(&kyc)))
 }
 
 func (k *KYC) validateNIN(ctx *gin.Context) {
@@ -247,14 +321,12 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	/// Check if user exists
 	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -264,7 +336,6 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	/// check varification status
 	if !dbUser.Verified {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
@@ -276,6 +347,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
+
 	kycProvider, ok := provider.(*kyc.DOJAHProvider)
 	if !ok {
 		k.server.logger.Error("Cannot convert provider to DOJAHProvider")
@@ -283,51 +355,31 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	verificationData, err := kycProvider.ValidateNIN(request)
+	ninRequest := map[string]interface{}{
+		"nin":    request.NIN,
+		"selfie": request.Selfie,
+	}
+
+	verificationData, err := kycProvider.ValidateNIN(ninRequest)
 	if err != nil {
 		k.server.logger.Error(err)
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("NIN Validation Failure, please try again later"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("NIN Validation Failure: %s", err)))
 		return
 	}
 
-	/// Log Verification DATA
-	k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
+	k.server.logger.Log(logrus.InfoLevel, "NIN Verification Data: ", verificationData)
 
-	/// FirstName does not match First Name on BVN
-	if verificationData.FirstName == "" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on NIN"))
-		return
-	}
-
-	/// LastName does not match Last Name on BVN
-	if verificationData.LastName == "" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on NIN"))
-		return
-	}
-
-	/// LastName does not match Last Name on BVN
+	// Validate selfie match
 	if !verificationData.SelfieVerification.Match {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided Image does not match Image on NIN"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Selfie verification failed. Please ensure your face is clearly visible."))
 		return
 	}
 
-	/// check verification data status
-	if !verificationData.SelfieVerification.Match {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided Image does not match Image on NIN"))
-		return
-	}
-
-	/// Check for User's KYC file or create one if it doesn't exist
+	// Get or create KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
-		userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
-			UserID: int32(activeUser.UserID),
-			Tier:   0,
-		})
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-			return
-		} else if err != nil {
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, int32(activeUser.UserID))
+		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
 		}
@@ -336,66 +388,71 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	args := db.UpdateKYCNINParams{
+	// Update KYC with NIN information
+	args := db.UpdateKYCNINInfoParams{
 		ID: userKyc.ID,
 		Nin: sql.NullString{
 			String: verificationData.NIN,
-			Valid:  verificationData.NIN != "",
+			Valid:  true,
+		},
+		Gender: sql.NullString{
+			String: strings.ToLower(verificationData.Gender),
+			Valid:  true,
+		},
+		SelfieUrl: sql.NullString{
+			String: verificationData.Image,
+			Valid:  true,
 		},
 	}
-	kyc, err := k.server.queries.UpdateKYCNIN(ctx, args)
+
+	kyc, err := k.server.queries.UpdateKYCNINInfo(ctx, args)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC update failed at DB level"))
 		return
 	}
-	k.notifyr.Create(ctx, int32(activeUser.UserID), "NIN Success", "Congratulatioon, your NIN verification is successful")
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN Validation Success", models.ToUserKYCInformation(&kyc)))
+	if kyc.Status == "verified" {
+		k.onKYCCompletion(ctx, activeUser.UserID)
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
+	} else {
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "NIN Verified", "Your NIN has been successfully verified. Please complete remaining KYC steps.")
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN verified successfully", models.ToUserKYCInformation(&kyc)))
 }
 
 func (k *KYC) updateAddress(ctx *gin.Context) {
 	request := struct {
-		State           string `json:"state" binding:"required"`
-		LGA             string `json:"lga" binding:"required"`
-		HouseNumber     string `json:"house_number"`
-		StreetName      string `json:"street_name"`
-		NearestLandmark string `json:"nearest_landmark" binding:"required"`
+		State            string `json:"state" binding:"required"`
+		LGA              string `json:"lga" binding:"required"`
+		HouseNumber      string `json:"house_number" binding:"required"`
+		StreetName       string `json:"street_name" binding:"required"`
+		NearestLandmark  string `json:"nearest_landmark"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		k.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidAddressInput))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid address input"))
 		return
 	}
 
-	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	/// check varification status
 	if !activeUser.Verified {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
 	}
 
-	/// Check for User's KYC file or create one if it doesn't exist
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
-		userKyc, err = k.server.queries.CreateNewKYC(ctx, db.CreateNewKYCParams{
-			UserID: int32(activeUser.UserID),
-			Tier:   0,
-		})
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-			return
-		} else if err != nil {
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-			return
-		}
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
+		return
 	} else if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
@@ -405,19 +462,19 @@ func (k *KYC) updateAddress(ctx *gin.Context) {
 		ID: userKyc.ID,
 		State: sql.NullString{
 			String: request.State,
-			Valid:  request.State != "",
+			Valid:  true,
 		},
 		Lga: sql.NullString{
 			String: request.LGA,
-			Valid:  request.LGA != "",
+			Valid:  true,
 		},
 		HouseNumber: sql.NullString{
 			String: request.HouseNumber,
-			Valid:  request.HouseNumber != "",
+			Valid:  true,
 		},
 		StreetName: sql.NullString{
 			String: request.StreetName,
-			Valid:  request.StreetName != "",
+			Valid:  true,
 		},
 		NearestLandmark: sql.NullString{
 			String: request.NearestLandmark,
@@ -425,96 +482,24 @@ func (k *KYC) updateAddress(ctx *gin.Context) {
 		},
 	}
 
-	tx, err := k.server.queries.DB.Begin()
+	kyc, err := k.server.queries.UpdateKYCAddress(ctx, args)
 	if err != nil {
-		panic(err)
-	}
-	defer tx.Rollback()
-
-	kyc, err := k.server.queries.WithTx(tx).UpdateKYCAddress(ctx, args)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
 		return
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC Validation error occurred at the DB Level"))
-		return
+	if kyc.Status == "verified" {
+		k.onKYCCompletion(ctx, activeUser.UserID)
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
+	} else {
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "Address Updated", "Your address has been successfully updated.")
 	}
 
-	k.notifyr.Create(ctx, int32(activeUser.UserID), "Address Updatae", "Congratulatioon, your address is updated")
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Update address success", models.ToUserKYCInformation(&kyc)))
-}
-
-func (k *KYC) submitUtility(ctx *gin.Context) {
-	// Get the form data (file)
-	file, header, err := ctx.Request.FormFile("file")
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File is required"))
-		return
-	}
-	defer file.Close()
-
-	// Check file size
-	if header.Size > 15*1024*1024 {
-		ctx.JSON(http.StatusRequestEntityTooLarge, basemodels.NewError("File size exceeds 15MB"))
-		return
-	}
-
-	// Read the image data
-	imageData, err := io.ReadAll(file)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Error parsing file"))
-		return
-	}
-
-	// Get the proof type from the form
-	proofType := ctx.DefaultPostForm("proof_type", "Utility Bill")
-
-	// Prepare the filename (use the form field or default to "proof_image.png")
-	filename := ctx.DefaultPostForm("filename", fmt.Sprintf("utility_image %v.png", time.Now().UTC()))
-
-	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	/// check varification status
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
-	// Insert into the database
-	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
-		UserID:    int32(activeUser.UserID),
-		Filename:  filename,
-		ProofType: proofType,
-		ImageData: imageData,
-	})
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address %s", err)))
-		return
-	}
-
-	k.notifyr.Create(ctx, int32(activeUser.UserID), "Utility Bill  Verification", "Congratulations, your verification is successful")
-
-	// Respond with success
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
-		"id":         models.ID(proof.ID),
-		"user_id":    models.ID(proof.UserID),
-		"filename":   proof.Filename,
-		"proof_type": proof.ProofType,
-		"created_at": proof.CreatedAt,
-	}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Address updated successfully", models.ToUserKYCInformation(&kyc)))
 }
 
 func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
-	// Get the form data (file)
 	file, header, err := ctx.Request.FormFile("file")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("file is required"))
@@ -522,7 +507,6 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 	defer file.Close()
 
-	// Get the proof type from the form
 	proofType := ctx.PostForm("proof_type")
 	if proofType == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("proof_type is required"))
@@ -530,11 +514,8 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	allowedProofTypes := []string{"utility_bill", "bank_statement", "tenancy_agreement"}
-
-	// Normalize the input string
 	normalizedProofType := strings.ToLower(strings.ReplaceAll(proofType, " ", "_"))
 
-	// Check if proof type is valid
 	isValidProofType := false
 	for _, allowedType := range allowedProofTypes {
 		if allowedType == normalizedProofType {
@@ -548,14 +529,12 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		return
 	}
 
-	// Check file size
 	if header.Size > 15*1024*1024 {
 		ctx.JSON(http.StatusRequestEntityTooLarge, basemodels.NewError("File size exceeds 15MB"))
 		return
 	}
 
-	// Ensure the file type is PNG, JPG, or JPEG
-	allowedContentTypes := []string{"image/png", "image/jpeg", "image/jpg"}
+	allowedContentTypes := []string{"image/png", "image/jpeg", "image/jpg", "application/pdf"}
 	fileContentType := header.Header.Get("Content-Type")
 	isValidContentType := false
 	for _, allowedType := range allowedContentTypes {
@@ -566,34 +545,30 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	if !isValidContentType {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File type must be PNG, JPG, or JPEG"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("File type must be PNG, JPG, JPEG, or PDF"))
 		return
 	}
 
-	// Read the image data
 	imageData, err := io.ReadAll(file)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Error parsing file"))
 		return
 	}
 
-	// Prepare the filename (use the form field or default to "proof_image.png")
-	filename := ctx.DefaultPostForm("filename", fmt.Sprintf("%v %v.png", proofType, time.Now().UTC()))
+	filename := ctx.DefaultPostForm("filename", fmt.Sprintf("%v_%v", proofType, time.Now().UTC().Format("20060102_150405")))
 
-	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	/// check varification status
 	if !activeUser.Verified {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
 		return
 	}
 
-	// Insert into the database
+	// Store proof document
 	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
 		UserID:    int32(activeUser.UserID),
 		Filename:  filename,
@@ -601,62 +576,87 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		ImageData: imageData,
 	})
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address %s", err)))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("Failed to upload proof of address: %s", err)))
 		return
 	}
 
-	k.notifyr.Create(ctx, int32(activeUser.UserID), "Proof of Address Verification", "Congratulations, your verification was successful")
+	// Update KYC with proof information
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
+		return
+	}
 
-	// Respond with success
+	args := db.UpdateKYCProofOfAddressParams{
+		ID: userKyc.ID,
+		ProofOfAddressType: sql.NullString{
+			String: normalizedProofType,
+			Valid:  true,
+		},
+		ProofOfAddressUrl: sql.NullString{
+			String: fmt.Sprintf("/api/v1/kyc/retrieve-address-proof/%d", proof.ID),
+			Valid:  true,
+		},
+		ProofOfAddressDate: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	kyc, err := k.server.queries.UpdateKYCProofOfAddress(ctx, args)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to update KYC with proof information"))
+		return
+	}
+
+	if kyc.Status == "verified" {
+		k.onKYCCompletion(ctx, activeUser.UserID)
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete and your account is now fully verified.")
+	} else {
+		// k.notifyr.Create(ctx, int32(activeUser.UserID), "Proof of Address Uploaded", "Your proof of address has been uploaded successfully.")
+	}
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
-		"id":         models.ID(proof.ID),
-		"user_id":    models.ID(proof.UserID),
-		"filename":   proof.Filename,
-		"proof_type": proof.ProofType,
-		"created_at": proof.CreatedAt,
-		"verified":   proof.Verified,
+		"id":              models.ID(proof.ID),
+		"user_id":         models.ID(proof.UserID),
+		"filename":        proof.Filename,
+		"proof_type":      proof.ProofType,
+		"created_at":      proof.CreatedAt,
+		"kyc_status":      kyc.Status,
+		"kyc_verified":    kyc.Status == "verified",
 	}))
 }
 
-// Retrieve Proof of Address by Proof ID (GET) - Admin
 func (k *KYC) retrieveProofOfAddress(c *gin.Context) {
-	// Retrieve the ID from the URL
 	id := c.Param("id")
-	// Convert the ID to int32
 	idObj, err := models.ParseIDFromString(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid document ID"})
 		return
 	}
 
-	// Fetch the image data from the database
 	proof, err := k.server.queries.GetProofImage(c, int32(idObj))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Proof of address not found"})
 		return
 	}
 
-	// Set the content type based on file extension
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", proof.Filename))
-
-	// Send the image as a response
 	c.Data(http.StatusOK, "application/octet-stream", proof.ImageData)
 }
 
 func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
-	// Check if the user has a referrer
 	referral, err := k.server.queries.GetReferralByRefereeID(ctx, int32(userID))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			// No referrer found, nothing to do
 			return
 		}
 		k.server.logger.Error(err)
 		return
 	}
 
-	// Get the referrer's ID and referral bonus amount
 	referrerID := int64(referral.ReferrerID)
 	referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
 	if err != nil {
@@ -664,7 +664,6 @@ func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
 		return
 	}
 
-	// Update the referrer's earnings
 	params := db.UpdateReferralEarningsParams{
 		UserID:      int32(referrerID),
 		TotalEarned: referralBonus.String(),
@@ -674,8 +673,9 @@ func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
 		k.server.logger.Error(err)
 		return
 	}
+
 	err = k.server.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
-		RefereeID: referral.ID,
+		ID: referral.ID,
 		Status:    "active",
 	})
 	if err != nil {
@@ -683,6 +683,6 @@ func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
 		return
 	}
 
-	// Notify the referrer
-	k.notifyr.Create(ctx, int32(referrerID), "Referral", fmt.Sprintf("You have received a referral bonus of %s for referring a user who completed their KYC.", referralBonus.String()))
+	// k.notifyr.Create(ctx, int32(referrerID), "Referral Bonus", 
+		// fmt.Sprintf("You've earned %s for referring a user who completed KYC verification!", referralBonus.String()))
 }

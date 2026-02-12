@@ -2,6 +2,7 @@ package api
 
 import (
 	"bytes"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
@@ -192,7 +193,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		OrderId:     orderID,
 		UrlCallback: callbackURL,
 	}
-	c.server.logger.Info(fmt.Sprintf("Creating static wallet with request: %+v", walletRequest))
+	// c.server.logger.Info(fmt.Sprintf("Creating static wallet with request: %+v", walletRequest))
 
 	staticWallet, err := cryptoProvider.CreateStaticWallet(walletRequest)
 	if err != nil {
@@ -204,7 +205,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 			ctx,
 			audit.CategoryCrypto,
 			audit.EventCreateStaticWallet,
-			staticWallet.UUID,
+			"",
 			"static wallet creation failed",
 			&activeUser.UserID,
 			activeUser.Role,
@@ -392,44 +393,161 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		return
 	}
 
-	if res.Status == "paid" {
-		// Handle USDT and USDC wallet funding
-		// Handle regular crypto inflow
+	// If orderid exist and transaction status is successful, do nothing.
+	t, err := c.server.queries.GetCryptoMetadataByOrderID(ctx, payload.OrderID)
+	if err == nil {
+		tx, err := c.server.queries.GetTransactionByID(ctx, t.TransactionID)
+		if err == nil && transaction.TransactionStatus(tx.Status) == transaction.Success {
+			c.server.logger.Infof("transaction already successful for order_id: %s, skipping processing", payload.OrderID)
+			return
+		}
+	} else if err != sql.ErrNoRows {
+		c.server.logger.Errorf("error retrieving crypto metadata: %v", err)
+	}
+	
+
+	switch payload.Status {
+	case "confirm_check", "process":
+		// Create pending transaction
+		c.server.logger.Info("Processing confirm_check status - creating pending transaction")
+		err := c.handleConfirmCheck(ctx, payload)
+		if err != nil {
+			c.server.logger.Errorf("handleConfirmCheck error: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewCustomResponse("failed", "handleConfirmCheck error", err.Error()))
+			return
+		}
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("pending transaction created", gin.H{
+			"data":     res,
+			"order_id": payload.OrderID,
+			"status":   "pending_transaction_created",
+		}))
+
+	case "paid":
+		// Stage 2: Complete transaction
+		c.server.logger.Info("Processing paid status - completing transaction")
+
+		// Convert amount
 		amountDec, err := decimal.NewFromString(payload.MerchantAmount)
 		if err != nil {
-			c.server.logger.Errorf("conversion error2: %v", err)
+			c.server.logger.Errorf("conversion error: %v", err)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 			return
 		}
+
+		// Parse transaction UUID
 		txid, err := uuid.Parse(payload.UUID)
 		if err != nil {
-			c.server.logger.Errorf("UUID conversion error3: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occured while processing webhook"))
+			c.server.logger.Errorf("UUID conversion error: %v", err)
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred while processing webhook"))
 			return
 		}
 
+		// Build crypto transaction object
 		cryptoTransaction := transaction.CryptoTransaction{
 			SourceHash:         payload.Sign,
 			DestinationAddress: payload.From,
 			AmountInSatoshis:   amountDec,
-			Coin:               strings.ToLower(payload.Currency), // Convert to lowercase so coingecko dont break
-			Description:        "Crypto Inflow",
+			Coin:               strings.ToLower(payload.Currency),
+			Description:        "Crypto Conversion",
 			Type:               transaction.Deposit,
 			ReceivedAmount:     amountDec,
 			TransactionID:      txid,
 		}
 
+		// Process the full transaction (creates or updates to successful)
 		_, err = c.transactionService.CreateAllCryptoINflowTXs(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
 		if err != nil {
 			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+			ctx.JSON(http.StatusOK, gin.H{
+				"status":  "error",
+				"message": "Failed to process transaction",
+				"error":   err.Error(),
+			})
+			return
 		}
+
+		ctx.JSON(http.StatusOK, gin.H{
+			"data":     res,
+			"order_id": payload.OrderID,
+			"status":   "transaction_completed",
+		})
+
+	default:
+		// Handle other statuses (failed, cancelled, etc.)
+		c.server.logger.Warnf("Received unhandled webhook status: %s", res.Status)
+		ctx.JSON(http.StatusOK, gin.H{
+			"data":     res,
+			"order_id": payload.OrderID,
+			"status":   res.Status,
+			"message":  "Status acknowledged but not processed",
+		})
+	}
+}
+
+// handleConfirmCheck creates a pending transaction record when crypto is detected but not yet confirmed
+func (c *CryptoAPI) handleConfirmCheck(ctx *gin.Context, payload cryptocurrency.WebhookPayload) error {
+	c.server.logger.Info("Creating pending transaction for confirm_check status")
+
+	// parse amount
+	amountDec, err := decimal.NewFromString(payload.MerchantAmount)
+	if err != nil {
+		c.server.logger.Errorf("conversion error: %v", err)
+		return err
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"data":     res,
-		"order_id": payload.OrderID,
-		"status":   payload.Status,
-	})
+	// parse transaction ID
+	txid, err := uuid.Parse(payload.UUID)
+	if err != nil {
+		c.server.logger.Errorf("UUID conversion error: %v", err)
+		return err
+	}
+
+	// create pending transaction
+	cryptoTransaction := transaction.CryptoTransaction{
+		SourceHash:         payload.Sign,
+		DestinationAddress: payload.From,
+		AmountInSatoshis:   amountDec,
+		Coin:               strings.ToLower(payload.Currency),
+		Description:        "Crypto Conversion",
+		Type:               transaction.Deposit,
+		ReceivedAmount:     amountDec,
+		TransactionID:      txid,
+	}
+
+	// create pending transaction
+	_, err = c.transactionService.CreatePendingCryptoTransaction(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
+	if err != nil {
+		c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+		return err
+	}
+
+	// Send notification about pending transaction
+	c.notifyPendingCryptoTransaction(ctx, payload, amountDec)
+
+	c.server.logger.Info("Successfully created pending transaction",
+		"order_id", payload.OrderID,
+		"amount", amountDec.String(),
+		"coin", payload.Currency)
+
+	return nil
+}
+
+// notifyPendingCryptoTransaction sends notification about the pending crypto transaction
+func (c *CryptoAPI) notifyPendingCryptoTransaction(ctx *gin.Context, payload cryptocurrency.WebhookPayload, amount decimal.Decimal) {
+	// Get user from order ID
+	address, err := c.server.queries.GetCryptomusAddressByOrderID(ctx, payload.OrderID)
+	if err != nil {
+		c.server.logger.Warnf("Could not send pending notification: failed to get wallet address: %v", err)
+		return
+	}
+
+	// Send in-app notification
+	message := fmt.Sprintf("Crypto deposit of %s %s detected. Waiting for blockchain confirmation.",
+		amount.String(), strings.ToUpper(payload.Currency))
+
+	c.notifyr.CreateWithRecipients(ctx, nil, "Crypto Deposit Pending", message, "system", []int64{address.CustomerID.Int64})
+
+	c.server.logger.Info("Pending transaction notification sent", "user_id", address.CustomerID.Int64)
 }
 
 // GetCoinPriceHistory godoc

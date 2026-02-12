@@ -1,10 +1,8 @@
 package api
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -42,16 +40,13 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.GET("/test", r.testReferral)
 	serverGroupV1.GET("/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferrals)
 	serverGroupV1.GET("/earnings", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetEarnings)
-	serverGroupV1.POST("/request-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.RequestWithdrawal)
 	serverGroupV1.POST("/track", r.server.authMiddleware.AuthenticatedMiddleware(), r.Trackreferral)
 	serverGroupV1.POST("/reminder/:id", r.server.authMiddleware.AuthenticatedMiddleware(), r.Reminder)
 	serverGroupV1.GET("/admin/list", r.server.authMiddleware.AuthenticatedMiddleware(), r.AdminGetUserReferrals)
-	serverGroupV1.PUT("/admin/update-withdrawal", r.server.authMiddleware.AuthenticatedMiddleware(), r.UpdateWithdrawalRequest)
-	serverGroupV1.GET("/admin/list-withdrawal-requests", r.server.authMiddleware.AuthenticatedMiddleware(), r.ListWithdrawalRequests)
-	serverGroupV1.GET("/admin/get-withdrawal-request", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetWithdrawalRequest)
 	serverGroupV1.POST("/admin/create-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.CreateReferralConfig)
 	serverGroupV1.PUT("/admin/update-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.UpdateReferralConfig)
 	serverGroupV1.GET("/admin/get-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetReferralConfig)
+	serverGroupV1.POST("/withdraw", r.server.authMiddleware.AuthenticatedMiddleware(), r.withdraw)
 }
 
 // testReferral godoc
@@ -232,7 +227,7 @@ func (r *Referral) AdminGetUserReferrals(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -273,7 +268,7 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		// Todo: add logging
@@ -293,152 +288,6 @@ func (r *Referral) GetEarnings(c *gin.Context) {
 		Data:    earnings,
 		Version: utils.REVISION,
 	})
-}
-
-// RequestWithdrawal godoc
-// @Summary      Request Withdrawal
-// @Description  Requests a withdrawal for the authenticated user
-// @Tags         Referral
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  map[string]any
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/request-withdrawal [post]
-func (r *Referral) RequestWithdrawal(c *gin.Context) {
-	settings, err := r.server.queries.GetSystemSettings(c)
-	if err != nil {
-		r.server.logger.Error("Failed to get system settings", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
-		return
-	}
-	if !settings.RewardsEnabled.Bool {
-		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
-		return
-	}
-	
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	var req struct {
-		Amount string `json:"amount" binding:"required"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	amount, err := decimal.NewFromString(req.Amount)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	wr, err := r.service.RequestWithdrawal(c, activeUser.UserID, amount)
-	if err != nil {
-		if errors.Is(err, referral.ErrInsufficientBalance) {
-			c.JSON(http.StatusBadRequest, basemodels.NewError("insufficient balance"))
-			return
-		}
-		if errors.Is(err, referral.ErrWithdrawalThreshold) {
-			c.JSON(http.StatusBadRequest, basemodels.NewError("amount is below withdrawal threshold"))
-			return
-		}
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-	}
-
-	// audit log
-	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawalRequest, "referral", fmt.Sprintf("Withdrawal requested by user %d", activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("User %d requested withdrawal of amount %s", activeUser.UserID, amount.String())
-	r.audit.Log(auditLog)
-
-	c.JSON(http.StatusCreated, basemodels.SuccessResponse{
-		Status:  "success",
-		Message: "withdrawal request created successfully",
-		Data:    wr,
-	})
-}
-
-// UpdateWithdrawalRequest godoc
-// @Summary      Update Withdrawal Request
-// @Description  Updates the withdrawal request for the authenticated user
-// @Tags         Referral
-// @Accept       json
-// @Produce      json
-// @Param        id  query  int  true  "Withdrawal ID"
-// @Param        status  query  string  true  "Withdrawal Status" (approved, rejected)
-// @Success      200  {object}  map[string]any
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/referral/admin/update-withdrawal [put]
-func (r *Referral) UpdateWithdrawalRequest(c *gin.Context) {
-	settings, err := r.server.queries.GetSystemSettings(c)
-	if err != nil {
-		r.server.logger.Error("Failed to get system settings", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
-		return
-	}
-	if !settings.RewardsEnabled.Bool {
-		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
-		return
-	}
-	
-
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	//	check if active user is admin
-	if activeUser.Role == models.USER {
-		r.logger.Error(fmt.Errorf("unauthorized access"))
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	var req struct {
-		ID     int64                            `json:"id" binding:"required"`
-		Status referral.WithdrawalRequestStatus `json:"status" binding:"required" enum:"approved,rejected"`
-	}
-
-	if err := c.ShouldBindJSON(&req); err != nil {
-		r.logger.Error(err)
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-		return
-	}
-
-	wr, err := r.service.UpdateWithdrawalRequest(c, req.ID, req.Status)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	if wr.Status == string(referral.WithdrawalStatusApproved) {
-		amt, err := decimal.NewFromString(wr.Amount)
-		if err != nil {
-			r.logger.Error(err)
-			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
-			return
-		}
-
-		err = r.service.Withdraw(c, req.ID, int32(activeUser.UserID), amt)
-		if err != nil {
-			r.logger.Error(err)
-			c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again later."))
-			return
-		}
-	} else {
-		// send notification
-	}
-
-	// audit log
-	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawalRequest, "referral", fmt.Sprintf("Withdrawal request %d updated by admin %d", req.ID, activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Admin %d updated withdrawal request %d to status %s", activeUser.UserID, req.ID, req.Status)
-	r.audit.Log(auditLog)
-
-	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", wr))
 }
 
 // GetEarnings godoc
@@ -461,111 +310,21 @@ func (r *Referral) Reminder(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
-	
+
 	userID := c.Param("id")
 	if userID == "" {
 		r.logger.Error("user_id parameter is empty")
 		c.JSON(http.StatusBadRequest, basemodels.NewError("user_id is required"))
 		return
 	}
-	parsedUserID, err := strconv.Atoi(userID)
-	if err != nil {
-		r.logger.Error(fmt.Errorf("invalid user_id: %v, provided: %s", err, userID))
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user_id"))
-		return
-	}
-	r.notifyr.Create(c, int32(parsedUserID), "referral", "You have a pending referral request, complete your KYC!")
+	// parsedUserID, err := strconv.Atoi(userID)
+	// if err != nil {
+	// 	r.logger.Error(fmt.Errorf("invalid user_id: %v, provided: %s", err, userID))
+	// 	c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user_id"))
+	// 	return
+	// }
+	// r.notifyr.Create(c, int32(parsedUserID), "referral", "You have a pending referral request, complete your KYC!")
 	c.JSON(http.StatusOK, basemodels.NewSuccess("reminder sent successfully", nil))
-}
-
-// ListWithdrawalRequests godoc
-// @Summary      List Withdrawal Requests
-// @Description  Retrieves the withdrawal requests for the authenticated user
-// @Tags         Referral
-// @Accept       json
-// @Produce      json
-// @Success      200  {object}  map[string]any
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/referral/admin/list-withdrawal-requests [get]
-func (r *Referral) ListWithdrawalRequests(c *gin.Context) {
-	settings, err := r.server.queries.GetSystemSettings(c)
-	if err != nil {
-		r.server.logger.Error("Failed to get system settings", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
-		return
-	}
-	if !settings.RewardsEnabled.Bool {
-		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
-		return
-	}
-	
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	wr, err := r.service.ListWithdrawalRequests(c, activeUser.UserID)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to list withdrawal requests"))
-		return
-	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal requests retrieved successfully", wr))
-}
-
-// GetWithdrawalRequest godoc
-// @Summary      Get Withdrawal Request
-// @Description  Retrieves the withdrawal request for the authenticated user
-// @Tags         Referral
-// @Accept       json
-// @Produce      json
-// @Param        id  path  int  true  "Withdrawal Request ID"
-// @Success      200  {object}  map[string]any
-// @Failure      401  {object}  basemodels.ErrorResponse
-// @Router       /api/v1/referral/admin/get-withdrawal-request [get]
-func (r *Referral) GetWithdrawalRequest(c *gin.Context) {
-	settings, err := r.server.queries.GetSystemSettings(c)
-	if err != nil {
-		r.server.logger.Error("Failed to get system settings", "error", err)
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
-		return
-	}
-	if !settings.RewardsEnabled.Bool {
-		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
-		return
-	}
-
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	//	check if active user is admin
-	if activeUser.Role == models.USER {
-		r.logger.Error(fmt.Errorf("unauthorized access"))
-		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
-		return
-	}
-
-	requestID := c.Param("id")
-	if requestID == "" {
-		r.logger.Error("request_id parameter is empty")
-		c.JSON(http.StatusBadRequest, basemodels.NewError("request_id is required"))
-		return
-	}
-	parsedRequestID, err := strconv.Atoi(requestID)
-	if err != nil {
-		r.logger.Error(fmt.Errorf("invalid request_id: %v, provided: %s", err, requestID))
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request_id"))
-		return
-	}
-	wr, err := r.service.GetWithdrawalRequest(c, int64(parsedRequestID))
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get withdrawal request"))
-		return
-	}
-	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal request retrieved successfully", wr))
 }
 
 // CreateReferralConfig godoc
@@ -588,7 +347,7 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -757,7 +516,7 @@ func (r *Referral) GetReferralConfig(c *gin.Context) {
 		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -777,4 +536,66 @@ func (r *Referral) GetReferralConfig(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, basemodels.NewSuccess("referral config retrieved successfully", config))
+}
+
+// withdraw godoc
+// @Summary      Withdraw Referral Earnings
+// @Description  Allows a user to withdraw their referral earnings
+// @Tags         Referral
+// @Accept       json
+// @Produce      json
+// @Param        amount  body      string  true  "Amount to Withdraw"
+// @Success      200  {object}  basemodels.SuccessResponse
+// @Failure      400  {object}  basemodels.ErrorResponse
+// @Failure      401  {object}  basemodels.ErrorResponse
+// @Router       /api/v1/referral/withdraw [post]
+func (r *Referral) withdraw(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var req struct {
+		IdempotencyKey string `json:"idempotency_key" binding:"required"`
+		Amount         string `json:"amount" binding:"required"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	amount, err := decimal.NewFromString(req.Amount)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	tx, err := r.service.Withdraw(c, amount, activeUser.UserID, req.IdempotencyKey)
+	if err != nil {
+		r.logger.Error(err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	// audit log
+	auditLog := audit.NewReferralLog(c, audit.EventReferralWithdrawal, "referral", fmt.Sprintf("Referral withdrawal of %s by user %d", amount.String(), activeUser.UserID), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
+	auditLog.Description = fmt.Sprintf("User %d withdrew referral earnings of %s", activeUser.UserID, amount.String())
+	r.audit.Log(auditLog)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal completed successfully", tx))
 }

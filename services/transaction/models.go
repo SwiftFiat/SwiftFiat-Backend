@@ -33,15 +33,31 @@ const (
 	QrCode         TransactionType = "qr_code"
 	UtilityPayment TransactionType = "utility_payment"
 	Rewards        TransactionType = "rewards"
+	Referral       TransactionType = "referral"
+	Wallet         TransactionType = "wallet"
 	Other          TransactionType = "other"
 )
 
 type TransactionFlow string
 
 const (
-	Inflow  TransactionFlow = "inflow"
-	Outflow TransactionFlow = "outflow"
+	Inflow     TransactionFlow = "inflow"
+	Outflow    TransactionFlow = "outflow"
 	InPlatform TransactionFlow = "inplatform"
+)
+
+type TransactionDirection string
+
+const (
+	Credit TransactionDirection = "credit"
+	Debit  TransactionDirection = "debit"
+)
+
+type Currency string
+
+const (
+	NGN Currency = "NGN"
+	USD Currency = "USD"
 )
 
 var SupportedTransactions = []TransactionType{Transfer, Withdrawal, Deposit, Swap, Vault, GiftCard, Airtime, Data, TV, Electricity}
@@ -130,6 +146,49 @@ type FiatTransaction struct {
 	Type                       TransactionType
 }
 
+type BuyAirtimeRequest struct {
+	ServiceID       string  `json:"service_id" binding:"required"`
+	Phone           string  `json:"phone" binding:"required"`
+	Amount          int64   `json:"amount" binding:"required"`
+	Pin             string  `json:"pin" binding:"required"`
+	UseRewardPoints bool    `json:"use_reward_points"`
+	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
+	PointsToUse     float32 `json:"points_to_use"`
+}
+
+type BuyAirtimeResponse struct {
+	Amount               decimal.Decimal `json:"amount"`
+	AmountPaid           float64         `json:"amount_paid"`
+	BonusEarned          float64         `json:"bonus_earned"`
+	Phone                string          `json:"phone"`
+	TransactionType      string          `json:"transaction_type"`
+	Date                 time.Time       `json:"transaction_date"`
+	TransactionReference string          `json:"transaction_reference"`
+	Status               string          `json:"status"`
+}
+
+type BuyDataRequest struct {
+	ServiceID       string  `json:"service_id" binding:"required"`
+	Phone           string  `json:"phone" binding:"required"`
+	VariationCode   string  `json:"variation_code" binding:"required"`
+	Pin             string  `json:"pin" binding:"required"`
+	UseRewardPoints bool    `json:"use_reward_points"`
+	PointsToUse     float32 `json:"points_to_use"`
+	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
+}
+
+type BuyDataResponse struct {
+	Amount               decimal.Decimal `json:"amount"`
+	AmountPaid           float64         `json:"amount_paid"`
+	BonusEarned          float64         `json:"bonus_earned"`
+	Phone                string          `json:"phone"`
+	TransactionType      string          `json:"transaction_type"`
+	Date                 time.Time       `json:"transaction_date"`
+	TransactionReference string          `json:"transaction_reference"`
+	Status               string          `json:"status"`
+	Plan                 string          `json:"plan"`
+}
+
 type BillTransaction struct {
 	ID              string
 	SourceWalletID  uuid.UUID
@@ -149,6 +208,7 @@ type LedgerEntries struct {
 	TransactionID   uuid.UUID
 	Debit           Entry
 	Credit          Entry
+	idempotency_key string
 	Platform        TransactionPlatform
 	SourceType      LedgerSourceDestination
 	DestinationType LedgerSourceDestination
@@ -164,7 +224,6 @@ const (
 type Entry struct {
 	AccountID uuid.UUID
 	Amount    decimal.Decimal
-	Balance   decimal.Decimal
 }
 
 type TransactionResponse[T any] struct {
@@ -202,6 +261,7 @@ type CryptoMetadataResponse struct {
 	ReceivedAmount       string    `json:"received_amount,omitempty"`
 	SentAmount           string    `json:"sent_amount,omitempty"`
 	ServiceProvider      string    `json:"service_provider"`
+	OrderID              string    `json:"order_id"`
 	ServiceTransactionID string    `json:"service_transaction_id,omitempty"`
 }
 

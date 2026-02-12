@@ -1,4 +1,4 @@
-title: SwiftFiat API
+title: SWIIFT API
 entry: ./docs/swagger.yaml
 lint:
   openapi: true

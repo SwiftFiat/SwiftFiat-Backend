@@ -87,9 +87,9 @@ WHERE id = $4 RETURNING *;
 UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING *;
 
--- name: UpdateUserKYCVerificationStatus :one
-UPDATE users SET is_kyc_verified = $1, updated_at = $2
-WHERE id = $3 RETURNING *;
+-- -- name: UpdateUserKYCVerificationStatus :one
+-- UPDATE users SET is_kyc_verified = $1, updated_at = $2
+-- WHERE id = $3 RETURNING *;
 
 -- name: UpdateUserWalletStatus :one
 UPDATE users SET has_wallets = $1, updated_at = $2
@@ -174,3 +174,66 @@ SELECT bridgecard_cardholder_id FROM users WHERE id = $1;
 -- name: ListAllUsers :many
 SELECT * FROM users
 ORDER BY created_at DESC;
+
+-- name: EnableRapidRamp :exec
+UPDATE users
+SET
+  is_rapid_ramp_on = TRUE,
+  updated_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+
+-- name: DisableRapidRamp :exec
+UPDATE users
+SET
+  is_rapid_ramp_on = FALSE,
+  updated_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+
+-- name: GetRapidRampStatus :one
+SELECT is_rapid_ramp_on
+FROM users
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+-- name: ToggleRapidRamp :one
+UPDATE users
+SET
+  is_rapid_ramp_on = NOT is_rapid_ramp_on,
+  updated_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL
+RETURNING is_rapid_ramp_on;
+
+-- name: GetUserHasCompletedFirstConversion :one
+SELECT has_completed_first_conversion
+FROM users
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+-- name: UpdateUserHasCompletedFirstConversion :exec
+UPDATE users
+SET
+  has_completed_first_conversion = TRUE,
+  updated_at = NOW()
+WHERE id = $1
+  AND deleted_at IS NULL;
+
+-- name: UpdateUserFirstConversionID :exec
+UPDATE users
+SET
+  first_conversion_id = $1,
+  updated_at = NOW()
+WHERE id = $2
+  AND deleted_at IS NULL;
+
+-- name: UpdateUserFirstConversionAt :exec
+UPDATE users
+SET
+  first_conversion_at = $1,
+  updated_at = NOW()
+WHERE id = $2
+  AND deleted_at IS NULL;

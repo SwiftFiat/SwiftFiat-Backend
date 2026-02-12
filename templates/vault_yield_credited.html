@@ -1,126 +1,10 @@
-<!-- <!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat - Vault Yield Credited</title>
-    <link rel="stylesheet" href="style.css">
-</head>
-
-<body>
-    <div class="email-wrapper">
-        <div class="email-header">
-            <div class="logo">SwiftFiat</div>
-            <div class="header-subtitle">Smart Savings, Secure Future</div>
-        </div>
-        
-        <div class="email-body">
-            <div class="icon">📈</div>
-
-            <h2 class="greeting">You Earned Yield, {{.FirstName}}! 🎉</h2>
-
-            <p class="message">
-                Great news! Your vault "<strong>{{.VaultName}}</strong>" just earned interest. 
-                Your money is growing while you sleep! 💤💰
-            </p>
-
-            <div class="amount-highlight">
-                +{{.Amount}} <span class="currency">{{.Currency}}</span>
-            </div>
-
-            <div class="card">
-                <div class="card-title">Yield Details</div>
-                <div class="detail-row">
-                    <span class="detail-label">Vault Name</span>
-                    <span class="detail-value">{{.VaultName}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Yield Earned</span>
-                    <span class="detail-value">{{.Amount}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">New Balance</span>
-                    <span class="detail-value">{{.NewBalance}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">APY Rate</span>
-                    <span class="detail-value">{{.APY}}%</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Period</span>
-                    <span class="detail-value">{{.Period}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Total Yield Earned</span>
-                    <span class="detail-value">{{.TotalYield}} {{.Currency}}</span>
-                </div>
-            </div>
-
-            <div style="text-align: center;">
-                <a href="{{.VaultURL}}" class="button">View Earnings 💵</a>
-            </div>
-
-            <div class="alert alert-success">
-                <strong>🚀 Compound Interest at Work!</strong><br>
-                Your yield has been automatically added to your vault balance. This means you'll 
-                earn even more yield next time - that's the power of compound interest!
-            </div>
-
-            <div class="card">
-                <div class="card-title">📊 Your Yield Projections</div>
-                <div class="detail-row">
-                    <span class="detail-label">Daily Yield</span>
-                    <span class="detail-value">~{{.DailyYield}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Monthly Estimate</span>
-                    <span class="detail-value">~{{.MonthlyYield}} {{.Currency}}</span>
-                </div>
-                <div class="detail-row">
-                    <span class="detail-label">Yearly Estimate</span>
-                    <span class="detail-value">~{{.YearlyYield}} {{.Currency}}</span>
-                </div>
-            </div>
-
-            <div class="alert alert-info">
-                <strong>💡 Pro Tip:</strong> The more you save, the more you earn! Consider 
-                increasing your recurring deposits to maximize your yield earnings.
-            </div>
-
-            <p class="message">
-                Keep saving and watch your wealth grow automatically! 🌱
-            </p>
-        </div>
-        
-        <div class="email-footer">
-            <p><strong>SwiftFiat</strong> - Your trusted savings partner</p>
-            <div class="footer-links">
-                <a href="https://swiftfiat.com">Home</a>
-                <a href="https://swiftfiat.com/support">Support</a>
-                <a href="https://swiftfiat.com/vault">Vault FAQ</a>
-            </div>
-            <div class="social-links">
-                <a href="#">📘</a>
-                <a href="#">🐦</a>
-                <a href="#">📷</a>
-            </div>
-            <p style="margin-top: 20px; color: #999;">
-                This is an automated message from SwiftFiat. Please do not reply to this email.
-            </p>
-            <p style="margin-top: 10px; font-size: 11px; color: #999;">
-                © {{.Date}} SwiftFiat. All rights reserved.
-            </p>
-        </div>
-    </div>
-</body>
-</html> -->
 
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SwiftFiat</title>
+    <title>SWIIFT - Vault Interest</title>
 </head>
 <body style="margin:0; padding:0; background:#fff; font-family:Arial, sans-serif;">
 
@@ -149,7 +33,7 @@
             <td style="padding:30px; color:#333; font-size:15px; line-height:1.6;">
 
               <p style="margin-top:0;">
-                Hi <strong>{{userName}}</strong>,
+                Hi <strong>{{.FirstName}}</strong>,
               </p>
 
               <p>

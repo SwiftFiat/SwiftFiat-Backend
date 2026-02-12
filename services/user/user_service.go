@@ -55,10 +55,7 @@ func (u *UserService) CreateUserWithWalletsAndKYC(ctx context.Context, arg *db.C
 		u.logger.Error(fmt.Sprintf("failed to create wallets for user: %v", newUser.ID))
 	}
 
-	_, err = u.store.WithTx(dbTx).CreateNewKYC(ctx, db.CreateNewKYCParams{
-		UserID: int32(newUser.ID),
-		Tier:   0,
-	})
+	_, err = u.store.WithTx(dbTx).CreateNewKYC(ctx, int32(newUser.ID))
 	if err != nil {
 		u.logger.Error(fmt.Sprintf("failed to create kyc for user: %v", newUser.ID))
 	}
@@ -418,15 +415,6 @@ func (s *UserService) ListAllActiveUsers(ctx context.Context) ([]*db.User, error
 	return activeUsers, nil
 }
 
-func (u *UserService) ListAllKYC(ctx context.Context) ([]db.Kyc, error) {
-	kycs, err := u.store.ListAllKYC(ctx)
-	if err != nil {
-		u.logger.Error(fmt.Sprintf("failed to list all kyc: %v", err))
-		return nil, fmt.Errorf("failed to list all kyc: %w", err)
-	}
-	return kycs, nil
-}
-
 func (u *UserService) ListActiveUserTokens(ctx context.Context) ([]db.UserToken, error) {
 	tokens, err := u.store.ListActiveUserTokens(ctx)
 	if err != nil {
@@ -452,4 +440,40 @@ func (u *UserService) GetTansactionDetails(ctx context.Context, transactionID uu
 		return nil, fmt.Errorf("failed to get transaction details: %w", err)
 	}
 	return transaction, nil
+}
+
+func (u *UserService) ToggleRapidRamp(ctx context.Context, userID int64) (bool, error) {
+	user, err := u.store.GetUserByID(ctx, userID)
+	if err != nil {
+		u.logger.Errorf("get user failed [ToggleRapidRamp]: %v", err)
+		return false, err
+	}
+
+	x, err := u.store.GetRapidRampStatus(ctx, userID)
+	if err != nil {
+		return false, fmt.Errorf("failed to get rapid ramp status [ToggleRapidRamp]: %w", err)
+	}
+
+	if !x {
+		bankAcct, err := u.store.GetBankAccountsByUser(ctx, userID)
+		if err != nil {
+			return false, fmt.Errorf("failed to get default bank account [ToggleRapidRamp]: %w", err)
+		}
+
+		if len(bankAcct) == 0 {
+			return false, fmt.Errorf("set up default bank account")
+		}
+	}
+
+	if !user.IsKycVerified {
+		return false, fmt.Errorf("KYC not verified")
+	}
+
+	b, err := u.store.ToggleRapidRamp(ctx, userID)
+	if err != nil {
+		u.logger.Errorf("toggle rapid ramp failed for user %d: %v", userID, err)
+		return false, err
+	}
+
+	return b, nil
 }

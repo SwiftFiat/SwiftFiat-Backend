@@ -361,16 +361,7 @@ definitions:
       user_id:
         type: integer
     type: object
-  api.KYCListResponse:
-    properties:
-      count:
-        type: integer
-      kycs:
-        items:
-          $ref: '#/definitions/models.UserKYCInformation'
-        type: array
-    type: object
-  api.ListTicketsByStatusRow:
+  api.ListAllTicketsRow:
     properties:
       assigned_to:
         type: integer
@@ -436,15 +427,6 @@ definitions:
       user_id:
         type: integer
     type: object
-  api.NotificationListResponse:
-    properties:
-      count:
-        type: integer
-      notifications:
-        items:
-          $ref: '#/definitions/models.NotificationResponse'
-        type: array
-    type: object
   api.OTPRequest:
     properties:
       phone_number:
@@ -473,13 +455,6 @@ definitions:
         type: string
     required:
     - email
-    type: object
-  api.SendNotificationToAllUsersRequest:
-    properties:
-      message:
-        type: string
-      title:
-        type: string
     type: object
   api.TicketResponse:
     properties:
@@ -611,7 +586,6 @@ definitions:
         - active
         - cancelled
         - paused
-        - failed
         type: string
     required:
     - status
@@ -681,16 +655,6 @@ definitions:
     required:
     - code
     - email
-    type: object
-  api.VerifyRequest:
-    properties:
-      code:
-        type: string
-      phone_number:
-        type: string
-    required:
-    - code
-    - phone_number
     type: object
   api.VerifyTwoFARequest:
     properties:
@@ -815,6 +779,7 @@ definitions:
     - support
     - rewards
     - subscription
+    - price_alert
     type: string
     x-enum-varnames:
     - CategoryAuthentication
@@ -836,6 +801,7 @@ definitions:
     - CategorySupport
     - CategoryRewards
     - CategorySubscription
+    - CategoryPriceAlert
   audit.LogResponse:
     properties:
       action:
@@ -925,9 +891,8 @@ definitions:
     type: object
   bankaccounts.CreateBankAccountRequest:
     properties:
-      account_name:
-        type: string
       account_number:
+        description: AccountName   string  `json:"account_name" binding:"required"`
         type: string
       account_type:
         type: string
@@ -940,7 +905,6 @@ definitions:
       label:
         type: string
     required:
-    - account_name
     - account_number
     - bank_code
     - bank_name
@@ -1666,13 +1630,6 @@ definitions:
       user_id:
         type: integer
     type: object
-  models.ChangePasswordParams:
-    properties:
-      password:
-        type: string
-    required:
-    - password
-    type: object
   models.CreatePasscodeParams:
     properties:
       passcode:
@@ -1700,34 +1657,12 @@ definitions:
       version:
         type: string
     type: object
-  models.ForgotPasscodeParams:
-    properties:
-      email:
-        type: string
-    required:
-    - email
-    type: object
   models.ForgotPasswordParams:
     properties:
       email:
         type: string
     required:
     - email
-    type: object
-  models.NotificationResponse:
-    properties:
-      created_at:
-        type: string
-      id:
-        type: integer
-      message:
-        type: string
-      read:
-        type: boolean
-      title:
-        type: string
-      user_id:
-        type: integer
     type: object
   models.RegisterAdminParams:
     properties:
@@ -1763,12 +1698,15 @@ definitions:
         type: string
       phone_number:
         type: string
+      swiift_tag:
+        type: string
     required:
     - email
     - first_name
     - last_name
     - password
     - phone_number
+    - swiift_tag
     type: object
   models.ResetPasswordParams:
     properties:
@@ -1859,59 +1797,6 @@ definitions:
     - old_pin
     - pin
     type: object
-  models.UserKYCInformation:
-    properties:
-      bvn:
-        type: string
-      created_at:
-        type: string
-      daily_transfer_limit_ngn:
-        type: string
-      email:
-        type: string
-      full_name:
-        type: string
-      gender:
-        type: string
-      house_number:
-        type: string
-      id:
-        type: integer
-      id_image_url:
-        type: string
-      id_number:
-        type: string
-      id_type:
-        type: string
-      lga:
-        type: string
-      nearest_landmark:
-        type: string
-      nin:
-        type: string
-      phone_number:
-        type: string
-      proof_of_address_type:
-        type: string
-      selfie_url:
-        type: string
-      state:
-        type: string
-      status:
-        type: string
-      street_name:
-        type: string
-      tier:
-        type: integer
-      updated_at:
-        type: string
-      user_id:
-        type: integer
-      verification_date:
-        type: string
-      wallet_balance_limit_ngn:
-        type: string
-    type: object
   models.UserLoginParams:
     properties:
       email:
@@ -1940,6 +1825,8 @@ definitions:
         type: string
       created_at:
         type: string
+      current_vip_level_id:
+        type: string
       email:
         type: string
       first_name:
@@ -1956,6 +1843,8 @@ definitions:
         type: boolean
       is_kyc_verified:
         type: boolean
+      is_rapid_ramp_on:
+        type: boolean
       last_name:
         type: string
       phone_number:
@@ -1965,9 +1854,13 @@ definitions:
       role:
         description: AvatarBlob  []byte    `json:"avatar_blob"`
         type: string
+      total_conversion_volume:
+        type: string
       total_reward_earned:
         type: string
       total_reward_redeemed:
+        type: string
+      total_transaction_volume:
         type: string
       twofa_enabled:
         type: boolean
@@ -2020,6 +1913,166 @@ definitions:
         type: string
       updated_at:
         type: string
+    type: object
+  pricealert.AlertCondition:
+    enum:
+    - above
+    - below
+    - equals
+    - percent_up
+    - percent_down
+    - range
+    - breakout
+    type: string
+    x-enum-comments:
+      ConditionBreakout: Price breaks resistance/support
+      ConditionPercentDown: Price decreases by X%
+      ConditionPercentUp: Price increases by X%
+      ConditionRange: Price enters a specific range
+    x-enum-descriptions:
+    - ""
+    - ""
+    - ""
+    - Price increases by X%
+    - Price decreases by X%
+    - Price enters a specific range
+    - Price breaks resistance/support
+    x-enum-varnames:
+    - ConditionAbove
+    - ConditionBelow
+    - ConditionEquals
+    - ConditionPercentUp
+    - ConditionPercentDown
+    - ConditionRange
+    - ConditionBreakout
+  pricealert.AlertPriority:
+    enum:
+    - low
+    - medium
+    - high
+    - critical
+    type: string
+    x-enum-varnames:
+    - PriorityLow
+    - PriorityMedium
+    - PriorityHigh
+    - PriorityCritical
+  pricealert.AlertType:
+    enum:
+    - one_time
+    - recurring
+    - trailing
+    type: string
+    x-enum-comments:
+      AlertTypeOneTime: Trigger once and deactivate
+      AlertTypeRecurring: Trigger every time condition is met
+      AlertTypeTrailing: Dynamically adjust trigger based on price movement
+    x-enum-descriptions:
+    - Trigger once and deactivate
+    - Trigger every time condition is met
+    - Dynamically adjust trigger based on price movement
+    x-enum-varnames:
+    - AlertTypeOneTime
+    - AlertTypeRecurring
+    - AlertTypeTrailing
+  pricealert.CreateAlertRequest:
+    properties:
+      alert_condition:
+        $ref: '#/definitions/pricealert.AlertCondition'
+      alert_type:
+        $ref: '#/definitions/pricealert.AlertType'
+      description:
+        type: string
+      expires_at:
+        type: string
+      label:
+        type: string
+      notify_in_app:
+        type: boolean
+      notify_push:
+        type: boolean
+      percentage_change:
+        type: number
+      priority:
+        $ref: '#/definitions/pricealert.AlertPriority'
+      range_max:
+        type: number
+      range_min:
+        type: number
+      source_currency:
+        type: string
+      target_currency:
+        type: string
+      target_rate:
+        type: number
+      trailing_distance:
+        description: Percentage (e.g., 5 for 5%)
+        type: number
+    required:
+    - alert_condition
+    - alert_type
+    - source_currency
+    - target_currency
+    type: object
+  pricealert.PriceAlert:
+    properties:
+      alertCondition:
+        $ref: '#/definitions/pricealert.AlertCondition'
+      alertType:
+        $ref: '#/definitions/pricealert.AlertType'
+      baselineRate:
+        description: For percentage and trailing alerts
+        type: number
+      createdAt:
+        type: string
+      description:
+        type: string
+      expiresAt:
+        type: string
+      id:
+        type: string
+      isActive:
+        type: boolean
+      label:
+        type: string
+      lastCheckedAt:
+        type: string
+      lastTriggeredAt:
+        type: string
+      maxTrailingRate:
+        description: Highest rate seen (for trailing down)
+        type: number
+      minTrailingRate:
+        description: Lowest rate seen (for trailing up)
+        type: number
+      notifyInApp:
+        type: boolean
+      notifyPush:
+        type: boolean
+      percentageChange:
+        type: number
+      priority:
+        $ref: '#/definitions/pricealert.AlertPriority'
+      rangeMax:
+        type: number
+      rangeMin:
+        type: number
+      sourceCurrency:
+        type: string
+      targetCurrency:
+        type: string
+      targetRate:
+        type: number
+      trailingDistance:
+        description: For trailing alerts (percentage)
+        type: number
+      triggeredCount:
+        type: integer
+      updatedAt:
+        type: string
+      userID:
+        format: int64
+        type: integer
     type: object
   rapidramp.BankAccountInfo:
     properties:
@@ -2329,16 +2382,16 @@ definitions:
         type: integer
       min_conversion_count:
         type: integer
-      min_monthly_volume:
-        type: string
-      min_transaction_volume:
+      min_conversion_volume:
         minLength: 0
+        type: string
+      min_monthly_volume:
         type: string
     required:
     - level_code
     - level_name
     - level_rank
-    - min_transaction_volume
+    - min_conversion_volume
     type: object
   ratemanager.PaginatedResponse:
     properties:
@@ -2459,7 +2512,7 @@ definitions:
         - fixed
         - percentage
       adjustment_value:
-        type: number
+        type: string
       amount:
         type: string
       source_currency:
@@ -2570,10 +2623,10 @@ definitions:
         type: integer
       min_conversion_count:
         type: integer
-      min_monthly_volume:
-        type: string
-      min_transaction_volume:
+      min_conversion_volume:
         minLength: 0
+        type: string
+      min_monthly_volume:
         type: string
     type: object
   ratemanager.UserVIPAssignmentResponse:
@@ -2594,7 +2647,7 @@ definitions:
         type: boolean
       total_conversion_count:
         type: integer
-      total_transaction_volume:
+      total_conversion_volume:
         type: string
       user_email:
         type: string
@@ -2641,9 +2694,9 @@ definitions:
         type: integer
       min_conversion_count:
         type: integer
-      min_monthly_volume:
+      min_conversion_volume:
         type: string
-      min_transaction_volume:
+      min_monthly_volume:
         type: string
       updated_at:
         type: string
@@ -2678,9 +2731,9 @@ definitions:
         type: integer
       min_conversion_count:
         type: integer
-      min_monthly_volume:
+      min_conversion_volume:
         type: string
-      min_transaction_volume:
+      min_monthly_volume:
         type: string
       updated_at:
         type: string
@@ -2861,7 +2914,6 @@ definitions:
         minLength: 0
         type: string
       reward_rate:
-        maxLength: 1
         type: string
       transaction_type:
         type: string
@@ -3860,44 +3912,15 @@ info:
     email: support@swiftfiat.com
     name: API Support
     url: http://www.swiftfiat.com/support
-  description: SwiftFiat Backend API for cryptocurrency and fiat transactions
+  description: Swiift Backend API for cryptocurrency and fiat transactions
   license:
     name: MIT
     url: https://opensource.org/licenses/MIT
   termsOfService: http://swagger.io/terms/
-  title: SwiftFiat API
+  title: SWIIFT API
   version: "1.0"
 paths:
   /admin/rate-manager/rules:
-    get:
-      description: Get all rate adjustment rules with pagination
-      parameters:
-      - default: 1
-        description: Page number
-        in: query
-        name: page
-        type: integer
-      - default: 20
-        description: Page size
-        in: query
-        name: page_size
-        type: integer
-      - description: Filter active rules only
-        in: query
-        name: active_only
-        type: boolean
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/ratemanager.PaginatedResponse'
-      security:
-      - BearerAuth: []
-      summary: List rate adjustment rules
-      tags:
-      - Rate Manager - Rules
     post:
       consumes:
       - application/json
@@ -4014,40 +4037,6 @@ paths:
       summary: Update rate adjustment rule
       tags:
       - Rate Manager - Rules
-  /admin/rate-manager/rules/{id}/toggle:
-    patch:
-      description: Enable or disable a rate adjustment rule
-      parameters:
-      - description: Rule ID
-        in: path
-        name: id
-        required: true
-        type: string
-      - description: Enable/disable rule
-        in: query
-        name: enabled
-        required: true
-        type: boolean
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Toggle rate adjustment rule
-      tags:
-      - Rate Manager - Rules
   /admin/rate-manager/simulate:
     post:
       consumes:
@@ -4076,38 +4065,6 @@ paths:
       summary: Simulate rate adjustment
       tags:
       - Rate Manager - Simulation
-  /admin/rate-manager/vip-assignments:
-    post:
-      consumes:
-      - application/json
-      description: Manually assign a user to a VIP level
-      parameters:
-      - description: Assignment request
-        in: body
-        name: request
-        required: true
-        schema:
-          $ref: '#/definitions/ratemanager.AssignVIPLevelRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/ratemanager.UserVIPAssignmentResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Assign user to VIP level
-      tags:
-      - Rate Manager - VIP Assignments
   /admin/rate-manager/vip-levels:
     get:
       description: Get all VIP levels with optional filtering
@@ -4254,6 +4211,44 @@ paths:
       summary: Update VIP level
       tags:
       - Rate Manager - VIP Levels
+  /api/v1/admin/{faqId}:
+    get:
+      description: Retrieve a specific FAQ document by ID
+      parameters:
+      - description: FAQ ID
+        in: path
+        name: faqId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.SuccessResponse'
+            - properties:
+                data:
+                  $ref: '#/definitions/api.FaqDocumentResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get FAQ document
+      tags:
+      - admin-faq
   /api/v1/admin/faq:
     get:
       description: Retrieve paginated list of FAQ documents
@@ -4373,43 +4368,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Delete FAQ document
-      tags:
-      - admin-faq
-    get:
-      description: Retrieve a specific FAQ document by ID
-      parameters:
-      - description: FAQ ID
-        in: path
-        name: faqId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/api.FaqDocumentResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Get FAQ document
       tags:
       - admin-faq
     put:
@@ -4802,6 +4760,39 @@ paths:
       summary: Get Crypto Transaction Counts
       tags:
       - Analytics
+  /api/v1/analytics/daily-transactions-summary:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve daily transaction summaries. Accessible only by admin.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get Daily Transactions
+      tags:
+      - Analytics
   /api/v1/analytics/edit-user/{id}:
     put:
       consumes:
@@ -5156,46 +5147,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Trigger Scheduler Task
-      tags:
-      - Analytics
-  /api/v1/analytics/send-notification-to-all:
-    post:
-      consumes:
-      - application/json
-      description: Send a notification to all users.
-      parameters:
-      - description: Send Notification To All Users Request
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/api.SendNotificationToAllUsersRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.NotificationResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "403":
-          description: Forbidden
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Send Notification To All
       tags:
       - Analytics
   /api/v1/analytics/total-transactions:
@@ -5872,47 +5823,6 @@ paths:
       summary: Delete account
       tags:
       - auth
-  /api/v1/auth/change-password:
-    post:
-      consumes:
-      - application/json
-      description: Change the authenticated user's password
-      parameters:
-      - description: change password request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/models.ChangePasswordParams'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  $ref: '#/definitions/models.UserResponse'
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Change password
-      tags:
-      - auth
   /api/v1/auth/create-passcode:
     post:
       consumes:
@@ -5993,37 +5903,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Create transaction pin
-      tags:
-      - auth
-  /api/v1/auth/forgot-passcode:
-    post:
-      consumes:
-      - application/json
-      description: Initiate passcode reset process by sending an OTP to the user's
-        email
-      parameters:
-      - description: forgot passcode request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/models.ForgotPasscodeParams'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Forgot passcode
       tags:
       - auth
   /api/v1/auth/forgot-password:
@@ -6628,41 +6507,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Verify user email
-      tags:
-      - auth
-  /api/v1/auth/verify-otp:
-    post:
-      consumes:
-      - application/json
-      description: Verifies a One-Time Password (OTP) sent to the specified phone
-        number using Twilio
-      parameters:
-      - description: verification request
-        in: body
-        name: data
-        required: true
-        schema:
-          $ref: '#/definitions/api.VerifyRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Verify OTP via Twilio
       tags:
       - auth
   /api/v1/auth/verify-pin:
@@ -8105,7 +7949,7 @@ paths:
             - properties:
                 data:
                   items:
-                    $ref: '#/definitions/api.ListTicketsByStatusRow'
+                    $ref: '#/definitions/api.ListAllTicketsRow'
                   type: array
               type: object
         "401":
@@ -8983,6 +8827,389 @@ paths:
       summary: Get Single News Article
       tags:
       - market-insights
+  /api/v1/price-alerts:
+    get:
+      description: Retrieves all price alerts for the authenticated user
+      parameters:
+      - default: false
+        description: Return only active alerts
+        in: query
+        name: active_only
+        type: boolean
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/pricealert.PriceAlert'
+            type: array
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get user's price alerts
+      tags:
+      - PriceAlerts
+    post:
+      consumes:
+      - application/json
+      description: Creates a custom price alert for crypto-to-fiat rate monitoring
+      parameters:
+      - description: Alert configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pricealert.CreateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/pricealert.PriceAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Create a new price alert
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/{alert_id}:
+    delete:
+      description: Soft-deletes a price alert
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Delete a price alert
+      tags:
+      - PriceAlerts
+    get:
+      description: Retrieves details of a specific price alert
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pricealert.PriceAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get a specific price alert
+      tags:
+      - PriceAlerts
+    put:
+      consumes:
+      - application/json
+      description: Updates configuration of an existing price alert
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      - description: Updated alert configuration
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/pricealert.CreateAlertRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/pricealert.PriceAlert'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Update a price alert [fix needed]
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/{alert_id}/pause:
+    post:
+      description: Temporarily disables a price alert
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Pause a price alert
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/{alert_id}/resume:
+    post:
+      description: Reactivates a paused price alert
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Resume a price alert
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/admin/all:
+    get:
+      description: Retrieves all price alerts across all users
+      parameters:
+      - default: 50
+        description: Number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get all alerts (Admin)
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/admin/metrics:
+    get:
+      description: Retrieves comprehensive metrics about the alert system
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get system-wide metrics (Admin)
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/admin/scheduler/stats:
+    get:
+      description: Retrieves performance metrics for the alert scheduler
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get scheduler statistics (Admin)
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/admin/scheduler/trigger:
+    post:
+      description: Manually triggers the alert checking process
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "403":
+          description: Forbidden
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Trigger manual alert check (Admin)
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/history/{alert_id}:
+    get:
+      description: Retrieves the history of when an alert was triggered
+      parameters:
+      - description: Alert ID (UUID)
+        in: path
+        name: alert_id
+        required: true
+        type: string
+      - default: 20
+        description: Number of records
+        in: query
+        name: limit
+        type: integer
+      - default: 0
+        description: Offset for pagination
+        in: query
+        name: offset
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.SuccessResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get alert trigger history
+      tags:
+      - PriceAlerts
+  /api/v1/price-alerts/stats:
+    get:
+      description: Retrieves statistics about user's price alerts
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: Get alert statistics [fix needed]
+      tags:
+      - PriceAlerts
   /api/v1/qr-codes:
     get:
       description: Retrieves all QR codes for the authenticated user
@@ -9223,6 +9450,32 @@ paths:
       summary: Get QR transactions
       tags:
       - QR Codes
+  /api/v1/rate-manager/admin/rules:
+    get:
+      description: Get all rate adjustment rules with pagination
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Number of items per page
+        in: query
+        name: page_size
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/ratemanager.PaginatedResponse'
+      security:
+      - BearerAuth: []
+      summary: List rate adjustment rules
+      tags:
+      - Rate Manager - Rules
   /api/v1/referral/admin/create-referral-config:
     post:
       consumes:
@@ -9263,32 +9516,6 @@ paths:
       summary: Get Referral Config
       tags:
       - Referral
-  /api/v1/referral/admin/get-withdrawal-request:
-    get:
-      consumes:
-      - application/json
-      description: Retrieves the withdrawal request for the authenticated user
-      parameters:
-      - description: Withdrawal Request ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Get Withdrawal Request
-      tags:
-      - Referral
   /api/v1/referral/admin/list:
     get:
       consumes:
@@ -9308,26 +9535,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: list User Referrals
-      tags:
-      - Referral
-  /api/v1/referral/admin/list-withdrawal-requests:
-    get:
-      consumes:
-      - application/json
-      description: Retrieves the withdrawal requests for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: List Withdrawal Requests
       tags:
       - Referral
   /api/v1/referral/admin/update-referral-config:
@@ -9354,37 +9561,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Update Referral Config
-      tags:
-      - Referral
-  /api/v1/referral/admin/update-withdrawal:
-    put:
-      consumes:
-      - application/json
-      description: Updates the withdrawal request for the authenticated user
-      parameters:
-      - description: Withdrawal ID
-        in: query
-        name: id
-        required: true
-        type: integer
-      - description: Withdrawal Status
-        in: query
-        name: status
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Update Withdrawal Request
       tags:
       - Referral
   /api/v1/referral/earnings:
@@ -9496,26 +9672,6 @@ paths:
           schema:
             $ref: '#/definitions/models.ErrorResponse'
       summary: Get Referral Earnings
-      tags:
-      - Referral
-  /api/v1/request-withdrawal:
-    post:
-      consumes:
-      - application/json
-      description: Requests a withdrawal for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      summary: Request Withdrawal
       tags:
       - Referral
   /api/v1/rewards/activity:
@@ -11976,31 +12132,6 @@ paths:
       summary: Get User by ID
       tags:
       - user
-  /api/v1/user/list-kyc:
-    get:
-      consumes:
-      - application/json
-      description: Retrieve a list of all KYC submissions (admin only)
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.KYCListResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: List KYCs
-      tags:
-      - user
   /api/v1/user/list-users:
     get:
       consumes:
@@ -12053,41 +12184,6 @@ paths:
       summary: List Users
       tags:
       - user
-  /api/v1/user/notification/delete/{id}:
-    delete:
-      consumes:
-      - application/json
-      description: Delete a specific notification for the authenticated user
-      parameters:
-      - description: Notification ID
-        in: path
-        name: id
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete Notification
-      tags:
-      - user
   /api/v1/user/notification/mark-as-read/{id}:
     put:
       consumes:
@@ -12134,7 +12230,8 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/api.NotificationListResponse'
+            additionalProperties: true
+            type: object
         "401":
           description: Unauthorized
           schema:
@@ -12146,43 +12243,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Get User Notifications
-      tags:
-      - user
-  /api/v1/user/notifications/count-all:
-    get:
-      consumes:
-      - application/json
-      description: Count the total number of notifications for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            allOf:
-            - $ref: '#/definitions/models.SuccessResponse'
-            - properties:
-                data:
-                  properties:
-                    count:
-                      type: integer
-                  type: object
-              type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Count All Notifications
       tags:
       - user
   /api/v1/user/notifications/count-unread:
@@ -12221,64 +12281,6 @@ paths:
       security:
       - BearerAuth: []
       summary: Count Unread Notifications
-      tags:
-      - user
-  /api/v1/user/notifications/delete-all:
-    delete:
-      consumes:
-      - application/json
-      description: Delete all notifications for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete All Notifications
-      tags:
-      - user
-  /api/v1/user/notifications/delete-all-read:
-    delete:
-      consumes:
-      - application/json
-      description: Delete all read notifications for the authenticated user
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.SuccessResponse'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: Delete All Read Notifications
       tags:
       - user
   /api/v1/user/notifications/mark-all-as-read:
@@ -14589,7 +14591,7 @@ paths:
       summary: Get current rate with adjustment
       tags:
       - Rate Manager - Rates
-  /rate-manager/my-vip-status:
+  /rate-manager/my-vip-level:
     get:
       description: Get current VIP level and benefits for a user
       produces:

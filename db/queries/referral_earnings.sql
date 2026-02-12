@@ -16,7 +16,7 @@ SELECT * FROM user_referrals;
 -- name: UpdateReferralStatus :exec
 UPDATE user_referrals
 SET status = $1
-WHERE referee_id = $2;
+WHERE id = $2;
 
 
 -- name: GetReferralEarnings :one
@@ -36,30 +36,6 @@ SET
 WHERE user_id = $1
     RETURNING *;
 
--- name: CreateWithdrawalRequest :one
-INSERT INTO withdrawal_requests (user_id, amount)
-VALUES ($1, $2)
-    RETURNING *;
-
--- name: UpdateWithdrawalRequest :one
-UPDATE withdrawal_requests
-SET
-    status = $2,
-    updated_at = NOW()
-WHERE id = $1
-    RETURNING *;
-
--- name: GetWithdrawalRequest :one
-SELECT * FROM withdrawal_requests WHERE id = $1;
-
--- name: ListWithdrawalRequests :many
-SELECT * FROM withdrawal_requests
-ORDER BY created_at DESC;
-
--- name: ListUserWithdrawalRequests :many
-SELECT * FROM withdrawal_requests WHERE user_id = $1
-ORDER BY created_at DESC;
-
 -- name: UpdateAvailableBalanceAfterWithdrawal :one
 UPDATE referral_earnings
 SET
@@ -74,7 +50,7 @@ RETURNING *;
 
 
 -- name: CreateReferralConfig :one
-INSERT INTO referral_configs (referral_amount, minimum_withdrawal_threshold)
+INSERT INTO referral_configs (referral_amount, referral_percentage_earned_per_conversion)
 VALUES ($1, $2)
     RETURNING *;
 
@@ -82,8 +58,8 @@ VALUES ($1, $2)
 UPDATE referral_configs
 SET
     referral_amount = COALESCE(sqlc.narg(referral_amount), referral_amount),
-    minimum_withdrawal_threshold =
-        COALESCE(sqlc.narg(minimum_withdrawal_threshold), minimum_withdrawal_threshold),
+    referral_percentage_earned_per_conversion =
+        COALESCE(sqlc.narg(referral_percentage_earned_per_conversion), referral_percentage_earned_per_conversion),
     updated_at = NOW()
 WHERE id = sqlc.arg(id)
 RETURNING *;
@@ -95,3 +71,19 @@ SELECT * FROM referral_configs;
 
 -- name: DeleteReferralConfig :exec
 DELETE FROM referral_configs WHERE id = $1;
+
+-- name: CreateReferralTransaction :one
+INSERT INTO referral_transactions (user_id, amount, transaction_id, transaction_type, status, reference)
+VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING *;
+
+-- name: UpdateReferralTransactionStatus :exec
+UPDATE referral_transactions
+SET
+    status = $2,
+    updated_at = NOW()
+WHERE id = $1;
+
+-- name: GetReferralTransaction :one
+SELECT * FROM referral_transactions WHERE id = $1;
+

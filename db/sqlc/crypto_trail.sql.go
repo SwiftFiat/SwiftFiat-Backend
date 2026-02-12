@@ -10,39 +10,46 @@ import (
 	"database/sql"
 )
 
-const checkCryptoTransactionTrailByTransactionHash = `-- name: CheckCryptoTransactionTrailByTransactionHash :one
+const checkCryptoTransactionTrailByOrderID = `-- name: CheckCryptoTransactionTrailByOrderID :one
 SELECT EXISTS (
     SELECT 1
     FROM crypto_transaction_trail
-    WHERE transaction_hash = $1
+    WHERE order_id = $1
 ) AS exists
 `
 
-func (q *Queries) CheckCryptoTransactionTrailByTransactionHash(ctx context.Context, transactionHash string) (bool, error) {
-	row := q.db.QueryRowContext(ctx, checkCryptoTransactionTrailByTransactionHash, transactionHash)
+func (q *Queries) CheckCryptoTransactionTrailByOrderID(ctx context.Context, orderID string) (bool, error) {
+	row := q.db.QueryRowContext(ctx, checkCryptoTransactionTrailByOrderID, orderID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
 }
 
 const createCryptoTransactionTrail = `-- name: CreateCryptoTransactionTrail :one
-INSERT INTO crypto_transaction_trail (address_id, transaction_hash, amount)
-VALUES ($1, $2, $3)
-RETURNING id, address_id, transaction_hash, amount, created_at, updated_at
+INSERT INTO crypto_transaction_trail (address_id, order_id, transaction_hash, amount)
+VALUES ($1, $2, $3, $4)
+RETURNING id, address_id, order_id, transaction_hash, amount, created_at, updated_at
 `
 
 type CreateCryptoTransactionTrailParams struct {
 	AddressID       string         `json:"address_id"`
-	TransactionHash string         `json:"transaction_hash"`
+	OrderID         string         `json:"order_id"`
+	TransactionHash sql.NullString `json:"transaction_hash"`
 	Amount          sql.NullString `json:"amount"`
 }
 
 func (q *Queries) CreateCryptoTransactionTrail(ctx context.Context, arg CreateCryptoTransactionTrailParams) (CryptoTransactionTrail, error) {
-	row := q.db.QueryRowContext(ctx, createCryptoTransactionTrail, arg.AddressID, arg.TransactionHash, arg.Amount)
+	row := q.db.QueryRowContext(ctx, createCryptoTransactionTrail,
+		arg.AddressID,
+		arg.OrderID,
+		arg.TransactionHash,
+		arg.Amount,
+	)
 	var i CryptoTransactionTrail
 	err := row.Scan(
 		&i.ID,
 		&i.AddressID,
+		&i.OrderID,
 		&i.TransactionHash,
 		&i.Amount,
 		&i.CreatedAt,
@@ -54,15 +61,16 @@ func (q *Queries) CreateCryptoTransactionTrail(ctx context.Context, arg CreateCr
 const deleteCryptoTransactionTrailByTransactionHash = `-- name: DeleteCryptoTransactionTrailByTransactionHash :one
 DELETE FROM crypto_transaction_trail
 WHERE transaction_hash = $1
-RETURNING id, address_id, transaction_hash, amount, created_at, updated_at
+RETURNING id, address_id, order_id, transaction_hash, amount, created_at, updated_at
 `
 
-func (q *Queries) DeleteCryptoTransactionTrailByTransactionHash(ctx context.Context, transactionHash string) (CryptoTransactionTrail, error) {
+func (q *Queries) DeleteCryptoTransactionTrailByTransactionHash(ctx context.Context, transactionHash sql.NullString) (CryptoTransactionTrail, error) {
 	row := q.db.QueryRowContext(ctx, deleteCryptoTransactionTrailByTransactionHash, transactionHash)
 	var i CryptoTransactionTrail
 	err := row.Scan(
 		&i.ID,
 		&i.AddressID,
+		&i.OrderID,
 		&i.TransactionHash,
 		&i.Amount,
 		&i.CreatedAt,
@@ -72,7 +80,7 @@ func (q *Queries) DeleteCryptoTransactionTrailByTransactionHash(ctx context.Cont
 }
 
 const fetchCryptoTransactionTrailByAddressID = `-- name: FetchCryptoTransactionTrailByAddressID :many
-SELECT id, address_id, transaction_hash, amount, created_at, updated_at
+SELECT id, address_id, order_id, transaction_hash, amount, created_at, updated_at
 FROM crypto_transaction_trail
 WHERE address_id = $1
 `
@@ -89,6 +97,7 @@ func (q *Queries) FetchCryptoTransactionTrailByAddressID(ctx context.Context, ad
 		if err := rows.Scan(
 			&i.ID,
 			&i.AddressID,
+			&i.OrderID,
 			&i.TransactionHash,
 			&i.Amount,
 			&i.CreatedAt,
@@ -108,17 +117,18 @@ func (q *Queries) FetchCryptoTransactionTrailByAddressID(ctx context.Context, ad
 }
 
 const fetchCryptoTransactionTrailByTransactionHash = `-- name: FetchCryptoTransactionTrailByTransactionHash :one
-SELECT id, address_id, transaction_hash, amount, created_at, updated_at
+SELECT id, address_id, order_id, transaction_hash, amount, created_at, updated_at
 FROM crypto_transaction_trail
 WHERE transaction_hash = $1
 `
 
-func (q *Queries) FetchCryptoTransactionTrailByTransactionHash(ctx context.Context, transactionHash string) (CryptoTransactionTrail, error) {
+func (q *Queries) FetchCryptoTransactionTrailByTransactionHash(ctx context.Context, transactionHash sql.NullString) (CryptoTransactionTrail, error) {
 	row := q.db.QueryRowContext(ctx, fetchCryptoTransactionTrailByTransactionHash, transactionHash)
 	var i CryptoTransactionTrail
 	err := row.Scan(
 		&i.ID,
 		&i.AddressID,
+		&i.OrderID,
 		&i.TransactionHash,
 		&i.Amount,
 		&i.CreatedAt,
@@ -132,11 +142,11 @@ UPDATE crypto_transaction_trail
 SET amount = amount + $2,
     updated_at = NOW()
 WHERE transaction_hash = $1
-RETURNING id, address_id, transaction_hash, amount, created_at, updated_at
+RETURNING id, address_id, order_id, transaction_hash, amount, created_at, updated_at
 `
 
 type UpdateCryptoTransactionTrailAmountByTransactionHashParams struct {
-	TransactionHash string         `json:"transaction_hash"`
+	TransactionHash sql.NullString `json:"transaction_hash"`
 	Amount          sql.NullString `json:"amount"`
 }
 
@@ -146,6 +156,7 @@ func (q *Queries) UpdateCryptoTransactionTrailAmountByTransactionHash(ctx contex
 	err := row.Scan(
 		&i.ID,
 		&i.AddressID,
+		&i.OrderID,
 		&i.TransactionHash,
 		&i.Amount,
 		&i.CreatedAt,

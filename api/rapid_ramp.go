@@ -1,3 +1,6 @@
+// Written by: @bontus [ikwecheghu@gmail.com]
+
+// This file contains the API endpoints for the rapid ramp service.
 package api
 
 import (

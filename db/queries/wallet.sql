@@ -46,3 +46,17 @@ UPDATE swift_wallets
 SET balance = sqlc.arg(amount)
 WHERE id = sqlc.arg(id)
 RETURNING *;
+
+-- name: IncrementWalletBalance :one
+UPDATE swift_wallets
+SET balance = balance + $1,
+    updated_at = NOW()
+WHERE id = $2
+RETURNING id, customer_id, currency, balance, status, created_at, updated_at;
+
+-- name: DecrementWalletBalance :one
+UPDATE swift_wallets
+SET balance = balance - $1,
+    updated_at = NOW()
+WHERE id = $2
+RETURNING id, customer_id, currency, balance, status, created_at, updated_at;

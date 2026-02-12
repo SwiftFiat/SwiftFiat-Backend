@@ -233,14 +233,8 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 
 	var sourceAmount, targetAmount, netAmount decimal.Decimal
 
-	// if req.AmountType == "source" {
 	sourceAmount = amount
 	targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(sourceAmount, adjustedRate, fees)
-	// }
-	// else {
-	// 	targetAmount = amount
-	// 	sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(targetAmount, adjustedRate, fees)
-	// }
 
 	s.logger.Infof("source amount is %s", sourceAmount)
 	s.logger.Infof("target amount is %s", targetAmount)

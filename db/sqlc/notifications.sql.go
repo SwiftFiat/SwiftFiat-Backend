@@ -8,135 +8,237 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
+
+	"github.com/sqlc-dev/pqtype"
 )
 
-const countAllNotifications = `-- name: CountAllNotifications :one
-SELECT COUNT(*) AS count
-FROM notifications
-WHERE user_id = $1
+const acknowledgeAdminAlert = `-- name: AcknowledgeAdminAlert :exec
+UPDATE admin_alerts
+SET
+  acknowledged = TRUE,
+  acknowledged_at = NOW()
+WHERE id = $1
+  AND acknowledged = FALSE
 `
 
-func (q *Queries) CountAllNotifications(ctx context.Context, userID sql.NullInt32) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countAllNotifications, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+func (q *Queries) AcknowledgeAdminAlert(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, acknowledgeAdminAlert, id)
+	return err
 }
 
-const countUnreadNotifications = `-- name: CountUnreadNotifications :one
-SELECT COUNT(*) AS count
-FROM notifications
-WHERE user_id = $1 AND read = FALSE
+const addNotificationRecipient = `-- name: AddNotificationRecipient :exec
+INSERT INTO notification_recipients (
+  notification_id,
+  user_id
+) VALUES (
+  $1, $2
+)
+ON CONFLICT DO NOTHING
 `
 
-func (q *Queries) CountUnreadNotifications(ctx context.Context, userID sql.NullInt32) (int64, error) {
-	row := q.db.QueryRowContext(ctx, countUnreadNotifications, userID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
+type AddNotificationRecipientParams struct {
+	NotificationID int64 `json:"notification_id"`
+	UserID         int64 `json:"user_id"`
 }
 
-const createNotification = `-- name: CreateNotification :one
-INSERT INTO notifications (user_id, title, message)
-VALUES ($1, $2, $3)
-RETURNING id, user_id, title, message, read, created_at
+func (q *Queries) AddNotificationRecipient(ctx context.Context, arg AddNotificationRecipientParams) error {
+	_, err := q.db.ExecContext(ctx, addNotificationRecipient, arg.NotificationID, arg.UserID)
+	return err
+}
+
+const addNotificationRecipientsBulk = `-- name: AddNotificationRecipientsBulk :exec
+INSERT INTO notification_recipients (
+  notification_id,
+  user_id
+)
+SELECT $1, id
+FROM users
+WHERE role = $2
 `
 
-type CreateNotificationParams struct {
-	UserID  sql.NullInt32 `json:"user_id"`
-	Title   string        `json:"title"`
-	Message string        `json:"message"`
+type AddNotificationRecipientsBulkParams struct {
+	NotificationID int64  `json:"notification_id"`
+	Role           string `json:"role"`
 }
 
-type CreateNotificationRow struct {
-	ID        int32         `json:"id"`
-	UserID    sql.NullInt32 `json:"user_id"`
-	Title     string        `json:"title"`
-	Message   string        `json:"message"`
-	Read      sql.NullBool  `json:"read"`
-	CreatedAt sql.NullTime  `json:"created_at"`
+func (q *Queries) AddNotificationRecipientsBulk(ctx context.Context, arg AddNotificationRecipientsBulkParams) error {
+	_, err := q.db.ExecContext(ctx, addNotificationRecipientsBulk, arg.NotificationID, arg.Role)
+	return err
 }
 
-func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (CreateNotificationRow, error) {
-	row := q.db.QueryRowContext(ctx, createNotification, arg.UserID, arg.Title, arg.Message)
-	var i CreateNotificationRow
+const createAdminAlert = `-- name: CreateAdminAlert :one
+INSERT INTO admin_alerts (
+  severity,
+  title,
+  message,
+  source
+) VALUES (
+  $1, $2, $3, $4
+)
+RETURNING id, severity, title, message, source, acknowledged, acknowledged_at, acknowledged_by, created_at
+`
+
+type CreateAdminAlertParams struct {
+	Severity string         `json:"severity"`
+	Title    string         `json:"title"`
+	Message  string         `json:"message"`
+	Source   sql.NullString `json:"source"`
+}
+
+func (q *Queries) CreateAdminAlert(ctx context.Context, arg CreateAdminAlertParams) (AdminAlert, error) {
+	row := q.db.QueryRowContext(ctx, createAdminAlert,
+		arg.Severity,
+		arg.Title,
+		arg.Message,
+		arg.Source,
+	)
+	var i AdminAlert
 	err := row.Scan(
 		&i.ID,
-		&i.UserID,
+		&i.Severity,
 		&i.Title,
 		&i.Message,
-		&i.Read,
+		&i.Source,
+		&i.Acknowledged,
+		&i.AcknowledgedAt,
+		&i.AcknowledgedBy,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
-const deleteAllNotifications = `-- name: DeleteAllNotifications :exec
-DELETE FROM notifications
-WHERE user_id = $1
+const createNotification = `-- name: CreateNotification :one
+INSERT INTO notifications (
+  sender_admin_id,
+  source,
+  title,
+  message,
+  metadata
+) VALUES (
+  $1, $2, $3, $4, $5
+)
+RETURNING id, sender_admin_id, source, title, message, metadata, created_at
 `
 
-func (q *Queries) DeleteAllNotifications(ctx context.Context, userID sql.NullInt32) error {
-	_, err := q.db.ExecContext(ctx, deleteAllNotifications, userID)
-	return err
+type CreateNotificationParams struct {
+	SenderAdminID sql.NullInt64         `json:"sender_admin_id"`
+	Source        string                `json:"source"`
+	Title         sql.NullString        `json:"title"`
+	Message       string                `json:"message"`
+	Metadata      pqtype.NullRawMessage `json:"metadata"`
 }
 
-const deleteAllReadNotifications = `-- name: DeleteAllReadNotifications :exec
-DELETE FROM notifications
-WHERE user_id = $1 AND read = TRUE
-`
-
-func (q *Queries) DeleteAllReadNotifications(ctx context.Context, userID sql.NullInt32) error {
-	_, err := q.db.ExecContext(ctx, deleteAllReadNotifications, userID)
-	return err
+func (q *Queries) CreateNotification(ctx context.Context, arg CreateNotificationParams) (Notification, error) {
+	row := q.db.QueryRowContext(ctx, createNotification,
+		arg.SenderAdminID,
+		arg.Source,
+		arg.Title,
+		arg.Message,
+		arg.Metadata,
+	)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.SenderAdminID,
+		&i.Source,
+		&i.Title,
+		&i.Message,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-const deleteNotification = `-- name: DeleteNotification :exec
-DELETE FROM notifications
-WHERE id = $1 AND user_id = $2
-`
-
-type DeleteNotificationParams struct {
-	ID     int32         `json:"id"`
-	UserID sql.NullInt32 `json:"user_id"`
-}
-
-func (q *Queries) DeleteNotification(ctx context.Context, arg DeleteNotificationParams) error {
-	_, err := q.db.ExecContext(ctx, deleteNotification, arg.ID, arg.UserID)
-	return err
-}
-
-const listNotificationsByUser = `-- name: ListNotificationsByUser :many
-SELECT id, user_id, title, message, read, created_at
+const getNotificationByID = `-- name: GetNotificationByID :one
+SELECT id, sender_admin_id, source, title, message, metadata, created_at
 FROM notifications
-WHERE user_id = $1
-ORDER BY created_at DESC
+WHERE id = $1
 `
 
-type ListNotificationsByUserRow struct {
-	ID        int32         `json:"id"`
-	UserID    sql.NullInt32 `json:"user_id"`
-	Title     string        `json:"title"`
-	Message   string        `json:"message"`
-	Read      sql.NullBool  `json:"read"`
-	CreatedAt sql.NullTime  `json:"created_at"`
+func (q *Queries) GetNotificationByID(ctx context.Context, id int64) (Notification, error) {
+	row := q.db.QueryRowContext(ctx, getNotificationByID, id)
+	var i Notification
+	err := row.Scan(
+		&i.ID,
+		&i.SenderAdminID,
+		&i.Source,
+		&i.Title,
+		&i.Message,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
 }
 
-func (q *Queries) ListNotificationsByUser(ctx context.Context, userID sql.NullInt32) ([]ListNotificationsByUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, listNotificationsByUser, userID)
+const getUnreadNotificationCount = `-- name: GetUnreadNotificationCount :one
+SELECT COUNT(*)
+FROM notification_recipients
+WHERE user_id = $1
+  AND read = FALSE
+`
+
+func (q *Queries) GetUnreadNotificationCount(ctx context.Context, userID int64) (int64, error) {
+	row := q.db.QueryRowContext(ctx, getUnreadNotificationCount, userID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
+const getUserNotifications = `-- name: GetUserNotifications :many
+
+
+SELECT
+  nr.id,
+  n.title,
+  n.message,
+  n.source,
+  n.metadata,
+  nr.read,
+  nr.read_at,
+  n.created_at
+FROM notification_recipients nr
+JOIN notifications n ON n.id = nr.notification_id
+WHERE nr.user_id = $1
+ORDER BY n.created_at DESC
+LIMIT $2 OFFSET $3
+`
+
+type GetUserNotificationsParams struct {
+	UserID int64 `json:"user_id"`
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type GetUserNotificationsRow struct {
+	ID        int64                 `json:"id"`
+	Title     sql.NullString        `json:"title"`
+	Message   string                `json:"message"`
+	Source    string                `json:"source"`
+	Metadata  pqtype.NullRawMessage `json:"metadata"`
+	Read      bool                  `json:"read"`
+	ReadAt    sql.NullTime          `json:"read_at"`
+	CreatedAt time.Time             `json:"created_at"`
+}
+
+// e.g. "user", "admin"
+func (q *Queries) GetUserNotifications(ctx context.Context, arg GetUserNotificationsParams) ([]GetUserNotificationsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserNotifications, arg.UserID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []ListNotificationsByUserRow{}
+	items := []GetUserNotificationsRow{}
 	for rows.Next() {
-		var i ListNotificationsByUserRow
+		var i GetUserNotificationsRow
 		if err := rows.Scan(
 			&i.ID,
-			&i.UserID,
 			&i.Title,
 			&i.Message,
+			&i.Source,
+			&i.Metadata,
 			&i.Read,
+			&i.ReadAt,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -152,45 +254,158 @@ func (q *Queries) ListNotificationsByUser(ctx context.Context, userID sql.NullIn
 	return items, nil
 }
 
-const markAllNotificationsAsRead = `-- name: MarkAllNotificationsAsRead :exec
-UPDATE notifications
-SET read = TRUE
+const listAdminAlerts = `-- name: ListAdminAlerts :many
+SELECT id, severity, title, message, source, acknowledged, acknowledged_at, acknowledged_by, created_at
+FROM admin_alerts
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAdminAlertsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListAdminAlerts(ctx context.Context, arg ListAdminAlertsParams) ([]AdminAlert, error) {
+	rows, err := q.db.QueryContext(ctx, listAdminAlerts, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminAlert{}
+	for rows.Next() {
+		var i AdminAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.Severity,
+			&i.Title,
+			&i.Message,
+			&i.Source,
+			&i.Acknowledged,
+			&i.AcknowledgedAt,
+			&i.AcknowledgedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listNotifications = `-- name: ListNotifications :many
+SELECT id, sender_admin_id, source, title, message, metadata, created_at
+FROM notifications
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListNotificationsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListNotifications(ctx context.Context, arg ListNotificationsParams) ([]Notification, error) {
+	rows, err := q.db.QueryContext(ctx, listNotifications, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Notification{}
+	for rows.Next() {
+		var i Notification
+		if err := rows.Scan(
+			&i.ID,
+			&i.SenderAdminID,
+			&i.Source,
+			&i.Title,
+			&i.Message,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listUnacknowledgedAdminAlerts = `-- name: ListUnacknowledgedAdminAlerts :many
+SELECT id, severity, title, message, source, acknowledged, acknowledged_at, acknowledged_by, created_at
+FROM admin_alerts
+WHERE acknowledged = FALSE
+ORDER BY severity DESC, created_at DESC
+`
+
+func (q *Queries) ListUnacknowledgedAdminAlerts(ctx context.Context) ([]AdminAlert, error) {
+	rows, err := q.db.QueryContext(ctx, listUnacknowledgedAdminAlerts)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AdminAlert{}
+	for rows.Next() {
+		var i AdminAlert
+		if err := rows.Scan(
+			&i.ID,
+			&i.Severity,
+			&i.Title,
+			&i.Message,
+			&i.Source,
+			&i.Acknowledged,
+			&i.AcknowledgedAt,
+			&i.AcknowledgedBy,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const markAllNotificationsRead = `-- name: MarkAllNotificationsRead :exec
+UPDATE notification_recipients
+SET
+  read = TRUE,
+  read_at = NOW()
 WHERE user_id = $1
+  AND read = FALSE
 `
 
-func (q *Queries) MarkAllNotificationsAsRead(ctx context.Context, userID sql.NullInt32) error {
-	_, err := q.db.ExecContext(ctx, markAllNotificationsAsRead, userID)
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
+	_, err := q.db.ExecContext(ctx, markAllNotificationsRead, userID)
 	return err
 }
 
-const markNotificationAsRead = `-- name: MarkNotificationAsRead :exec
-UPDATE notifications
-SET read = TRUE
-WHERE id = $1 AND user_id = $2
+const markNotificationRead = `-- name: MarkNotificationRead :exec
+UPDATE notification_recipients
+SET
+  read = TRUE,
+  read_at = NOW()
+WHERE id = $1
+  AND read = FALSE
 `
 
-type MarkNotificationAsReadParams struct {
-	ID     int32         `json:"id"`
-	UserID sql.NullInt32 `json:"user_id"`
-}
-
-func (q *Queries) MarkNotificationAsRead(ctx context.Context, arg MarkNotificationAsReadParams) error {
-	_, err := q.db.ExecContext(ctx, markNotificationAsRead, arg.ID, arg.UserID)
-	return err
-}
-
-const sendNotificationToAllUsers = `-- name: SendNotificationToAllUsers :exec
-INSERT INTO notifications (user_id, title, message)
-SELECT id, $1, $2
-FROM users
-`
-
-type SendNotificationToAllUsersParams struct {
-	Title   string `json:"title"`
-	Message string `json:"message"`
-}
-
-func (q *Queries) SendNotificationToAllUsers(ctx context.Context, arg SendNotificationToAllUsersParams) error {
-	_, err := q.db.ExecContext(ctx, sendNotificationToAllUsers, arg.Title, arg.Message)
+func (q *Queries) MarkNotificationRead(ctx context.Context, id int64) error {
+	_, err := q.db.ExecContext(ctx, markNotificationRead, id)
 	return err
 }

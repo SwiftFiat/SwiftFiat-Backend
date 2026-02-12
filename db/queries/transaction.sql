@@ -7,10 +7,18 @@ INSERT INTO transactions (
     amount,
     currency,
     amount_usd,
+    idempotency_key,
+    t_from,
+    t_to,
+    direction,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
 ) RETURNING *;
+
+-- name: GetTransactionByIdempotencyKey :one
+SELECT * FROM transactions
+WHERE idempotency_key = $1;
 
 -- name: CreateSwapTransferMetadata :one 
 INSERT INTO swap_transfer_metadata (
@@ -40,9 +48,10 @@ INSERT INTO crypto_transaction_metadata (
     received_amount,
     sent_amount,
     service_provider,
+    order_id,
     service_transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
 
 -- name: CreateGiftcardMetadata :one
@@ -99,10 +108,17 @@ INSERT INTO services_metadata (
     service_type,
     service_provider,
     service_id,
-    service_transaction_id
+    service_transaction_id,
+    service_status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 ) RETURNING *;
+
+-- name: UpdateServiceMetadataStatus :one
+UPDATE services_metadata
+SET service_status = $1
+WHERE transaction_id = $2
+RETURNING *;
 
 -- name: GetTransactionByID :one
 SELECT
@@ -1236,3 +1252,186 @@ FROM (
 ) AS daily_data
 GROUP BY date
 ORDER BY date DESC;
+
+-- Additional queries for two-stage crypto transaction processing
+
+-- name: GetCryptoMetadataByTransactionID :one
+SELECT * FROM crypto_transaction_metadata
+WHERE transaction_id = $1 LIMIT 1;
+
+-- name: GetCryptoMetadataByOrderID :one
+SELECT * FROM crypto_transaction_metadata
+WHERE order_id = $1 LIMIT 1;
+
+-- name: GetPendingCryptoTransactionByOrderID :one
+SELECT t.* 
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE ctm.order_id = $1 
+AND t.status = 'pending'
+AND t.type = 'crypto'
+LIMIT 1;
+
+-- name: GetPendingCryptoTransactionByTransactionID :one
+SELECT t.*, ctm.*
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.id = $1
+AND t.status = 'pending'
+AND t.type = 'crypto'
+LIMIT 1;
+
+-- name: UpdateCryptoTransactionStatus :one
+UPDATE transactions
+SET 
+    status = $2,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateCryptoMetadataRate :one
+UPDATE crypto_transaction_metadata
+SET 
+    rate = $2,
+    received_amount = $3
+WHERE transaction_id = $1
+RETURNING *;
+
+-- name: GetWalletByIDForUpdate :one
+SELECT * FROM swift_wallets
+WHERE id = $1
+LIMIT 1
+FOR UPDATE;
+
+-- name: ListPendingCryptoTransactions :many
+SELECT 
+    t.id,
+    t.user_id,
+    t.type,
+    t.description,
+    t.status,
+    t.amount,
+    t.currency,
+    t.created_at,
+    t.updated_at,
+    ctm.coin,
+    ctm.source_hash,
+    ctm.sent_amount,
+    ctm.service_transaction_id
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.status = 'pending'
+AND t.type = 'crypto'
+ORDER BY t.created_at DESC
+LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
+
+-- name: CountPendingCryptoTransactions :one
+SELECT COUNT(*) as pending_count
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.status = 'pending'
+AND t.type = 'crypto';
+
+-- name: GetPendingTransactionsByUser :many
+SELECT 
+    t.*,
+    ctm.coin,
+    ctm.source_hash,
+    ctm.rate,
+    ctm.received_amount,
+    ctm.sent_amount
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE t.user_id = $1
+AND t.status = 'pending'
+AND t.type = 'crypto'
+ORDER BY t.created_at DESC;
+
+-- name: GetTransactionTimeline :many
+-- Get transaction status changes over time for a specific transaction
+SELECT 
+    t.id,
+    t.status,
+    t.created_at,
+    t.updated_at,
+    ctm.source_hash,
+    ctm.coin,
+    ctm.sent_amount
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+WHERE ctm.source_hash = $1
+ORDER BY t.created_at ASC;
+
+-- name: UpdateTransactionToFailed :one
+-- Update a transaction to failed status with optional error message
+UPDATE transactions
+SET 
+    status = 'failed',
+    description = CASE 
+        WHEN sqlc.arg(error_message)::text IS NOT NULL 
+        THEN CONCAT(description, ' - Error: ', sqlc.arg(error_message)::text)
+        ELSE description
+    END,
+    updated_at = NOW()
+WHERE id = $1
+RETURNING *;
+
+-- name: GetCryptoTransactionsByStatus :many
+SELECT 
+    t.id,
+    t.user_id,
+    t.type,
+    t.status,
+    t.amount,
+    t.currency,
+    t.created_at,
+    t.updated_at,
+    ctm.coin,
+    ctm.source_hash,
+    ctm.rate,
+    ctm.received_amount,
+    ctm.sent_amount,
+    u.first_name,
+    u.last_name,
+    u.email
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+JOIN users u ON t.user_id = u.id
+WHERE t.status = $1
+AND t.type = 'crypto'
+ORDER BY t.created_at DESC
+LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
+
+-- Get pending crypto transactions older than specified duration (for cleanup/monitoring)
+-- name: GetStalePendingTransactions :many
+SELECT 
+    t.id,
+    t.user_id,
+    t.status,
+    t.created_at,
+    t.updated_at,
+    ctm.source_hash,
+    ctm.coin,
+    ctm.sent_amount,
+    u.email
+FROM transactions t
+JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
+JOIN users u ON t.user_id = u.id
+WHERE t.status = 'pending'
+AND t.type = 'crypto'
+AND t.created_at < NOW() - sqlc.arg(age_duration)::interval
+ORDER BY t.created_at ASC;
+
+-- name: GetCryptoTransactionStats :one
+-- Get statistics about crypto transactions by status
+SELECT 
+    COUNT(*) FILTER (WHERE status = 'pending') as pending_count,
+    COUNT(*) FILTER (WHERE status = 'successful') as successful_count,
+    COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
+    COALESCE(SUM(amount_usd) FILTER (WHERE status = 'successful'), 0) as total_successful_usd,
+    COALESCE(SUM(amount_usd) FILTER (WHERE status = 'pending'), 0) as total_pending_usd,
+    COALESCE(AVG(EXTRACT(EPOCH FROM (updated_at - created_at))) FILTER (WHERE status = 'successful'), 0) as avg_completion_time_seconds
+FROM transactions
+WHERE type = 'crypto'
+AND created_at >= sqlc.arg(start_date)
+AND created_at <= sqlc.arg(end_date);

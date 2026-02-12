@@ -25,51 +25,6 @@ const docTemplate = `{
     "basePath": "{{.BasePath}}",
     "paths": {
         "/admin/rate-manager/rules": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Get all rate adjustment rules with pagination",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Rate Manager - Rules"
-                ],
-                "summary": "List rate adjustment rules",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "default": 1,
-                        "description": "Page number",
-                        "name": "page",
-                        "in": "query"
-                    },
-                    {
-                        "type": "integer",
-                        "default": 20,
-                        "description": "Page size",
-                        "name": "page_size",
-                        "in": "query"
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Filter active rules only",
-                        "name": "active_only",
-                        "in": "query"
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/ratemanager.PaginatedResponse"
-                        }
-                    }
-                }
-            },
             "post": {
                 "security": [
                     {
@@ -254,59 +209,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/admin/rate-manager/rules/{id}/toggle": {
-            "patch": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Enable or disable a rate adjustment rule",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Rate Manager - Rules"
-                ],
-                "summary": "Toggle rate adjustment rule",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Rule ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "boolean",
-                        "description": "Enable/disable rule",
-                        "name": "enabled",
-                        "in": "query",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/admin/rate-manager/simulate": {
             "post": {
                 "security": [
@@ -345,57 +247,6 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/admin/rate-manager/vip-assignments": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Manually assign a user to a VIP level",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Rate Manager - VIP Assignments"
-                ],
-                "summary": "Assign user to VIP level",
-                "parameters": [
-                    {
-                        "description": "Assignment request",
-                        "name": "request",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/ratemanager.AssignVIPLevelRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/ratemanager.UserVIPAssignmentResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -781,68 +632,6 @@ const docTemplate = `{
             }
         },
         "/api/v1/admin/faq/{faqId}": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a specific FAQ document by ID",
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "admin-faq"
-                ],
-                "summary": "Get FAQ document",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "FAQ ID",
-                        "name": "faqId",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/models.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/api.FaqDocumentResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "404": {
-                        "description": "Not Found",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            },
             "put": {
                 "security": [
                     {
@@ -1313,6 +1102,70 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/admin/{faqId}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve a specific FAQ document by ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin-faq"
+                ],
+                "summary": "Get FAQ document",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "FAQ ID",
+                        "name": "faqId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/models.SuccessResponse"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "$ref": "#/definitions/api.FaqDocumentResponse"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/analytics/crypto-transactions": {
             "get": {
                 "security": [
@@ -1479,6 +1332,58 @@ const docTemplate = `{
                                     }
                                 }
                             ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/analytics/daily-transactions-summary": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieve daily transaction summaries. Accessible only by admin.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Analytics"
+                ],
+                "summary": "Get Daily Transactions",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     },
                     "400": {
@@ -2035,69 +1940,6 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "403": {
-                        "description": "Forbidden",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/analytics/send-notification-to-all": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Send a notification to all users.",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Analytics"
-                ],
-                "summary": "Send Notification To All",
-                "parameters": [
-                    {
-                        "description": "Send Notification To All Users Request",
-                        "name": "body",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api.SendNotificationToAllUsersRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.NotificationResponse"
                         }
                     },
                     "400": {
@@ -3196,75 +3038,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/auth/change-password": {
-            "post": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Change the authenticated user's password",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Change password",
-                "parameters": [
-                    {
-                        "description": "change password request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.ChangePasswordParams"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/models.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "$ref": "#/definitions/models.UserResponse"
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/auth/create-passcode": {
             "post": {
                 "security": [
@@ -3390,52 +3163,6 @@ const docTemplate = `{
                     },
                     "401": {
                         "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/auth/forgot-passcode": {
-            "post": {
-                "description": "Initiate passcode reset process by sending an OTP to the user's email",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Forgot passcode",
-                "parameters": [
-                    {
-                        "description": "forgot passcode request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/models.ForgotPasscodeParams"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
                         "schema": {
                             "$ref": "#/definitions/models.ErrorResponse"
                         }
@@ -4382,58 +4109,6 @@ const docTemplate = `{
                         "required": true,
                         "schema": {
                             "$ref": "#/definitions/api.VerifyEmailRequest"
-                        }
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/auth/verify-otp": {
-            "post": {
-                "description": "Verifies a One-Time Password (OTP) sent to the specified phone number using Twilio",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "auth"
-                ],
-                "summary": "Verify OTP via Twilio",
-                "parameters": [
-                    {
-                        "description": "verification request",
-                        "name": "data",
-                        "in": "body",
-                        "required": true,
-                        "schema": {
-                            "$ref": "#/definitions/api.VerifyRequest"
                         }
                     }
                 ],
@@ -6678,7 +6353,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/api.ListTicketsByStatusRow"
+                                                "$ref": "#/definitions/api.ListAllTicketsRow"
                                             }
                                         }
                                     }
@@ -8074,6 +7749,610 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/price-alerts": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all price alerts for the authenticated user",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get user's price alerts",
+                "parameters": [
+                    {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Return only active alerts",
+                        "name": "active_only",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/pricealert.PriceAlert"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Creates a custom price alert for crypto-to-fiat rate monitoring",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Create a new price alert",
+                "parameters": [
+                    {
+                        "description": "Alert configuration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pricealert.CreateAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/pricealert.PriceAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/admin/all": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves all price alerts across all users",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get all alerts (Admin)",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 50,
+                        "description": "Number of records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/admin/metrics": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves comprehensive metrics about the alert system",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get system-wide metrics (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/admin/scheduler/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves performance metrics for the alert scheduler",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get scheduler statistics (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/admin/scheduler/trigger": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Manually triggers the alert checking process",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Trigger manual alert check (Admin)",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/history/{alert_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves the history of when an alert was triggered",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get alert trigger history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of records",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Offset for pagination",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/stats": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves statistics about user's price alerts",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get alert statistics [fix needed]",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/{alert_id}": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Retrieves details of a specific price alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Get a specific price alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pricealert.PriceAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Updates configuration of an existing price alert",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Update a price alert [fix needed]",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Updated alert configuration",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/pricealert.CreateAlertRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/pricealert.PriceAlert"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Soft-deletes a price alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Delete a price alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/{alert_id}/pause": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Temporarily disables a price alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Pause a price alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/price-alerts/{alert_id}/resume": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reactivates a paused price alert",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "PriceAlerts"
+                ],
+                "summary": "Resume a price alert",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Alert ID (UUID)",
+                        "name": "alert_id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/models.SuccessResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "$ref": "#/definitions/models.ErrorResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/qr-codes": {
             "get": {
                 "security": [
@@ -8449,6 +8728,47 @@ const docTemplate = `{
                 }
             }
         },
+        "/api/v1/rate-manager/admin/rules": {
+            "get": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Get all rate adjustment rules with pagination",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Rate Manager - Rules"
+                ],
+                "summary": "List rate adjustment rules",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 20,
+                        "description": "Number of items per page",
+                        "name": "page_size",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/ratemanager.PaginatedResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/api/v1/referral/admin/create-referral-config": {
             "post": {
                 "description": "Creates a new referral config",
@@ -8509,45 +8829,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/referral/admin/get-withdrawal-request": {
-            "get": {
-                "description": "Retrieves the withdrawal request for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Referral"
-                ],
-                "summary": "Get Withdrawal Request",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Withdrawal Request ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/referral/admin/list": {
             "get": {
                 "description": "Retrieves all referrals",
@@ -8580,36 +8861,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/referral/admin/list-withdrawal-requests": {
-            "get": {
-                "description": "Retrieves the withdrawal requests for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Referral"
-                ],
-                "summary": "List Withdrawal Requests",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/referral/admin/update-referral-config": {
             "put": {
                 "description": "Updates the referral config",
@@ -8629,52 +8880,6 @@ const docTemplate = `{
                         "description": "Referral Config ID",
                         "name": "id",
                         "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/referral/admin/update-withdrawal": {
-            "put": {
-                "description": "Updates the withdrawal request for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Referral"
-                ],
-                "summary": "Update Withdrawal Request",
-                "parameters": [
-                    {
-                        "type": "integer",
-                        "description": "Withdrawal ID",
-                        "name": "id",
-                        "in": "query",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Withdrawal Status",
-                        "name": "status",
-                        "in": "query",
                         "required": true
                     }
                 ],
@@ -8851,36 +9056,6 @@ const docTemplate = `{
                     "Referral"
                 ],
                 "summary": "Get Referral Earnings",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "type": "object",
-                            "additionalProperties": true
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/request-withdrawal": {
-            "post": {
-                "description": "Requests a withdrawal for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Referral"
-                ],
-                "summary": "Request Withdrawal",
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -12733,46 +12908,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/api/v1/user/list-kyc": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Retrieve a list of all KYC submissions (admin only)",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "List KYCs",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/api.KYCListResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
         "/api/v1/user/list-users": {
             "get": {
                 "security": [
@@ -12841,61 +12976,6 @@ const docTemplate = `{
                                     }
                                 }
                             ]
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/user/notification/delete/{id}": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete a specific notification for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Delete Notification",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Notification ID",
-                        "name": "id",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
                         }
                     },
                     "401": {
@@ -12990,70 +13070,8 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/api.NotificationListResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/user/notifications/count-all": {
-            "get": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Count the total number of notifications for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Count All Notifications",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "allOf": [
-                                {
-                                    "$ref": "#/definitions/models.SuccessResponse"
-                                },
-                                {
-                                    "type": "object",
-                                    "properties": {
-                                        "data": {
-                                            "type": "object",
-                                            "properties": {
-                                                "count": {
-                                                    "type": "integer"
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
+                            "type": "object",
+                            "additionalProperties": true
                         }
                     },
                     "401": {
@@ -13111,98 +13129,6 @@ const docTemplate = `{
                                     }
                                 }
                             ]
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/user/notifications/delete-all": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete all notifications for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Delete All Notifications",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
-                        }
-                    },
-                    "400": {
-                        "description": "Bad Request",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "401": {
-                        "description": "Unauthorized",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    },
-                    "500": {
-                        "description": "Internal Server Error",
-                        "schema": {
-                            "$ref": "#/definitions/models.ErrorResponse"
-                        }
-                    }
-                }
-            }
-        },
-        "/api/v1/user/notifications/delete-all-read": {
-            "delete": {
-                "security": [
-                    {
-                        "BearerAuth": []
-                    }
-                ],
-                "description": "Delete all read notifications for the authenticated user",
-                "consumes": [
-                    "application/json"
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "user"
-                ],
-                "summary": "Delete All Read Notifications",
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/models.SuccessResponse"
                         }
                     },
                     "400": {
@@ -16949,7 +16875,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/rate-manager/my-vip-status": {
+        "/rate-manager/my-vip-level": {
             "get": {
                 "security": [
                     {
@@ -17512,21 +17438,7 @@ const docTemplate = `{
                 }
             }
         },
-        "api.KYCListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "kycs": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.UserKYCInformation"
-                    }
-                }
-            }
-        },
-        "api.ListTicketsByStatusRow": {
+        "api.ListAllTicketsRow": {
             "type": "object",
             "properties": {
                 "assigned_to": {
@@ -17626,20 +17538,6 @@ const docTemplate = `{
                 }
             }
         },
-        "api.NotificationListResponse": {
-            "type": "object",
-            "properties": {
-                "count": {
-                    "type": "integer"
-                },
-                "notifications": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/models.NotificationResponse"
-                    }
-                }
-            }
-        },
         "api.OTPRequest": {
             "type": "object",
             "required": [
@@ -17681,17 +17579,6 @@ const docTemplate = `{
             ],
             "properties": {
                 "email": {
-                    "type": "string"
-                }
-            }
-        },
-        "api.SendNotificationToAllUsersRequest": {
-            "type": "object",
-            "properties": {
-                "message": {
-                    "type": "string"
-                },
-                "title": {
                     "type": "string"
                 }
             }
@@ -17893,8 +17780,7 @@ const docTemplate = `{
                     "enum": [
                         "active",
                         "cancelled",
-                        "paused",
-                        "failed"
+                        "paused"
                     ]
                 }
             }
@@ -17994,21 +17880,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "email": {
-                    "type": "string"
-                }
-            }
-        },
-        "api.VerifyRequest": {
-            "type": "object",
-            "required": [
-                "code",
-                "phone_number"
-            ],
-            "properties": {
-                "code": {
-                    "type": "string"
-                },
-                "phone_number": {
                     "type": "string"
                 }
             }
@@ -18182,7 +18053,8 @@ const docTemplate = `{
                 "smart_conversion",
                 "support",
                 "rewards",
-                "subscription"
+                "subscription",
+                "price_alert"
             ],
             "x-enum-varnames": [
                 "CategoryAuthentication",
@@ -18203,7 +18075,8 @@ const docTemplate = `{
                 "CategoryConversion",
                 "CategorySupport",
                 "CategoryRewards",
-                "CategorySubscription"
+                "CategorySubscription",
+                "CategoryPriceAlert"
             ]
         },
         "audit.LogResponse": {
@@ -18336,16 +18209,13 @@ const docTemplate = `{
         "bankaccounts.CreateBankAccountRequest": {
             "type": "object",
             "required": [
-                "account_name",
                 "account_number",
                 "bank_code",
                 "bank_name"
             ],
             "properties": {
-                "account_name": {
-                    "type": "string"
-                },
                 "account_number": {
+                    "description": "AccountName   string  ` + "`" + `json:\"account_name\" binding:\"required\"` + "`" + `",
                     "type": "string"
                 },
                 "account_type": {
@@ -19463,17 +19333,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ChangePasswordParams": {
-            "type": "object",
-            "required": [
-                "password"
-            ],
-            "properties": {
-                "password": {
-                    "type": "string"
-                }
-            }
-        },
         "models.CreatePasscodeParams": {
             "type": "object",
             "required": [
@@ -19516,17 +19375,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.ForgotPasscodeParams": {
-            "type": "object",
-            "required": [
-                "email"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string"
-                }
-            }
-        },
         "models.ForgotPasswordParams": {
             "type": "object",
             "required": [
@@ -19535,29 +19383,6 @@ const docTemplate = `{
             "properties": {
                 "email": {
                     "type": "string"
-                }
-            }
-        },
-        "models.NotificationResponse": {
-            "type": "object",
-            "properties": {
-                "created_at": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "message": {
-                    "type": "string"
-                },
-                "read": {
-                    "type": "boolean"
-                },
-                "title": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
                 }
             }
         },
@@ -19599,7 +19424,8 @@ const docTemplate = `{
                 "first_name",
                 "last_name",
                 "password",
-                "phone_number"
+                "phone_number",
+                "swiift_tag"
             ],
             "properties": {
                 "email": {
@@ -19615,6 +19441,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "phone_number": {
+                    "type": "string"
+                },
+                "swiift_tag": {
                     "type": "string"
                 }
             }
@@ -19750,86 +19579,6 @@ const docTemplate = `{
                 }
             }
         },
-        "models.UserKYCInformation": {
-            "type": "object",
-            "properties": {
-                "bvn": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string"
-                },
-                "daily_transfer_limit_ngn": {
-                    "type": "string"
-                },
-                "email": {
-                    "type": "string"
-                },
-                "full_name": {
-                    "type": "string"
-                },
-                "gender": {
-                    "type": "string"
-                },
-                "house_number": {
-                    "type": "string"
-                },
-                "id": {
-                    "type": "integer"
-                },
-                "id_image_url": {
-                    "type": "string"
-                },
-                "id_number": {
-                    "type": "string"
-                },
-                "id_type": {
-                    "type": "string"
-                },
-                "lga": {
-                    "type": "string"
-                },
-                "nearest_landmark": {
-                    "type": "string"
-                },
-                "nin": {
-                    "type": "string"
-                },
-                "phone_number": {
-                    "type": "string"
-                },
-                "proof_of_address_type": {
-                    "type": "string"
-                },
-                "selfie_url": {
-                    "type": "string"
-                },
-                "state": {
-                    "type": "string"
-                },
-                "status": {
-                    "type": "string"
-                },
-                "street_name": {
-                    "type": "string"
-                },
-                "tier": {
-                    "type": "integer"
-                },
-                "updated_at": {
-                    "type": "string"
-                },
-                "user_id": {
-                    "type": "integer"
-                },
-                "verification_date": {
-                    "type": "string"
-                },
-                "wallet_balance_limit_ngn": {
-                    "type": "string"
-                }
-            }
-        },
         "models.UserLoginParams": {
             "type": "object",
             "required": [
@@ -19872,6 +19621,9 @@ const docTemplate = `{
                 "created_at": {
                     "type": "string"
                 },
+                "current_vip_level_id": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -19896,6 +19648,9 @@ const docTemplate = `{
                 "is_kyc_verified": {
                     "type": "boolean"
                 },
+                "is_rapid_ramp_on": {
+                    "type": "boolean"
+                },
                 "last_name": {
                     "type": "string"
                 },
@@ -19909,10 +19664,16 @@ const docTemplate = `{
                     "description": "AvatarBlob  []byte    ` + "`" + `json:\"avatar_blob\"` + "`" + `",
                     "type": "string"
                 },
+                "total_conversion_volume": {
+                    "type": "string"
+                },
                 "total_reward_earned": {
                     "type": "string"
                 },
                 "total_reward_redeemed": {
+                    "type": "string"
+                },
+                "total_transaction_volume": {
                     "type": "string"
                 },
                 "twofa_enabled": {
@@ -19992,6 +19753,225 @@ const docTemplate = `{
                 },
                 "updated_at": {
                     "type": "string"
+                }
+            }
+        },
+        "pricealert.AlertCondition": {
+            "type": "string",
+            "enum": [
+                "above",
+                "below",
+                "equals",
+                "percent_up",
+                "percent_down",
+                "range",
+                "breakout"
+            ],
+            "x-enum-comments": {
+                "ConditionBreakout": "Price breaks resistance/support",
+                "ConditionPercentDown": "Price decreases by X%",
+                "ConditionPercentUp": "Price increases by X%",
+                "ConditionRange": "Price enters a specific range"
+            },
+            "x-enum-descriptions": [
+                "",
+                "",
+                "",
+                "Price increases by X%",
+                "Price decreases by X%",
+                "Price enters a specific range",
+                "Price breaks resistance/support"
+            ],
+            "x-enum-varnames": [
+                "ConditionAbove",
+                "ConditionBelow",
+                "ConditionEquals",
+                "ConditionPercentUp",
+                "ConditionPercentDown",
+                "ConditionRange",
+                "ConditionBreakout"
+            ]
+        },
+        "pricealert.AlertPriority": {
+            "type": "string",
+            "enum": [
+                "low",
+                "medium",
+                "high",
+                "critical"
+            ],
+            "x-enum-varnames": [
+                "PriorityLow",
+                "PriorityMedium",
+                "PriorityHigh",
+                "PriorityCritical"
+            ]
+        },
+        "pricealert.AlertType": {
+            "type": "string",
+            "enum": [
+                "one_time",
+                "recurring",
+                "trailing"
+            ],
+            "x-enum-comments": {
+                "AlertTypeOneTime": "Trigger once and deactivate",
+                "AlertTypeRecurring": "Trigger every time condition is met",
+                "AlertTypeTrailing": "Dynamically adjust trigger based on price movement"
+            },
+            "x-enum-descriptions": [
+                "Trigger once and deactivate",
+                "Trigger every time condition is met",
+                "Dynamically adjust trigger based on price movement"
+            ],
+            "x-enum-varnames": [
+                "AlertTypeOneTime",
+                "AlertTypeRecurring",
+                "AlertTypeTrailing"
+            ]
+        },
+        "pricealert.CreateAlertRequest": {
+            "type": "object",
+            "required": [
+                "alert_condition",
+                "alert_type",
+                "source_currency",
+                "target_currency"
+            ],
+            "properties": {
+                "alert_condition": {
+                    "$ref": "#/definitions/pricealert.AlertCondition"
+                },
+                "alert_type": {
+                    "$ref": "#/definitions/pricealert.AlertType"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expires_at": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "notify_in_app": {
+                    "type": "boolean"
+                },
+                "notify_push": {
+                    "type": "boolean"
+                },
+                "percentage_change": {
+                    "type": "number"
+                },
+                "priority": {
+                    "$ref": "#/definitions/pricealert.AlertPriority"
+                },
+                "range_max": {
+                    "type": "number"
+                },
+                "range_min": {
+                    "type": "number"
+                },
+                "source_currency": {
+                    "type": "string"
+                },
+                "target_currency": {
+                    "type": "string"
+                },
+                "target_rate": {
+                    "type": "number"
+                },
+                "trailing_distance": {
+                    "description": "Percentage (e.g., 5 for 5%)",
+                    "type": "number"
+                }
+            }
+        },
+        "pricealert.PriceAlert": {
+            "type": "object",
+            "properties": {
+                "alertCondition": {
+                    "$ref": "#/definitions/pricealert.AlertCondition"
+                },
+                "alertType": {
+                    "$ref": "#/definitions/pricealert.AlertType"
+                },
+                "baselineRate": {
+                    "description": "For percentage and trailing alerts",
+                    "type": "number"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "expiresAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "isActive": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "lastCheckedAt": {
+                    "type": "string"
+                },
+                "lastTriggeredAt": {
+                    "type": "string"
+                },
+                "maxTrailingRate": {
+                    "description": "Highest rate seen (for trailing down)",
+                    "type": "number"
+                },
+                "minTrailingRate": {
+                    "description": "Lowest rate seen (for trailing up)",
+                    "type": "number"
+                },
+                "notifyInApp": {
+                    "type": "boolean"
+                },
+                "notifyPush": {
+                    "type": "boolean"
+                },
+                "percentageChange": {
+                    "type": "number"
+                },
+                "priority": {
+                    "$ref": "#/definitions/pricealert.AlertPriority"
+                },
+                "rangeMax": {
+                    "type": "number"
+                },
+                "rangeMin": {
+                    "type": "number"
+                },
+                "sourceCurrency": {
+                    "type": "string"
+                },
+                "targetCurrency": {
+                    "type": "string"
+                },
+                "targetRate": {
+                    "type": "number"
+                },
+                "trailingDistance": {
+                    "description": "For trailing alerts (percentage)",
+                    "type": "number"
+                },
+                "triggeredCount": {
+                    "type": "integer"
+                },
+                "updatedAt": {
+                    "type": "string"
+                },
+                "userID": {
+                    "type": "integer",
+                    "format": "int64"
                 }
             }
         },
@@ -20416,7 +20396,7 @@ const docTemplate = `{
                 "level_code",
                 "level_name",
                 "level_rank",
-                "min_transaction_volume"
+                "min_conversion_volume"
             ],
             "properties": {
                 "badge_color": {
@@ -20451,12 +20431,12 @@ const docTemplate = `{
                 "min_conversion_count": {
                     "type": "integer"
                 },
-                "min_monthly_volume": {
-                    "type": "string"
-                },
-                "min_transaction_volume": {
+                "min_conversion_volume": {
                     "type": "string",
                     "minLength": 0
+                },
+                "min_monthly_volume": {
+                    "type": "string"
                 }
             }
         },
@@ -20648,7 +20628,7 @@ const docTemplate = `{
                     ]
                 },
                 "adjustment_value": {
-                    "type": "number"
+                    "type": "string"
                 },
                 "amount": {
                     "type": "string"
@@ -20807,12 +20787,12 @@ const docTemplate = `{
                 "min_conversion_count": {
                     "type": "integer"
                 },
-                "min_monthly_volume": {
-                    "type": "string"
-                },
-                "min_transaction_volume": {
+                "min_conversion_volume": {
                     "type": "string",
                     "minLength": 0
+                },
+                "min_monthly_volume": {
+                    "type": "string"
                 }
             }
         },
@@ -20843,7 +20823,7 @@ const docTemplate = `{
                 "total_conversion_count": {
                     "type": "integer"
                 },
-                "total_transaction_volume": {
+                "total_conversion_volume": {
                     "type": "string"
                 },
                 "user_email": {
@@ -20914,10 +20894,10 @@ const docTemplate = `{
                 "min_conversion_count": {
                     "type": "integer"
                 },
-                "min_monthly_volume": {
+                "min_conversion_volume": {
                     "type": "string"
                 },
-                "min_transaction_volume": {
+                "min_monthly_volume": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -20970,10 +20950,10 @@ const docTemplate = `{
                 "min_conversion_count": {
                     "type": "integer"
                 },
-                "min_monthly_volume": {
+                "min_conversion_volume": {
                     "type": "string"
                 },
-                "min_transaction_volume": {
+                "min_monthly_volume": {
                     "type": "string"
                 },
                 "updated_at": {
@@ -21244,8 +21224,7 @@ const docTemplate = `{
                     "minLength": 0
                 },
                 "reward_rate": {
-                    "type": "string",
-                    "maxLength": 1
+                    "type": "string"
                 },
                 "transaction_type": {
                     "type": "string"
@@ -22593,8 +22572,8 @@ var SwaggerInfo = &swag.Spec{
 	Host:             "localhost:8080",
 	BasePath:         "/api/v1",
 	Schemes:          []string{},
-	Title:            "SwiftFiat API",
-	Description:      "SwiftFiat Backend API for cryptocurrency and fiat transactions",
+	Title:            "SWIIFT API",
+	Description:      "Swiift Backend API for cryptocurrency and fiat transactions",
 	InfoInstanceName: "swagger",
 	SwaggerTemplate:  docTemplate,
 	LeftDelim:        "{{",

@@ -50,7 +50,6 @@ CREATE TABLE IF NOT EXISTS "users" (
     "verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- KYC verification status
-    -- now turn true when bridgecard verification is done
     "is_kyc_verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
     -- BridgeCard verified cardolder
@@ -58,6 +57,12 @@ CREATE TABLE IF NOT EXISTS "users" (
 
     -- BridgeCard cardholder ID
     "bridgecard_cardholder_id" VARCHAR(50) UNIQUE,
+
+    "is_rapid_ramp_on" BOOLEAN NOT NULL DEFAULT FALSE,
+
+    "has_completed_first_conversion" BOOLEAN DEFAULT FALSE,
+    "first_conversion_id" UUID NULL,
+    "first_conversion_at" TIMESTAMP NULL,
 
     -- Audit timestamps
     "created_at" timestamptz NOT NULL DEFAULT (now()),

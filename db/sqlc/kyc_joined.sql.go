@@ -20,7 +20,7 @@ SELECT
     u.first_name as first_name,
     u.last_name as last_name,
     u.email as user_email,
-    k.id, k.user_id, k.tier, k.daily_transfer_limit_ngn, k.wallet_balance_limit_ngn, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.bvn, k.nin, k.gender, k.selfie_url, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    k.id, k.user_id, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
     json_agg(pai) as proof_of_address_images
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -31,39 +31,38 @@ LIMIT 1
 `
 
 type GetUserAndKYCWithProofOfAddressRow struct {
-	UserID                sql.NullInt64         `json:"user_id"`
-	FirstName             sql.NullString        `json:"first_name"`
-	LastName              sql.NullString        `json:"last_name"`
-	UserEmail             sql.NullString        `json:"user_email"`
-	ID                    int64                 `json:"id"`
-	UserID_2              int32                 `json:"user_id_2"`
-	Tier                  int32                 `json:"tier"`
-	DailyTransferLimitNgn sql.NullString        `json:"daily_transfer_limit_ngn"`
-	WalletBalanceLimitNgn sql.NullString        `json:"wallet_balance_limit_ngn"`
-	Status                string                `json:"status"`
-	VerificationDate      sql.NullTime          `json:"verification_date"`
-	FullName              sql.NullString        `json:"full_name"`
-	PhoneNumber           sql.NullString        `json:"phone_number"`
-	Email                 sql.NullString        `json:"email"`
-	Bvn                   sql.NullString        `json:"bvn"`
-	Nin                   sql.NullString        `json:"nin"`
-	Gender                sql.NullString        `json:"gender"`
-	SelfieUrl             sql.NullString        `json:"selfie_url"`
-	IDType                sql.NullString        `json:"id_type"`
-	IDNumber              sql.NullString        `json:"id_number"`
-	IDImageUrl            sql.NullString        `json:"id_image_url"`
-	State                 sql.NullString        `json:"state"`
-	Lga                   sql.NullString        `json:"lga"`
-	HouseNumber           sql.NullString        `json:"house_number"`
-	StreetName            sql.NullString        `json:"street_name"`
-	NearestLandmark       sql.NullString        `json:"nearest_landmark"`
-	ProofOfAddressType    sql.NullString        `json:"proof_of_address_type"`
-	ProofOfAddressUrl     sql.NullString        `json:"proof_of_address_url"`
-	ProofOfAddressDate    sql.NullTime          `json:"proof_of_address_date"`
-	CreatedAt             time.Time             `json:"created_at"`
-	UpdatedAt             time.Time             `json:"updated_at"`
-	AdditionalInfo        pqtype.NullRawMessage `json:"additional_info"`
-	ProofOfAddressImages  json.RawMessage       `json:"proof_of_address_images"`
+	UserID               sql.NullInt64         `json:"user_id"`
+	FirstName            sql.NullString        `json:"first_name"`
+	LastName             sql.NullString        `json:"last_name"`
+	UserEmail            sql.NullString        `json:"user_email"`
+	ID                   int64                 `json:"id"`
+	UserID_2             int32                 `json:"user_id_2"`
+	Status               string                `json:"status"`
+	VerificationDate     sql.NullTime          `json:"verification_date"`
+	FullName             sql.NullString        `json:"full_name"`
+	PhoneNumber          sql.NullString        `json:"phone_number"`
+	Email                sql.NullString        `json:"email"`
+	Gender               sql.NullString        `json:"gender"`
+	SelfieUrl            sql.NullString        `json:"selfie_url"`
+	Bvn                  sql.NullString        `json:"bvn"`
+	Nin                  sql.NullString        `json:"nin"`
+	IDType               sql.NullString        `json:"id_type"`
+	IDNumber             sql.NullString        `json:"id_number"`
+	IDImageUrl           sql.NullString        `json:"id_image_url"`
+	State                sql.NullString        `json:"state"`
+	Lga                  sql.NullString        `json:"lga"`
+	HouseNumber          sql.NullString        `json:"house_number"`
+	StreetName           sql.NullString        `json:"street_name"`
+	NearestLandmark      sql.NullString        `json:"nearest_landmark"`
+	PostalCode           sql.NullString        `json:"postal_code"`
+	Country              sql.NullString        `json:"country"`
+	ProofOfAddressType   sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl    sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate   sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt            time.Time             `json:"created_at"`
+	UpdatedAt            time.Time             `json:"updated_at"`
+	AdditionalInfo       pqtype.NullRawMessage `json:"additional_info"`
+	ProofOfAddressImages json.RawMessage       `json:"proof_of_address_images"`
 }
 
 func (q *Queries) GetUserAndKYCWithProofOfAddress(ctx context.Context, id int64) (GetUserAndKYCWithProofOfAddressRow, error) {
@@ -76,18 +75,15 @@ func (q *Queries) GetUserAndKYCWithProofOfAddress(ctx context.Context, id int64)
 		&i.UserEmail,
 		&i.ID,
 		&i.UserID_2,
-		&i.Tier,
-		&i.DailyTransferLimitNgn,
-		&i.WalletBalanceLimitNgn,
 		&i.Status,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,
 		&i.Email,
-		&i.Bvn,
-		&i.Nin,
 		&i.Gender,
 		&i.SelfieUrl,
+		&i.Bvn,
+		&i.Nin,
 		&i.IDType,
 		&i.IDNumber,
 		&i.IDImageUrl,
@@ -96,6 +92,8 @@ func (q *Queries) GetUserAndKYCWithProofOfAddress(ctx context.Context, id int64)
 		&i.HouseNumber,
 		&i.StreetName,
 		&i.NearestLandmark,
+		&i.PostalCode,
+		&i.Country,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,

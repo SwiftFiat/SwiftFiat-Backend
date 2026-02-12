@@ -545,7 +545,7 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 	}
 
 	// Audit Log
-	entry := audit.NewTransactionLog(ctx, audit.EventWalletTransferCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
+	entry := audit.NewTransactionLog(audit.EventWalletTransferCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
 	entry.Metadata = map[string]any{
 		"from_account":        request.FromAccountID,
 		"to_account":          request.ToAccountID,
@@ -565,10 +565,10 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 
 	go func() {
 		// Notifications
-		w.notifr.Create(ctx, int32(activeUser.UserID), "Outgoing Wallet Transfer", fmt.Sprintf("Transfer of %.2f %s was successful", request.Amount, wallett.Currency))
+		_, err = w.notifr.CreateWithRecipients(ctx, nil, "Outgoing Wallet Transfer", fmt.Sprintf("Transfer of %.2f %s was successful", request.Amount, wallett.Currency), "system", []int64{activeUser.UserID})
 		w.pushService.SendWalletTransfer(ctx, activeUser.UserID, request.Amount)
 		if hasDestUser {
-			w.notifr.Create(ctx, int32(destUser.ID), "Incoming Wallet Transfer", fmt.Sprintf("You have received a transfer of %.2f %s", request.Amount, wallett.Currency))
+			w.notifr.CreateWithRecipients(ctx, nil, "Incoming Wallet Transfer", fmt.Sprintf("You have received a transfer of %.2f %s", request.Amount, wallett.Currency), "system", []int64{destUser.ID})
 			w.pushService.RecieveWalletTransfer(ctx, int64(destUser.ID), request.Amount)
 		}
 	}()
@@ -638,11 +638,6 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		return
 	}
 
-	if kycUser.Tier < 1 {
-		ctx.JSON(errors.KYCLevelTooLow, basemodels.NewCustomResponse("failed", errors.KYCLevelTooLowMessage, models.ToUserKYCInformation(&kycUser)))
-		return
-	}
-
 	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
@@ -666,17 +661,6 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	amount := decimal.NewFromFloat(request.Amount)
-	tierLimit, err := decimal.NewFromString(kycUser.DailyTransferLimitNgn.String)
-	if err != nil {
-		w.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	if amount.GreaterThan(tierLimit) {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("allowed transfer amount exceeded"))
-		return
-	}
 
 	tparams := transaction.IntraTransaction{
 		FromAccountID: sourceAccount,
@@ -703,7 +687,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 	}
 
 	// audit log
-	entry := audit.NewTransactionLog(ctx, audit.EventWalletSwapCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
+	entry := audit.NewTransactionLog(audit.EventWalletSwapCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
 	entry.Metadata = map[string]any{
 		"from_account": request.FromAccountID,
 		"to_account":   request.ToAccountID,
@@ -712,7 +696,7 @@ func (w *Wallet) swap(ctx *gin.Context) {
 		"status":       tObj.Status,
 	}
 
-	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Swap Transaction", fmt.Sprintf("Swap transaction of %f was successful", request.Amount))
+	w.notifr.CreateWithRecipients(ctx, nil, "Successful Swap Transaction", fmt.Sprintf("Swap transaction of %f was successful", request.Amount), "system", []int64{activeUser.UserID})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
 }
@@ -1024,7 +1008,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 	// }
 
 	// audit log
-	entry := audit.NewTransactionLog(ctx, audit.EventFiatTransferCreated, transactionInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "", true)
+	entry := audit.NewTransactionLog(audit.EventFiatTransferCreated, transactionInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "", true)
 	entry.Metadata = map[string]any{
 		"wallet_id":        request.WalletID,
 		"account_number":   request.AccountNumber,
@@ -1035,7 +1019,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		"status":           transactionInfo.Status,
 	}
 
-	w.notifr.Create(ctx, int32(activeUser.UserID), "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount))
+	w.notifr.CreateWithRecipients(ctx, nil, "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount), "system", []int64{activeUser.UserID})
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", FiatTransferResponse{
 		TransactionInfo:  *transactionInfo,

@@ -9,6 +9,8 @@ import (
 	"context"
 	"database/sql"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const createReferral = `-- name: CreateReferral :one
@@ -53,23 +55,23 @@ func (q *Queries) CreateReferral(ctx context.Context, arg CreateReferralParams) 
 }
 
 const createReferralConfig = `-- name: CreateReferralConfig :one
-INSERT INTO referral_configs (referral_amount, minimum_withdrawal_threshold)
+INSERT INTO referral_configs (referral_amount, referral_percentage_earned_per_conversion)
 VALUES ($1, $2)
-    RETURNING id, referral_amount, minimum_withdrawal_threshold, singleton, created_at, updated_at
+    RETURNING id, referral_amount, referral_percentage_earned_per_conversion, singleton, created_at, updated_at
 `
 
 type CreateReferralConfigParams struct {
-	ReferralAmount             string `json:"referral_amount"`
-	MinimumWithdrawalThreshold string `json:"minimum_withdrawal_threshold"`
+	ReferralAmount                        string `json:"referral_amount"`
+	ReferralPercentageEarnedPerConversion string `json:"referral_percentage_earned_per_conversion"`
 }
 
 func (q *Queries) CreateReferralConfig(ctx context.Context, arg CreateReferralConfigParams) (ReferralConfig, error) {
-	row := q.db.QueryRowContext(ctx, createReferralConfig, arg.ReferralAmount, arg.MinimumWithdrawalThreshold)
+	row := q.db.QueryRowContext(ctx, createReferralConfig, arg.ReferralAmount, arg.ReferralPercentageEarnedPerConversion)
 	var i ReferralConfig
 	err := row.Scan(
 		&i.ID,
 		&i.ReferralAmount,
-		&i.MinimumWithdrawalThreshold,
+		&i.ReferralPercentageEarnedPerConversion,
 		&i.Singleton,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -98,24 +100,38 @@ func (q *Queries) CreateReferralEarnings(ctx context.Context, userID int32) (Ref
 	return i, err
 }
 
-const createWithdrawalRequest = `-- name: CreateWithdrawalRequest :one
-INSERT INTO withdrawal_requests (user_id, amount)
-VALUES ($1, $2)
-    RETURNING id, user_id, amount, status, created_at, updated_at
+const createReferralTransaction = `-- name: CreateReferralTransaction :one
+INSERT INTO referral_transactions (user_id, amount, transaction_id, transaction_type, status, reference)
+VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING id, user_id, amount, transaction_id, transaction_type, reference, status, created_at, updated_at
 `
 
-type CreateWithdrawalRequestParams struct {
-	UserID int32  `json:"user_id"`
-	Amount string `json:"amount"`
+type CreateReferralTransactionParams struct {
+	UserID          int32         `json:"user_id"`
+	Amount          string        `json:"amount"`
+	TransactionID   uuid.NullUUID `json:"transaction_id"`
+	TransactionType string        `json:"transaction_type"`
+	Status          string        `json:"status"`
+	Reference       string        `json:"reference"`
 }
 
-func (q *Queries) CreateWithdrawalRequest(ctx context.Context, arg CreateWithdrawalRequestParams) (WithdrawalRequest, error) {
-	row := q.db.QueryRowContext(ctx, createWithdrawalRequest, arg.UserID, arg.Amount)
-	var i WithdrawalRequest
+func (q *Queries) CreateReferralTransaction(ctx context.Context, arg CreateReferralTransactionParams) (ReferralTransaction, error) {
+	row := q.db.QueryRowContext(ctx, createReferralTransaction,
+		arg.UserID,
+		arg.Amount,
+		arg.TransactionID,
+		arg.TransactionType,
+		arg.Status,
+		arg.Reference,
+	)
+	var i ReferralTransaction
 	err := row.Scan(
 		&i.ID,
 		&i.UserID,
 		&i.Amount,
+		&i.TransactionID,
+		&i.TransactionType,
+		&i.Reference,
 		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -185,7 +201,7 @@ func (q *Queries) GetReferralByRefereeID(ctx context.Context, refereeID int32) (
 }
 
 const getReferralConfig = `-- name: GetReferralConfig :one
-SELECT id, referral_amount, minimum_withdrawal_threshold, singleton, created_at, updated_at FROM referral_configs
+SELECT id, referral_amount, referral_percentage_earned_per_conversion, singleton, created_at, updated_at FROM referral_configs
 `
 
 func (q *Queries) GetReferralConfig(ctx context.Context) (ReferralConfig, error) {
@@ -194,7 +210,7 @@ func (q *Queries) GetReferralConfig(ctx context.Context) (ReferralConfig, error)
 	err := row.Scan(
 		&i.ID,
 		&i.ReferralAmount,
-		&i.MinimumWithdrawalThreshold,
+		&i.ReferralPercentageEarnedPerConversion,
 		&i.Singleton,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -215,6 +231,27 @@ func (q *Queries) GetReferralEarnings(ctx context.Context, userID int32) (Referr
 		&i.TotalEarned,
 		&i.AvailableBalance,
 		&i.WithdrawnBalance,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getReferralTransaction = `-- name: GetReferralTransaction :one
+SELECT id, user_id, amount, transaction_id, transaction_type, reference, status, created_at, updated_at FROM referral_transactions WHERE id = $1
+`
+
+func (q *Queries) GetReferralTransaction(ctx context.Context, id int64) (ReferralTransaction, error) {
+	row := q.db.QueryRowContext(ctx, getReferralTransaction, id)
+	var i ReferralTransaction
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Amount,
+		&i.TransactionID,
+		&i.TransactionType,
+		&i.Reference,
+		&i.Status,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -242,94 +279,6 @@ func (q *Queries) GetUserReferrals(ctx context.Context, referrerID int32) ([]Use
 			&i.EarnedAmount,
 			&i.CreatedAt,
 			&i.Status,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getWithdrawalRequest = `-- name: GetWithdrawalRequest :one
-SELECT id, user_id, amount, status, created_at, updated_at FROM withdrawal_requests WHERE id = $1
-`
-
-func (q *Queries) GetWithdrawalRequest(ctx context.Context, id int64) (WithdrawalRequest, error) {
-	row := q.db.QueryRowContext(ctx, getWithdrawalRequest, id)
-	var i WithdrawalRequest
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Amount,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
-}
-
-const listUserWithdrawalRequests = `-- name: ListUserWithdrawalRequests :many
-SELECT id, user_id, amount, status, created_at, updated_at FROM withdrawal_requests WHERE user_id = $1
-ORDER BY created_at DESC
-`
-
-func (q *Queries) ListUserWithdrawalRequests(ctx context.Context, userID int32) ([]WithdrawalRequest, error) {
-	rows, err := q.db.QueryContext(ctx, listUserWithdrawalRequests, userID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []WithdrawalRequest{}
-	for rows.Next() {
-		var i WithdrawalRequest
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Amount,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const listWithdrawalRequests = `-- name: ListWithdrawalRequests :many
-SELECT id, user_id, amount, status, created_at, updated_at FROM withdrawal_requests
-ORDER BY created_at DESC
-`
-
-func (q *Queries) ListWithdrawalRequests(ctx context.Context) ([]WithdrawalRequest, error) {
-	rows, err := q.db.QueryContext(ctx, listWithdrawalRequests)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []WithdrawalRequest{}
-	for rows.Next() {
-		var i WithdrawalRequest
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Amount,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -381,26 +330,26 @@ const updateReferralConfig = `-- name: UpdateReferralConfig :one
 UPDATE referral_configs
 SET
     referral_amount = COALESCE($1, referral_amount),
-    minimum_withdrawal_threshold =
-        COALESCE($2, minimum_withdrawal_threshold),
+    referral_percentage_earned_per_conversion =
+        COALESCE($2, referral_percentage_earned_per_conversion),
     updated_at = NOW()
 WHERE id = $3
-RETURNING id, referral_amount, minimum_withdrawal_threshold, singleton, created_at, updated_at
+RETURNING id, referral_amount, referral_percentage_earned_per_conversion, singleton, created_at, updated_at
 `
 
 type UpdateReferralConfigParams struct {
-	ReferralAmount             sql.NullString `json:"referral_amount"`
-	MinimumWithdrawalThreshold sql.NullString `json:"minimum_withdrawal_threshold"`
-	ID                         int64          `json:"id"`
+	ReferralAmount                        sql.NullString `json:"referral_amount"`
+	ReferralPercentageEarnedPerConversion sql.NullString `json:"referral_percentage_earned_per_conversion"`
+	ID                                    int64          `json:"id"`
 }
 
 func (q *Queries) UpdateReferralConfig(ctx context.Context, arg UpdateReferralConfigParams) (ReferralConfig, error) {
-	row := q.db.QueryRowContext(ctx, updateReferralConfig, arg.ReferralAmount, arg.MinimumWithdrawalThreshold, arg.ID)
+	row := q.db.QueryRowContext(ctx, updateReferralConfig, arg.ReferralAmount, arg.ReferralPercentageEarnedPerConversion, arg.ID)
 	var i ReferralConfig
 	err := row.Scan(
 		&i.ID,
 		&i.ReferralAmount,
-		&i.MinimumWithdrawalThreshold,
+		&i.ReferralPercentageEarnedPerConversion,
 		&i.Singleton,
 		&i.CreatedAt,
 		&i.UpdatedAt,
@@ -441,43 +390,33 @@ func (q *Queries) UpdateReferralEarnings(ctx context.Context, arg UpdateReferral
 const updateReferralStatus = `-- name: UpdateReferralStatus :exec
 UPDATE user_referrals
 SET status = $1
-WHERE referee_id = $2
+WHERE id = $2
 `
 
 type UpdateReferralStatusParams struct {
-	Status    string `json:"status"`
-	RefereeID int32  `json:"referee_id"`
+	Status string `json:"status"`
+	ID     int32  `json:"id"`
 }
 
 func (q *Queries) UpdateReferralStatus(ctx context.Context, arg UpdateReferralStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateReferralStatus, arg.Status, arg.RefereeID)
+	_, err := q.db.ExecContext(ctx, updateReferralStatus, arg.Status, arg.ID)
 	return err
 }
 
-const updateWithdrawalRequest = `-- name: UpdateWithdrawalRequest :one
-UPDATE withdrawal_requests
+const updateReferralTransactionStatus = `-- name: UpdateReferralTransactionStatus :exec
+UPDATE referral_transactions
 SET
     status = $2,
     updated_at = NOW()
 WHERE id = $1
-    RETURNING id, user_id, amount, status, created_at, updated_at
 `
 
-type UpdateWithdrawalRequestParams struct {
+type UpdateReferralTransactionStatusParams struct {
 	ID     int64  `json:"id"`
 	Status string `json:"status"`
 }
 
-func (q *Queries) UpdateWithdrawalRequest(ctx context.Context, arg UpdateWithdrawalRequestParams) (WithdrawalRequest, error) {
-	row := q.db.QueryRowContext(ctx, updateWithdrawalRequest, arg.ID, arg.Status)
-	var i WithdrawalRequest
-	err := row.Scan(
-		&i.ID,
-		&i.UserID,
-		&i.Amount,
-		&i.Status,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
-	return i, err
+func (q *Queries) UpdateReferralTransactionStatus(ctx context.Context, arg UpdateReferralTransactionStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateReferralTransactionStatus, arg.ID, arg.Status)
+	return err
 }
