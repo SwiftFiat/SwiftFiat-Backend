@@ -7,62 +7,35 @@ package db
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
 
-const createWalletLedgerEntry = `-- name: CreateWalletLedgerEntry :one
-INSERT INTO ledger_entries (
-    transaction_id,
-    wallet_id,
-    type,
-    amount,
-    balance,
-    source_type,
-    destination_type
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7
-) RETURNING id, transaction_id, wallet_id, type, amount, balance, created_at, source_type, destination_type, deleted_account_id
+const getWalletBalanceFromLedger = `-- name: GetWalletBalanceFromLedger :one
+SELECT
+    COALESCE(
+        SUM(
+            CASE
+                WHEN type = 'credit' THEN amount
+                WHEN type = 'debit'  THEN -amount
+            END
+        ),
+        0
+    ) AS balance
+FROM ledger_entries
+WHERE wallet_id = $1
 `
 
-type CreateWalletLedgerEntryParams struct {
-	TransactionID   uuid.NullUUID `json:"transaction_id"`
-	WalletID        uuid.NullUUID `json:"wallet_id"`
-	Type            string        `json:"type"`
-	Amount          string        `json:"amount"`
-	Balance         string        `json:"balance"`
-	SourceType      string        `json:"source_type"`
-	DestinationType string        `json:"destination_type"`
-}
-
-func (q *Queries) CreateWalletLedgerEntry(ctx context.Context, arg CreateWalletLedgerEntryParams) (LedgerEntry, error) {
-	row := q.db.QueryRowContext(ctx, createWalletLedgerEntry,
-		arg.TransactionID,
-		arg.WalletID,
-		arg.Type,
-		arg.Amount,
-		arg.Balance,
-		arg.SourceType,
-		arg.DestinationType,
-	)
-	var i LedgerEntry
-	err := row.Scan(
-		&i.ID,
-		&i.TransactionID,
-		&i.WalletID,
-		&i.Type,
-		&i.Amount,
-		&i.Balance,
-		&i.CreatedAt,
-		&i.SourceType,
-		&i.DestinationType,
-		&i.DeletedAccountID,
-	)
-	return i, err
+func (q *Queries) GetWalletBalanceFromLedger(ctx context.Context, walletID uuid.NullUUID) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getWalletBalanceFromLedger, walletID)
+	var balance interface{}
+	err := row.Scan(&balance)
+	return balance, err
 }
 
 const getWalletLedger = `-- name: GetWalletLedger :many
-SELECT id, transaction_id, wallet_id, type, amount, balance, created_at, source_type, destination_type, deleted_account_id FROM ledger_entries
+SELECT id, transaction_id, wallet_id, entry_type, amount, source_type, destination_type, created_at, deleted_account_id FROM ledger_entries
 WHERE wallet_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -87,12 +60,11 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 			&i.ID,
 			&i.TransactionID,
 			&i.WalletID,
-			&i.Type,
+			&i.EntryType,
 			&i.Amount,
-			&i.Balance,
-			&i.CreatedAt,
 			&i.SourceType,
 			&i.DestinationType,
+			&i.CreatedAt,
 			&i.DeletedAccountID,
 		); err != nil {
 			return nil, err
@@ -106,4 +78,58 @@ func (q *Queries) GetWalletLedger(ctx context.Context, arg GetWalletLedgerParams
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertLedgerEntry = `-- name: InsertLedgerEntry :one
+INSERT INTO ledger_entries (
+    transaction_id,
+    wallet_id,
+    entry_type,
+    amount,
+    source_type,
+    destination_type
+)
+VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+RETURNING id, transaction_id, wallet_id, entry_type, amount, created_at
+`
+
+type InsertLedgerEntryParams struct {
+	TransactionID   uuid.NullUUID `json:"transaction_id"`
+	WalletID        uuid.NullUUID `json:"wallet_id"`
+	EntryType       string        `json:"entry_type"`
+	Amount          string        `json:"amount"`
+	SourceType      string        `json:"source_type"`
+	DestinationType string        `json:"destination_type"`
+}
+
+type InsertLedgerEntryRow struct {
+	ID            uuid.UUID     `json:"id"`
+	TransactionID uuid.NullUUID `json:"transaction_id"`
+	WalletID      uuid.NullUUID `json:"wallet_id"`
+	EntryType     string        `json:"entry_type"`
+	Amount        string        `json:"amount"`
+	CreatedAt     time.Time     `json:"created_at"`
+}
+
+func (q *Queries) InsertLedgerEntry(ctx context.Context, arg InsertLedgerEntryParams) (InsertLedgerEntryRow, error) {
+	row := q.db.QueryRowContext(ctx, insertLedgerEntry,
+		arg.TransactionID,
+		arg.WalletID,
+		arg.EntryType,
+		arg.Amount,
+		arg.SourceType,
+		arg.DestinationType,
+	)
+	var i InsertLedgerEntryRow
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.WalletID,
+		&i.EntryType,
+		&i.Amount,
+		&i.CreatedAt,
+	)
+	return i, err
 }

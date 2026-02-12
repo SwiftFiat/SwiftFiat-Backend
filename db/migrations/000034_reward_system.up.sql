@@ -52,7 +52,7 @@ CREATE TABLE reward_configurations (
     reward_rate DECIMAL(5, 4) NOT NULL,
     
     -- Transaction types eligible for rewards
-    transaction_type VARCHAR(50) NOT NULL DEFAULT 'bill_payment',
+    transaction_type VARCHAR(50) NOT NULL CHECK (transaction_type IN ('bill_payment', 'inapp_transfer', 'conversion')),
     
     -- Minimum transaction amount to earn rewards (in Naira)
     min_transaction_amount DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -90,6 +90,13 @@ CREATE INDEX idx_reward_configurations_active ON reward_configurations(is_active
 
 -- Index for transaction type lookups
 CREATE INDEX idx_reward_configurations_type ON reward_configurations(transaction_type, is_active);
+
+-- Ensure only one active configuration per transaction type
+-- This constraint is enforced at the application level to allow for future flexibility (e.g., time-based configurations)
+CREATE UNIQUE INDEX unique_active_configuration_per_type
+ON reward_configurations (transaction_type)
+WHERE is_active = true;
+
 
 -- ============================================================================
 -- 3. Create reward_transactions table (Transaction History)
@@ -258,6 +265,38 @@ INSERT INTO reward_configurations (
     'Default Bill Payment Rewards',
     0.01, -- 1% reward rate
     'bill_payment',
+    0, -- No minimum transaction amount
+    true,
+    NOW()
+);
+
+INSERT INTO reward_configurations (
+    config_name,
+    reward_rate,
+    transaction_type,
+    min_transaction_amount,
+    is_active,
+    valid_from
+) VALUES (
+    'Default inapp transfer Rewards',
+    0.01, -- 1% reward rate
+    'inapp_transfer',
+    0, -- No minimum transaction amount
+    true,
+    NOW()
+);
+
+INSERT INTO reward_configurations (
+    config_name,
+    reward_rate,
+    transaction_type,
+    min_transaction_amount,
+    is_active,
+    valid_from
+) VALUES (
+    'Default conversion Rewards',
+    0.01, -- 1% reward rate
+    'conversion',
     0, -- No minimum transaction amount
     true,
     NOW()

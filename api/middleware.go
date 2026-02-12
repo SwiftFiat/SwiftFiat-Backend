@@ -76,6 +76,8 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 		ctx.Set("user_id", user.UserID)
 		ctx.Set("user_role", user.Role)
 		ctx.Set("user_verified", user.Verified)
+		ctx.Set("email", user.Email)
+		ctx.Set("user_tag", user.UserTag)
 		/// Accessible User Across the App
 		ctx.Set("user", user)
 		ctx.Next()

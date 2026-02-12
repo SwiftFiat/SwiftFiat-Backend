@@ -15,9 +15,9 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 )
 
-// @title SwiftFiat API
+// @title SWIIFT API
 // @version 1.0
-// @description SwiftFiat Backend API for cryptocurrency and fiat transactions
+// @description Swiift Backend API for cryptocurrency and fiat transactions
 // @termsOfService http://swagger.io/terms/
 
 // @contact.name API Support

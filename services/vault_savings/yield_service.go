@@ -394,10 +394,10 @@ func (ys *YieldService) creditYieldToVault(
 	// Mark yield as credited
 	err = qtx.UpdateYieldStatus(ctx, db.UpdateYieldStatusParams{
 		ID:     yieldRecord.ID,
-		Status: nullString("credited"),
+		Column2: "credited",
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update yield status: %w", err)
+		return fmt.Errorf("failed to update yield status: %w", err) 
 	}
 
 	// Commit transaction

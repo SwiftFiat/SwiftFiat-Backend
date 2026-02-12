@@ -1,0 +1,25 @@
+meta {
+  name: Get All alerts [admin]
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{BaseURl}}/price-alerts/admin/all?limit=50&offset=0
+  body: none
+  auth: bearer
+}
+
+params:query {
+  limit: 50
+  offset: 0
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

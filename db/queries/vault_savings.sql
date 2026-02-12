@@ -228,12 +228,9 @@ LIMIT $3 OFFSET $4;
 
 -- name: UpdateVaultTransactionStatus :exec
 UPDATE vault_transactions
-SET status = $2,
-    completed_at = CASE 
-        WHEN $2 = 'completed' THEN NOW()
-        ELSE completed_at
-    END
+SET status = $2
 WHERE id = $1;
+
 
 -- name: MarkTransaction2FAVerified :exec
 UPDATE vault_transactions
@@ -325,12 +322,10 @@ LIMIT $2 OFFSET $3;
 
 -- name: UpdateYieldStatus :exec
 UPDATE vault_yields
-SET status = $2,
-    credited_at = CASE 
-        WHEN $2 = 'credited' THEN NOW()
-        ELSE credited_at
-    END
-WHERE id = $1;
+SET status = $2::varchar,
+    credited_at = NOW()
+WHERE id = $1 AND $2::varchar = 'credited';
+
 
 -- name: GetTotalYieldEarned :one
 SELECT COALESCE(SUM(yield_amount), 0)::decimal as total_yield

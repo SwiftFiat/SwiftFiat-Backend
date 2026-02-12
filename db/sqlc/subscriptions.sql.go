@@ -173,10 +173,10 @@ const createCardBilling = `-- name: CreateCardBilling :one
 
 INSERT INTO card_billing_history (
     card_id, user_id, card_plan_id, billing_type, amount,
-    currency, billing_period_start, billing_period_end, source_wallet_id, status
+    currency, billing_period_start, billing_period_end, source_wallet_id, status, transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-) RETURNING id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+) RETURNING id, transaction_id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
 `
 
 type CreateCardBillingParams struct {
@@ -190,6 +190,7 @@ type CreateCardBillingParams struct {
 	BillingPeriodEnd   time.Time `json:"billing_period_end"`
 	SourceWalletID     uuid.UUID `json:"source_wallet_id"`
 	Status             string    `json:"status"`
+	TransactionID      uuid.UUID `json:"transaction_id"`
 }
 
 // ============================================================================
@@ -207,10 +208,12 @@ func (q *Queries) CreateCardBilling(ctx context.Context, arg CreateCardBillingPa
 		arg.BillingPeriodEnd,
 		arg.SourceWalletID,
 		arg.Status,
+		arg.TransactionID,
 	)
 	var i CardBillingHistory
 	err := row.Scan(
 		&i.ID,
+		&i.TransactionID,
 		&i.CardID,
 		&i.UserID,
 		&i.CardPlanID,
@@ -232,10 +235,10 @@ const createCardFunding = `-- name: CreateCardFunding :one
 
 INSERT INTO card_funding_history (
     card_id, user_id, source_wallet_id, amount, currency,
-    source_currency, exchange_rate, funding_type, initiated_by, status
+    source_currency, exchange_rate, funding_type, initiated_by, status, transaction_id
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-) RETURNING id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+) RETURNING id, transaction_id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at
 `
 
 type CreateCardFundingParams struct {
@@ -249,6 +252,7 @@ type CreateCardFundingParams struct {
 	FundingType    string         `json:"funding_type"`
 	InitiatedBy    string         `json:"initiated_by"`
 	Status         string         `json:"status"`
+	TransactionID  uuid.UUID      `json:"transaction_id"`
 }
 
 // ============================================================================
@@ -266,10 +270,12 @@ func (q *Queries) CreateCardFunding(ctx context.Context, arg CreateCardFundingPa
 		arg.FundingType,
 		arg.InitiatedBy,
 		arg.Status,
+		arg.TransactionID,
 	)
 	var i CardFundingHistory
 	err := row.Scan(
 		&i.ID,
+		&i.TransactionID,
 		&i.CardID,
 		&i.UserID,
 		&i.SourceWalletID,
@@ -1101,7 +1107,7 @@ func (q *Queries) GetAutoTopupSuccessRate(ctx context.Context, userID int64) (Ge
 }
 
 const getCardBillingHistory = `-- name: GetCardBillingHistory :many
-SELECT id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at FROM card_billing_history
+SELECT id, transaction_id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at FROM card_billing_history
 WHERE card_id = $1
 ORDER BY billing_period_start DESC
 LIMIT $2 OFFSET $3
@@ -1124,6 +1130,7 @@ func (q *Queries) GetCardBillingHistory(ctx context.Context, arg GetCardBillingH
 		var i CardBillingHistory
 		if err := rows.Scan(
 			&i.ID,
+			&i.TransactionID,
 			&i.CardID,
 			&i.UserID,
 			&i.CardPlanID,
@@ -1152,7 +1159,7 @@ func (q *Queries) GetCardBillingHistory(ctx context.Context, arg GetCardBillingH
 }
 
 const getCardFunding = `-- name: GetCardFunding :one
-SELECT id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history WHERE id = $1
+SELECT id, transaction_id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history WHERE id = $1
 `
 
 func (q *Queries) GetCardFunding(ctx context.Context, id uuid.UUID) (CardFundingHistory, error) {
@@ -1160,6 +1167,7 @@ func (q *Queries) GetCardFunding(ctx context.Context, id uuid.UUID) (CardFunding
 	var i CardFundingHistory
 	err := row.Scan(
 		&i.ID,
+		&i.TransactionID,
 		&i.CardID,
 		&i.UserID,
 		&i.SourceWalletID,
@@ -1179,7 +1187,7 @@ func (q *Queries) GetCardFunding(ctx context.Context, id uuid.UUID) (CardFunding
 }
 
 const getCardFundingHistory = `-- name: GetCardFundingHistory :many
-SELECT id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history
+SELECT id, transaction_id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history
 WHERE card_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -1202,6 +1210,7 @@ func (q *Queries) GetCardFundingHistory(ctx context.Context, arg GetCardFundingH
 		var i CardFundingHistory
 		if err := rows.Scan(
 			&i.ID,
+			&i.TransactionID,
 			&i.CardID,
 			&i.UserID,
 			&i.SourceWalletID,
@@ -2255,7 +2264,7 @@ func (q *Queries) GetUserActiveCardsCount(ctx context.Context, userID int64) (in
 }
 
 const getUserBillingHistory = `-- name: GetUserBillingHistory :many
-SELECT cbh.id, cbh.card_id, cbh.user_id, cbh.card_plan_id, cbh.billing_type, cbh.amount, cbh.currency, cbh.billing_period_start, cbh.billing_period_end, cbh.source_wallet_id, cbh.status, cbh.failure_reason, cbh.created_at, cbh.processed_at, vc.card_name, cp.name as plan_name
+SELECT cbh.id, cbh.transaction_id, cbh.card_id, cbh.user_id, cbh.card_plan_id, cbh.billing_type, cbh.amount, cbh.currency, cbh.billing_period_start, cbh.billing_period_end, cbh.source_wallet_id, cbh.status, cbh.failure_reason, cbh.created_at, cbh.processed_at, vc.card_name, cp.name as plan_name
 FROM card_billing_history cbh
 JOIN virtual_cards vc ON cbh.card_id = vc.id
 JOIN card_plans cp ON cbh.card_plan_id = cp.id
@@ -2272,6 +2281,7 @@ type GetUserBillingHistoryParams struct {
 
 type GetUserBillingHistoryRow struct {
 	ID                 uuid.UUID      `json:"id"`
+	TransactionID      uuid.UUID      `json:"transaction_id"`
 	CardID             uuid.UUID      `json:"card_id"`
 	UserID             int64          `json:"user_id"`
 	CardPlanID         int64          `json:"card_plan_id"`
@@ -2300,6 +2310,7 @@ func (q *Queries) GetUserBillingHistory(ctx context.Context, arg GetUserBillingH
 		var i GetUserBillingHistoryRow
 		if err := rows.Scan(
 			&i.ID,
+			&i.TransactionID,
 			&i.CardID,
 			&i.UserID,
 			&i.CardPlanID,
@@ -2330,7 +2341,7 @@ func (q *Queries) GetUserBillingHistory(ctx context.Context, arg GetUserBillingH
 }
 
 const getUserCardFundingHistory = `-- name: GetUserCardFundingHistory :many
-SELECT id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history
+SELECT id, transaction_id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at FROM card_funding_history
 WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3
@@ -2353,6 +2364,7 @@ func (q *Queries) GetUserCardFundingHistory(ctx context.Context, arg GetUserCard
 		var i CardFundingHistory
 		if err := rows.Scan(
 			&i.ID,
+			&i.TransactionID,
 			&i.CardID,
 			&i.UserID,
 			&i.SourceWalletID,
@@ -3792,7 +3804,7 @@ SET
     failure_reason = $3,
     processed_at = CASE WHEN $2 IN ('successful', 'failed') THEN NOW() ELSE processed_at END
 WHERE id = $1
-RETURNING id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
+RETURNING id, transaction_id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
 `
 
 type UpdateCardBillingStatusParams struct {
@@ -3806,6 +3818,7 @@ func (q *Queries) UpdateCardBillingStatus(ctx context.Context, arg UpdateCardBil
 	var i CardBillingHistory
 	err := row.Scan(
 		&i.ID,
+		&i.TransactionID,
 		&i.CardID,
 		&i.UserID,
 		&i.CardPlanID,
@@ -3830,7 +3843,7 @@ SET
     failure_reason = $2,
     bridgecard_transaction_id = COALESCE($3, bridgecard_transaction_id)
 WHERE id = $4
-RETURNING id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at
+RETURNING id, transaction_id, card_id, user_id, source_wallet_id, amount, currency, source_currency, exchange_rate, bridgecard_transaction_id, funding_type, initiated_by, status, failure_reason, created_at, completed_at
 `
 
 type UpdateCardFundingStatusParams struct {
@@ -3850,6 +3863,7 @@ func (q *Queries) UpdateCardFundingStatus(ctx context.Context, arg UpdateCardFun
 	var i CardFundingHistory
 	err := row.Scan(
 		&i.ID,
+		&i.TransactionID,
 		&i.CardID,
 		&i.UserID,
 		&i.SourceWalletID,

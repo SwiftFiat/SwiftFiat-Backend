@@ -61,19 +61,22 @@ ALTER TABLE referral_earnings
 ADD CONSTRAINT withdrawn_balance_non_negative
 CHECK (withdrawn_balance >= 0);
 
-CREATE TABLE withdrawal_requests (
-                                     "id" BIGSERIAL PRIMARY KEY,
-                                     "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                                     "amount" DECIMAL(10, 2) NOT NULL,
-                                     "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'completed', 'rejected')),
-                                     "created_at" timestamptz NOT NULL DEFAULT (now()),
-                                     "updated_at" timestamptz NOT NULL DEFAULT (now())
+CREATE TABLE referral_transactions (
+  "id" BIGSERIAL PRIMARY KEY,
+  "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "amount" DECIMAL(10, 2) NOT NULL,
+  "transaction_id" UUID REFERENCES transactions(id) ON DELETE SET NULL,
+  "transaction_type" VARCHAR(20) NOT NULL CHECK (transaction_type IN ('credit', 'debit')),
+  "reference" VARCHAR(100) NOT NULL,
+  "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'successful', 'failed')),
+  "created_at" timestamptz NOT NULL DEFAULT (now()),
+  "updated_at" timestamptz NOT NULL DEFAULT (now())
 ); 
 
 CREATE TABLE referral_configs (
       "id" BIGSERIAL PRIMARY KEY,
       "referral_amount" DECIMAL(10, 2) NOT NULL CHECK (referral_amount > 0),
-      "minimum_withdrawal_threshold" DECIMAL(10, 2) NOT NULL CHECK (minimum_withdrawal_threshold > 0),
+      "referral_percentage_earned_per_conversion" DECIMAL(10, 2) NOT NULL,
       "singleton" BOOLEAN NOT NULL DEFAULT TRUE,
       "created_at" timestamptz NOT NULL DEFAULT (now()),
       "updated_at" timestamptz NOT NULL DEFAULT (now())
@@ -82,4 +85,4 @@ CREATE UNIQUE INDEX referral_configs_singleton_idx
 ON referral_configs (singleton);
 
 -- seed referral configs
-INSERT INTO referral_configs (referral_amount, minimum_withdrawal_threshold) VALUES (1000, 5000);
+INSERT INTO referral_configs (referral_amount, referral_percentage_earned_per_conversion) VALUES (1000, 0.05); 

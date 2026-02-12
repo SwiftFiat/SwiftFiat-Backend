@@ -1,6 +1,6 @@
 -- name: CreateCryptoTransactionTrail :one
-INSERT INTO crypto_transaction_trail (address_id, transaction_hash, amount)
-VALUES ($1, $2, $3)
+INSERT INTO crypto_transaction_trail (address_id, order_id, transaction_hash, amount)
+VALUES ($1, $2, $3, $4)
 RETURNING *;
 
 -- name: FetchCryptoTransactionTrailByAddressID :many
@@ -13,11 +13,11 @@ SELECT *
 FROM crypto_transaction_trail
 WHERE transaction_hash = $1;
 
--- name: CheckCryptoTransactionTrailByTransactionHash :one
+-- name: CheckCryptoTransactionTrailByOrderID :one
 SELECT EXISTS (
     SELECT 1
     FROM crypto_transaction_trail
-    WHERE transaction_hash = $1
+    WHERE order_id = $1
 ) AS exists;
 
 -- name: UpdateCryptoTransactionTrailAmountByTransactionHash :one

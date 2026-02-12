@@ -98,7 +98,6 @@ type Repository interface {
 		Example: UserA requests ₦1000 withdrawal to their Wallet
 	*/
 	// CreateWithdrawalRequest Initiates a withdrawal of referral earnings
-	CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (db.WithdrawalRequest, error)
 
 	/*
 		Parameters:
@@ -115,7 +114,6 @@ type Repository interface {
 		Example: Admin approves UserA's ₦1000 withdrawal
 	*/
 	// UpdateWithdrawalRequestStatus Updates the status of a withdrawal request (admin function)
-	UpdateWithdrawalRequestStatus(ctx context.Context, requestID int64, status WithdrawalRequestStatus, notes string) (*db.WithdrawalRequest, error)
 
 	/*
 		Parameters:
@@ -151,6 +149,12 @@ func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, 
 	}
 
 	referral, err := r.queries.CreateReferral(ctx, params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create referral earning
+	_, err = r.queries.CreateReferralEarnings(ctx, int32(referrerID))
 	if err != nil {
 		return nil, err
 	}
@@ -212,78 +216,19 @@ func (r *Repo) GetReferralEarnings(ctx context.Context, userID int64) (*db.Refer
 	}, nil
 }
 
-func (r *Repo) CreateWithdrawalRequest(ctx context.Context, userID int64, amount decimal.Decimal) (*db.WithdrawalRequest, error) {
-	// Check if user has enough balance
-	earnings, err := r.queries.GetReferralEarnings(ctx, int32(userID))
-	if err != nil {
-		return nil, err
-	}
-
-	availableBalance, err := decimal.NewFromString(earnings.AvailableBalance)
-	if err != nil {
-		return nil, err
-	}
-
-	if availableBalance.LessThan(amount) {
-		return nil, ErrInsufficientBalance
-	}
-
-	// Check if withdrawal amount is less than minimum withdrawal threshold
-	referralConfig, err := r.queries.GetReferralConfig(ctx)
-	if err != nil {
-		return nil, err
-	}
-	minimumWithdrawalThreshold, err := decimal.NewFromString(referralConfig.MinimumWithdrawalThreshold)
-	if err != nil {
-		return nil, err
-	}
-
-	if amount.LessThan(minimumWithdrawalThreshold) {
-		return nil, ErrWithdrawalThreshold
-	}
-
-	// Create withdrawal request
-	params := db.CreateWithdrawalRequestParams{
-		UserID: int32(userID),
-		Amount: amount.String(),
-	}
-
-	wr, err := r.queries.CreateWithdrawalRequest(ctx, params)
-	if err != nil {
-		return nil, err
-	}
-
-	return &wr, nil
-}
-
-func (r *Repo) UpdateWithdrawalRequest(ctx context.Context, requestID int64, status WithdrawalRequestStatus) (db.WithdrawalRequest, error) {
-	return r.queries.UpdateWithdrawalRequest(ctx, db.UpdateWithdrawalRequestParams{
-		ID:     requestID,
-		Status: string(status),
-	})
-}
-
-func (r *Repo) ListWithdrawalRequests(ctx context.Context) ([]db.WithdrawalRequest, error) {
-	return r.queries.ListWithdrawalRequests(ctx)
-}
-
-func (r *Repo) GetWithdrawalRequest(ctx context.Context, requestID int64) (db.WithdrawalRequest, error) {
-	return r.queries.GetWithdrawalRequest(ctx, requestID)
-}
-
-func (r *Repo) CreateReferralConfig(ctx context.Context, minimumWithdrawalThreshold decimal.Decimal, referralAmount decimal.Decimal) (db.ReferralConfig, error) {
+func (r *Repo) CreateReferralConfig(ctx context.Context, percentageEarned decimal.Decimal, referralAmount decimal.Decimal) (db.ReferralConfig, error) {
 	return r.queries.CreateReferralConfig(ctx, db.CreateReferralConfigParams{
-		MinimumWithdrawalThreshold: minimumWithdrawalThreshold.String(),
+		ReferralPercentageEarnedPerConversion: percentageEarned.String(),
 		ReferralAmount:             referralAmount.String(),
 	})
 }
 
-func (r *Repo) UpdateReferralConfig(ctx context.Context, id int64, minThreshold, refAmount *decimal.Decimal) (db.ReferralConfig, error) {
+func (r *Repo) UpdateReferralConfig(ctx context.Context, id int64, percentageEarned, refAmount *decimal.Decimal) (db.ReferralConfig, error) {
 	params := db.UpdateReferralConfigParams{ID: id}
 
-	if minThreshold != nil {
-		params.MinimumWithdrawalThreshold = sql.NullString{
-			String: minThreshold.String(),
+	if percentageEarned != nil {
+		params.ReferralPercentageEarnedPerConversion = sql.NullString{
+			String: percentageEarned.String(),
 			Valid:  true,
 		}
 	}

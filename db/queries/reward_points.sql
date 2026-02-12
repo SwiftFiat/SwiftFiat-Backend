@@ -43,6 +43,12 @@ WHERE transaction_type = $1
 ORDER BY created_at DESC
 LIMIT 1;
 
+-- name: GetRewardConfigurationsByTransactionType :many
+-- Get all reward configurations for a specific transaction type
+SELECT * FROM reward_configurations
+WHERE transaction_type = $1
+ORDER BY created_at DESC;
+
 -- name: ListRewardConfigurations :many
 -- List all reward configurations with pagination
 SELECT * FROM reward_configurations

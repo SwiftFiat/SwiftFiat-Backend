@@ -2763,11 +2763,7 @@ func (q *Queries) UpdateVaultStatus(ctx context.Context, arg UpdateVaultStatusPa
 
 const updateVaultTransactionStatus = `-- name: UpdateVaultTransactionStatus :exec
 UPDATE vault_transactions
-SET status = $2,
-    completed_at = CASE 
-        WHEN $2 = 'completed' THEN NOW()
-        ELSE completed_at
-    END
+SET status = $2
 WHERE id = $1
 `
 
@@ -2825,21 +2821,18 @@ func (q *Queries) UpdateYieldConfig(ctx context.Context, arg UpdateYieldConfigPa
 
 const updateYieldStatus = `-- name: UpdateYieldStatus :exec
 UPDATE vault_yields
-SET status = $2,
-    credited_at = CASE 
-        WHEN $2 = 'credited' THEN NOW()
-        ELSE credited_at
-    END
-WHERE id = $1
+SET status = $2::varchar,
+    credited_at = NOW()
+WHERE id = $1 AND $2::varchar = 'credited'
 `
 
 type UpdateYieldStatusParams struct {
-	ID     uuid.UUID      `json:"id"`
-	Status sql.NullString `json:"status"`
+	ID      uuid.UUID `json:"id"`
+	Column2 string    `json:"column_2"`
 }
 
 func (q *Queries) UpdateYieldStatus(ctx context.Context, arg UpdateYieldStatusParams) error {
-	_, err := q.db.ExecContext(ctx, updateYieldStatus, arg.ID, arg.Status)
+	_, err := q.db.ExecContext(ctx, updateYieldStatus, arg.ID, arg.Column2)
 	return err
 }
 

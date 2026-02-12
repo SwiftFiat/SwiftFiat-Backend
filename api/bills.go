@@ -16,7 +16,9 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	tx "github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -34,6 +36,7 @@ type Bills struct {
 	currencyService    *currency.CurrencyService
 	audit              *audit.Service
 	streakScheduler    *streaks.StreakScheduler
+	rewardSvc          *rewards.RewardService
 }
 
 func (b Bills) router(server *Server) {
@@ -251,15 +254,7 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 // @Router /api/v1/bills/buy-airtime [post]
 // @Security BearerAuth
 func (b *Bills) buyAirtime(ctx *gin.Context) {
-	request := struct {
-		WalletID        string  `json:"wallet_id" binding:"required"`
-		ServiceID       string  `json:"service_id" binding:"required"`
-		Phone           string  `json:"phone" binding:"required"`
-		Amount          int64   `json:"amount" binding:"required"`
-		Pin             string  `json:"pin" binding:"required"`
-		UseRewardPoints bool    `json:"use_reward_points"`
-		PointsToUse     float32 `json:"points_to_use"`
-	}{}
+	var request transaction.BuyAirtimeRequest
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
@@ -270,14 +265,6 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
-
-	// Start transaction
-	dbTx, err := b.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-	defer dbTx.Rollback()
 
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -298,206 +285,25 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 		return
 	}
 
-	walletID, err := uuid.Parse(request.WalletID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
-		return
-	}
-
 	b.server.logger.Infof("buy airtime: %v", request)
-	// ========================================================================
-	// REWARD POINTS PROCESSING
-	// ========================================================================
-	originalAmount := decimal.NewFromInt(request.Amount)
-	finalAmount := originalAmount
-	var pointsUsed decimal.Decimal
-	var pointsEarned decimal.Decimal
-	redemptionApplied := false
-
-	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
-
-	// STEP 1: Validate and apply reward redemption if requested
-	if request.UseRewardPoints && request.PointsToUse > 0 {
-		var err error
-		finalAmount, redemptionApplied, err = b.transactionService.ProcessRewardRedemption(
-			ctx, dbTx, &userInfo, pointsToUseDecimal, originalAmount,
-		)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-			return
-		}
-
-		if redemptionApplied {
-			pointsUsed = pointsToUseDecimal
-			b.server.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				userInfo.ID, pointsUsed, originalAmount, finalAmount))
-		}
-	}
-
-	// ========================================================================
-	// CREATE BILL TRANSACTION (with discounted amount)
-	// ========================================================================
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
-		SourceWalletID:  walletID,
-		SentAmount:      finalAmount, // User pays discounted amount
-		Description:     "airtime-purchase",
-		Type:            tx.Airtime,
-		ServiceID:       request.ServiceID,
-		ServiceCurrency: "NGN",
-	})
-	if err != nil {
-		b.server.logger.Error(err)
-		if walletErr, ok := err.(*wallet.WalletError); ok {
-			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-				return
-			}
-			if walletErr.Error() == wallet.ErrNotYours.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-				return
-			}
-			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
-				return
-			}
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// ========================================================================
-	// PURCHASE FROM PROVIDER (with original amount)
-	// ========================================================================
-	provider, exists := b.server.provider.GetProvider(providers.VTPass)
-	if !exists {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
-		return
-	}
-
-	billProv, ok := provider.(*bills.VTPassProvider)
-	if !ok {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
-		return
-	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
-
-	transaction, err := billProv.BuyAirtime(bills.PurchaseAirtimeRequest{
-		ServiceID: request.ServiceID,
-		Phone:     request.Phone,
-		RequestID: purchaseRequestID,
-		Amount:    request.Amount, // Provider receives original amount
-	})
-	if err != nil {
-		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
-		return
-	}
-
-	if _, err := b.server.queries.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-		ServiceTransactionID: sql.NullString{
-			String: transaction.TransactionID,
-			Valid:  true,
-		},
-		TransactionID: tInfo.ID,
-	}); err != nil {
-		b.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// ========================================================================
-	// COMPLETE REWARD REDEMPTION (if applicable)
-	// ========================================================================
-	if redemptionApplied {
-		err = b.transactionService.CompleteRewardRedemption(
-			ctx, dbTx, int32(userInfo.ID), tInfo.ID,
-			pointsUsed, originalAmount, finalAmount,
-			"airtime", request.ServiceID,
-		)
-		if err != nil {
-			// Log but don't fail transaction
-			b.server.logger.Error("Failed to complete reward redemption:", err)
-		}
-	}
-
-	// ========================================================================
-	// AWARD REWARD POINTS (based on amount paid)
-	// ========================================================================
-	pointsEarned, err = b.transactionService.AwardRewardPoints(
-		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "airtime",
+	response, err := b.transactionService.HandleAirtime(
+		ctx,
+		&userInfo,
+		request,
 	)
 	if err != nil {
-		// Log but don't fail transaction
-		b.server.logger.Error("Failed to award reward points:", err)
-	}
-
-	// ========================================================================
-	// COMMIT TRANSACTION
-	// ========================================================================
-	if err := dbTx.Commit(); err != nil {
-		b.server.logger.Error(err)
-		// audit log
-		logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", false)
-		logEntry.Metadata = map[string]any{
-			"Reason": err.Error(),
-		} // TODO:
-		b.audit.Log(logEntry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	// UPdate streak
-	// b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Airtime)
-	err = b.streakScheduler.UpdateStreakOnTransaction(ctx, userInfo.ID, tInfo.ID, "airtime")
-	if err != nil {
-		b.server.logger.Error("Failed to update streak:", err)
+	if response.Status == "pending" {
+		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Airtime is processing", response))
+		return
 	}
 
-	// audit log
-	logEntry := audit.NewTransactionLog(ctx, audit.EventAirtimePurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "NGN", true)
-	logEntry.Metadata = map[string]any{} // TODO:
-	b.audit.Log(logEntry)
-
-	// ========================================================================
-	// SEND NOTIFICATION
-	// ========================================================================
-	notificationMsg := fmt.Sprintf("You have received an airtime of %d to %s", request.Amount, request.Phone)
-	if pointsUsed.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
-	}
-	if pointsEarned.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
-	}
-
-	b.notifr.Create(ctx, int32(userInfo.ID), "Airtime Purchase", notificationMsg)
-
-	// add push notofication
-	err = b.push.SuccessfulAirtimePurchase(ctx, activeUser.UserID, request.Amount, request.Phone)
-	if err != nil {
-		b.server.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
-	}
-
-	b.server.logger.Info("transaction (airtime purchase) completed successfully", map[string]any{
-		"transaction_id":   tInfo.ID,
-		"user_id":          userInfo.ID,
-		"original_amount":  originalAmount.InexactFloat64(),
-		"discount_applied": pointsUsed,
-		"final_paid":       finalAmount.InexactFloat64(),
-		"points_earned":    pointsEarned,
-	})
-
-	// ========================================================================
-	// RETURN ENHANCED RESPONSE
-	// ========================================================================
-	response := map[string]any{
-		"transaction":       tInfo,
-		"original_amount":   originalAmount.InexactFloat64(),
-		"discount_applied":  pointsUsed,
-		"final_amount_paid": finalAmount.InexactFloat64(),
-		"points_used":       pointsUsed,
-		"points_earned":     pointsEarned,
-		"message":           notificationMsg,
+	if response.Status == "failed" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("airtime purchase failed"))
+		return
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase airtime successful", response))
@@ -522,15 +328,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 // @Router /api/v1/bills/buy-data [post]
 // @Security BearerAuth
 func (b *Bills) buyData(ctx *gin.Context) {
-	request := struct {
-		WalletID        string  `json:"wallet_id" binding:"required"`
-		ServiceID       string  `json:"service_id" binding:"required"`
-		Phone           string  `json:"phone" binding:"required"`
-		VariationCode   string  `json:"variation_code" binding:"required"`
-		Pin             string  `json:"pin" binding:"required"`
-		UseRewardPoints bool    `json:"use_reward_points"`
-		PointsToUse     float32 `json:"points_to_use"`
-	}{}
+	var request transaction.BuyDataRequest
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
@@ -541,14 +339,6 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
-
-	// Start transaction
-	dbTx, err := b.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-	defer dbTx.Rollback()
 
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -568,250 +358,28 @@ func (b *Bills) buyData(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
-
-	walletID, err := uuid.Parse(request.WalletID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot parse source wallet ID"))
-		return
-	}
-
-	variations, err := b.server.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID))
-	if err != nil {
-		b.server.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
-	}
-
-	if len(variations) == 0 {
-		provider, exists := b.server.provider.GetProvider(providers.VTPass)
-		if !exists {
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
-			return
-		}
-
-		billProv, ok := provider.(*bills.VTPassProvider)
-		if !ok {
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
-			return
-		}
-
-		remoteVariations, err := billProv.GetServiceVariation(request.ServiceID)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-			return
-		}
-
-		if remoteVariations != nil {
-			variations = make([]models.BillVariation, len(remoteVariations))
-			for i, variation := range remoteVariations {
-				variations[i] = models.BillVariation{
-					VariationCode:   variation.VariationCode,
-					Name:            variation.Name,
-					VariationAmount: variation.VariationAmount,
-					FixedPrice:      variation.FixedPrice,
-				}
-			}
-
-			err = b.server.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", request.ServiceID), variations)
-			if err != nil {
-				b.server.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
-			}
-		}
-	}
-
-	// b.server.logger.Info("variations", variations)
-
-	var selectedVariation *models.BillVariation
-	for _, variation := range variations {
-		if variation.VariationCode == request.VariationCode {
-			selectedVariation = &variation
-			break
-		}
-	}
-
-	if selectedVariation == nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation code"))
-		return
-	}
-
-	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid variation amount"))
-		return
-	}
-
-	// ========================================================================
-	// REWARD POINTS PROCESSING
-	// ========================================================================
-	originalAmount := amount
-	finalAmount := originalAmount
-	var pointsUsed decimal.Decimal
-	var pointsEarned decimal.Decimal
-	redemptionApplied := false
-
-	pointsToUseDecimal := decimal.NewFromFloat32(request.PointsToUse)
-
-	// STEP 1: Validate and apply reward redemption if requested
-	if request.UseRewardPoints && request.PointsToUse > 0 {
-		var err error
-		finalAmount, redemptionApplied, err = b.transactionService.ProcessRewardRedemption(
-			ctx, dbTx, &userInfo, pointsToUseDecimal, originalAmount,
-		)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
-			return
-		}
-
-		if redemptionApplied {
-			pointsUsed = pointsToUseDecimal
-			b.server.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				userInfo.ID, pointsUsed, originalAmount, finalAmount))
-		}
-	}
-
-	// ========================================================================
-	// CREATE BILL TRANSACTION (with discounted amount)
-	// ========================================================================
-
+	
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
-		/// SentAmount is still in it's potential stage, Fees etc. should be added before debit
-		SourceWalletID:  walletID,
-		SentAmount:      finalAmount,
-		Description:     "data-purchase",
-		Type:            tx.Data,
-		ServiceID:       request.ServiceID,
-		ServiceCurrency: "NGN",
-	})
+	response, err := b.transactionService.HandleData(ctx, &userInfo, request)
 	if err != nil {
-		b.server.logger.Error(err)
-		if walletErr, ok := err.(*wallet.WalletError); ok {
-			if walletErr.Error() == wallet.ErrWalletNotFound.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-				return
-			}
-			if walletErr.Error() == wallet.ErrNotYours.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("wallet not found"))
-				return
-			}
-			if walletErr.Error() == wallet.ErrInsufficientFunds.Error() {
-				ctx.JSON(http.StatusBadRequest, basemodels.NewError("insufficient funds"))
-				return
-			}
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	provider, exists := b.server.provider.GetProvider(providers.VTPass)
-	if !exists {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("can not find provider Bill Provider"))
-		return
-	}
-
-	billProv, ok := provider.(*bills.VTPassProvider)
-	if !ok {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to parse provider of type - Bill Provider"))
-		return
-	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
-
-	transaction, err := billProv.BuyData(bills.PurchaseDataRequest{
-		ServiceID:     request.ServiceID,
-		BillersCode:   request.Phone,
-		RequestID:     purchaseRequestID,
-		VariationCode: request.VariationCode,
-		Phone:         request.Phone,
-		Amount:        amount.IntPart(),
-	})
-	if err != nil {
-		ctx.JSON(http.StatusNotImplemented, basemodels.NewError(err.Error()))
-		return
-	}
-
-	if _, err := b.server.queries.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-		ServiceTransactionID: sql.NullString{
-			String: transaction.TransactionID,
-			Valid:  true,
-		},
-		TransactionID: tInfo.ID,
-	}); err != nil {
-		b.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// ========================================================================
-	// COMPLETE REWARD REDEMPTION (if applicable)
-	// ========================================================================
-	if redemptionApplied {
-		err = b.transactionService.CompleteRewardRedemption(
-			ctx, dbTx, int32(userInfo.ID), tInfo.ID,
-			pointsUsed, originalAmount, finalAmount,
-			"data", request.ServiceID,
-		)
-		if err != nil {
-			// Log but don't fail transaction
-			b.server.logger.Error("Failed to complete reward redemption:", err)
-		}
-	}
-
-	// ========================================================================
-	// AWARD REWARD POINTS (based on amount paid)
-	// ========================================================================
-	pointsEarned, err = b.transactionService.AwardRewardPoints(
-		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "data",
-	)
-	if err != nil {
-		// Log but don't fail transaction
-		// todo: audit log here
-		b.server.logger.Error("Failed to award reward points:", err)
-	}
-
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		b.server.logger.Error(err)
-		// audit log
-		logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", false)
-		logEntry.Metadata = map[string]any{
-			"Reason": err.Error(),
-		}
-		b.audit.Log(logEntry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// update streak
-	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Data)
-
-	// audit log
-	logEntry := audit.NewTransactionLog(ctx, audit.EventDataPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
-	b.audit.Log(logEntry)
-
-	notificationMsg := fmt.Sprintf("You have received a data of %s to %s", selectedVariation.VariationAmount, request.Phone)
-	if pointsUsed.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
-	}
-	if pointsEarned.GreaterThan(decimal.Zero) {
-		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
-	}
+	// notificationMsg := fmt.Sprintf("You have received a data of %s to %s", selectedVariation.VariationAmount, request.Phone)
+	// if pointsUsed.GreaterThan(decimal.Zero) {
+	// 	notificationMsg += fmt.Sprintf(". You saved ₦%s using reward points", pointsUsed.String())
+	// }
+	// if pointsEarned.GreaterThan(decimal.Zero) {
+	// 	notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
+	// }
 
 	// TODO: push notif
-	b.notifr.Create(ctx, int32(userInfo.ID), "Data Purchase", notificationMsg)
-
-	b.server.logger.Info("transaction (data purchase) completed successfully", tInfo)
-	// ========================================================================
-	// RETURN ENHANCED RESPONSE
-	// ========================================================================
-	response := map[string]any{
-		"transaction":       tInfo,
-		"original_amount":   originalAmount.InexactFloat64(),
-		"discount_applied":  pointsUsed,
-		"final_amount_paid": finalAmount.InexactFloat64(),
-		"points_used":       pointsUsed,
-		"points_earned":     pointsEarned,
-		"message":           notificationMsg,
-	}
+	// b.notifr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []int64{activeUser.UserID})
+	// if err != nil {
+	// 	entry := audit.WarningLog("InApp Notification failed", err.Error())
+	// 	b.audit.Log(entry)
+	// }
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", response))
 }
@@ -894,6 +462,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		Pin              string  `json:"pin" binding:"required"`
 		UseRewardPoints  bool    `json:"use_reward_points"`
 		PointsToUse      float32 `json:"points_to_use"`
+		IdempotencyKey   string  `json:"idempotency_key" binding:"required"`
 	}{}
 
 	// Fetch user details
@@ -1030,7 +599,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	}
 
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, request.IdempotencyKey, dbTx, &userInfo, tx.BillTransaction{
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount,
 		Description:     "tv-subscription-purchase",
@@ -1094,7 +663,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		}
 
 		// Change transaction status to pending
-		tInfo.Status = transaction.Status
+		tInfo.ServiceStatus = transaction.Status
 
 		// Commit transaction
 		if err := dbTx.Commit(); err != nil {
@@ -1148,7 +717,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	// AWARD REWARD POINTS (based on amount paid)
 	// ========================================================================
 	pointsEarned, err = b.transactionService.AwardRewardPoints(
-		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "tv_subscription",
+		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "tv_subscription", "bill_payment",
 	)
 	if err != nil {
 		// Log but don't fail transaction
@@ -1160,7 +729,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		b.server.logger.Error(err)
 
 		// audit log
-		logEntry := audit.NewTransactionLog(ctx, audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", false)
+		logEntry := audit.NewTransactionLog(audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", false)
 		logEntry.Metadata = map[string]any{
 			"Reason": err.Error(),
 		} // TODO:
@@ -1174,7 +743,7 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.TV)
 
 	// audit log
-	logEntry := audit.NewTransactionLog(ctx, audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
+	logEntry := audit.NewTransactionLog(audit.EventTVSubscriptionPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, amount.InexactFloat64(), "NGN", true)
 	logEntry.Metadata = map[string]any{} // TODO:
 	b.audit.Log(logEntry)
 
@@ -1189,7 +758,11 @@ func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 		notificationMsg += fmt.Sprintf(". You earned ₦%s in reward points!", pointsEarned.String())
 	}
 
-	b.notifr.Create(ctx, int32(userInfo.ID), "Successful TV subscription", notificationMsg)
+	_, err = b.notifr.CreateWithRecipients(ctx, nil, "Successful TV subscription", notificationMsg, "system", []int64{userInfo.ID})
+	if err != nil {
+		entry := audit.WarningLog("InApp Notification failed", err.Error())
+		b.audit.Log(entry)
+	}
 
 	b.server.logger.Info("transaction (tv subscription purchase) completed successfully", tInfo)
 
@@ -1289,6 +862,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		Pin             string  `json:"pin" binding:"required"`
 		UseRewardPoints bool    `json:"use_reward_points"`
 		PointsToUse     float32 `json:"points_to_use"`
+		IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
 	}{}
 	// Fetch user details
 	activeUser, err := utils.GetActiveUser(ctx)
@@ -1418,7 +992,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	}
 
 	// Create BillTransaction
-	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, dbTx, &userInfo, tx.BillTransaction{
+	tInfo, err := b.transactionService.CreateBillPurchaseTransactionWithTx(ctx, request.IdempotencyKey, dbTx, &userInfo, tx.BillTransaction{
 		SourceWalletID:  walletID,
 		SentAmount:      finalAmount,
 		Description:     "electricity-purchase",
@@ -1477,36 +1051,36 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		return
 	}
 
-	units := fmt.Sprintf("%v", purchTrans.Units)
-	tokenAmountString := fmt.Sprintf("%v", purchTrans.TokenAmount)
-	var tokenAmount float64
-	if tokenAmountString != "" {
-		temp, err := decimal.NewFromString(tokenAmountString)
-		if err != nil {
-			tokenAmount = 0
-		} else {
-			tokenAmount, _ = temp.Float64()
-		}
-	}
+	// units := fmt.Sprintf("%v", purchTrans.Units)
+	// tokenAmountString := fmt.Sprintf("%v", purchTrans.TokenAmount)
+	// var tokenAmount float64
+	// if tokenAmountString != "" {
+	// 	temp, err := decimal.NewFromString(tokenAmountString)
+	// 	if err != nil {
+	// 		tokenAmount = 0
+	// 	} else {
+	// 		tokenAmount, _ = temp.Float64()
+	// 	}
+	// }
 
-	fixChargeAmountString := fmt.Sprintf("%v", purchTrans.FixChargeAmount)
-	taxAmountString := fmt.Sprintf("%v", purchTrans.TaxAmount)
+	// fixChargeAmountString := fmt.Sprintf("%v", purchTrans.FixChargeAmount)
+	// taxAmountString := fmt.Sprintf("%v", purchTrans.TaxAmount)
 
 	/// Update transaction metadata
-	tInfo.Metadata.ElectricityMetadata = &tx.ElectricityMetadataResponse{
-		PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
-		CustomerName:      purchTrans.CustomerName,
-		CustomerAddress:   purchTrans.CustomerAddress,
-		Token:             purchTrans.Token,
-		TokenAmount:       tokenAmount,
-		ExchangeReference: purchTrans.ExchangeReference,
-		ResetToken:        purchTrans.ResetToken,
-		ConfigureToken:    purchTrans.ConfigureToken,
-		Units:             units,
-		FixChargeAmount:   &fixChargeAmountString,
-		Tariff:            purchTrans.Tariff,
-		TaxAmount:         &taxAmountString,
-	}
+	// tInfo.Metadata.ElectricityMetadata = &tx.ElectricityMetadataResponse{
+	// 	PurchasedCode:     purchTrans.Content.Transaction.TransactionID,
+	// 	CustomerName:      purchTrans.CustomerName,
+	// 	CustomerAddress:   purchTrans.CustomerAddress,
+	// 	Token:             purchTrans.Token,
+	// 	TokenAmount:       tokenAmount,
+	// 	ExchangeReference: purchTrans.ExchangeReference,
+	// 	ResetToken:        purchTrans.ResetToken,
+	// 	ConfigureToken:    purchTrans.ConfigureToken,
+	// 	Units:             units,
+	// 	FixChargeAmount:   &fixChargeAmountString,
+	// 	Tariff:            purchTrans.Tariff,
+	// 	TaxAmount:         &taxAmountString,
+	// }
 
 	if purchTrans.Content.Transaction.Status == "pending" {
 		b.server.logger.Error("electricity purchase status - pending")
@@ -1520,7 +1094,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 		}
 
 		// Change transaction status to pending
-		tInfo.Status = purchTrans.Content.Transaction.Status
+		tInfo.ServiceStatus = purchTrans.Content.Transaction.Status
 		// Commit transaction
 		if err := dbTx.Commit(); err != nil {
 			b.server.logger.Error(err)
@@ -1573,7 +1147,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	// AWARD REWARD POINTS (based on amount paid)
 	// ========================================================================
 	pointsEarned, err = b.transactionService.AwardRewardPoints(
-		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "electricity",
+		ctx, dbTx, int32(userInfo.ID), tInfo.ID, finalAmount, "electricity", "bill_payment",
 	)
 	if err != nil {
 		// Log but don't fail transaction
@@ -1584,7 +1158,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	if err := dbTx.Commit(); err != nil {
 		b.server.logger.Error(err)
 
-		logEntry := audit.NewTransactionLog(ctx, audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", false)
+		logEntry := audit.NewTransactionLog(audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", false)
 		logEntry.Metadata = map[string]any{
 			"Reason": err.Error(),
 		} // TODO:
@@ -1598,7 +1172,7 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	b.updateStreakAsync(userInfo.ID, tInfo.ID, tx.Electricity)
 
 	// audit log
-	logEntry := audit.NewTransactionLog(ctx, audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", true)
+	logEntry := audit.NewTransactionLog(audit.EventElectricityPurchase, tInfo.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "NGN", true)
 	logEntry.Metadata = map[string]any{} // TODO:
 	b.audit.Log(logEntry)
 
@@ -1614,7 +1188,11 @@ func (b *Bills) buyElectricity(ctx *gin.Context) {
 	}
 
 	// TTODO: push notifications
-	b.notifr.Create(ctx, int32(userInfo.ID), "Successful Electricity Subscription", notificationMsg)
+	_, err = b.notifr.CreateWithRecipients(ctx, nil, "Successful Electricity Subscription", notificationMsg, "system", []int64{userInfo.ID})
+	if err != nil {
+		entry := audit.WarningLog("InApp Notification failed", err.Error())
+		b.audit.Log(entry)
+	}
 
 	b.server.logger.Info("transaction (electricity purchase) completed successfully", tInfo)
 

@@ -13,6 +13,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	vaultsavings "github.com/SwiftFiat/SwiftFiat-Backend/services/vault_savings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -135,7 +136,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 	var req vaultsavings.CreateVaultGoalRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -690,14 +691,21 @@ func (v *Vault) deposit(ctx *gin.Context) {
 	}
 
 	var req struct {
-		FromWalletID string `json:"from_wallet_id" binding:"required"`
-		Amount       string `json:"amount" binding:"required"`
-		Description  string `json:"description"`
+		FromWalletID   string `json:"from_wallet_id" binding:"required"`
+		Amount         string `json:"amount" binding:"required"`
+		Description    string `json:"description"`
+		IdempotencyKey string `json:"idempotency_key" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	t, err := v.server.queries.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		ctx.JSON(http.StatusConflict, basemodels.NewSuccess("Transaction was successful", t))
 		return
 	}
 
@@ -707,8 +715,6 @@ func (v *Vault) deposit(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid wallet ID"))
 		return
 	}
-
-	// TODO: verify wallet belongs to the user
 
 	// Validate amount
 	amount, err := decimal.NewFromString(req.Amount)
@@ -733,12 +739,13 @@ func (v *Vault) deposit(ctx *gin.Context) {
 
 	// Create deposit request
 	depositReq := vaultsavings.DepositRequest{
-		UserID:       activeUser.UserID,
-		VaultID:      vaultID,
-		FromWalletID: walletID,
-		Amount:       req.Amount,
-		Currency:     goal.Currency,
-		Description:  req.Description,
+		UserID:         activeUser.UserID,
+		VaultID:        vaultID,
+		FromWalletID:   walletID,
+		Amount:         req.Amount,
+		Currency:       goal.Currency,
+		Description:    req.Description,
+		IdempotencyKey: req.IdempotencyKey,
 	}
 
 	tx, err := v.vaultService.Deposit(ctx.Request.Context(), depositReq)
@@ -949,15 +956,28 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 	}
 
 	var req struct {
-		ToWalletID  string `json:"to_wallet_id" binding:"required"`
-		Amount      string `json:"amount" binding:"required"`
-		Description string `json:"description"`
+		ToWalletID     string `json:"to_wallet_id" binding:"required"`
+		Amount         string `json:"amount" binding:"required"`
+		Description    string `json:"description"`
+		IdempotencyKey string `json:"idempotency_key" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		v.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid request body"))
 		return
+	}
+
+	existingTx, err := v.server.queries.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		switch existingTx.Status {
+		case string(transaction.Success):
+			ctx.JSON(http.StatusConflict, basemodels.NewSuccess("Withdrawal was successful", existingTx))
+			return
+
+		case string(transaction.Failed):
+			ctx.JSON(http.StatusConflict, basemodels.NewError("Withdrawal failed, contact support"))
+		}
 	}
 
 	// Parse wallet ID
@@ -2752,7 +2772,7 @@ func (v *Vault) getYieldSchedulerStats(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("vaults are disabled"))
 		return
 	}
-	
+
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		v.server.logger.Error(err.Error())

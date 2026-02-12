@@ -857,13 +857,14 @@ func MapGetVaultGoalProgressRowToReponse(a *db.GetVaultGoalProgressRow) *GetVaul
 }
 
 type DepositRequest struct {
-	UserID       int64     `json:"user_id"`
-	VaultID      uuid.UUID `json:"vault_id"`
-	FromWalletID uuid.UUID `json:"from_wallet_id" binding:"required"`
-	Amount       string    `json:"amount" binding:"required"`
-	Currency     string    `json:"currency"`
-	Reference    string    `json:"reference"`
-	Description  string    `json:"description"`
+	UserID         int64     `json:"user_id"`
+	VaultID        uuid.UUID `json:"vault_id"`
+	FromWalletID   uuid.UUID `json:"from_wallet_id" binding:"required"`
+	Amount         string    `json:"amount" binding:"required"`
+	Currency       string    `json:"currency"`
+	Reference      string    `json:"reference"`
+	Description    string    `json:"description"`
+	IdempotencyKey string    `json:"idempotency_key" binding:"required"`
 }
 
 type DepositResponse struct {
@@ -951,6 +952,10 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		return nil, fmt.Errorf("account inactive")
 	}
 
+	if !user.IsKycVerified {
+		return nil, fmt.Errorf("you need to complete KYC verification to create a vault goal")
+	}
+
 	// Validate request
 	if err := s.validateCreateRequest(req); err != nil {
 		return nil, fmt.Errorf("validation failed: %w", err)
@@ -1013,7 +1018,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		bgCtx := context.Background()
 
 		if s.notifService != nil {
-			if _, err := s.notifService.Create(bgCtx, int32(userID), "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName)); err != nil {
+			if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName), "system", []int64{userID}); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to create vault goal notification: %v", err))
 			}
 		}
@@ -1157,7 +1162,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	// Generate reference
 	reference := req.Reference
 	if reference == "" {
-		reference = utils.NewTxRef("vault_deposit")
+		reference = utils.NewTxRef("vd_")
 	}
 
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, vault.Currency)
@@ -1173,8 +1178,12 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		Amount:          amount.String(),
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
-		Status:          string(transaction.Success),
+		Status:          string(transaction.Pending),
 		TransactionFlow: string(transaction.InPlatform),
+		IdempotencyKey:  req.IdempotencyKey,
+		TFrom:           string(transaction.Wallet),
+		TTo:             string(transaction.Vault),
+		Direction:       string(transaction.Debit),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -1192,12 +1201,12 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		BalanceAfter:    newVaultBalance.String(),
 		Reference:       sql.NullString{String: reference, Valid: true},
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          sql.NullString{String: string(transaction.Success), Valid: true},
+		Status:          sql.NullString{String: string(transaction.Pending), Valid: true},
 		Requires2fa:     sql.NullBool{Bool: false, Valid: true},
 		TransactionID:   uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
 
-	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
+	vtx, err := qtx.CreateVaultTransaction(ctx, txParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
@@ -1210,17 +1219,30 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		return nil, fmt.Errorf("failed to update vault balance: %w", err)
 	}
 
-	// Update wallet balance (deduct)
-	// Calculate the negative amount to subtract from wallet
-	// negativeAmount := amount.Neg().String()
-
-	newWalletBalance := walletBalance.Sub(amount)
-	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		ID:     req.FromWalletID,
-		Amount: sql.NullString{String: newWalletBalance.String(), Valid: true},
+	// Update wallet balance
+	_, err = qtx.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		ID:      req.FromWalletID,
+		Balance: sql.NullString{String: req.Amount, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
+	}
+
+	// Update main transaction status to Success
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     maintx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update main transaction status: %w", err)
+	}
+
+	err = qtx.UpdateVaultTransactionStatus(ctx, db.UpdateVaultTransactionStatusParams{
+		ID:     vtx.ID,
+		Status: sql.NullString{String: string(transaction.Success), Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update vault transaction status: %w", err)
 	}
 
 	// Check if goal reached
@@ -1238,6 +1260,22 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
+		// Update main transaction status to Success
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     maintx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update main transaction status: %w", err)
+		}
+
+		err = qtx.UpdateVaultTransactionStatus(ctx, db.UpdateVaultTransactionStatusParams{
+			ID:     vtx.ID,
+			Status: sql.NullString{String: string(transaction.Failed), Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update vault transaction status: %w", err)
+		}
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -1270,7 +1308,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 					_ = s.pushService.SendGoalCompletedPush(bgCtx, req.UserID, vault.VaultName)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName)); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName), "system", []int64{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create goal completed notification: %v", err))
 					}
 				}
@@ -1282,15 +1320,15 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName)); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []int64{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create deposit notification: %v", err))
 					}
 				}
 			}
 		}()
 	}
-	s.logger.Info(fmt.Sprintf("Successfully processed deposit: %s", transaction.ID))
-	return &transaction, nil
+	s.logger.Info(fmt.Sprintf("Successfully processed deposit: %s", vtx.ID))
+	return &vtx, nil
 }
 
 // ============================================================================
@@ -1307,7 +1345,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 
 	// Determine security requirements
-	requires2FA := amount.GreaterThan(decimal.NewFromInt(1000)) // $1,000 threshold
+	requires2FA := amount.GreaterThan(decimal.NewFromInt(1000))
 
 	// Start transaction
 	tx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -1345,12 +1383,6 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		reference = utils.NewTxRef("vault_withdrawal")
 	}
 
-	// Determine status
-	status := string(transaction.Success)
-	if requires2FA {
-		status = string(transaction.Pending)
-	}
-
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, vault.Currency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
@@ -1360,12 +1392,15 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	maintx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		Type:            string(transaction.Vault),
 		Description:     sql.NullString{String: req.Description, Valid: true},
-		Status:          status,
+		Status:          string(transaction.Pending),
 		TransactionFlow: string(transaction.InPlatform),
 		Amount:          req.Amount,
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
 		UserID:          req.UserID,
+		TTo:             string(transaction.Wallet),
+		TFrom:           string(transaction.Vault),
+		Direction:       string(transaction.Credit),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
@@ -1383,46 +1418,71 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		BalanceAfter:      newVaultBalance.String(),
 		Reference:         sql.NullString{String: reference, Valid: true},
 		Description:       sql.NullString{String: req.Description, Valid: req.Description != ""},
-		Status:            nullString(status),
+		Status:            nullString(string(transaction.Pending)),
 		Requires2fa:       nullBool(requires2FA),
 		TransactionID:     uuid.NullUUID{UUID: maintx.ID, Valid: true},
 	}
 
-	transaction, err := qtx.CreateVaultTransaction(ctx, txParams)
+	vtx, err := qtx.CreateVaultTransaction(ctx, txParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	// Only update balances if not requiring approval
-	if status == string(TransactionStatusSuccessful) {
-		// Update vault balance
-		if err := qtx.DecrementVaultBalance(ctx, db.DecrementVaultBalanceParams{
-			ID:             req.VaultID,
-			CurrentBalance: nullString(req.Amount),
-		}); err != nil {
-			return nil, fmt.Errorf("failed to update vault balance: %w", err)
-		}
-		// Lock destination wallet
-		destWallet, err := s.walletService.GetWalletForUpdate(ctx, tx, req.ToWalletID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to lock destination wallet: %w", err)
-		}
+	// Update vault balance
+	if err := qtx.DecrementVaultBalance(ctx, db.DecrementVaultBalanceParams{
+		ID:             req.VaultID,
+		CurrentBalance: nullString(req.Amount),
+	}); err != nil {
+		return nil, fmt.Errorf("failed to update vault balance: %w", err)
+	}
+	// Lock destination wallet
+	destWallet, err := s.walletService.GetWalletForUpdate(ctx, tx, req.ToWalletID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock destination wallet: %w", err)
+	}
 
-		// Update wallet balance (add)
-		destBalance, _ := decimal.NewFromString(destWallet.Balance.String())
-		newWalletBalance := destBalance.Add(amount)
+	_, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		ID:      destWallet.ID,
+		Balance: sql.NullString{String: req.Amount, Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update wallet balance: %w", err)
+	}
 
-		_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-			ID:     req.ToWalletID,
-			Amount: sql.NullString{String: newWalletBalance.String(), Valid: true},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update wallet balance: %w", err)
-		}
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     maintx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to updated transaction [Vault-Withdraw]: %v", err)
+	}
+
+	err = qtx.UpdateVaultTransactionStatus(ctx, db.UpdateVaultTransactionStatusParams{
+		ID:     maintx.ID,
+		Status: nullString(string(transaction.Success)),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to updated vault transaction [Vault-Withdraw]: %v", err)
 	}
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     maintx.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to updated transaction [Vault-Withdraw]: %v", err)
+		}
+
+		err = qtx.UpdateVaultTransactionStatus(ctx, db.UpdateVaultTransactionStatusParams{
+			ID:     maintx.ID,
+			Status: nullString(string(transaction.Failed)),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to updated vault transaction [Vault-Withdraw]: %v", err)
+		}
+
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -1441,7 +1501,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 			bgCtx := context.Background()
 
 			if requires2FA && s.emailService != nil {
-				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, transaction.ID.String(), reference, req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"), req.ToWalletID.String())
+				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, vtx.ID.String(), reference, req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"), req.ToWalletID.String())
 			} else {
 				if s.emailService != nil {
 					_ = s.emailService.SendWithdrawalSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, vault.Currency, reference)
@@ -1450,7 +1510,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 					_ = s.pushService.SendWithdrawalSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.Create(bgCtx, int32(req.UserID), "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName)); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []int64{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create withdrawal notification: %v", err))
 					}
 				}
@@ -1458,8 +1518,8 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		}()
 	}
 
-	s.logger.Info(fmt.Sprintf("Successfully processed withdrawal: %s", transaction.ID))
-	return &transaction, nil
+	s.logger.Info(fmt.Sprintf("Successfully processed withdrawal: %s", vtx.ID))
+	return &vtx, nil
 }
 
 // ============================================================================
@@ -1599,7 +1659,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 			_ = s.pushService.SendRecurringDepositSuccessPush(ctx, vault.UserID, vault.VaultName, rule.Amount, vault.Currency)
 		}
 		if s.notifService != nil {
-			if _, err := s.notifService.Create(ctx, int32(vault.UserID), "Recurring Deposit Successful", fmt.Sprintf("A recurring deposit of %s %s has been made to your vault: %s", rule.Amount, vault.Currency, vault.VaultName)); err != nil {
+			if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Recurring Deposit Successful", fmt.Sprintf("A recurring deposit of %s %s has been made to your vault: %s", rule.Amount, vault.Currency, vault.VaultName), "system", []int64{vault.UserID}); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to create recurring deposit success notification: %v", err))
 			}
 		}

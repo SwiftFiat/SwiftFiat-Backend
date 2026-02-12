@@ -33,6 +33,7 @@ const (
 	CategorySupport        EventCategory = "support"
 	CategoryRewards        EventCategory = "rewards"
 	CategorySubscription   EventCategory = "subscription"
+	CategoryPriceAlert     EventCategory = "price_alert"
 )
 
 // Severity represents the importance level of an audit event
@@ -200,15 +201,15 @@ const (
 	EventDeleteCard         = "card.deleted"
 	EventCreateCardPlan     = "card.plan.created"
 
-	EventUpdateAutoTopup = "subscriptions.auto_topup.updated"
-	EventUpdateSubscriptionStatus = "subscriptions.status.updated"
-	EventUpdateSubscriptionPreferences = "subscriptions.preferences.updated"
-	EventCreateCustomSubscription = "subscriptions.custom.created"
-	EventUpdateCustomSubscription = "subscriptions.custom.updated"
-	EventDeleteCustomSubscription = "subscriptions.custom.deleted"
-	EventCreateSubscription = "subscriptions.created"
-	EventUpdateSubscription = "subscriptions.updated"
-	EventDeleteSubscription = "subscriptions.deleted"
+	EventUpdateAutoTopup                 = "subscriptions.auto_topup.updated"
+	EventUpdateSubscriptionStatus        = "subscriptions.status.updated"
+	EventUpdateSubscriptionPreferences   = "subscriptions.preferences.updated"
+	EventCreateCustomSubscription        = "subscriptions.custom.created"
+	EventUpdateCustomSubscription        = "subscriptions.custom.updated"
+	EventDeleteCustomSubscription        = "subscriptions.custom.deleted"
+	EventCreateSubscription              = "subscriptions.created"
+	EventUpdateSubscription              = "subscriptions.updated"
+	EventDeleteSubscription              = "subscriptions.deleted"
 	EventUpdateSubscriptionSystemSetting = "subscriptions.system_setting.updated"
 
 	EventUpdateQrCodeStatus = "rapid-ramp.qr-code.status.updated"
@@ -218,6 +219,14 @@ const (
 	EventDeleteReferralConfig = "referral.config.deleted"
 
 	EventUpdateSystemSettings = "system.settings.updated"
+
+	EventRapidRampToggle    = "user.rapid-ramp"
+	EventCreatePriceAlert   = "price.alert.created"
+	EventUpdatePriceAlert   = "price.alert.updated"
+	EventDeletePriceAlert   = "price.alert.deleted"
+	EventPausePriceAlert    = "price.alert.paused"
+	EventResumePriceAlert   = "price.alert.resumed"
+	EventReferralWithdrawal = "referral.withdrawal"
 )
 
 // LogEntry represents the input for creating an audit log
@@ -383,7 +392,7 @@ func NewLog(c *gin.Context, category EventCategory, eventType, entityID, desc st
 }
 
 // NewTransactionLog creates a log entry for transaction events
-func NewTransactionLog(c *gin.Context, eventType, transactionID, userRole string, actorID int64, amount float64, currency string, success bool) *LogEntry {
+func NewTransactionLog(eventType, transactionID, userRole string, actorID int64, amount float64, currency string, success bool) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategoryTransaction,
 		EventType:     eventType,
@@ -394,8 +403,6 @@ func NewTransactionLog(c *gin.Context, eventType, transactionID, userRole string
 		EntityID:      transactionID,
 		Action:        ActionCreate,
 		Success:       success,
-		IPAddress:     net.ParseIP(c.ClientIP()),
-		UserAgent:     c.Request.UserAgent(),
 		Metadata: map[string]any{
 			"amount":   amount,
 			"currency": currency,
@@ -466,6 +473,17 @@ func NewReferralLog(c *gin.Context, eventType, entityType, entityID, userRole st
 		Success:       true,
 		IPAddress:     net.ParseIP(c.ClientIP()),
 		UserAgent:     c.Request.UserAgent(),
+	}
+}
+
+func WarningLog(
+	description string,
+	reason string,
+) *LogEntry {
+	return &LogEntry{
+		Severity:     SeverityWarning,
+		Description:  description,
+		ErrorMessage: &reason,
 	}
 }
 

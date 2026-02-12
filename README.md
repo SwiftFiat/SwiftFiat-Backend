@@ -1,4 +1,4 @@
-### SwiftFiat Backend
+### SWIIFT Backend
 
 #### Folder Structure
 
@@ -16,7 +16,7 @@ NB: Sub-folders are not accounted for in this overview structure
 
 #### Setting up Environment Variables, Starting Services, and Starting App
 
-To set up the SwiftFiat Backend environment variables, declare SERVER_PORT, and use CompileDaemon for automatic code compilation, follow these steps:
+To set up the SWIIFT Backend environment variables, declare SERVER_PORT, and use CompileDaemon for automatic code compilation, follow these steps:
 
 1. **Create an Environment File:**
    - Create a new file named `.env` in the root directory of the project.

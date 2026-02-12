@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"strings"
 )
 
 func GetDBSource(config *Config, dbName string) string {
@@ -40,29 +39,4 @@ func SecureRandomString(n int) (string, error) {
 	}
 
 	return string(b), nil
-}
-
-// GenerateReferralCode generates a referral code with prefix
-// Format: PREFIX-XXXXXXXX (8 random characters)
-func GenerateReferralCode(prefix string) (string, error) {
-	if prefix == "" {
-		return "", fmt.Errorf("prefix cannot be empty")
-	}
-
-	randomPart, err := SecureRandomString(8)
-	if err != nil {
-		return "", fmt.Errorf("failed to generate referral code: %w", err)
-	}
-
-	return fmt.Sprintf("%s-%s", strings.ToUpper(prefix), randomPart), nil
-}
-
-// MustGenerateReferralCode is like GenerateReferralCode but panics on error
-// Use only when you're certain it will succeed (e.g., in tests)
-func MustGenerateReferralCode(prefix string) string {
-	code, err := GenerateReferralCode(prefix)
-	if err != nil {
-		panic(fmt.Sprintf("MustGenerateReferralCode: %v", err))
-	}
-	return code
 }

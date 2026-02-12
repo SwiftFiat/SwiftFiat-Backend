@@ -757,6 +757,49 @@ func (q *Queries) GetRewardConfigurationUsageStats(ctx context.Context) ([]GetRe
 	return items, nil
 }
 
+const getRewardConfigurationsByTransactionType = `-- name: GetRewardConfigurationsByTransactionType :many
+SELECT id, config_name, reward_rate, transaction_type, min_transaction_amount, max_points_per_transaction, is_active, valid_from, valid_until, created_by, created_at, updated_at FROM reward_configurations
+WHERE transaction_type = $1
+ORDER BY created_at DESC
+`
+
+// Get all reward configurations for a specific transaction type
+func (q *Queries) GetRewardConfigurationsByTransactionType(ctx context.Context, transactionType string) ([]RewardConfiguration, error) {
+	rows, err := q.db.QueryContext(ctx, getRewardConfigurationsByTransactionType, transactionType)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RewardConfiguration{}
+	for rows.Next() {
+		var i RewardConfiguration
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConfigName,
+			&i.RewardRate,
+			&i.TransactionType,
+			&i.MinTransactionAmount,
+			&i.MaxPointsPerTransaction,
+			&i.IsActive,
+			&i.ValidFrom,
+			&i.ValidUntil,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRewardEarningsBreakdownByType = `-- name: GetRewardEarningsBreakdownByType :many
 SELECT 
     source_transaction_type,
@@ -1773,7 +1816,7 @@ UPDATE users
 SET reward_balance = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserRewardBalanceParams struct {
@@ -1801,6 +1844,10 @@ func (q *Queries) UpdateUserRewardBalance(ctx context.Context, arg UpdateUserRew
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
+		&i.IsRapidRampOn,
+		&i.HasCompletedFirstConversion,
+		&i.FirstConversionID,
+		&i.FirstConversionAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedAt,

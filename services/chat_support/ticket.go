@@ -371,11 +371,13 @@ func (s *TicketService) notifyAdminsNewTicket(ctx context.Context, ticket *db.Ti
 			continue
 		}
 
-		_, err = s.notificationSvc.Create(
+		_, err = s.notificationSvc.CreateWithRecipients(
 			ctx,
-			int32(adminUser.ID),
+			nil,
 			"New Support Ticket",
 			fmt.Sprintf("New ticket #%d from %s %s", ticket.ID, user.FirstName.String, user.LastName.String),
+			"system",
+			[]int64{adminUser.ID},
 		)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -406,11 +408,13 @@ func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ti
 		return
 	}
 
-	_, err = s.notificationSvc.Create(
+	_, err = s.notificationSvc.CreateWithRecipients(
 		ctx,
-		int32(adminUser.ID),
+		nil,
 		"Ticket Assigned",
 		fmt.Sprintf("Ticket #%d has been assigned to you", ticket.ID),
+		"system",
+		[]int64{adminUser.ID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -418,11 +422,13 @@ func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ti
 }
 
 func (s *TicketService) notifyUserAssignment(ctx context.Context, ticket *db.Ticket) {
-	_, err := s.notificationSvc.Create(
+	_, err := s.notificationSvc.CreateWithRecipients(
 		ctx,
-		int32(ticket.UserID),
+		nil,
 		"Support Agent Assigned",
 		"A support agent has joined your conversation and will assist you shortly.",
+		"system",
+		[]int64{ticket.UserID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -430,11 +436,13 @@ func (s *TicketService) notifyUserAssignment(ctx context.Context, ticket *db.Tic
 }
 
 func (s *TicketService) notifyUserResolution(ctx context.Context, ticket *db.Ticket) {
-	_, err := s.notificationSvc.Create(
+	_, err := s.notificationSvc.CreateWithRecipients(
 		ctx,
-		int32(ticket.UserID),
+		nil,
 		"Ticket Resolved",
 		fmt.Sprintf("Your support ticket #%d has been resolved.", ticket.ID),
+		"system",
+		[]int64{ticket.UserID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))

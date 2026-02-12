@@ -8,6 +8,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -42,6 +43,44 @@ func (q *Queries) CreateWallet(ctx context.Context, arg CreateWalletParams) (Swi
 		&i.ID,
 		&i.CustomerID,
 		&i.Type,
+		&i.Currency,
+		&i.Balance,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const decrementWalletBalance = `-- name: DecrementWalletBalance :one
+UPDATE swift_wallets
+SET balance = balance - $1,
+    updated_at = NOW()
+WHERE id = $2
+RETURNING id, customer_id, currency, balance, status, created_at, updated_at
+`
+
+type DecrementWalletBalanceParams struct {
+	Balance sql.NullString `json:"balance"`
+	ID      uuid.UUID      `json:"id"`
+}
+
+type DecrementWalletBalanceRow struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID int64          `json:"customer_id"`
+	Currency   string         `json:"currency"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) DecrementWalletBalance(ctx context.Context, arg DecrementWalletBalanceParams) (DecrementWalletBalanceRow, error) {
+	row := q.db.QueryRowContext(ctx, decrementWalletBalance, arg.Balance, arg.ID)
+	var i DecrementWalletBalanceRow
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
 		&i.Currency,
 		&i.Balance,
 		&i.Status,
@@ -210,6 +249,44 @@ func (q *Queries) GetWalletForUpdate(ctx context.Context, id uuid.UUID) (SwiftWa
 		&i.ID,
 		&i.CustomerID,
 		&i.Type,
+		&i.Currency,
+		&i.Balance,
+		&i.Status,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const incrementWalletBalance = `-- name: IncrementWalletBalance :one
+UPDATE swift_wallets
+SET balance = balance + $1,
+    updated_at = NOW()
+WHERE id = $2
+RETURNING id, customer_id, currency, balance, status, created_at, updated_at
+`
+
+type IncrementWalletBalanceParams struct {
+	Balance sql.NullString `json:"balance"`
+	ID      uuid.UUID      `json:"id"`
+}
+
+type IncrementWalletBalanceRow struct {
+	ID         uuid.UUID      `json:"id"`
+	CustomerID int64          `json:"customer_id"`
+	Currency   string         `json:"currency"`
+	Balance    sql.NullString `json:"balance"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+}
+
+func (q *Queries) IncrementWalletBalance(ctx context.Context, arg IncrementWalletBalanceParams) (IncrementWalletBalanceRow, error) {
+	row := q.db.QueryRowContext(ctx, incrementWalletBalance, arg.Balance, arg.ID)
+	var i IncrementWalletBalanceRow
+	err := row.Scan(
+		&i.ID,
+		&i.CustomerID,
 		&i.Currency,
 		&i.Balance,
 		&i.Status,

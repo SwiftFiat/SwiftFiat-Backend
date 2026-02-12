@@ -38,7 +38,7 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/user-wallets/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetUserWallets)
 	serverGroupV1.PUT("/edit-user/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.AdminEditUser)
 	serverGroupV1.GET("/transaction-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
-	serverGroupV1.POST("/send-notification-to-all", h.server.authMiddleware.AuthenticatedMiddleware(), h.SendNotificationToAll)
+	// serverGroupV1.POST("/send-notification-to-all", h.server.authMiddleware.AuthenticatedMiddleware(), h.SendNotificationToAll)
 	serverGroupV1.GET("/get-total-reward-paid", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardPaid)
 	serverGroupV1.GET("/get-total-reward-earned", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalRewardEarned)
 	serverGroupV1.GET("/get-total-outflow-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTotalOutflowTransactions)
@@ -694,33 +694,33 @@ type SendNotificationToAllUsersRequest struct {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/send-notification-to-all [post]
-func (h *Analytics) SendNotificationToAll(c *gin.Context) {
-	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.USER {
-		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-		return
-	}
+// func (h *Analytics) SendNotificationToAll(c *gin.Context) {
+// 	activeUser, err := utils.GetActiveUser(c)
+// 	if err != nil || activeUser.Role == models.USER {
+// 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+// 		return
+// 	}
 
-	var req SendNotificationToAllUsersRequest
+// 	var req SendNotificationToAllUsersRequest
 
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request"))
-		return
-	}
+// 	if err := c.ShouldBindJSON(&req); err != nil {
+// 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid request"))
+// 		return
+// 	}
 
-	notification := db.SendNotificationToAllUsersParams{
-		Title:   req.Title,
-		Message: req.Message,
-	}
+// 	notification := db.SendNotificationToAllUsersParams{
+// 		Title:   req.Title,
+// 		Message: req.Message,
+// 	}
 
-	err = h.server.queries.SendNotificationToAllUsers(c, notification)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send notification"))
-		return
-	}
+// 	err = h.server.queries.SendNotificationToAllUsers(c, notification)
+// 	if err != nil {
+// 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send notification"))
+// 		return
+// 	}
 
-	c.JSON(http.StatusOK, basemodels.NewSuccess("Notification sent successfully", nil))
-}
+// 	c.JSON(http.StatusOK, basemodels.NewSuccess("Notification sent successfully", nil))
+// }
 
 // GetTotalRewardPaid godoc
 // @Summary      Get Total Reward Paid

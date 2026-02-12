@@ -1,0 +1,20 @@
+meta {
+  name: Get stats
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{BaseURl}}/price-alerts/stats
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

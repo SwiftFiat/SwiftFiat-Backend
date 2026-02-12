@@ -330,10 +330,10 @@ func (ws *WebSocketHandler) handleAdminWebSocket(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
-		ctx.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
-		return
-	}
+	// if activeUser.Role == models.USER {
+	// 	ctx.JSON(http.StatusForbidden, gin.H{"error": "access denied"})
+	// 	return
+	// }
 
 	// Upgrade HTTP connection to WebSocket
 	conn, err := upgrader.Upgrade(ctx.Writer, ctx.Request, nil)

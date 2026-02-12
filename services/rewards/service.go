@@ -11,7 +11,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/security"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -65,7 +64,7 @@ type AwardRewardPointsParams struct {
 
 // AwardRewardPoints automatically awards reward points after successful transaction
 // This should be called after a bill payment is successfully completed
-func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewardPointsParams) (*RewardTransactionResponse, error) {
+func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewardPointsParams) (*decimal.Decimal, error) {
 	s.logger.Info("Awarding reward points", map[string]any{
 		"user_id":        params.UserID,
 		"transaction_id": params.TransactionID,
@@ -76,7 +75,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 	config, err := s.store.GetActiveRewardConfiguration(ctx, params.TransactionType)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			s.logger.Info("No active reward configuration found", map[string]interface{}{
+			s.logger.Info("No active reward configuration found", map[string]any{
 				"transaction_type": params.TransactionType,
 			})
 			return nil, nil // No rewards configured, not an error
@@ -105,6 +104,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 
 	// Calculate reward points
 	pointsEarned := CalculateRewardPoints(txAmount.IntPart(), mustParseFloat(config.RewardRate))
+	PointAmount := decimal.NewFromInt(pointsEarned)
 
 	var maxPointPerTX float64
 	if config.MaxPointsPerTransaction.Valid {
@@ -133,8 +133,8 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 	qtx := s.store.WithTx(tx)
 
 	// Award points using the optimized query
-	description := fmt.Sprintf("Earned ₦%d reward points from %s payment of ₦%s",
-		pointsEarned, params.TransactionType, params.TransactionAmount)
+	description := fmt.Sprintf("Earned ₦%2.f reward points from %s payment of ₦%s",
+		PointAmount.InexactFloat64(), params.TransactionType, params.TransactionAmount)
 
 	rewardTx, err := qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
 		UserID:                params.UserID,
@@ -161,8 +161,8 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 		Amount:          pointsEarnedToDecimal.String(),
 		Currency:        "NGN",
 		AmountUsd:       amountUSD.String(),
-		Type:            string(transaction.Rewards),
-		TransactionFlow: string(transaction.InPlatform),
+		Type:            "rewards",
+		TransactionFlow: "inplatform",
 		Description:     sql.NullString{String: description, Valid: true},
 	})
 	if err != nil {
@@ -178,7 +178,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 		TransactionAmount:     sql.NullString{String: params.TransactionAmount, Valid: true},
 		RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
 		BalanceAfter:          rewardTx.BalanceAfter,
-		Status:                string(transaction.Success),
+		Status:                "successful",
 		Description:           sql.NullString{String: description, Valid: true},
 	})
 	if err != nil {
@@ -209,7 +209,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 		}
 	}()
 
-	return MapRewardTransactionToResponse(&rewardTx), nil
+	return &pointsEarnedToDecimal, nil
 }
 
 // ============================================================================
@@ -310,8 +310,8 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 		Amount:          params.PointsToRedeem,
 		Currency:        "NGN",
 		AmountUsd:       amountUSD.String(),
-		Type:            string(transaction.Rewards),
-		TransactionFlow: string(transaction.InPlatform),
+		Type:            "rewards",
+		TransactionFlow: "inplatform",
 		Description:     sql.NullString{String: description, Valid: true},
 	})
 	if err != nil {
@@ -327,7 +327,7 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 		TransactionID:         uuid.NullUUID{UUID: ttx.ID, Valid: true},
 		TransactionAmount:     sql.NullString{String: params.OriginalBillAmount, Valid: true},
 		BalanceAfter:          rewardTx.BalanceAfter,
-		Status:                string(transaction.Success),
+		Status:                "successful",
 		Description:           sql.NullString{String: description, Valid: true},
 	})
 	if err != nil {

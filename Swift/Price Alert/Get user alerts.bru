@@ -1,0 +1,24 @@
+meta {
+  name: Get user alerts
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BaseURl}}/price-alerts?active_only=true
+  body: none
+  auth: bearer
+}
+
+params:query {
+  active_only: true
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

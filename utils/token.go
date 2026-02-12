@@ -20,6 +20,8 @@ type jwtClaim struct {
 	UserID   int64  `json:"user_id"`
 	Role     string `json:"user_role"`
 	Verified bool   `json:"user_verified"`
+	Email    string `json:"email"`
+	UserTag  string `json:"user_tag"`
 	Exp      int64  `json:"exp"`
 }
 
@@ -27,6 +29,8 @@ type TokenObject struct {
 	UserID   int64  `json:"user_id"`
 	Role     string `json:"user_role"`
 	Verified bool   `json:"user_verified"`
+	UserTag  string `json:"user_tag"`
+	Email    string `json:"email"`
 }
 
 func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
@@ -34,6 +38,8 @@ func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
 		UserID:   user.UserID,
 		Role:     user.Role,
 		Verified: user.Verified,
+		Email:    user.Email,
+		UserTag:  user.UserTag,
 		Exp:      time.Now().Add(time.Hour * 24 * 30).Unix(),
 	}
 
@@ -76,5 +82,7 @@ func (j *JWTToken) VerifyToken(tokenString string) (TokenObject, error) {
 		UserID:   claims.UserID,
 		Role:     claims.Role,
 		Verified: claims.Verified,
+		UserTag:  claims.UserTag,
+		Email:    claims.Email,
 	}, nil
 }

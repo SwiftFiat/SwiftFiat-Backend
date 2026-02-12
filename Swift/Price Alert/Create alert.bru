@@ -1,0 +1,35 @@
+meta {
+  name: Create alert
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/price-alerts
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "source_currency": "BTC",
+    "target_currency": "USD",
+    "alert_condition": "above",
+    "alert_type": "one_time",
+    "priority": "high",
+    "target_rate": "100000.00",
+    "description": "Bitcoin reaches $100k",
+    "label": "BTC $100k",
+    "notify_push": true,
+    "notify_in_app": true
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

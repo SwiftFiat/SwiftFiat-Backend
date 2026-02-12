@@ -4,6 +4,16 @@ meta {
   seq: 8
 }
 
+ws {
+  url: {{BaseURl}}/ws/admin/support
+  body: ws
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
 body:ws {
   name: message 1
   type: json

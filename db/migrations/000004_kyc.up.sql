@@ -1,149 +1,155 @@
 /**
- * KYC Levels and Requirements:
+ * Simplified KYC System - Single Verification Flow
  * 
- * LEVEL 1 (Daily Transfer: 50,000 NGN, Max Balance: 200,000 NGN)
+ * This removes the tiered system and implements a simple binary verification:
+ * - User completes KYC → is_kyc_verified = true in users table
+ * - No limits, no tiers - just verified or not verified
+ * 
+ * Required Information:
  * - Full Name
  * - Phone Number
  * - Email
- * - BVN or NIN
+ * - BVN or NIN (at least one required)
  * - Gender
  * - Selfie (Liveness check)
- * 
- * LEVEL 2 (Daily Transfer: 200,000 NGN, Max Balance: 500,000 NGN)
- * - Additional ID (NIN if BVN was provided in Level 1, or vice versa)
  * - Physical ID (International Passport, Voters Card, Driver's License)
  * - Address (State, LGA, House Number, Street Name, Landmark)
- * 
- * LEVEL 3 (Daily Transfer: 5,000,000 NGN, Max Balance: Unlimited)
- * - Proof of Address (One of: Utility Bill, Bank Statement, Tenancy Agreement)
- *   Documents must not be older than 3 months
+ * - Proof of Address (Utility Bill, Bank Statement, Tenancy Agreement - not older than 3 months)
  */
+
 CREATE TABLE IF NOT EXISTS "kyc" (
     "id" BIGSERIAL PRIMARY KEY,
     "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    "tier" INTEGER NOT NULL DEFAULT 0 CHECK ("tier" BETWEEN 0 AND 3),  -- Tier can be 0, 1, 2, or 3
-    "daily_transfer_limit_ngn" DECIMAL(15, 2) CHECK ("daily_transfer_limit_ngn" >= 0) DEFAULT 0,
-    "wallet_balance_limit_ngn" DECIMAL(15, 2) CHECK ("wallet_balance_limit_ngn" >= 0) DEFAULT 0,
-    "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'active', 'rejected')),
+    "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'verified', 'rejected')),
     "verification_date" TIMESTAMPTZ,
 
-    -- Level 1 Fields
+    -- Personal Information
     "full_name" VARCHAR(255),
     "phone_number" VARCHAR(20),
     "email" VARCHAR(255),
+    "gender" VARCHAR(10) CHECK ("gender" IN ('male', 'female', 'other')),
+    "selfie_url" TEXT,
+
+    -- Identity Verification
     "bvn" VARCHAR(11),  -- BVN is typically 11 digits
     "nin" VARCHAR(11),  -- NIN is typically 11 digits
-    "gender" VARCHAR(10) CHECK ("gender" IN ('male', 'female', 'other')),
-    "selfie_url" TEXT,  -- URL to stored image
-
-    -- Level 2 Fields
-    "id_type" VARCHAR(20) CHECK ("id_type" IN ('international_passport', 'voters_card', 'drivers_license')),
+    
+    -- Government ID
+    "id_type" VARCHAR(30) CHECK ("id_type" IN ('international_passport', 'voters_card', 'drivers_license')),
     "id_number" VARCHAR(50),
     "id_image_url" TEXT,
+
+    -- Address Information
     "state" VARCHAR(100),
     "lga" VARCHAR(100),
     "house_number" VARCHAR(50),
     "street_name" VARCHAR(255),
     "nearest_landmark" VARCHAR(255),
+    "postal_code" VARCHAR(10),
+    "country" VARCHAR(20),
 
-    -- Level 3 Fields
-    "proof_of_address_type" VARCHAR(20) CHECK ("proof_of_address_type" IN ('utility_bill', 'bank_statement', 'tenancy_agreement')),
+    -- Proof of Address
+    "proof_of_address_type" VARCHAR(30) CHECK ("proof_of_address_type" IN ('utility_bill', 'bank_statement', 'tenancy_agreement')),
     "proof_of_address_url" TEXT,
-    "proof_of_address_date" DATE,  -- To verify document is not older than 3 months
+    "proof_of_address_date" DATE,
 
     -- Metadata
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT now(),
-    "additional_info" JSONB DEFAULT '{"data":{}}'::jsonb
+    "additional_info" JSONB DEFAULT '{"verification_logs":[],"admin_notes":""}'::jsonb
 );
 
--- Create an index on user_id for faster lookups
+-- Create indexes for faster lookups
 CREATE INDEX IF NOT EXISTS idx_kyc_user_id ON kyc(user_id);
+CREATE INDEX IF NOT EXISTS idx_kyc_status ON kyc(status);
 
--- Create a trigger to automatically update the updated_at timestamp
+-- Auto-update timestamp trigger
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = now();
     RETURN NEW;
 END;
-$$ language 'plpgsql';
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE TRIGGER update_kyc_updated_at
     BEFORE UPDATE ON kyc
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
-/** Augment KYC Tier**/
-CREATE OR REPLACE FUNCTION update_kyc_tier()
+/**
+ * Auto-verification trigger
+ * Automatically sets status to 'verified' when all required fields are complete
+ * and updates the is_kyc_verified flag in the users table
+ */
+CREATE OR REPLACE FUNCTION auto_verify_kyc()
 RETURNS TRIGGER AS $$
 DECLARE
-    can_be_tier_1 BOOLEAN;
-    can_be_tier_2 BOOLEAN;
-    can_be_tier_3 BOOLEAN;
+    all_requirements_met BOOLEAN;
 BEGIN
-    -- Check Tier 1 requirements
-    can_be_tier_1 := (
+    -- Check if all required fields are present
+    all_requirements_met := (
         NEW.full_name IS NOT NULL AND
         NEW.phone_number IS NOT NULL AND
         NEW.email IS NOT NULL AND
-        (NEW.bvn IS NOT NULL OR NEW.nin IS NOT NULL) AND
+        (NEW.bvn IS NOT NULL OR NEW.nin IS NOT NULL) AND  -- At least one ID
         NEW.gender IS NOT NULL AND
-        NEW.selfie_url IS NOT NULL
-    );
-
-    -- Check Tier 2 requirements (must meet Tier 1 first)
-    can_be_tier_2 := (
-        can_be_tier_1 AND
-        NEW.bvn IS NOT NULL AND 
-        NEW.nin IS NOT NULL
-    );
-
-    -- Check Tier 3 requirements (must meet Tier 2 first)
-    can_be_tier_3 := (
-        can_be_tier_2 AND
+        NEW.selfie_url IS NOT NULL AND
+        NEW.id_type IS NOT NULL AND
+        NEW.id_number IS NOT NULL AND
+        NEW.id_image_url IS NOT NULL AND
+        NEW.state IS NOT NULL AND
+        NEW.lga IS NOT NULL AND
+        NEW.house_number IS NOT NULL AND
+        NEW.street_name IS NOT NULL AND
         NEW.proof_of_address_type IS NOT NULL AND
         NEW.proof_of_address_url IS NOT NULL AND
         NEW.proof_of_address_date IS NOT NULL AND
-        -- Check if proof of address is not older than 3 months
+        -- Ensure proof of address is recent (within 6 months)
         NEW.proof_of_address_date >= (CURRENT_DATE - INTERVAL '6 months')
     );
 
-    -- Update tier and corresponding limits
-    IF can_be_tier_3 THEN
-        NEW.tier := 3;
-        NEW.daily_transfer_limit_ngn := 5000000.00;
-        NEW.wallet_balance_limit_ngn := NULL; -- Unlimited
-    ELSIF can_be_tier_2 THEN
-        NEW.tier := 2;
-        NEW.daily_transfer_limit_ngn := 200000.00;
-        NEW.wallet_balance_limit_ngn := 500000.00;
-    ELSIF can_be_tier_1 THEN
-        NEW.tier := 1;
-        NEW.daily_transfer_limit_ngn := 50000.00;
-        NEW.wallet_balance_limit_ngn := 200000.00;
-    ELSE
-        NEW.tier := 0;
-        NEW.daily_transfer_limit_ngn := 0.00;
-        NEW.wallet_balance_limit_ngn := 0.00;
-    END IF;
-
-    -- Update verification date if tier changed
-    IF NEW.tier != OLD.tier OR OLD.tier IS NULL THEN
+    -- If all requirements are met, auto-verify
+    IF all_requirements_met AND NEW.status = 'pending' THEN
+        NEW.status := 'verified';
         NEW.verification_date := CURRENT_TIMESTAMP;
         
-        -- Update status to 'active' if tier is greater than 0
-        IF NEW.tier > 0 THEN
-            NEW.status := 'active';
-        END IF;
+        -- Update the users table
+        UPDATE users 
+        SET is_kyc_verified = true, 
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = NEW.user_id;
     END IF;
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
--- Create trigger to run before insert or update
-CREATE OR REPLACE TRIGGER trigger_update_kyc_tier
+CREATE OR REPLACE TRIGGER trigger_auto_verify_kyc
     BEFORE INSERT OR UPDATE ON kyc
     FOR EACH ROW
-    EXECUTE FUNCTION update_kyc_tier();
+    EXECUTE FUNCTION auto_verify_kyc();
+
+/**
+ * Trigger to sync KYC rejection with users table
+ * When KYC status is set to 'rejected', ensure is_kyc_verified is false
+ */
+CREATE OR REPLACE FUNCTION sync_kyc_rejection()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.status = 'rejected' AND (OLD.status IS NULL OR OLD.status != 'rejected') THEN
+        UPDATE users 
+        SET is_kyc_verified = false, 
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = NEW.user_id;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trigger_sync_kyc_rejection
+    AFTER UPDATE ON kyc
+    FOR EACH ROW
+    WHEN (NEW.status = 'rejected')
+    EXECUTE FUNCTION sync_kyc_rejection();
