@@ -130,6 +130,25 @@ SET reward_balance = $2,
 WHERE id = $1
 RETURNING *;
 
+-- name: IncrementUserRewardBalance :exec
+-- Increment user reward balance (used internally when awarding points)
+UPDATE users
+SET reward_balance = reward_balance + $2,
+    total_reward_earned = total_reward_earned + $2,
+    updated_at = NOW()
+WHERE id = $1;
+
+-- name: DecrementUserRewardBalance :exec
+-- Decrement user reward balance (used internally when redeeming points)
+UPDATE users
+SET reward_balance = reward_balance - $2,
+    total_reward_redeemed = total_reward_redeemed + $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND reward_balance >= $2; -- Ensure balance does not go negative
+
+
+
 -- ============================================================================
 -- 3. USER: REWARD HISTORY
 -- ============================================================================

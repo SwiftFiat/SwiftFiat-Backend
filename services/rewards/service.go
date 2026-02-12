@@ -369,6 +369,136 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 // USER REWARD QUERIES
 // ============================================================================
 
+type WithdrawRequest struct {
+	Amount         float64 `json:"amount" binding:"required"`
+	IdempotencyKey string  `json:"idempotency_key" binding:"required"`
+}
+
+type WithdrawResponse struct {
+	Amount      float64   `json:"amount"`
+	Date        time.Time `json:"date"`
+	Status      string    `json:"status"`
+	Reference   string    `json:"reference"`
+	Description string    `json:"description"`
+}
+
+// Withdraw Rewards
+func (s *RewardService) Withdraw(ctx context.Context, userId int64, req *WithdrawRequest) (*WithdrawResponse, error) {
+	amount := decimal.NewFromFloat(req.Amount)
+	if amount.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("withdrawal amount must be greater than zero")
+	}
+
+	if amount.LessThan(decimal.NewFromInt(1000)) {
+		return nil, fmt.Errorf("withdrawal amount must be at least 1000 points")
+	}
+
+	res, err := s.GetUserRewardBalance(ctx, int32(userId))
+	if err != nil {
+		return nil, fmt.Errorf("failed to get reward point balance: %v", err)
+	}
+	pointBalance, err := utils.ToDecimal(res.CurrentBalance)
+	if err != nil {
+		return nil, fmt.Errorf("balance conversion failed: %v", err)
+	}
+
+	if amount.GreaterThan(pointBalance) {
+		return nil, fmt.Errorf("insufficient point balance")
+	}
+
+	wallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: userId,
+		Currency:   "NGN",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wallet: %v", err)
+	}
+
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, wallet.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("convert to usd error: %v", err)
+	}
+
+	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          userId,
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		Description:     sql.NullString{String: "point withdrawal", Valid: true},
+		TransactionFlow: "inplatform",
+		Currency:        wallet.Currency,
+		Type:            "rewards",
+		IdempotencyKey:  req.IdempotencyKey,
+		TFrom:           "rewards",
+		TTo:             "wallet",
+		Direction:       "debit",
+		Status:          "pending",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create tx record: %v", err)
+	}
+
+	rtx, err := s.store.WithTx(dbTx).CreateRewardTransaction(ctx, db.CreateRewardTransactionParams{
+		UserID:                userId,
+		TransactionID:         uuid.NullUUID{UUID: txx.ID, Valid: true},
+		TransactionType:       "redeemed",
+		SourceTransactionType: sql.NullString{String: "wallet", Valid: true},
+		PointsAmount:          amount.String(),
+		NairaValue:            amount.String(),
+		Description:           sql.NullString{String: "point withdrawal", Valid: true},
+		Status:                "pending",
+		BalanceAfter:          pointBalance.Sub(amount).String(),
+	})
+
+	err = s.store.WithTx(dbTx).DecrementUserRewardBalance(ctx, db.DecrementUserRewardBalanceParams{
+		ID:            userId,
+		RewardBalance: amount.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to decrement reward balance: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		ID:      wallet.ID,
+		Balance: sql.NullString{String: amount.String(), Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to increment wallet balance: %v", err)
+	}
+
+	t, err := s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     txx.ID,
+		Status: "successful",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update transaction status: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).UpdateRewardTransactionStatus(ctx, db.UpdateRewardTransactionStatusParams{
+		ID:     rtx.ID,
+		Status: "completed",
+	})
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return &WithdrawResponse{
+		Reference:   req.IdempotencyKey,
+		Date:        txx.CreatedAt,
+		Status:      t.Status,
+		Amount:      amount.InexactFloat64(),
+		Description: txx.Description.String,
+	}, nil
+}
+
 // GetUserRewardBalance returns user's current reward balance
 func (s *RewardService) GetUserRewardBalance(ctx context.Context, userID int32) (*RewardBalanceResponse, error) {
 	// Try cache first
@@ -590,51 +720,51 @@ func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req Creat
 // UpdateRewardConfiguration updates an existing reward configuration (admin only)
 // UpdateRewardConfiguration updates an existing reward configuration (admin only)
 func (s *RewardService) UpdateRewardConfiguration(ctx context.Context, configID int64, req UpdateRewardConfigRequest) (*RewardConfigurationResponse, error) {
-    params := db.UpdateRewardConfigurationParams{
-        ID: configID,
-    }
+	params := db.UpdateRewardConfigurationParams{
+		ID: configID,
+	}
 
-    if req.ConfigName != "" {
-        params.ConfigName = sql.NullString{String: req.ConfigName, Valid: true}
-    }
+	if req.ConfigName != "" {
+		params.ConfigName = sql.NullString{String: req.ConfigName, Valid: true}
+	}
 
-    if req.RewardRate != "" {
-        params.RewardRate = sql.NullString{String: req.RewardRate, Valid: true}
-    }
+	if req.RewardRate != "" {
+		params.RewardRate = sql.NullString{String: req.RewardRate, Valid: true}
+	}
 
-    if req.TransactionType != "" {
-        params.TransactionType = sql.NullString{String: req.TransactionType, Valid: true}
-    }
+	if req.TransactionType != "" {
+		params.TransactionType = sql.NullString{String: req.TransactionType, Valid: true}
+	}
 
-    if req.MinTransactionAmount != "" {
-        params.MinTransactionAmount = sql.NullString{String: req.MinTransactionAmount, Valid: true}
-    }
+	if req.MinTransactionAmount != "" {
+		params.MinTransactionAmount = sql.NullString{String: req.MinTransactionAmount, Valid: true}
+	}
 
-    if req.MaxPointsPerTransaction != "" {
-        params.MaxPointsPerTransaction = sql.NullString{String: req.MaxPointsPerTransaction, Valid: true}
-    }
+	if req.MaxPointsPerTransaction != "" {
+		params.MaxPointsPerTransaction = sql.NullString{String: req.MaxPointsPerTransaction, Valid: true}
+	}
 
-    if req.IsActive != nil {
-        params.IsActive = sql.NullBool{Bool: *req.IsActive, Valid: true}
-    }
+	if req.IsActive != nil {
+		params.IsActive = sql.NullBool{Bool: *req.IsActive, Valid: true}
+	}
 
-    if !req.ValidFrom.IsZero() {
-        params.ValidFrom = sql.NullTime{Time: req.ValidFrom, Valid: true}
-    }
+	if !req.ValidFrom.IsZero() {
+		params.ValidFrom = sql.NullTime{Time: req.ValidFrom, Valid: true}
+	}
 
-    if !req.ValidUntil.IsZero() {
-        params.ValidUntil = sql.NullTime{Time: req.ValidUntil, Valid: true}
-    }
+	if !req.ValidUntil.IsZero() {
+		params.ValidUntil = sql.NullTime{Time: req.ValidUntil, Valid: true}
+	}
 
-    config, err := s.store.UpdateRewardConfiguration(ctx, params)
-    if err != nil {
-        return nil, fmt.Errorf("failed to update reward configuration: %w", err)
-    }
+	config, err := s.store.UpdateRewardConfiguration(ctx, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update reward configuration: %w", err)
+	}
 
-    // Clear cache
-    s.cache.Delete(fmt.Sprintf("reward:config:%d", configID))
+	// Clear cache
+	s.cache.Delete(fmt.Sprintf("reward:config:%d", configID))
 
-    return MapRewardConfigToResponse(&config), nil
+	return MapRewardConfigToResponse(&config), nil
 }
 
 // ============================================================================
