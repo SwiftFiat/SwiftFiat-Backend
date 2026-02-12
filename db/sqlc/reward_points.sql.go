@@ -323,6 +323,9 @@ func (q *Queries) CreateRewardRedemption(ctx context.Context, arg CreateRewardRe
 
 const createRewardTransaction = `-- name: CreateRewardTransaction :one
 
+
+
+
 INSERT INTO reward_transactions (
     user_id,
     transaction_id,
@@ -356,6 +359,7 @@ type CreateRewardTransactionParams struct {
 	Metadata              pqtype.NullRawMessage `json:"metadata"`
 }
 
+// Ensure balance does not go negative
 // ============================================================================
 // 3. USER: REWARD HISTORY
 // ============================================================================
@@ -421,6 +425,26 @@ func (q *Queries) DeactivateRewardConfiguration(ctx context.Context, id int64) (
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const decrementUserRewardBalance = `-- name: DecrementUserRewardBalance :exec
+UPDATE users
+SET reward_balance = reward_balance - $2,
+    total_reward_redeemed = total_reward_redeemed + $2,
+    updated_at = NOW()
+WHERE id = $1
+  AND reward_balance >= $2
+`
+
+type DecrementUserRewardBalanceParams struct {
+	ID            int64  `json:"id"`
+	RewardBalance string `json:"reward_balance"`
+}
+
+// Decrement user reward balance (used internally when redeeming points)
+func (q *Queries) DecrementUserRewardBalance(ctx context.Context, arg DecrementUserRewardBalanceParams) error {
+	_, err := q.db.ExecContext(ctx, decrementUserRewardBalance, arg.ID, arg.RewardBalance)
+	return err
 }
 
 const deleteRewardConfiguration = `-- name: DeleteRewardConfiguration :exec
@@ -1254,6 +1278,25 @@ func (q *Queries) GetUserRewardSummary(ctx context.Context, id int64) (GetUserRe
 		&i.LastUpdated,
 	)
 	return i, err
+}
+
+const incrementUserRewardBalance = `-- name: IncrementUserRewardBalance :exec
+UPDATE users
+SET reward_balance = reward_balance + $2,
+    total_reward_earned = total_reward_earned + $2,
+    updated_at = NOW()
+WHERE id = $1
+`
+
+type IncrementUserRewardBalanceParams struct {
+	ID            int64  `json:"id"`
+	RewardBalance string `json:"reward_balance"`
+}
+
+// Increment user reward balance (used internally when awarding points)
+func (q *Queries) IncrementUserRewardBalance(ctx context.Context, arg IncrementUserRewardBalanceParams) error {
+	_, err := q.db.ExecContext(ctx, incrementUserRewardBalance, arg.ID, arg.RewardBalance)
+	return err
 }
 
 const listActiveRewardConfigurations = `-- name: ListActiveRewardConfigurations :many

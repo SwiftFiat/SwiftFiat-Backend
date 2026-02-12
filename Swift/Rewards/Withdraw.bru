@@ -1,0 +1,27 @@
+meta {
+  name: Withdraw
+  type: http
+  seq: 12
+}
+
+post {
+  url: {{BaseURl}}/rewards/withdraw
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "amount": 500,
+    "idempotency_key": "789w-98"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

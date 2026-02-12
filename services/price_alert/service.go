@@ -147,6 +147,15 @@ func (s *PriceAlertService) CreateAlert(ctx context.Context, userID int64, req *
 	// 	return nil, exchangerate.ErrInvalidCurrencyPair
 	// }
 
+	alerts, err := s.GetUserAlerts(ctx, userID, false)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user alerts: %w", err)
+	}
+
+	if len(alerts) == 5 {
+		return nil, fmt.Errorf("alert limit reached: maximum 5 active alerts allowed")
+	}
+
 	// Validate alert configuration based on condition
 	if err := s.validateAlertConfig(req); err != nil {
 		return nil, err

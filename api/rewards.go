@@ -49,6 +49,43 @@ func (r Rewards) router(server *Server) {
 	// Analytics
 	rewards.GET("/admin/statistics", r.getRewardStatistics)
 	rewards.GET("/admin/top-users", r.getTopRewardUsers)
+	rewards.POST("/withdraw", r.withdraw)
+}
+
+func (r Rewards) withdraw(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		r.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	var req rewards.WithdrawRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	response, err := r.rewardService.Withdraw(ctx.Request.Context(), activeUser.UserID, &req)
+	if err != nil {
+		r.server.logger.Error("Failed to withdraw rewards", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+	// TODO: Add audit log for withdrawals
+	
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal successful", response))
 }
 
 // ============================================================================
@@ -596,7 +633,6 @@ func (r *Rewards) updateRewardConfiguration(ctx *gin.Context) {
 	// 9. Response
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("updated", updated))
 }
-
 
 // activateRewardConfiguration godoc
 // @Summary Activate reward configuration (Admin)
