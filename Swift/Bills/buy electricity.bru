@@ -16,16 +16,26 @@ auth:bearer {
 
 body:json {
   {
-    "wallet_id": "df9a74e8-2382-421d-8b65-6bcbc94d8197",
     "service_id": "ikeja-electric",
     "billers_code": "1111111111111",
     "variation_code": "prepaid",
     "amount": 1000,
     "pin": "1234",
     "use_reward_points": false,
-    "points_to_use": 1
-    
+    "points_to_use": 1,
+    "idempotency_key": "12070u-009891"
   }
+  
+  // {
+  //   "service_id": "ikeja-electric",
+  //   "billers_code": "1010101010101",
+  //   "variation_code": "postpaid",
+  //   "amount": 1000,
+  //   "pin": "1234",
+  //   "use_reward_points": false,
+  //   "points_to_use": 1,
+  //   "idempotency_key": "120b70nu-009891"
+  // }
 }
 
 settings {

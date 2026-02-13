@@ -53,7 +53,6 @@ func (w Wallet) router(server *Server) {
 	w.audit = server.auditService
 	w.pushService = server.pushNotification
 
-
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
 	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
@@ -1030,7 +1029,7 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 // createTransactionFee godoc
 // @Summary      Create Transaction Fee
 // @Description  Creates or updates the fee structure for a specific transaction type.
-// @Tags         Wallets						
+// @Tags         Wallets
 // @Accept       json
 // @Produce      json
 // @Security     BearerAuth

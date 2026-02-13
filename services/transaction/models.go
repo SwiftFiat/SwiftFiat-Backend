@@ -189,6 +189,58 @@ type BuyDataResponse struct {
 	Plan                 string          `json:"plan"`
 }
 
+type TVSubRequest struct {
+	ServiceID        string  `json:"service_id" binding:"required"`
+	BillersCode      string  `json:"billers_code" binding:"required"`
+	SubscriptionType string  `json:"subscription_type" binding:"required"`
+	VariationCode    string  `json:"variation_code" binding:"required"`
+	Pin              string  `json:"pin" binding:"required"`
+	UseRewardPoints  bool    `json:"use_reward_points"`
+	PointsToUse      float32 `json:"points_to_use"`
+	IdempotencyKey   string  `json:"idempotency_key" binding:"required"`
+}
+
+type TVSubResponse struct {
+	Amount               decimal.Decimal `json:"amount"`
+	AmountPaid           float64         `json:"amount_paid"`
+	BonusEarned          float64         `json:"bonus_earned"`
+	TransactionType      string          `json:"transaction_type"`
+	Date                 time.Time       `json:"transaction_date"`
+	TransactionReference string          `json:"transaction_reference"`
+	Status               string          `json:"status"`
+	Plan                 string          `json:"plan"`
+}
+
+type ElectricityRequest struct {
+	ServiceID       string  `json:"service_id" binding:"required"`
+	BillersCode     string  `json:"billers_code" binding:"required"`
+	VariationCode   string  `json:"variation_code" binding:"required"`
+	Amount          float64 `json:"amount" binding:"required"`
+	Pin             string  `json:"pin" binding:"required"`
+	UseRewardPoints bool    `json:"use_reward_points"`
+	PointsToUse     float32 `json:"points_to_use"`
+	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
+}
+
+type ElectricityResponse struct {
+	Amount               decimal.Decimal `json:"amount"`
+	AmountPaid           float64         `json:"amount_paid"`
+	BonusEarned          float64         `json:"bonus_earned"`
+	TransactionType      string          `json:"transaction_type"`
+	Date                 time.Time       `json:"transaction_date"`
+	TransactionReference string          `json:"transaction_reference"`
+	Status               string          `json:"status"`
+	CustomerName         string          `json:"customer_name"`
+	CustomerAddress      string          `json:"customer_address"`
+	Token                string          `json:"token"`
+	Units                string          `json:"units"`
+	ProviderRequestID    string          `json:"provider_request_id"`
+	TokenAmount          any          `json:"token_amount"`
+	MeterNumber          string          `json:"meter_number"`
+	TaxAmount            any          `json:"tax_amount"`
+	FixChargeAmount     any     `json:"fixChargeAmount"`
+}
+
 type BillTransaction struct {
 	ID              string
 	SourceWalletID  uuid.UUID
