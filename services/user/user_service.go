@@ -55,11 +55,6 @@ func (u *UserService) CreateUserWithWalletsAndKYC(ctx context.Context, arg *db.C
 		u.logger.Error(fmt.Sprintf("failed to create wallets for user: %v", newUser.ID))
 	}
 
-	_, err = u.store.WithTx(dbTx).CreateNewKYC(ctx, int32(newUser.ID))
-	if err != nil {
-		u.logger.Error(fmt.Sprintf("failed to create kyc for user: %v", newUser.ID))
-	}
-
 	// Commit transaction
 	if err := dbTx.Commit(); err != nil {
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)

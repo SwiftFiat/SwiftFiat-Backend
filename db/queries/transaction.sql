@@ -1435,3 +1435,105 @@ FROM transactions
 WHERE type = 'crypto'
 AND created_at >= sqlc.arg(start_date)
 AND created_at <= sqlc.arg(end_date);
+
+
+-- name: CreateAirtimeDataMetadata :one
+INSERT INTO data_airtime_purchase_metadata (
+    amount,
+    points_used,
+    type,
+    amount_paid,
+    points_earned,
+    phone_number,
+    plan,
+    reference,
+    status,
+    request_id,
+    transaction_id,
+    service_charge, --TODO:
+    date
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING *;
+
+-- name: UpdateAirtimePurchaseStatus :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateAirtimePurchaseStatusByReference :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE reference = $1
+RETURNING *;
+
+-- name: UpdateAirtimeStatusIfPending :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE reference = $1
+  AND status = 'pending'
+RETURNING *;
+
+
+-- name: CreateElectricityPurchaseMetadata :one
+INSERT INTO electricity_purchase_metadata (
+    transaction_id,
+    amount,
+    points_used,
+    amount_paid,
+    token,
+    customer_name,
+    customer_address,
+    units,
+    meter_number,
+    tax,
+    debt,
+    points_earned,
+    phone_number,
+    reference,
+    request_id,
+    service_charge,
+    status
+) VALUES (
+    $1,  -- transaction_id
+    $2,  -- amount
+    $3,  -- points_used
+    $4,  -- amount_paid
+    $5,  -- token
+    $6,  -- customer_name
+    $7,  -- customer_address
+    $8,  -- units
+    $9,  -- meter_number
+    $10, -- tax
+    $11, -- debt
+    $12, -- points_earned
+    $13, -- phone_number
+    $14, -- reference
+    $15, -- request_id
+    $16, -- service_charge
+    $17  -- status
+)
+RETURNING *;
+
+-- name: UpdateElectricityPurchasePartial :one
+UPDATE electricity_purchase_metadata
+SET
+    token = COALESCE(token, $2),
+    customer_name = COALESCE(customer_name, $3),
+    customer_address = COALESCE(customer_address, $4),
+    units = COALESCE(units, $5),
+    meter_number = COALESCE(meter_number, $6),
+    tax = COALESCE(tax, $7),
+    debt = COALESCE(debt, $8),
+    service_charge = COALESCE(service_charge, $9),
+    status = $10
+WHERE reference = $1
+RETURNING *;
+
+-- name: UpdateElectricityPurchaseStatus :one
+UPDATE electricity_purchase_metadata
+SET status = $2
+WHERE id = $1
+RETURNING *;

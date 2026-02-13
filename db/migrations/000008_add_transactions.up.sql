@@ -100,6 +100,96 @@ CREATE TABLE IF NOT EXISTS "services_metadata" (
     CONSTRAINT "unique_transaction_service" UNIQUE (transaction_id)
 );
 
+CREATE TABLE IF NOT EXISTS electricity_purchase_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL,
+    points_used DECIMAL(10,2),
+    amount_paid DECIMAL(10,2) NOT NULL,
+    token VARCHAR(255),
+    customer_name VARCHAR(255),
+    customer_address VARCHAR(255),
+    units VARCHAR(100),
+    meter_number VARCHAR(50),
+    tax DECIMAL(10, 2),
+    debt DECIMAL(10,2),
+    points_earned DECIMAL(10,2),
+    phone_number VARCHAR(20) NOT NULL,
+    reference VARCHAR(250) NOT NULL,
+    request_id VARCHAR(250) NOT NULL,
+    service_charge DECIMAL(10,2),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending','failed','successful')),
+    date TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- 1. Reference must be unique (payment/webhook safety)
+CREATE UNIQUE INDEX idx_electricity_reference
+ON electricity_purchase_metadata(reference);
+
+-- 2. Request id (idempotency protection)
+CREATE UNIQUE INDEX idx_electricity_request_id
+ON electricity_purchase_metadata(request_id);
+
+-- 3. Transaction lookup
+CREATE INDEX idx_electricity_transaction_id
+ON electricity_purchase_metadata(transaction_id);
+
+-- 4. Status filtering (cron/reconciliation)
+CREATE INDEX idx_electricity_status
+ON electricity_purchase_metadata(status);
+
+-- 5. Status + date (common operational query)
+CREATE INDEX idx_electricity_status_date
+ON electricity_purchase_metadata(status, date DESC);
+
+-- 6. Meter number lookup (support/admin)
+CREATE INDEX idx_electricity_meter_number
+ON electricity_purchase_metadata(meter_number);
+
+-- 7. Date sorting / reporting
+CREATE INDEX idx_electricity_date
+ON electricity_purchase_metadata(date DESC);
+
+
+CREATE TABLE IF NOT EXISTS data_airtime_purchase_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL,
+    points_used DECIMAL(10,2),
+    type VARCHAR(50) NOT NULL CHECK (type IN ('airtime','data', 'tv_subscription')),
+    amount_paid DECIMAL(10,2) NOT NULL,
+    points_earned DECIMAL(10,2),
+    phone_number VARCHAR(20) NOT NULL,
+    plan VARCHAR(50),
+    reference VARCHAR(250) NOT NULL,
+    request_id VARCHAR(250) NOT NULL,
+    service_charge DECIMAL(10,2),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending','failed','successful')),
+    date TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- Unique reference per purchase
+CREATE UNIQUE INDEX idx_airtime_metadata_reference
+ON data_airtime_purchase_metadata(reference);
+
+-- Unique request_id per purchase
+CREATE UNIQUE INDEX idx_airtime_metadata_request_id
+ON data_airtime_purchase_metadata(request_id);
+
+-- Status filtering (e.g. pending jobs)
+CREATE INDEX idx_airtime_metadata_status
+ON data_airtime_purchase_metadata(status);
+
+-- Phone number lookup
+CREATE INDEX idx_airtime_metadata_phone
+ON data_airtime_purchase_metadata(phone_number);
+
+-- Date sorting / reporting
+CREATE INDEX idx_airtime_metadata_date
+ON data_airtime_purchase_metadata(date DESC);
+
+-- Composite index for common ops (status + date)
+CREATE INDEX idx_airtime_metadata_status_date
+ON data_airtime_purchase_metadata(status, date DESC);
+
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 CREATE INDEX IF NOT EXISTS idx_transactions_status ON transactions(status);

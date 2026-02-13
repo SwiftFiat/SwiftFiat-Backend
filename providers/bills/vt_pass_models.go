@@ -186,9 +186,10 @@ type PurchaseElectricityResponse struct {
 	ConfigureToken      *string `json:"configureToken"`
 	Units               string  `json:"units"`
 	FixChargeAmount     any     `json:"fixChargeAmount"`
+	Debt                any     `json:"debtAmount"`
 	Tariff              string  `json:"tariff"`
 	TaxAmount           any     `json:"taxAmount"`
-	MeterNumber         string `json:"meter_number"`
+	MeterNumber         string  `json:"meter_number"`
 }
 
 type PurchaseElectricityRequest struct {

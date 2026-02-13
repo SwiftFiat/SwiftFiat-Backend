@@ -165,6 +165,7 @@ type BuyAirtimeResponse struct {
 	Date                 time.Time       `json:"transaction_date"`
 	TransactionReference string          `json:"transaction_reference"`
 	Status               string          `json:"status"`
+	PointsUsed           float64         `json:"cashback_used"`
 }
 
 type BuyDataRequest struct {
@@ -187,6 +188,7 @@ type BuyDataResponse struct {
 	TransactionReference string          `json:"transaction_reference"`
 	Status               string          `json:"status"`
 	Plan                 string          `json:"plan"`
+	PointsUsed           float64         `json:"cashback_used"`
 }
 
 type TVSubRequest struct {
@@ -209,6 +211,7 @@ type TVSubResponse struct {
 	TransactionReference string          `json:"transaction_reference"`
 	Status               string          `json:"status"`
 	Plan                 string          `json:"plan"`
+	PointsUsed           float64         `json:"cashback_used"`
 }
 
 type ElectricityRequest struct {
@@ -235,10 +238,12 @@ type ElectricityResponse struct {
 	Token                string          `json:"token"`
 	Units                string          `json:"units"`
 	ProviderRequestID    string          `json:"provider_request_id"`
-	TokenAmount          any          `json:"token_amount"`
+	TokenAmount          any             `json:"token_amount"`
 	MeterNumber          string          `json:"meter_number"`
-	TaxAmount            any          `json:"tax_amount"`
-	FixChargeAmount     any     `json:"fixChargeAmount"`
+	TaxAmount            any             `json:"tax"`
+	Debt                 any             `json:"debt"`
+	FixChargeAmount      any             `json:"fixChargeAmount"`
+	PointsUsed           float64         `json:"cashback_used"`
 }
 
 type BillTransaction struct {
