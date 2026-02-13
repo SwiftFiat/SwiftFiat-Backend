@@ -630,6 +630,45 @@ type CustomSubscriptionsSummary struct {
 	YearlySubscriptions     int64 `json:"yearly_subscriptions"`
 }
 
+type DataAirtimePurchaseMetadatum struct {
+	ID            uuid.UUID      `json:"id"`
+	TransactionID uuid.UUID      `json:"transaction_id"`
+	Amount        string         `json:"amount"`
+	PointsUsed    sql.NullString `json:"points_used"`
+	Type          string         `json:"type"`
+	AmountPaid    string         `json:"amount_paid"`
+	PointsEarned  sql.NullString `json:"points_earned"`
+	PhoneNumber   string         `json:"phone_number"`
+	Plan          sql.NullString `json:"plan"`
+	Reference     string         `json:"reference"`
+	RequestID     string         `json:"request_id"`
+	ServiceCharge sql.NullString `json:"service_charge"`
+	Status        string         `json:"status"`
+	Date          time.Time      `json:"date"`
+}
+
+type ElectricityPurchaseMetadatum struct {
+	ID              uuid.UUID      `json:"id"`
+	TransactionID   uuid.UUID      `json:"transaction_id"`
+	Amount          string         `json:"amount"`
+	PointsUsed      sql.NullString `json:"points_used"`
+	AmountPaid      string         `json:"amount_paid"`
+	Token           sql.NullString `json:"token"`
+	CustomerName    sql.NullString `json:"customer_name"`
+	CustomerAddress sql.NullString `json:"customer_address"`
+	Units           sql.NullString `json:"units"`
+	MeterNumber     sql.NullString `json:"meter_number"`
+	Tax             sql.NullString `json:"tax"`
+	Debt            sql.NullString `json:"debt"`
+	PointsEarned    sql.NullString `json:"points_earned"`
+	PhoneNumber     string         `json:"phone_number"`
+	Reference       string         `json:"reference"`
+	RequestID       string         `json:"request_id"`
+	ServiceCharge   sql.NullString `json:"service_charge"`
+	Status          string         `json:"status"`
+	Date            time.Time      `json:"date"`
+}
+
 type ExchangeRate struct {
 	ID            int64     `json:"id"`
 	BaseCurrency  string    `json:"base_currency"`

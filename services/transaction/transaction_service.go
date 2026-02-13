@@ -2323,10 +2323,16 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 	var redemptionApplied bool
 	var finalAmount decimal.Decimal
 	var pointsEarned float64
+	var pointsUsed float64
 	notificationMsg := fmt.Sprintf("You have received an airtime of %d to %s", req.Amount, req.Phone)
 
 	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if !req.UseRewardPoints {
+		pointsUsed = 0.00
+	} else {
+		pointsUsed = pointsToUseDecimal.InexactFloat64()
+	}
 	if req.UseRewardPoints && req.PointsToUse > 0 {
 		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
 			ctx, dbTx, user, pointsToUseDecimal, amount,
@@ -2365,17 +2371,24 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
-		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
-		TransactionID:   txx.ID,
-		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
-		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
-		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
-		ServiceType:     string(Airtime),
-		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
+		Amount:        amount.String(),
+		PointsUsed:    sql.NullString{String: fmt.Sprintf("%.2f", pointsUsed), Valid: true},
+		Type:          string(Airtime),
+		AmountPaid:    finalAmount.String(),
+		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
+		PhoneNumber:   req.Phone,
+		Plan:          sql.NullString{String: req.ServiceID, Valid: true},
+		Reference:     req.IdempotencyKey,
+		Status:        string(Pending),
+		RequestID:     purchaseRequestID,
+		TransactionID: txx.ID,
+		Date:          txx.CreatedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
+		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
 	}
 
 	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
@@ -2385,8 +2398,6 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 	if err != nil {
 		return nil, fmt.Errorf("failed to debit wallet: %v", err)
 	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	btx, err := s.billProvider.BuyAirtime(bills.PurchaseAirtimeRequest{
 		ServiceID: req.ServiceID,
@@ -2418,12 +2429,12 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			return nil, fmt.Errorf("failed to update transaction status: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Failed),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		// Commit the refund
@@ -2440,6 +2451,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			Date:                 txx.CreatedAt,
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	case "pending":
@@ -2448,15 +2460,15 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			Status: string(Pending),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+			return nil, fmt.Errorf("failed to update tx record to pending: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Pending),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		// Commit the pending status
@@ -2473,6 +2485,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			Date:                 txx.CreatedAt,
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	case "delivered":
@@ -2484,20 +2497,12 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-			ServiceTransactionID: sql.NullString{String: btx.TransactionID, Valid: true},
-			TransactionID:        txx.ID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
-		}
-
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Success),
-			TransactionID: stx.TransactionID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		if redemptionApplied {
@@ -2595,6 +2600,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			Date:                 txx.CreatedAt,
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	default:
@@ -2693,10 +2699,16 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 	var redemptionApplied bool
 	var finalAmount decimal.Decimal
 	var pointsEarned float64
+	var pointsUsed float64
 	notificationMsg := fmt.Sprintf("You have received %s to %s", selectedVariation.VariationCode, req.Phone)
 
 	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if !req.UseRewardPoints {
+		pointsUsed = 0.00
+	} else {
+		pointsUsed = pointsToUseDecimal.InexactFloat64()
+	}
 	if req.UseRewardPoints && req.PointsToUse > 0 {
 		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
 			ctx, dbTx, user, pointsToUseDecimal, amount,
@@ -2735,17 +2747,24 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
-		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
-		TransactionID:   txx.ID,
-		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
-		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
-		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
-		ServiceType:     string(Data),
-		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
+		Amount:        amount.String(),
+		PointsUsed:    sql.NullString{String: fmt.Sprintf("%.2f", pointsUsed), Valid: true},
+		Type:          string(Data),
+		AmountPaid:    finalAmount.String(),
+		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
+		PhoneNumber:   req.Phone,
+		Plan:          sql.NullString{String: req.ServiceID, Valid: true},
+		Reference:     req.IdempotencyKey,
+		Status:        string(Pending),
+		RequestID:     purchaseRequestID,
+		TransactionID: txx.ID,
+		Date:          txx.CreatedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
+		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
 	}
 
 	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
@@ -2755,8 +2774,6 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 	if err != nil {
 		return nil, fmt.Errorf("failed to debit wallet: %v", err)
 	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	btx, err := s.billProvider.BuyData(bills.PurchaseDataRequest{
 		ServiceID:     req.ServiceID,
@@ -2790,12 +2807,12 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			return nil, fmt.Errorf("failed to update transaction status: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Failed),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		// Commit the refund
@@ -2813,6 +2830,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
 			Plan:                 selectedVariation.VariationCode,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	case "pending":
@@ -2824,12 +2842,12 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Pending),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		// Commit the pending status
@@ -2847,6 +2865,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
 			Plan:                 selectedVariation.VariationCode,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	case "delivered":
@@ -2858,20 +2877,12 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-			ServiceTransactionID: sql.NullString{String: btx.TransactionID, Valid: true},
-			TransactionID:        txx.ID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
-		}
-
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Success),
-			TransactionID: stx.TransactionID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		if redemptionApplied {
@@ -2970,6 +2981,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
 			Plan:                 selectedVariation.VariationCode,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	default:
@@ -3067,11 +3079,16 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 
 	var redemptionApplied bool
 	var finalAmount decimal.Decimal
-	var pointsEarned float64
+	var pointsEarned, pointsUsed float64
 	notificationMsg := fmt.Sprintf("Your subscription to %s is successful", selectedVariation.VariationCode)
 
 	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if !req.UseRewardPoints {
+		pointsUsed = 0.00
+	} else {
+		pointsUsed = pointsToUseDecimal.InexactFloat64()
+	}
 	if req.UseRewardPoints && req.PointsToUse > 0 {
 		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
 			ctx, dbTx, user, pointsToUseDecimal, amount,
@@ -3110,17 +3127,24 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
-		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
-		TransactionID:   txx.ID,
-		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
-		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
-		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
-		ServiceType:     string(TV),
-		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
+		Amount:        amount.String(),
+		PointsUsed:    sql.NullString{String: fmt.Sprintf("%.2f", pointsUsed), Valid: true},
+		Type:          string(TV),
+		AmountPaid:    finalAmount.String(),
+		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
+		PhoneNumber:   user.PhoneNumber,
+		Plan:          sql.NullString{String: selectedVariation.VariationCode, Valid: true},
+		Reference:     req.IdempotencyKey,
+		Status:        string(Pending),
+		RequestID:     purchaseRequestID,
+		TransactionID: txx.ID,
+		Date:          txx.CreatedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
+		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
 	}
 
 	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
@@ -3130,8 +3154,6 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 	if err != nil {
 		return nil, fmt.Errorf("failed to debit wallet: %v", err)
 	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	btx, err := s.billProvider.BuyTVSubscription(bills.BuyTVSubscriptionRequest{
 		ServiceID:        req.ServiceID,
@@ -3166,12 +3188,12 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			return nil, fmt.Errorf("failed to update transaction status: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Failed),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		// Commit the refund
@@ -3187,6 +3209,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			Date:                 txx.CreatedAt,
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
+			PointsUsed:           pointsUsed,
 			Plan:                 selectedVariation.VariationCode,
 		}, nil
 
@@ -3199,14 +3222,13 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Pending),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
-
 		// Commit the pending status
 		if err := dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit refund: %w", err)
@@ -3220,6 +3242,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			Date:                 txx.CreatedAt,
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
+			PointsUsed:           pointsUsed,
 			Plan:                 selectedVariation.VariationCode,
 		}, nil
 
@@ -3232,20 +3255,12 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-			ServiceTransactionID: sql.NullString{String: btx.TransactionID, Valid: true},
-			TransactionID:        txx.ID,
+		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success),
+			ID:     metaTX.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
-		}
-
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Success),
-			TransactionID: stx.TransactionID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
 		}
 
 		if redemptionApplied {
@@ -3343,6 +3358,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			TransactionReference: txx.IdempotencyKey,
 			Status:               btx.Status,
 			Plan:                 selectedVariation.VariationCode,
+			PointsUsed:           pointsUsed,
 		}, nil
 
 	default:
@@ -3441,10 +3457,15 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 
 	var redemptionApplied bool
 	var finalAmount decimal.Decimal
-	var pointsEarned float64
+	var pointsEarned, pointsUsed float64
 
 	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if !req.UseRewardPoints {
+		pointsUsed = 0.00
+	} else {
+		pointsUsed = pointsToUseDecimal.InexactFloat64()
+	}
 	if req.UseRewardPoints && req.PointsToUse > 0 {
 		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
 			ctx, dbTx, user, pointsToUseDecimal, amount,
@@ -3483,18 +3504,19 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
-		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
-		TransactionID:   txx.ID,
-		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
-		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
-		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
-		ServiceType:     string(Data),
-		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	stx, err := s.store.WithTx(dbTx).CreateElectricityPurchaseMetadata(ctx, db.CreateElectricityPurchaseMetadataParams{
+		TransactionID: txx.ID,
+		Amount:        txx.Amount,
+		PointsUsed:    sql.NullString{String: fmt.Sprintf("%2.f", pointsUsed), Valid: true},
+		AmountPaid:    finalAmount.String(),
+		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
+		Reference:     req.IdempotencyKey,
+		RequestID:     purchaseRequestID,
+		ServiceCharge: sql.NullString{String: "0", Valid: true},
+		Status:        string(Pending),
 	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
-	}
 
 	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
 		Balance: sql.NullString{String: amount.String(), Valid: true},
@@ -3503,8 +3525,6 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 	if err != nil {
 		return nil, fmt.Errorf("failed to debit wallet: %v", err)
 	}
-
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
 
 	btx, err := s.billProvider.BuyElectricity(bills.PurchaseElectricityRequest{
 		ServiceID:     req.ServiceID,
@@ -3577,12 +3597,12 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Pending),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			ID:     stx.ID,
+			Status: string(Pending),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+			return nil, fmt.Errorf("failed to update electricity metadat: %v", err)
 		}
 
 		// Commit the pending status
@@ -3616,17 +3636,24 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 			return nil, fmt.Errorf("failed to update tx record: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
-			ServiceTransactionID: sql.NullString{String: btx.Content.Transaction.TransactionID, Valid: true},
-			TransactionID:        txx.ID,
+		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			ID:     stx.ID,
+			Status: string(Success),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
+			return nil, fmt.Errorf("failed to update electricity metadat: %v", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Success),
-			TransactionID: stx.TransactionID,
+		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchasePartial(ctx, db.UpdateElectricityPurchasePartialParams{
+			Reference:       req.IdempotencyKey,
+			Token:           sql.NullString{String: btx.Token, Valid: true},
+			CustomerName:    sql.NullString{String: *btx.CustomerName, Valid: true},
+			CustomerAddress: sql.NullString{String: *btx.CustomerAddress, Valid: true},
+			Units:           sql.NullString{String: btx.Units, Valid: true},
+			MeterNumber:     sql.NullString{String: btx.MeterNumber, Valid: true},
+			Tax:             sql.NullString{String: fmt.Sprintf("%.2f", btx.TaxAmount), Valid: true},
+			Debt:            sql.NullString{String: fmt.Sprintf("%.2f", btx.Debt), Valid: true},
+			Status:          string(Success),
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
@@ -3650,7 +3677,7 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 			}
 		}
 
-		pointAmount, err := s.AwardRewardPoints(
+		pointEarned, err := s.AwardRewardPoints(
 			ctx,
 			dbTx,
 			int32(user.ID),
@@ -3664,12 +3691,12 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 			s.logger.Error("Failed to award reward points:", err)
 		}
 
-		if pointAmount.GreaterThan(decimal.Zero) {
+		if pointEarned.GreaterThan(decimal.Zero) {
 			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
-				user.ID, pointAmount.String(), txx.ID))
-			pointsEarned = pointAmount.InexactFloat64()
+				user.ID, pointEarned.String(), txx.ID))
+			pointsEarned = pointEarned.InexactFloat64()
 		}
-		pointsEarned = pointAmount.InexactFloat64()
+		pointsEarned = pointEarned.InexactFloat64()
 
 		if err := dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("Electricity purchase failed: %w", err)

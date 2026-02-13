@@ -30,6 +30,79 @@ func (q *Queries) CountPendingCryptoTransactions(ctx context.Context) (int64, er
 	return pending_count, err
 }
 
+const createAirtimeDataMetadata = `-- name: CreateAirtimeDataMetadata :one
+INSERT INTO data_airtime_purchase_metadata (
+    amount,
+    points_used,
+    type,
+    amount_paid,
+    points_earned,
+    phone_number,
+    plan,
+    reference,
+    status,
+    request_id,
+    transaction_id,
+    service_charge, --TODO:
+    date
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+)
+RETURNING id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
+`
+
+type CreateAirtimeDataMetadataParams struct {
+	Amount        string         `json:"amount"`
+	PointsUsed    sql.NullString `json:"points_used"`
+	Type          string         `json:"type"`
+	AmountPaid    string         `json:"amount_paid"`
+	PointsEarned  sql.NullString `json:"points_earned"`
+	PhoneNumber   string         `json:"phone_number"`
+	Plan          sql.NullString `json:"plan"`
+	Reference     string         `json:"reference"`
+	Status        string         `json:"status"`
+	RequestID     string         `json:"request_id"`
+	TransactionID uuid.UUID      `json:"transaction_id"`
+	ServiceCharge sql.NullString `json:"service_charge"`
+	Date          time.Time      `json:"date"`
+}
+
+func (q *Queries) CreateAirtimeDataMetadata(ctx context.Context, arg CreateAirtimeDataMetadataParams) (DataAirtimePurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, createAirtimeDataMetadata,
+		arg.Amount,
+		arg.PointsUsed,
+		arg.Type,
+		arg.AmountPaid,
+		arg.PointsEarned,
+		arg.PhoneNumber,
+		arg.Plan,
+		arg.Reference,
+		arg.Status,
+		arg.RequestID,
+		arg.TransactionID,
+		arg.ServiceCharge,
+		arg.Date,
+	)
+	var i DataAirtimePurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.Type,
+		&i.AmountPaid,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Plan,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
+	)
+	return i, err
+}
+
 const createCryptoMetadata = `-- name: CreateCryptoMetadata :one
 INSERT INTO crypto_transaction_metadata (
     destination_wallet,
@@ -90,6 +163,112 @@ func (q *Queries) CreateCryptoMetadata(ctx context.Context, arg CreateCryptoMeta
 		&i.ServiceProvider,
 		&i.OrderID,
 		&i.ServiceTransactionID,
+	)
+	return i, err
+}
+
+const createElectricityPurchaseMetadata = `-- name: CreateElectricityPurchaseMetadata :one
+INSERT INTO electricity_purchase_metadata (
+    transaction_id,
+    amount,
+    points_used,
+    amount_paid,
+    token,
+    customer_name,
+    customer_address,
+    units,
+    meter_number,
+    tax,
+    debt,
+    points_earned,
+    phone_number,
+    reference,
+    request_id,
+    service_charge,
+    status
+) VALUES (
+    $1,  -- transaction_id
+    $2,  -- amount
+    $3,  -- points_used
+    $4,  -- amount_paid
+    $5,  -- token
+    $6,  -- customer_name
+    $7,  -- customer_address
+    $8,  -- units
+    $9,  -- meter_number
+    $10, -- tax
+    $11, -- debt
+    $12, -- points_earned
+    $13, -- phone_number
+    $14, -- reference
+    $15, -- request_id
+    $16, -- service_charge
+    $17  -- status
+)
+RETURNING id, transaction_id, amount, points_used, amount_paid, token, customer_name, customer_address, units, meter_number, tax, debt, points_earned, phone_number, reference, request_id, service_charge, status, date
+`
+
+type CreateElectricityPurchaseMetadataParams struct {
+	TransactionID   uuid.UUID      `json:"transaction_id"`
+	Amount          string         `json:"amount"`
+	PointsUsed      sql.NullString `json:"points_used"`
+	AmountPaid      string         `json:"amount_paid"`
+	Token           sql.NullString `json:"token"`
+	CustomerName    sql.NullString `json:"customer_name"`
+	CustomerAddress sql.NullString `json:"customer_address"`
+	Units           sql.NullString `json:"units"`
+	MeterNumber     sql.NullString `json:"meter_number"`
+	Tax             sql.NullString `json:"tax"`
+	Debt            sql.NullString `json:"debt"`
+	PointsEarned    sql.NullString `json:"points_earned"`
+	PhoneNumber     string         `json:"phone_number"`
+	Reference       string         `json:"reference"`
+	RequestID       string         `json:"request_id"`
+	ServiceCharge   sql.NullString `json:"service_charge"`
+	Status          string         `json:"status"`
+}
+
+func (q *Queries) CreateElectricityPurchaseMetadata(ctx context.Context, arg CreateElectricityPurchaseMetadataParams) (ElectricityPurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, createElectricityPurchaseMetadata,
+		arg.TransactionID,
+		arg.Amount,
+		arg.PointsUsed,
+		arg.AmountPaid,
+		arg.Token,
+		arg.CustomerName,
+		arg.CustomerAddress,
+		arg.Units,
+		arg.MeterNumber,
+		arg.Tax,
+		arg.Debt,
+		arg.PointsEarned,
+		arg.PhoneNumber,
+		arg.Reference,
+		arg.RequestID,
+		arg.ServiceCharge,
+		arg.Status,
+	)
+	var i ElectricityPurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.AmountPaid,
+		&i.Token,
+		&i.CustomerName,
+		&i.CustomerAddress,
+		&i.Units,
+		&i.MeterNumber,
+		&i.Tax,
+		&i.Debt,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
 	)
 	return i, err
 }
@@ -2996,6 +3175,109 @@ func (q *Queries) ListUserTransactions(ctx context.Context, userID int64) ([]Lis
 	return items, nil
 }
 
+const updateAirtimePurchaseStatus = `-- name: UpdateAirtimePurchaseStatus :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE id = $1
+RETURNING id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
+`
+
+type UpdateAirtimePurchaseStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateAirtimePurchaseStatus(ctx context.Context, arg UpdateAirtimePurchaseStatusParams) (DataAirtimePurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateAirtimePurchaseStatus, arg.ID, arg.Status)
+	var i DataAirtimePurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.Type,
+		&i.AmountPaid,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Plan,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
+	)
+	return i, err
+}
+
+const updateAirtimePurchaseStatusByReference = `-- name: UpdateAirtimePurchaseStatusByReference :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE reference = $1
+RETURNING id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
+`
+
+type UpdateAirtimePurchaseStatusByReferenceParams struct {
+	Reference string `json:"reference"`
+	Status    string `json:"status"`
+}
+
+func (q *Queries) UpdateAirtimePurchaseStatusByReference(ctx context.Context, arg UpdateAirtimePurchaseStatusByReferenceParams) (DataAirtimePurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateAirtimePurchaseStatusByReference, arg.Reference, arg.Status)
+	var i DataAirtimePurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.Type,
+		&i.AmountPaid,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Plan,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
+	)
+	return i, err
+}
+
+const updateAirtimeStatusIfPending = `-- name: UpdateAirtimeStatusIfPending :one
+UPDATE data_airtime_purchase_metadata
+SET status = $2
+WHERE reference = $1
+  AND status = 'pending'
+RETURNING id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
+`
+
+type UpdateAirtimeStatusIfPendingParams struct {
+	Reference string `json:"reference"`
+	Status    string `json:"status"`
+}
+
+func (q *Queries) UpdateAirtimeStatusIfPending(ctx context.Context, arg UpdateAirtimeStatusIfPendingParams) (DataAirtimePurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateAirtimeStatusIfPending, arg.Reference, arg.Status)
+	var i DataAirtimePurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.Type,
+		&i.AmountPaid,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Plan,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
+	)
+	return i, err
+}
+
 const updateBillServiceTransactionID = `-- name: UpdateBillServiceTransactionID :one
 UPDATE services_metadata
 SET service_transaction_id = $1
@@ -3098,6 +3380,112 @@ func (q *Queries) UpdateCryptoTransactionStatus(ctx context.Context, arg UpdateC
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
 		&i.DeletedToAccountID,
+	)
+	return i, err
+}
+
+const updateElectricityPurchasePartial = `-- name: UpdateElectricityPurchasePartial :one
+UPDATE electricity_purchase_metadata
+SET
+    token = COALESCE(token, $2),
+    customer_name = COALESCE(customer_name, $3),
+    customer_address = COALESCE(customer_address, $4),
+    units = COALESCE(units, $5),
+    meter_number = COALESCE(meter_number, $6),
+    tax = COALESCE(tax, $7),
+    debt = COALESCE(debt, $8),
+    service_charge = COALESCE(service_charge, $9),
+    status = $10
+WHERE reference = $1
+RETURNING id, transaction_id, amount, points_used, amount_paid, token, customer_name, customer_address, units, meter_number, tax, debt, points_earned, phone_number, reference, request_id, service_charge, status, date
+`
+
+type UpdateElectricityPurchasePartialParams struct {
+	Reference       string         `json:"reference"`
+	Token           sql.NullString `json:"token"`
+	CustomerName    sql.NullString `json:"customer_name"`
+	CustomerAddress sql.NullString `json:"customer_address"`
+	Units           sql.NullString `json:"units"`
+	MeterNumber     sql.NullString `json:"meter_number"`
+	Tax             sql.NullString `json:"tax"`
+	Debt            sql.NullString `json:"debt"`
+	ServiceCharge   sql.NullString `json:"service_charge"`
+	Status          string         `json:"status"`
+}
+
+func (q *Queries) UpdateElectricityPurchasePartial(ctx context.Context, arg UpdateElectricityPurchasePartialParams) (ElectricityPurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateElectricityPurchasePartial,
+		arg.Reference,
+		arg.Token,
+		arg.CustomerName,
+		arg.CustomerAddress,
+		arg.Units,
+		arg.MeterNumber,
+		arg.Tax,
+		arg.Debt,
+		arg.ServiceCharge,
+		arg.Status,
+	)
+	var i ElectricityPurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.AmountPaid,
+		&i.Token,
+		&i.CustomerName,
+		&i.CustomerAddress,
+		&i.Units,
+		&i.MeterNumber,
+		&i.Tax,
+		&i.Debt,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
+	)
+	return i, err
+}
+
+const updateElectricityPurchaseStatus = `-- name: UpdateElectricityPurchaseStatus :one
+UPDATE electricity_purchase_metadata
+SET status = $2
+WHERE id = $1
+RETURNING id, transaction_id, amount, points_used, amount_paid, token, customer_name, customer_address, units, meter_number, tax, debt, points_earned, phone_number, reference, request_id, service_charge, status, date
+`
+
+type UpdateElectricityPurchaseStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateElectricityPurchaseStatus(ctx context.Context, arg UpdateElectricityPurchaseStatusParams) (ElectricityPurchaseMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateElectricityPurchaseStatus, arg.ID, arg.Status)
+	var i ElectricityPurchaseMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.TransactionID,
+		&i.Amount,
+		&i.PointsUsed,
+		&i.AmountPaid,
+		&i.Token,
+		&i.CustomerName,
+		&i.CustomerAddress,
+		&i.Units,
+		&i.MeterNumber,
+		&i.Tax,
+		&i.Debt,
+		&i.PointsEarned,
+		&i.PhoneNumber,
+		&i.Reference,
+		&i.RequestID,
+		&i.ServiceCharge,
+		&i.Status,
+		&i.Date,
 	)
 	return i, err
 }
