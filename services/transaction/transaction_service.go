@@ -2767,7 +2767,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		Amount:        amount.IntPart(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("airtime purchase failed: %v", err)
+		return nil, fmt.Errorf("data purchase failed: %v", err)
 	}
 
 	switch btx.Status {
@@ -2778,7 +2778,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			ID:      NGNWallet.ID,
 		})
 		if err != nil {
-			return nil, fmt.Errorf("failed to refund wallet on failed airtime: %v", err)
+			return nil, fmt.Errorf("failed to refund wallet on failed data: %v", err)
 		}
 
 		// Mark transaction as failed in DB
@@ -2883,7 +2883,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 				pointsToUseDecimal,
 				amount,
 				finalAmount,
-				"airtime",
+				string(Data),
 				req.ServiceID,
 			)
 			if err != nil {
@@ -2898,7 +2898,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			int32(user.ID),
 			txx.ID,
 			amount,
-			"airtime",
+			string(Data),
 			"bill_payment",
 		)
 		if err != nil {
@@ -2907,19 +2907,19 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		}
 
 		if pointAmount.GreaterThan(decimal.Zero) {
-			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
+			s.logger.Info(fmt.Sprintf("Points awarded for data purchase: User=%d, Points=₦%s, TX=%d",
 				user.ID, pointAmount.String(), txx.ID))
 			pointsEarned = pointAmount.InexactFloat64()
 		}
 		pointsEarned = pointAmount.InexactFloat64()
 
 		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("airtime purchase failed: %w", err)
+			return nil, fmt.Errorf("data purchase failed: %w", err)
 		}
 
 		// audit log
 		logEntry := audit.NewTransactionLog(
-			audit.EventAirtimePurchase,
+			audit.EventDataPurchase,
 			txx.ID.String(),
 			user.Role,
 			user.ID,
@@ -2934,7 +2934,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			ctx,
 			user.ID,
 			txx.ID,
-			string(Airtime),
+			string(Data),
 		)
 		if err != nil {
 			s.logger.Error("Failed to update streak:", err)
@@ -2973,7 +2973,772 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		}, nil
 
 	default:
+		return nil, fmt.Errorf("unknown Data purchase status: %s", btx.Status)
+	}
+
+}
+
+func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.User, req TVSubRequest) (*TVSubResponse, error) {
+	variations, err := s.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID))
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
+	}
+	if len(variations) == 0 {
+		remoteVariations, err := s.billProvider.GetServiceVariation(req.ServiceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if remoteVariations != nil {
+			variations = make([]models.BillVariation, len(remoteVariations))
+			for i, variation := range remoteVariations {
+				variations[i] = models.BillVariation{
+					VariationCode:   variation.VariationCode,
+					Name:            variation.Name,
+					VariationAmount: variation.VariationAmount,
+					FixedPrice:      variation.FixedPrice,
+				}
+			}
+
+			err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			}
+		}
+	}
+
+	var selectedVariation *models.BillVariation
+	for _, variation := range variations {
+		if variation.VariationCode == req.VariationCode {
+			selectedVariation = &variation
+			break
+		}
+	}
+
+	if selectedVariation == nil {
+		return nil, fmt.Errorf("invalid variation code")
+	}
+
+	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		switch existingTx.Status {
+		case string(Pending):
+			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
+		case string(Success):
+			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
+		//TODO: case string(Failed):
+		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
+		// Proceed to retry the transaction
+		default:
+			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
+		}
+	}
+
+	// 1. lock user NGN wallet
+	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "NGN",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+	}
+
+	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
+	if err != nil {
+		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+	}
+
+	// Check sufficient balance
+	if walletBalance.LessThan(amount) {
+		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+	}
+
+	var redemptionApplied bool
+	var finalAmount decimal.Decimal
+	var pointsEarned float64
+	notificationMsg := fmt.Sprintf("Your subscription to %s is successful", selectedVariation.VariationCode)
+
+	finalAmount = amount
+	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if req.UseRewardPoints && req.PointsToUse > 0 {
+		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
+			ctx, dbTx, user, pointsToUseDecimal, amount,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if redemptionApplied {
+			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
+				user.ID, pointsToUseDecimal, amount, finalAmount))
+		}
+	}
+
+	// Create transaction record
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
+	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          user.ID,
+		Type:            string(TV),
+		Description:     sql.NullString{String: fmt.Sprintf("%s purchase", TV), Valid: true},
+		TransactionFlow: string(Outflow),
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		IdempotencyKey:  req.IdempotencyKey,
+		Currency:        NGNWallet.Currency,
+		Direction:       string(Debit),
+		TFrom:           string(Wallet),
+		TTo:             string(OffPlatform),
+		Status:          string(Pending),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
+	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
+		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
+		TransactionID:   txx.ID,
+		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
+		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
+		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
+		ServiceType:     string(TV),
+		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: amount.String(), Valid: true},
+		ID:      NGNWallet.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+	}
+
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	btx, err := s.billProvider.BuyTVSubscription(bills.BuyTVSubscriptionRequest{
+		ServiceID:        req.ServiceID,
+		BillersCode:      req.BillersCode,
+		VariationCode:    req.VariationCode,
+		SubscriptionType: req.SubscriptionType,
+		Phone:            user.PhoneNumber,
+		RequestID:        purchaseRequestID,
+		Amount:           amount.IntPart(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Tv Subscription purchase failed: %v", err)
+	}
+
+	switch btx.Status {
+	case "failed":
+		// Refund wallet
+		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: amount.String(), Valid: true},
+			ID:      NGNWallet.ID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to refund wallet on failed TV: %v", err)
+		}
+
+		// Mark transaction as failed in DB
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Failed),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		// Commit the refund
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		}
+
+		return &TVSubResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Status,
+			Plan:                 selectedVariation.VariationCode,
+		}, nil
+
+	case "pending":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Pending),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Pending),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		// Commit the pending status
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		}
+
+		return &TVSubResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Status,
+			Plan:                 selectedVariation.VariationCode,
+		}, nil
+
+	case "delivered":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Success),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
+			ServiceTransactionID: sql.NullString{String: btx.TransactionID, Valid: true},
+			TransactionID:        txx.ID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Success),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		if redemptionApplied {
+			err = s.CompleteRewardRedemption(
+				ctx,
+				dbTx,
+				int32(user.ID),
+				txx.ID,
+				pointsToUseDecimal,
+				amount,
+				finalAmount,
+				string(TV),
+				req.ServiceID,
+			)
+			if err != nil {
+				// Log but don't fail transaction
+				s.logger.Error("Failed to complete reward redemption:", err)
+			}
+		}
+
+		pointAmount, err := s.AwardRewardPoints(
+			ctx,
+			dbTx,
+			int32(user.ID),
+			txx.ID,
+			amount,
+			string(TV),
+			"bill_payment",
+		)
+		if err != nil {
+			// Log but don't fail transaction
+			s.logger.Error("Failed to award reward points:", err)
+		}
+
+		if pointAmount.GreaterThan(decimal.Zero) {
+			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
+				user.ID, pointAmount.String(), txx.ID))
+			pointsEarned = pointAmount.InexactFloat64()
+		}
+		pointsEarned = pointAmount.InexactFloat64()
+
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("airtime purchase failed: %w", err)
+		}
+
+		// audit log
+		logEntry := audit.NewTransactionLog(
+			audit.EventTVSubscriptionPurchase,
+			txx.ID.String(),
+			user.Role,
+			user.ID,
+			amount.InexactFloat64(),
+			"NGN",
+			true,
+		)
+		logEntry.Metadata = map[string]any{} // TODO:
+		s.audit.Log(logEntry)
+
+		err = s.streakUpdater.UpdateStreakOnTransaction(
+			ctx,
+			user.ID,
+			txx.ID,
+			string(TV),
+		)
+		if err != nil {
+			s.logger.Error("Failed to update streak:", err)
+		}
+
+		// if pointsToUseDecimal.GreaterThan(decimal.Zero) {
+		// 	notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
+		// }
+		if pointsEarned > 0 {
+			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+		}
+
+		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Tv Subscription", notificationMsg, "system", []int64{user.ID})
+		if err != nil {
+			entry := audit.WarningLog("InApp Notification failed", err.Error())
+			s.audit.Log(entry)
+		}
+
+		err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
+			entry := audit.WarningLog("Push Notification failed", err.Error())
+			s.audit.Log(entry)
+		}
+
+		return &TVSubResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Status,
+			Plan:                 selectedVariation.VariationCode,
+		}, nil
+
+	default:
 		return nil, fmt.Errorf("unknown Data status: %s", btx.Status)
+	}
+
+}
+
+func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.User, req ElectricityRequest) (*ElectricityResponse, error) {
+
+	variations, err := s.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID))
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
+	}
+	if len(variations) == 0 {
+		remoteVariations, err := s.billProvider.GetServiceVariation(req.ServiceID)
+		if err != nil {
+			return nil, err
+		}
+
+		if remoteVariations != nil {
+			variations = make([]models.BillVariation, len(remoteVariations))
+			for i, variation := range remoteVariations {
+				variations[i] = models.BillVariation{
+					VariationCode:   variation.VariationCode,
+					Name:            variation.Name,
+					VariationAmount: variation.VariationAmount,
+					FixedPrice:      variation.FixedPrice,
+				}
+			}
+
+			err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			}
+		}
+	}
+
+	var selectedVariation *models.BillVariation
+	for _, variation := range variations {
+		if variation.VariationCode == req.VariationCode {
+			selectedVariation = &variation
+			break
+		}
+	}
+
+	if selectedVariation == nil {
+		return nil, fmt.Errorf("invalid variation code")
+	}
+
+	amount := decimal.NewFromFloat(req.Amount)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		switch existingTx.Status {
+		case string(Pending):
+			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
+		case string(Success):
+			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
+		//TODO: case string(Failed):
+		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
+		// Proceed to retry the transaction
+		default:
+			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
+		}
+	}
+
+	// 1. lock user NGN wallet
+	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   "NGN",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+	}
+
+	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
+	if err != nil {
+		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+	}
+
+	// Check sufficient balance
+	if walletBalance.LessThan(amount) {
+		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+	}
+
+	var redemptionApplied bool
+	var finalAmount decimal.Decimal
+	var pointsEarned float64
+
+	finalAmount = amount
+	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
+	if req.UseRewardPoints && req.PointsToUse > 0 {
+		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
+			ctx, dbTx, user, pointsToUseDecimal, amount,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		if redemptionApplied {
+			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
+				user.ID, pointsToUseDecimal, amount, finalAmount))
+		}
+	}
+
+	// Create transaction record
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
+	if err != nil {
+		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+	}
+
+	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          user.ID,
+		Type:            string(Electricity),
+		Description:     sql.NullString{String: fmt.Sprintf("%s purchase", Electricity), Valid: true},
+		TransactionFlow: string(Outflow),
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		IdempotencyKey:  req.IdempotencyKey,
+		Currency:        NGNWallet.Currency,
+		Direction:       string(Debit),
+		TFrom:           string(Wallet),
+		TTo:             string(OffPlatform),
+		Status:          string(Pending),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transaction record: %w", err)
+	}
+
+	stx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
+		SourceWallet:    uuid.NullUUID{UUID: NGNWallet.ID, Valid: true},
+		TransactionID:   txx.ID,
+		ServiceID:       sql.NullString{String: req.ServiceID, Valid: true},
+		ReceivedAmount:  sql.NullString{String: amount.String(), Valid: true},
+		SentAmount:      sql.NullString{String: finalAmount.String(), Valid: true},
+		ServiceType:     string(Data),
+		ServiceProvider: sql.NullString{String: "VTPass", Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: amount.String(), Valid: true},
+		ID:      NGNWallet.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+	}
+
+	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+
+	btx, err := s.billProvider.BuyElectricity(bills.PurchaseElectricityRequest{
+		ServiceID:     req.ServiceID,
+		BillersCode:   req.BillersCode,
+		VariationCode: req.VariationCode,
+		Phone:         user.PhoneNumber,
+		RequestID:     purchaseRequestID,
+		Amount:        req.Amount,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("Tv Subscription purchase failed: %v", err)
+	}
+
+	switch btx.Content.Transaction.Status {
+	case "failed":
+		// Refund wallet
+		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: amount.String(), Valid: true},
+			ID:      NGNWallet.ID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to refund wallet on failed airtime: %v", err)
+		}
+
+		// Mark transaction as failed in DB
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Failed),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		// Commit the refund
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		}
+
+		return &ElectricityResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Content.Transaction.Status,
+			CustomerName:         *btx.CustomerName,
+			CustomerAddress:      *btx.CustomerAddress,
+			Token:                btx.Token,
+			Units:                btx.Units,
+			TokenAmount:          btx.TokenAmount,
+			MeterNumber:          btx.MeterNumber,
+			FixChargeAmount:      btx.FixChargeAmount,
+		}, nil
+
+	case "pending":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Pending),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Pending),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		// Commit the pending status
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		}
+
+		return &ElectricityResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Content.Transaction.Status,
+			CustomerName:         *btx.CustomerName,
+			CustomerAddress:      *btx.CustomerAddress,
+			Token:                btx.Token,
+			Units:                btx.Units,
+			TokenAmount:          btx.TokenAmount,
+			MeterNumber:          btx.MeterNumber,
+			FixChargeAmount:      btx.FixChargeAmount,
+		}, nil
+
+	case "delivered":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Success),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateBillServiceTransactionID(ctx, db.UpdateBillServiceTransactionIDParams{
+			ServiceTransactionID: sql.NullString{String: btx.Content.Transaction.TransactionID, Valid: true},
+			TransactionID:        txx.ID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bill tx record: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Success),
+			TransactionID: stx.TransactionID,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}
+
+		if redemptionApplied {
+			err = s.CompleteRewardRedemption(
+				ctx,
+				dbTx,
+				int32(user.ID),
+				txx.ID,
+				pointsToUseDecimal,
+				amount,
+				finalAmount,
+				"airtime",
+				req.ServiceID,
+			)
+			if err != nil {
+				// Log but don't fail transaction
+				s.logger.Error("Failed to complete reward redemption:", err)
+			}
+		}
+
+		pointAmount, err := s.AwardRewardPoints(
+			ctx,
+			dbTx,
+			int32(user.ID),
+			txx.ID,
+			amount,
+			string(Electricity),
+			"bill_payment",
+		)
+		if err != nil {
+			// Log but don't fail transaction
+			s.logger.Error("Failed to award reward points:", err)
+		}
+
+		if pointAmount.GreaterThan(decimal.Zero) {
+			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
+				user.ID, pointAmount.String(), txx.ID))
+			pointsEarned = pointAmount.InexactFloat64()
+		}
+		pointsEarned = pointAmount.InexactFloat64()
+
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("Electricity purchase failed: %w", err)
+		}
+
+		// audit log
+		logEntry := audit.NewTransactionLog(
+			audit.EventElectricityPurchase,
+			txx.ID.String(),
+			user.Role,
+			user.ID,
+			amount.InexactFloat64(),
+			"NGN",
+			true,
+		)
+		logEntry.Metadata = map[string]any{} // TODO:
+		s.audit.Log(logEntry)
+
+		err = s.streakUpdater.UpdateStreakOnTransaction(
+			ctx,
+			user.ID,
+			txx.ID,
+			string(Airtime),
+		)
+		if err != nil {
+			s.logger.Error("Failed to update streak:", err)
+		}
+
+		notificationMsg := fmt.Sprintf("Your %s puchase is successful. %s", selectedVariation.VariationCode, btx.Token)
+
+		// if pointsToUseDecimal.GreaterThan(decimal.Zero) {
+		// 	notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
+		// }
+		if pointsEarned > 0 {
+			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+		}
+
+		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []int64{user.ID})
+		if err != nil {
+			entry := audit.WarningLog("InApp Notification failed", err.Error())
+			s.audit.Log(entry)
+		}
+
+		err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
+			entry := audit.WarningLog("Push Notification failed", err.Error())
+			s.audit.Log(entry)
+		}
+
+		return &ElectricityResponse{
+			Amount:               amount,
+			AmountPaid:           finalAmount.InexactFloat64(),
+			BonusEarned:          pointsEarned,
+			TransactionType:      txx.Type,
+			Date:                 txx.CreatedAt,
+			TransactionReference: txx.IdempotencyKey,
+			Status:               btx.Content.Transaction.Status,
+			CustomerName:         *btx.CustomerName,
+			CustomerAddress:      *btx.CustomerAddress,
+			Token:                btx.Token,
+			Units:                btx.Units,
+			TokenAmount:          btx.TokenAmount,
+			MeterNumber:          btx.MeterNumber,
+			FixChargeAmount:      btx.FixChargeAmount,
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unknown Data status: %s", btx.Content.Transaction.Status)
 	}
 
 }

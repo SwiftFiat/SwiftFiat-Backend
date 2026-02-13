@@ -171,24 +171,24 @@ type GetCustomerMeterInfoResponse struct {
 }
 
 type PurchaseElectricityResponse struct {
-	Code                string      `json:"code"`
-	Content             Content     `json:"content"`
-	ResponseDescription string      `json:"response_description"`
-	RequestID           string      `json:"requestId"`
-	Amount              interface{} `json:"amount"`
-	TransactionDate     string      `json:"transaction_date"`
-	PurchasedCode       string      `json:"purchased_code"`
-	CustomerName        *string     `json:"customerName"`
-	CustomerAddress     *string     `json:"customerAddress"`
-	Token               string      `json:"token"`
-	TokenAmount         interface{} `json:"tokenAmount"`
-	ExchangeReference   string      `json:"exchangeReference"`
-	ResetToken          *string     `json:"resetToken"`
-	ConfigureToken      *string     `json:"configureToken"`
-	Units               interface{} `json:"units"`
-	FixChargeAmount     interface{} `json:"fixChargeAmount"`
-	Tariff              string      `json:"tariff"`
-	TaxAmount           interface{} `json:"taxAmount"`
+	Code                string  `json:"code"`
+	Content             Content `json:"content"`
+	ResponseDescription string  `json:"response_description"`
+	RequestID           string  `json:"requestId"`
+	TransactionDate     string  `json:"transaction_date"`
+	PurchasedCode       string  `json:"purchased_code"`
+	CustomerName        *string `json:"customerName"`
+	CustomerAddress     *string `json:"customerAddress"`
+	Token               string  `json:"token"`
+	TokenAmount         any     `json:"tokenAmount"`
+	ExchangeReference   string  `json:"exchangeReference"`
+	ResetToken          *string `json:"resetToken"`
+	ConfigureToken      *string `json:"configureToken"`
+	Units               string  `json:"units"`
+	FixChargeAmount     any     `json:"fixChargeAmount"`
+	Tariff              string  `json:"tariff"`
+	TaxAmount           any     `json:"taxAmount"`
+	MeterNumber         string `json:"meter_number"`
 }
 
 type PurchaseElectricityRequest struct {
