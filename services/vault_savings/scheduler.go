@@ -10,6 +10,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/tasks"
+	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sqlc-dev/pqtype"
@@ -228,13 +229,13 @@ func (vs *VaultScheduler) processVaultDeposit(ctx context.Context, vault *db.Vau
 
 	// Perform the deposit
 	depositReq := DepositRequest{
-		UserID:       vault.UserID,
-		VaultID:      vault.ID,
-		FromWalletID: wallet.ID,
-		Amount:       rule.Amount,
-		Currency:     vault.Currency,
-		Description:  fmt.Sprintf("Automated %s recurring deposit", rule.Interval),
-		Reference:    "", // update
+		UserID:         vault.UserID,
+		VaultID:        vault.ID,
+		FromWalletID:   wallet.ID,
+		Amount:         rule.Amount,
+		Currency:       vault.Currency,
+		Description:    fmt.Sprintf("Automated %s recurring deposit", rule.Interval),
+		IdempotencyKey: utils.WatRequestID(),
 	}
 
 	tx, err := vs.vaultService.Deposit(ctx, depositReq)
@@ -280,7 +281,7 @@ func (vs *VaultScheduler) handleDepositSuccess(
 	if err := vs.store.UpdateVaultRecurringRule(ctx, db.UpdateVaultRecurringRuleParams{
 		ID:            vault.ID,
 		RecurringRule: recurringRule,
-		NextAutoSave: sql.NullTime{Time: rule.NextExecutionAt, Valid: true},
+		NextAutoSave:  sql.NullTime{Time: rule.NextExecutionAt, Valid: true},
 	}); err != nil {
 		return fmt.Errorf("failed to update recurring rule: %w", err)
 	}

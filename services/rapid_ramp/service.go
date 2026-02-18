@@ -522,6 +522,8 @@ func (s *QRCodeService) payoutQRTransaction(ctx context.Context, tx *db.QrTransa
 	// Initiate transfer
 	transfer, err := paystackProvider.MakeTransfer(
 		recipient.RecipientCode,
+		uuid.NewString(),
+		"sent via Swiift",
 		amountInKobo,
 		bankAccount.AccountName,
 	)

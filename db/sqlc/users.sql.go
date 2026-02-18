@@ -667,6 +667,52 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 	return i, err
 }
 
+const getUserByTag = `-- name: GetUserByTag :one
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE user_tag = $1
+`
+
+func (q *Queries) GetUserByTag(ctx context.Context, userTag sql.NullString) (User, error) {
+	row := q.db.QueryRowContext(ctx, getUserByTag, userTag)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.AvatarUrl,
+		&i.AvatarBlob,
+		&i.FirstName,
+		&i.LastName,
+		&i.Email,
+		&i.HashedPassword,
+		&i.HashedPasscode,
+		&i.HashedPin,
+		&i.PhoneNumber,
+		&i.Role,
+		&i.Verified,
+		&i.IsKycVerified,
+		&i.BridgecardVerificationStatus,
+		&i.BridgecardCardholderID,
+		&i.IsRapidRampOn,
+		&i.HasCompletedFirstConversion,
+		&i.FirstConversionID,
+		&i.FirstConversionAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+		&i.HasWallets,
+		&i.UserTag,
+		&i.FreshChatID,
+		&i.IsActive,
+		&i.TwofaSecret,
+		&i.TwofaEnabled,
+		&i.RewardBalance,
+		&i.TotalRewardEarned,
+		&i.TotalRewardRedeemed,
+		&i.TotalConversionVolume,
+		&i.TotalTransactionVolume,
+		&i.CurrentVipLevelID,
+	)
+	return i, err
+}
+
 const getUserHasCompletedFirstConversion = `-- name: GetUserHasCompletedFirstConversion :one
 SELECT has_completed_first_conversion
 FROM users
@@ -679,29 +725,6 @@ func (q *Queries) GetUserHasCompletedFirstConversion(ctx context.Context, id int
 	var has_completed_first_conversion sql.NullBool
 	err := row.Scan(&has_completed_first_conversion)
 	return has_completed_first_conversion, err
-}
-
-const getUserNameByUserTag = `-- name: GetUserNameByUserTag :one
-SELECT first_name, last_name, email, id FROM users WHERE user_tag = $1
-`
-
-type GetUserNameByUserTagRow struct {
-	FirstName sql.NullString `json:"first_name"`
-	LastName  sql.NullString `json:"last_name"`
-	Email     string         `json:"email"`
-	ID        int64          `json:"id"`
-}
-
-func (q *Queries) GetUserNameByUserTag(ctx context.Context, userTag sql.NullString) (GetUserNameByUserTagRow, error) {
-	row := q.db.QueryRowContext(ctx, getUserNameByUserTag, userTag)
-	var i GetUserNameByUserTagRow
-	err := row.Scan(
-		&i.FirstName,
-		&i.LastName,
-		&i.Email,
-		&i.ID,
-	)
-	return i, err
 }
 
 const listAdmins = `-- name: ListAdmins :many

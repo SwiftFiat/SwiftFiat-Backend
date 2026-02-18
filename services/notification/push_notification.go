@@ -1022,7 +1022,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64,
 	return nil
 }
 
-func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64, amount float64) error {
+func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64, amount float64, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
@@ -1035,7 +1035,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 	}
 
 	Title := "Credit Alert"
-	Message := fmt.Sprintf("🎉 You have received $%.2f to your wallet.", amount)
+	Message := fmt.Sprintf("🎉 You have received $%.2f %s to your wallet.", amount, currency)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1049,7 +1049,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
 			return err
 		}
-	}
+	} 
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1066,7 +1066,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 	return nil
 }
 
-func(p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, amount float64) error {
+func (p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, amount float64, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
@@ -1079,7 +1079,7 @@ func(p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, a
 	}
 
 	Title := "Debit Alert"
-	Message := fmt.Sprintf("⚠️ A debit of $%.2f has been made from your wallet.", amount)
+	Message := fmt.Sprintf("⚠️ A debit of %.2f %s has been made from your wallet.", amount, currency)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1142,7 +1142,7 @@ func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, use
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
 			Title:         Title,
-			Message:	   Message,
+			Message:       Message,
 			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})

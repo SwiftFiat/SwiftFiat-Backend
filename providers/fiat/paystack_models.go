@@ -80,6 +80,7 @@ type TransferRequest struct {
 	Reason    string `json:"reason"`
 	Amount    int64  `json:"amount"`
 	Recipient string `json:"recipient"`
+	Reference string `json:"reference"`
 }
 
 type TransferResponse struct {

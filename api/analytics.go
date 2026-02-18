@@ -174,8 +174,6 @@ func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRo
 		Currency:             row.Currency,
 		Rate:                 &row.Rate.String,
 		Fees:                 &row.Fees.String,
-		ReceivedAmount:       &row.ReceivedAmount.String,
-		SentAmount:           &row.SentAmount.String,
 	}
 }
 

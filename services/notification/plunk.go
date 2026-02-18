@@ -45,7 +45,7 @@ func NewPlunkService(config *utils.Config) *Plunk {
 		Config:     config,
 		HttpClient: &http.Client{},
 	}
-}
+} 
 
 func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 	var reqBody io.Reader

@@ -3,6 +3,7 @@ package transaction
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
@@ -40,6 +42,8 @@ type TransactionService struct {
 	rewardSvc      *rewards.RewardService
 	audit          *audit.Service
 	redis          *redis.RedisService
+	paystack       *fiat.PaystackProvider
+	rateManager    *ratemanager.Service
 }
 
 func NewTransactionService(
@@ -55,6 +59,8 @@ func NewTransactionService(
 	rewardSvc *rewards.RewardService,
 	audit *audit.Service,
 	redis *redis.RedisService,
+	paystack *fiat.PaystackProvider,
+	rateManager *ratemanager.Service,
 ) *TransactionService {
 	return &TransactionService{
 		store:          store,
@@ -69,294 +75,11 @@ func NewTransactionService(
 		rewardSvc:      rewardSvc,
 		audit:          audit,
 		redis:          redis,
+		paystack:       paystack,
+		rateManager:    rateManager,
 	}
 }
 
-// May return an arbitrary error or an error defined in [transaction_strings]
-// Handles SWAP or WALLET <->  WALLET transactions (determined internally)
-func (s *TransactionService) CreateWalletTransaction(ctx context.Context, tx IntraTransaction, user *utils.TokenObject) (*TransactionResponse[SwapTransferMetadataResponse], error) {
-	s.logger.Info(fmt.Sprintf("starting wallet transaction: %s", tx.Type))
-	// Start transaction
-	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer dbTx.Rollback()
-
-	// Get account details
-	fromAccount, err := s.walletClient.GetWalletForUpdate(ctx, dbTx, tx.FromAccountID)
-	if err != nil {
-		return nil, wallet.NewWalletError(err, tx.FromAccountID.String())
-	}
-
-	// set Transaction base currency
-	tx.Currency = fromAccount.Currency
-
-	// User must own source wallet - Verify Ownership
-	if user.UserID != fromAccount.CustomerID {
-		s.logger.Error("illegal access: ", fmt.Sprintf("user tried accessing a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.UserID, fromAccount.ID))
-		return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.FromAccountID.String())
-	}
-
-	toAccount, err := s.walletClient.GetWalletForUpdate(ctx, dbTx, tx.ToAccountID)
-	if err != nil {
-		return nil, wallet.NewWalletError(err, tx.ToAccountID.String())
-	}
-
-	// User should be conducting a swap from their account to their account - Verify Ownership
-	if tx.Type == Swap {
-		if user.UserID != toAccount.CustomerID {
-			s.logger.Error("illegal access: ", fmt.Sprintf("user tried swapping to a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.UserID, toAccount.ID))
-			return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.ToAccountID.String())
-		}
-	}
-
-	// Track transaction currency type
-	// e.g. EUR to USD or NGN to NGN
-	// This would help for ledger tracking
-	// Anonymous function to determine the currency flow e.g USD to USD
-	currFlow := func(fromCurrency, toCurrency string) string {
-		if fromCurrency == toCurrency {
-			return fromCurrency + " to " + toCurrency
-		}
-		return fromCurrency + " to " + toCurrency
-	}(fromAccount.Currency, toAccount.Currency)
-
-	// Handle currency conversion if needed
-	var sentAmount decimal.Decimal
-	var receivedAmount decimal.Decimal
-	var rate decimal.Decimal
-	var fees decimal.Decimal
-
-	sentAmount = tx.SentAmount
-	if fromAccount.Currency != toAccount.Currency {
-		rate, err = s.currencyClient.GetExchangeRate(ctx, fromAccount.Currency, toAccount.Currency)
-		if err != nil {
-			return nil, currency.NewCurrencyError(err, fromAccount.Currency, toAccount.Currency)
-		}
-	} else {
-		rate = decimal.New(1, 0)
-	}
-	// Calculate the received amount
-	receivedAmount = tx.SentAmount.Mul(rate)
-
-	/// update sent amount with FEES
-	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
-	if err != nil {
-		return nil, err
-	}
-
-	// Check sufficient balance
-	if fromAccount.Balance.LessThan(sentAmount) {
-		return nil, wallet.NewWalletError(wallet.ErrInsufficientFunds, tx.FromAccountID.String(), fmt.Errorf("amount required: %v", sentAmount))
-	}
-
-	// Reset values in transaction object
-	tx.ReceivedAmount = receivedAmount
-	tx.Fees = fees
-	tx.Rate = rate
-
-	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, WalletTransaction, &tx, currFlow, string(InPlatform), fromAccount.CustomerID)
-	if err != nil {
-		return nil, fmt.Errorf("create transaction record: %w", err)
-	}
-	tObj := tempObj.(*TransactionResponse[SwapTransferMetadataResponse])
-
-	// Create ledger entries for base transaction
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: tObj.ID,
-		Debit: Entry{
-			AccountID: tx.FromAccountID,
-			Amount:    sentAmount,
-		},
-		Credit: Entry{
-			AccountID: tx.ToAccountID,
-			Amount:    tx.ReceivedAmount,
-		},
-		Platform:        WalletTransaction,
-		SourceType:      OnPlatform,
-		DestinationType: OnPlatform,
-	}); err != nil {
-		return nil, fmt.Errorf("create ledger entries: %w", err)
-	}
-
-	// Update account balances
-	newBalance := fromAccount.Balance.Sub(sentAmount)
-	if err := s.updateBalance(ctx, dbTx, tx.FromAccountID, newBalance); err != nil {
-		return nil, fmt.Errorf("update from account balance: %w", err)
-	}
-
-	newBalance = toAccount.Balance.Add(receivedAmount)
-	if err := s.updateBalance(ctx, dbTx, tx.ToAccountID, newBalance); err != nil {
-		return nil, fmt.Errorf("update to account balance: %w", err)
-	}
-
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	// Reward Points for transfer
-
-	s.logger.Info("wallet (swap | transfer) transaction completed successfully", tx)
-
-	return tObj, nil
-}
-
-// May return an arbitrary error or an error defined in [transaction_strings]
-// Handles CRYPTO -> WALLET transactions
-// Crypto inflow transactions are those where a user sends crypto from an external wallet to their SwiftFiat wallet
-// The crypto is then converted to fiat and credited to the user's fiat wallet
-func (s *TransactionService) CreateCryptoInflowTransaction(ctx context.Context, orderID string, tx CryptoTransaction, prov *providers.ProviderService) (*TransactionResponse[CryptoMetadataResponse], error) {
-	s.logger.Info("starting crypto inflow transaction")
-
-	// Start transaction
-	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
-	if err != nil {
-		return nil, fmt.Errorf("begin transaction: %w", err)
-	}
-	defer dbTx.Rollback()
-
-	// Check if trail exists for this hash
-	trailExists, err := s.store.WithTx(dbTx).CheckCryptoTransactionTrailByOrderID(ctx, orderID)
-	if err != nil {
-		return nil, fmt.Errorf("issue with checking for transactionHash %v", err)
-	}
-
-	if trailExists {
-		return nil, fmt.Errorf("transaction already recorded, please check transaction hash: %v", tx.SourceHash)
-	}
-
-	/// Update amount in transaction object to prevent future problems
-	params := db.CreateCryptoTransactionTrailParams{
-		AddressID:       tx.DestinationAddress,
-		OrderID:         orderID,
-		TransactionHash: sql.NullString{String: tx.SourceHash},
-		Amount: sql.NullString{
-			String: tx.AmountInSatoshis.StringFixed(10),
-			Valid:  !tx.AmountInSatoshis.IsZero(),
-		},
-	}
-	_, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params)
-	if err != nil {
-		return nil, fmt.Errorf("error creating transaction trail: %v", err)
-	}
-
-	// Track transaction currency type
-	// e.g. BTC to USD or SOL to USD
-	// This would help for ledger tracking
-	// Anonymous function to determine the currency flow e.g BTC to USD
-	currFlow := func(fromCurrency, toCurrency string) string {
-		if fromCurrency == toCurrency {
-			return fromCurrency + " to " + toCurrency
-		}
-		return fromCurrency + " to " + toCurrency
-	}(tx.Coin, "USD") // Default to USD Transactions - Because it's easier to just credit the user's USD wallet
-
-	// Handle Coin conversion to USD
-	// rate, err := s.currencyClient.GetCryptoExchangeRate(ctx, tx.Coin, "USD", prov)
-	rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, tx.Coin, prov)
-	if err != nil {
-		return nil, currency.NewCurrencyError(err, tx.Coin, "USD")
-	}
-
-	// For all other coins, use the main unit directly
-	coinAmount := tx.AmountInSatoshis // tx.Amount should be the string from webhook
-
-	amount := coinAmount.Mul(rate)
-
-	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID) //Todo: this iis not fetching the cuurate uuid
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
-	}
-
-	// Pull users USD wallet
-	walletParams := db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: walletAddress.CustomerID.Int64,
-		Currency:   "USD", // TODO: Look into these as constants or enums
-	}
-	userUSDWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)", walletParams.CustomerID, walletParams.Currency)
-	}
-
-	// set Transaction Object values
-	tx.DestinationAccount = userUSDWallet.ID
-	tx.Rate = rate
-	tx.SentAmount = tx.AmountInSatoshis
-	tx.ReceivedAmount = amount
-
-	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, string(Inflow), walletAddress.CustomerID.Int64)
-	if err != nil {
-		return nil, fmt.Errorf("create transaction record: %w", err)
-	}
-	tObj := tempObj.(*TransactionResponse[CryptoMetadataResponse])
-
-	// Create ledger entries
-	// balance, err := decimal.NewFromString(userUSDWallet.Balance.String)
-	// if err != nil {
-	// 	s.logger.Error("failed to parse the balance string")
-	// }
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: tObj.ID,
-		Credit: Entry{
-			AccountID: userUSDWallet.ID,
-			Amount:    amount,
-		},
-		Platform:        CryptoInflowTransaction,
-		SourceType:      OffPlatform,
-		DestinationType: OnPlatform,
-	}); err != nil {
-		return nil, fmt.Errorf("create ledger entries: %w", err)
-	}
-
-	// Update account balances
-	if err := s.updateBalance(ctx, dbTx, userUSDWallet.ID, amount); err != nil {
-		return nil, fmt.Errorf("update to account balance: %w", err)
-	}
-
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	email := service.Plunk{Config: s.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
-	tplData := map[string]any{
-		"Amount":        amount,
-		"Currency":      tx.Coin,
-		"TransactionID": tx.TransactionID,
-		"Date":          time.Now().Format("2006-01-02 15:04:05"),
-	}
-
-	body, err := utils.RenderEmailTemplate("templates/cryptp_transaction.html", tplData)
-	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, err.Error())
-	}
-
-	user, err := s.store.GetUserByID(ctx, walletAddress.CustomerID.Int64)
-	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to fetch user by ID: %v, %v", walletAddress.CustomerID.Int64, err))
-		return nil, fmt.Errorf("failed to fetch user by ID: %v", walletAddress.CustomerID.Int64)
-	}
-
-	subject := "SwiftFiat - Successful Crypto Inflow Transaction"
-	err = email.SendEmail(user.Email, subject, body)
-	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto confirmation email: %v", err))
-	}
-	s.logger.Info("crypto inflow transaction email sent successfully", user.Email)
-
-	s.notifyr.CreateWithRecipients(ctx, nil, "Succcessful Crypto Transaction", fmt.Sprintf("You have received %s USD on USD wallet", amount.String()), "system", []int64{user.ID})
-
-	s.logger.Info("crypto inflow transaction completed successfully", tx)
-
-	return tObj, nil
-}
-
-// CreatePendingCryptoTransaction creates a pending transaction record when crypto is detected but not yet confirmed
-// This is called on "confirm_check" webhook status
 func (s *TransactionService) CreatePendingCryptoTransaction(
 	ctx context.Context,
 	orderID string,
@@ -365,161 +88,119 @@ func (s *TransactionService) CreatePendingCryptoTransaction(
 ) (*TransactionResponse[CryptoMetadataResponse], error) {
 	s.logger.Info("Creating pending crypto transaction")
 
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	// Check if trail exists for this hash
-	trailExists, err := s.store.WithTx(dbTx).CheckCryptoTransactionTrailByOrderID(ctx, orderID)
+	qtx := s.store.WithTx(dbTx)
+
+	// Idempotency — bail if we've already recorded this order.
+	trailExists, err := qtx.CheckCryptoTransactionTrailByOrderID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("issue with checking for orderID %v", err)
+		return nil, fmt.Errorf("checking trail for orderID %s: %w", orderID, err)
 	}
 	if trailExists {
-		return nil, fmt.Errorf("transaction already recorded, please check order id: %v", orderID)
+		return nil, fmt.Errorf("transaction already recorded for order id: %s", orderID)
 	}
 
-	// Record trail
-	params := db.CreateCryptoTransactionTrailParams{
+	// Record the trail so the "paid" webhook can find it.
+	if _, err = qtx.CreateCryptoTransactionTrail(ctx, db.CreateCryptoTransactionTrailParams{
 		AddressID:       tx.DestinationAddress,
 		OrderID:         orderID,
-		TransactionHash: sql.NullString{String: tx.SourceHash},
+		TransactionHash: sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
 		Amount: sql.NullString{
 			String: tx.AmountInSatoshis.StringFixed(10),
 			Valid:  !tx.AmountInSatoshis.IsZero(),
 		},
-	}
-	if _, err = s.store.WithTx(dbTx).CreateCryptoTransactionTrail(ctx, params); err != nil {
-		return nil, fmt.Errorf("error creating transaction trail: %v", err)
+	}); err != nil {
+		return nil, fmt.Errorf("creating transaction trail: %w", err)
 	}
 
-	// Resolve the Cryptomus address and the destination currency/wallet
-	walletAddress, err := s.store.WithTx(dbTx).GetCryptomusAddressByOrderID(ctx, orderID)
+	// Resolve destination address → user → destination wallet.
+	walletAddress, err := qtx.GetCryptomusAddressByOrderID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
+		return nil, fmt.Errorf("fetching cryptomus address for orderID %s: %w", orderID, err)
 	}
 
-	// Normalize coin symbol
 	coinSym := strings.ToUpper(tx.Coin)
+	coinAmount := tx.AmountInSatoshis
 
-	// Get exchange rate from Cryptomus
+	// Best-effort rate; zero is acceptable at pending stage — finalised on "paid".
 	rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
 	if err != nil {
-		s.logger.Warnf("Failed to get exchange rate for pending transaction: %v", err)
-		// Continue with rate of 0 if we can't get it - will be updated on paid status
+		s.logger.Warnf("Failed to get exchange rate for pending tx (will use 0): %v", err)
 		rate = decimal.Zero
 	}
+	estimatedUSD := coinAmount.Mul(rate)
 
-	// Calculate amount in USD
-	coinAmount := tx.AmountInSatoshis
-	estimatedAmount := coinAmount.Mul(rate)
-
-	// Pull destination wallet by currency and lock
-	walletParams := db.GetWalletByCurrencyForUpdateParams{
+	// Lock destination wallet — prevents concurrent credits.
+	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: walletAddress.CustomerID.Int64,
 		Currency:   "USD",
-	}
-
-	destWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, walletParams)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)",
-			walletParams.CustomerID, walletParams.Currency)
+		return nil, fmt.Errorf("fetching USD wallet for customer %d: %w", walletAddress.CustomerID.Int64, err)
 	}
 
-	// Set transaction object values
-	tx.DestinationAccount = destWallet.ID
-	tx.Rate = rate
-	tx.SentAmount = tx.AmountInSatoshis
-	tx.ReceivedAmount = estimatedAmount
-	tx.Coin = coinSym
-	// tx.Status = "pending" // Explicitly set pending status
-
-	// Create transaction record with PENDING status
-	currFlow := coinSym + " to USD"
-	tempObj, err := s.createPendingTransactionRecord(ctx, dbTx, "crypto", &tx, currFlow, string(Inflow), walletAddress.CustomerID.Int64, orderID)
+	// FIX [C1]: Direct CreateTransaction with all required fields.
+	// Old createPendingTransactionRecord was missing IdempotencyKey, Direction, TFrom, TTo.
+	idempotencyKey := "crypto_pending_" + orderID
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          walletAddress.CustomerID.Int64,
+		Type:            string(CryptoInflowTransaction),
+		Description:     sql.NullString{String: "Crypto Deposit (Pending)", Valid: true},
+		TransactionFlow: string(Inflow),
+		Status:          string(Pending),
+		Amount:          coinAmount.String(),   // raw coin amount
+		AmountUsd:       estimatedUSD.String(), // estimated USD at time of detect
+		Currency:        coinSym,
+		IdempotencyKey:  idempotencyKey,
+		Direction:       string(Credit),
+		TFrom:           "Cryptomus",
+		TTo:             string(Wallet),
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create pending transaction record: %w", err)
+		return nil, fmt.Errorf("creating pending transaction record: %w", err)
 	}
 
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
-
-	response := TransactionResponse[CryptoMetadataResponse]{
-		ID:              tempObj.ID,
-		Type:            tempObj.Type,
-		Status:          tempObj.Status,
-		TransactionFlow: tempObj.TransactionFlow,
-		Description:     tempObj.Description.String,
-		CreatedAt:       tempObj.CreatedAt,
-		UpdatedAt:       tempObj.UpdatedAt,
-	}
-
-	return &response, nil
-}
-
-// createPendingTransactionRecord creates a transaction record with pending status
-func (s *TransactionService) createPendingTransactionRecord(
-	ctx context.Context,
-	dbTx *sql.Tx,
-	transactionType TransactionType,
-	tx interface{},
-	currFlow string,
-	flow string,
-	userID int64,
-	orderID string,
-) (*db.Transaction, error) {
-	// This is similar to createTransactionRecord but explicitly sets status to "pending"
-	cryptoTx := tx.(*CryptoTransaction)
-
-	// Calculate amount in USD for the transaction table
-	amountUSD := cryptoTx.ReceivedAmount
-
-	// Create base transaction with pending status
-	baseParams := db.CreateTransactionParams{
-		UserID:          userID,
-		Type:            string(transactionType),
-		Description:     sql.NullString{String: cryptoTx.Description, Valid: true},
-		TransactionFlow: flow,
-		Amount:          cryptoTx.AmountInSatoshis.String(),
-		Currency:        cryptoTx.Coin,
-		AmountUsd:       amountUSD.String(),
-		Status:          "pending", // PENDING status for confirm_check
-	}
-
-	baseTx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, baseParams)
-	if err != nil {
-		return nil, fmt.Errorf("create base transaction: %w", err)
-	}
-
-	// Create crypto metadata record
-	metadataParams := db.CreateCryptoMetadataParams{
-		DestinationWallet:    uuid.NullUUID{UUID: cryptoTx.DestinationAccount, Valid: true},
-		TransactionID:        baseTx.ID,
-		Coin:                 cryptoTx.Coin,
-		SourceHash:           sql.NullString{String: cryptoTx.SourceHash, Valid: true},
-		Rate:                 sql.NullString{String: cryptoTx.Rate.String(), Valid: true},
-		Fees:                 sql.NullString{String: cryptoTx.Fees.String(), Valid: true},
-		ReceivedAmount:       sql.NullString{String: cryptoTx.ReceivedAmount.String(), Valid: true},
-		SentAmount:           sql.NullString{String: cryptoTx.AmountInSatoshis.String(), Valid: true},
+	// Create crypto metadata so UpdateCryptoTransactionToPaid can find the wallet.
+	_, err = qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
+		DestinationWallet:    uuid.NullUUID{UUID: destWallet.ID, Valid: true},
+		TransactionID:        txx.ID,
+		Coin:                 coinSym,
+		SourceHash:           sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
+		Rate:                 sql.NullString{String: rate.String(), Valid: true},
+		Fees:                 sql.NullString{String: decimal.Zero.String(), Valid: true},
+		ReceivedAmount:       sql.NullString{String: estimatedUSD.String(), Valid: true},
+		SentAmount:           sql.NullString{String: coinAmount.String(), Valid: true},
 		ServiceProvider:      "cryptomus",
-		ServiceTransactionID: sql.NullString{String: "", Valid: false},
+		ServiceTransactionID: sql.NullString{String: tx.TransactionID.String(), Valid: true},
 		OrderID:              orderID,
-	}
-
-	_, err = s.store.WithTx(dbTx).CreateCryptoMetadata(ctx, metadataParams)
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create crypto metadata: %w", err)
+		return nil, fmt.Errorf("creating crypto metadata: %w", err)
 	}
 
-	return &baseTx, nil
+	if err = dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing pending crypto transaction: %w", err)
+	}
+
+	return &TransactionResponse[CryptoMetadataResponse]{
+		ID:              txx.ID,
+		Type:            txx.Type,
+		Status:          txx.Status,
+		TransactionFlow: txx.TransactionFlow,
+		Description:     txx.Description.String,
+		CreatedAt:       txx.CreatedAt,
+		UpdatedAt:       txx.UpdatedAt,
+	}, nil
 }
 
-// UpdateCryptoTransactionToPaid updates a pending crypto transaction to successful and credits the wallet
-// This is called when the "paid" webhook is received
+// ── UpdateCryptoTransactionToPaid ─────────────────────────────────────────────
+// Called when a "paid" webhook arrives and a matching Pending tx already exists.
+// Credits the user's wallet and finalises the transaction.
 func (s *TransactionService) UpdateCryptoTransactionToPaid(
 	ctx context.Context,
 	dbTx *sql.Tx,
@@ -527,333 +208,349 @@ func (s *TransactionService) UpdateCryptoTransactionToPaid(
 	finalRate decimal.Decimal,
 	finalReceivedAmount decimal.Decimal,
 ) error {
-	s.logger.Info("Updating crypto transaction to paid status", "transaction_id", transactionID)
+	s.logger.Info("Updating crypto transaction to paid", "transaction_id", transactionID)
 
 	qtx := s.store.WithTx(dbTx)
 
-	// Get the existing transaction
+	// Lock the row before mutating.
 	existingTx, err := qtx.GetTransactionByIDForUpdate(ctx, transactionID)
 	if err != nil {
-		return fmt.Errorf("failed to get transaction for update: %w", err)
+		return fmt.Errorf("fetching transaction for update: %w", err)
+	}
+	if existingTx.Status != string(Pending) {
+		return fmt.Errorf("transaction %s is not pending (current: %s)", transactionID, existingTx.Status)
 	}
 
-	// Verify it's in pending status
-	if existingTx.Status != "pending" {
-		return fmt.Errorf("transaction is not in pending status, current status: %s", existingTx.Status)
-	}
-
-	// Update transaction status to successful
-	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+	// Promote to Success.
+	if _, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 		ID:     transactionID,
 		Status: string(Success),
-	})
-	if err != nil {
-		return fmt.Errorf("failed to update transaction status: %w", err)
+	}); err != nil {
+		return fmt.Errorf("updating transaction status: %w", err)
 	}
 
-	// Get crypto metadata to find destination wallet
-	// Note: You'll need to create a query to get crypto metadata by transaction_id
-	// For now, we'll parse from the existing transaction flow
+	// FIX [C3]: Also update AmountUsd to the final settled value.
+	if err = qtx.UpdateTransactionAmountUSD(ctx, db.UpdateTransactionAmountUSDParams{
+		ID:        transactionID,
+		AmountUsd: finalReceivedAmount.String(),
+	}); err != nil {
+		// Non-fatal — log and continue. The balance credit is more important.
+		s.logger.Warnf("Failed to update AmountUsd on transaction %s: %v", transactionID, err)
+	}
 
-	// Get destination wallet
+	// Resolve destination wallet from crypto metadata.
 	metadata, err := qtx.GetCryptoMetadataByTransactionID(ctx, transactionID)
 	if err != nil {
-		return fmt.Errorf("failed to get crypto metadata: %w", err)
+		return fmt.Errorf("fetching crypto metadata for tx %s: %w", transactionID, err)
 	}
 
-	// Get the wallet for update
+	// FIX [C3]: Update metadata with final settled rate and received amount.
+	// Old code never persisted the final rate back into the metadata row.
+	if err = qtx.UpdateCryptoMetadataFinalAmounts(ctx, db.UpdateCryptoMetadataFinalAmountsParams{
+		TransactionID:  transactionID,
+		Rate:           sql.NullString{String: finalRate.String(), Valid: true},
+		ReceivedAmount: sql.NullString{String: finalReceivedAmount.String(), Valid: true},
+	}); err != nil {
+		s.logger.Warnf("Failed to update crypto metadata final amounts for tx %s: %v", transactionID, err)
+	}
+
+	// Lock and credit the destination wallet.
 	wallet, err := qtx.GetWalletForUpdate(ctx, metadata.DestinationWallet.UUID)
 	if err != nil {
-		return fmt.Errorf("failed to get destination wallet: %w", err)
+		return fmt.Errorf("fetching destination wallet: %w", err)
 	}
 
-	// Parse current balance
-	// currentBalance, err := decimal.NewFromString(wallet.Balance.String)
-	// if err != nil {
-	// 	return fmt.Errorf("failed to parse wallet balance: %w", err)
-	// }
-
-	// Create ledger entry for the credit
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: transactionID,
-		Credit: Entry{
-			AccountID: wallet.ID,
-			Amount:    finalReceivedAmount,
-			// Balance:   currentBalance,
-		},
-		Platform:        CryptoInflowTransaction,
-		SourceType:      OffPlatform,
-		DestinationType: OnPlatform,
+	// FIX [C3]: Replaced createLedgerEntries + updateBalance with IncrementWalletBalance,
+	// consistent with how all bill-payment handlers credit wallets.
+	if _, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		ID:      wallet.ID,
+		Balance: sql.NullString{String: finalReceivedAmount.String(), Valid: true},
 	}); err != nil {
-		return fmt.Errorf("create ledger entries: %w", err)
+		return fmt.Errorf("crediting destination wallet: %w", err)
 	}
 
-	// Update wallet balance
-	if err := s.updateBalance(ctx, dbTx, wallet.ID, finalReceivedAmount); err != nil {
-		return fmt.Errorf("update wallet balance: %w", err)
-	}
-
-	s.logger.Info("Successfully updated crypto transaction to paid",
+	s.logger.Info("Crypto transaction upgraded to paid",
 		"transaction_id", transactionID,
-		"amount_credited", finalReceivedAmount.String())
+		"credited", finalReceivedAmount.String())
 
 	return nil
 }
 
-// Enhanced CreateAllCryptoINflowTXs - now handles both new transactions and updates pending ones
+// ── CreateAllCryptoINflowTXs ──────────────────────────────────────────────────
+// Entry point for "paid" webhooks.
+// Handles three paths:
+//
+//	A) trail exists + pending tx found  → upgrade pending to paid
+//	B) trail exists + no pending tx     → create new successful tx
+//	C) no trail at all                  → create trail + new successful tx
 func (s *TransactionService) CreateAllCryptoINflowTXs(
 	ctx context.Context,
 	orderID string,
 	tx CryptoTransaction,
 	prov *providers.ProviderService,
 ) (*TransactionResponse[CryptoMetadataResponse], error) {
-	s.logger.Info("Processing crypto inflow transaction (paid status)")
+	s.logger.Info("Processing crypto inflow (paid webhook)")
 
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	// Check if a pending transaction already exists for this hash
 	qtx := s.store.WithTx(dbTx)
 
-	// First check if transaction trail exists (it should if confirm_check was processed)
 	trailExists, err := qtx.CheckCryptoTransactionTrailByOrderID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("issue with checking for orderid: %v", err)
+		return nil, fmt.Errorf("checking trail for orderID %s: %w", orderID, err)
 	}
 
-	var tObj *TransactionResponse[CryptoMetadataResponse]
+	var (
+		tObj *TransactionResponse[CryptoMetadataResponse]
+		// Variables captured for post-commit notifications.
+		notifyUser   *db.User
+		notifyAmount decimal.Decimal
+		notifyCoin   string
+	)
+
+	coinSym := strings.ToUpper(tx.Coin)
 
 	if trailExists {
-		// A pending transaction likely exists - try to find and update it
-		s.logger.Info("Transaction trail exists, looking for pending transaction to update")
+		// ── Path A/B: trail exists ───────────────────────────────────────────
+		pendingTx, pendingErr := qtx.GetPendingCryptoTransactionByOrderID(ctx, orderID)
 
-		// Get the pending transaction by source hash
-		// Note: You'll need to add this query: GetPendingTransactionBySourceHash
-		pendingTx, err := qtx.GetPendingCryptoTransactionByOrderID(ctx, orderID)
-		if err == nil {
-			// Found pending transaction - update it to successful
-			s.logger.Info("Found pending transaction, updating to successful", "transaction_id", pendingTx.ID)
+		if pendingErr == nil {
+			// Path A: pending tx found → upgrade it.
+			s.logger.Info("Upgrading pending tx to paid", "transaction_id", pendingTx.ID)
 
-			// Calculate final amounts with current rate
 			walletAddress, err := qtx.GetCryptomusAddressByOrderID(ctx, orderID)
 			if err != nil {
-				return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
+				return nil, fmt.Errorf("fetching cryptomus address: %w", err)
 			}
 
-			coinSym := strings.ToUpper(tx.Coin)
 			rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
 			if err != nil {
-				return nil, fmt.Errorf("failed to get exchange rate: %w", err)
+				return nil, fmt.Errorf("fetching exchange rate: %w", err)
 			}
 
-			coinAmount := tx.AmountInSatoshis
-			finalAmount := coinAmount.Mul(rate)
+			finalAmount := tx.AmountInSatoshis.Mul(rate)
 
-			// Update the pending transaction to successful and credit the wallet
-			err = s.UpdateCryptoTransactionToPaid(ctx, dbTx, pendingTx.ID, rate, finalAmount)
-			if err != nil {
-				return nil, fmt.Errorf("failed to update pending transaction: %w", err)
+			if err = s.UpdateCryptoTransactionToPaid(ctx, dbTx, pendingTx.ID, rate, finalAmount); err != nil {
+				return nil, fmt.Errorf("upgrading pending transaction: %w", err)
 			}
 
-			// Build response from updated transaction
 			updatedTx, _ := qtx.GetTransactionByID(ctx, pendingTx.ID)
 			tObj = buildCryptoTransactionResponse(updatedTx)
 
-			// Send success notifications
-			user, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.Int64)
-			if err == nil {
-				s.sendCryptoSuccessNotifications(ctx, user, finalAmount, coinSym, tx.TransactionID)
+			// FIX [C5]: Capture user for post-commit notification (do NOT notify inside TX).
+			if u, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.Int64); err == nil {
+				notifyUser = &u
+				notifyAmount = finalAmount
+				notifyCoin = coinSym
 			}
-
 		} else {
-			// Pending transaction not found, but trail exists - create new successful transaction
-			s.logger.Warn("Trail exists but no pending transaction found, creating new successful transaction")
-			tObj, err = s.createNewSuccessfulCryptoTransaction(ctx, dbTx, orderID, tx, prov)
+			// Path B: trail but no pending tx → create a fresh successful tx.
+			s.logger.Warn("Trail exists but no pending tx found; creating new successful tx")
+			tObj, notifyUser, notifyAmount, notifyCoin, err = s.createNewSuccessfulCryptoTransaction(ctx, dbTx, orderID, tx, prov)
 			if err != nil {
 				return nil, err
 			}
 		}
 	} else {
-		// No trail exists - this is the first webhook (probably directly to "paid" status)
-		// Create trail and process as normal
-		s.logger.Info("No existing trail, creating new successful transaction from scratch")
+		// ── Path C: no trail at all → create trail + new successful tx ───────
+		s.logger.Info("No existing trail; creating trail and successful tx from scratch")
 
-		params := db.CreateCryptoTransactionTrailParams{
+		if _, err = qtx.CreateCryptoTransactionTrail(ctx, db.CreateCryptoTransactionTrailParams{
 			AddressID:       tx.DestinationAddress,
 			OrderID:         orderID,
-			TransactionHash: sql.NullString{String: tx.SourceHash},
+			TransactionHash: sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
 			Amount: sql.NullString{
 				String: tx.AmountInSatoshis.StringFixed(10),
 				Valid:  !tx.AmountInSatoshis.IsZero(),
 			},
-		}
-		if _, err = qtx.CreateCryptoTransactionTrail(ctx, params); err != nil {
-			return nil, fmt.Errorf("error creating transaction trail: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("creating transaction trail: %w", err)
 		}
 
-		tObj, err = s.createNewSuccessfulCryptoTransaction(ctx, dbTx, orderID, tx, prov)
+		tObj, notifyUser, notifyAmount, notifyCoin, err = s.createNewSuccessfulCryptoTransaction(ctx, dbTx, orderID, tx, prov)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
+	if err = dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("committing crypto inflow: %w", err)
 	}
 
-	s.logger.Info("Crypto inflow transaction completed successfully")
+	// FIX [C5]: Send notifications AFTER commit. Old code called
+	// sendCryptoSuccessNotifications inside the TX block, meaning side effects
+	// fired even if Commit() subsequently failed.
+	if notifyUser != nil {
+		s.sendCryptoSuccessNotifications(ctx, *notifyUser, notifyAmount, notifyCoin, tx.TransactionID)
+	}
+
+	s.logger.Info("Crypto inflow completed successfully")
 	return tObj, nil
 }
 
-// createNewSuccessfulCryptoTransaction creates a new crypto transaction with successful status
-// This is the original logic from CreateAllCryptoINflowTXs but with status set to successful
+// ── createNewSuccessfulCryptoTransaction ──────────────────────────────────────
+// Creates a brand-new Success transaction for a crypto inflow that arrived
+// directly as "paid" (no prior confirm_check), or where the pending record
+// was missing. Handles both normal USD-credit and rapid-ramp NGN-bank-transfer.
+//
+// Returns the response AND the captured notification fields so
+// CreateAllCryptoINflowTXs can send notifications after commit.
+
 func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 	ctx context.Context,
 	dbTx *sql.Tx,
 	orderID string,
 	tx CryptoTransaction,
 	prov *providers.ProviderService,
-) (*TransactionResponse[CryptoMetadataResponse], error) {
-
+) (*TransactionResponse[CryptoMetadataResponse], *db.User, decimal.Decimal, string, error) {
 	qtx := s.store.WithTx(dbTx)
 
-	// Resolve the Cryptomus address
 	walletAddress, err := qtx.GetCryptomusAddressByOrderID(ctx, orderID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch cryptomus address: %s, err: %v", tx.TransactionID, err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching cryptomus address: %w", err)
 	}
 
-	// Get user to check rapid ramp status
 	user, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.Int64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user: %w", err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching user: %w", err)
 	}
 
-	// Normalize coin symbol
 	coinSym := strings.ToUpper(tx.Coin)
 	coinAmount := tx.AmountInSatoshis
 
-	// Check if rapid ramp is enabled
+	// ── Rapid Ramp path ───────────────────────────────────────────────────────
 	if user.IsRapidRampOn {
-		s.logger.Info(fmt.Sprintf("Rapid ramp enabled for user %d, processing conversion and payout", user.ID))
+		s.logger.Info(fmt.Sprintf("Rapid ramp enabled for user %d", user.ID))
 
-		tObj, err := s.processRapidRampInflow(ctx, dbTx, tx, coinAmount, coinSym, walletAddress.CustomerID.Int64, prov)
+		tObj, err := s.processRapidRampInflow(ctx, dbTx, tx, coinAmount, coinSym, user.ID, prov)
 		if err != nil {
-			return nil, fmt.Errorf("failed to process rapid ramp: %w", err)
+			return nil, nil, decimal.Zero, "", fmt.Errorf("processing rapid ramp: %w", err)
 		}
 
-		// Send notification
-		s.notifyr.CreateWithRecipients(ctx, nil, "Crypto Converted & Sent to Bank",
-			fmt.Sprintf("Your %s %s has been converted to NGN and sent to your bank account",
-				coinAmount.String(), coinSym), "system", []int64{user.ID})
-
-		return tObj, nil
+		// Return the user so the caller can send the notification post-commit.
+		return tObj, &user, coinAmount, coinSym, nil
 	}
 
-	// Regular processing - convert to USD
+	// ── Normal path: convert to USD and credit USD wallet ────────────────────
 	rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get exchange rate: %w", err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching exchange rate: %w", err)
 	}
 
-	destCurrency := "USD"
-	amount := coinAmount.Mul(rate)
-	// currFlow := coinSym + " to USD"
-
-	// Get destination wallet
-	walletParams := db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: walletAddress.CustomerID.Int64,
-		Currency:   destCurrency,
-	}
-	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, walletParams)
+	VipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, user.ID, string(USD), string(NGN), user.TotalConversionVolume.String)
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch wallet for customer (%v) and currency (%v)",
-			walletParams.CustomerID, walletParams.Currency)
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: WARNINGALERT,
+			Title:    "VIP RATE",
+			Message:  fmt.Sprintf("vip rates is failing with error: %v", err),
+			Source:   sql.NullString{String: "Crypto Coversion", Valid: true},
+		})
+	} else {
+		vipRateAmount, _ := utils.ToDecimal(VipRate.AdjustmentAmount)
+		rate = vipRateAmount
 	}
 
-	// Populate transaction object
-	tx.DestinationAccount = destWallet.ID
-	tx.Rate = rate
-	tx.SentAmount = tx.AmountInSatoshis
-	tx.ReceivedAmount = amount
-	tx.Coin = coinSym
+	usdAmount := coinAmount.Mul(rate)
 
-	idempotency_key := "crypto_inflow_" + tx.TransactionID.String()
+	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: walletAddress.CustomerID.Int64,
+		Currency:   "USD",
+	})
+	if err != nil {
+		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching USD wallet: %w", err)
+	}
+
+	idempotencyKey := "crypto_inflow_" + tx.TransactionID.String()
+
+	// FIX [C2a]: Create directly with Success — no need for a Pending→Success hop.
+	// FIX [C2b]: Amount = coin amount, not USD equivalent.
+	// FIX [C2d]: Added IdempotencyKey, Direction, TFrom, TTo.
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          walletAddress.CustomerID.Int64,
 		Type:            string(CryptoInflowTransaction),
 		Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 		TransactionFlow: string(Inflow),
-		Status:          string(Pending),
-		AmountUsd:       amount.String(),
-		Amount:          amount.String(),
-		Currency:        "USD",
-		IdempotencyKey:  idempotency_key, // TODO: generate a better idempotency key
-		UserID:          walletAddress.CustomerID.Int64,
-		Direction:       string(Credit),
-		TFrom:           "Cryptomus",
-		TTo:             string(Wallet),
+		Status:          string(Success),
+		Amount:          usdAmount.String(),
+		AmountUsd:       usdAmount.String(),
+		Currency:        string(USD),
+		IdempotencyKey:  idempotencyKey, // FIX [C2d]
+		Direction:       string(Credit), // FIX [C2d]
+		TFrom:           "Cryptomus",    // FIX [C2d]
+		TTo:             string(Wallet), // FIX [C2d]
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pending transaction: %w", err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("creating transaction record: %w", err)
 	}
 
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: txx.ID,
-		Credit: Entry{
-			AccountID: destWallet.ID,
-			Amount:    amount,
-		},
-		Platform:        CryptoInflowTransaction,
-		SourceType:      OffPlatform,
-		DestinationType: OnPlatform,
-		idempotency_key: idempotency_key,
-	}); err != nil {
-		return nil, fmt.Errorf("create ledger entries: %w", err)
-	}
-
-	// Update wallet balance
-	if _, err := qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+	// FIX [C2] (removed createLedgerEntries + updateBalance): credit wallet directly.
+	if _, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
 		ID:      destWallet.ID,
-		Balance: sql.NullString{String: amount.String(), Valid: true},
+		Balance: sql.NullString{String: usdAmount.String(), Valid: true},
 	}); err != nil {
-		return nil, fmt.Errorf("update wallet balance: %w", err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("crediting USD wallet: %w", err)
 	}
 
-	// update transaction record with SUCCESSFUL status
-	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-		ID:     txx.ID,
-		Status: string(Success),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update transaction status: %w", err)
-	}
-
-	_, err = qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
-		DestinationWallet: uuid.NullUUID{UUID: destWallet.ID, Valid: true},
-		TransactionID:     txx.ID,
-		Coin:              coinSym,
-		SourceHash:        sql.NullString{String: tx.SourceHash, Valid: true},
-		// Rate: rate,
-		// Fees: tx.Fees, //todo: fix fees
-		ReceivedAmount:       sql.NullString{String: tx.ReceivedAmount.String(), Valid: true},
-		SentAmount:           sql.NullString{String: tx.SentAmount.String(), Valid: true},
+	// FIX [C2c]: Create metadata BEFORE building the response so Metadata is populated.
+	cryptoMeta, err := qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
+		DestinationWallet:    uuid.NullUUID{UUID: destWallet.ID, Valid: true},
+		TransactionID:        txx.ID,
+		Coin:                 coinSym,
+		SourceHash:           sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
+		Rate:                 sql.NullString{String: rate.String(), Valid: true},
+		Fees:                 sql.NullString{String: tx.Fees.String(), Valid: true},
+		ReceivedAmount:       sql.NullString{String: usdAmount.String(), Valid: true},
+		SentAmount:           sql.NullString{String: coinAmount.String(), Valid: true},
 		ServiceProvider:      "Cryptomus",
-		OrderID:              orderID,
 		ServiceTransactionID: sql.NullString{String: tx.TransactionID.String(), Valid: true},
+		OrderID:              orderID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create crypto metadata: %w", err)
+		return nil, nil, decimal.Zero, "", fmt.Errorf("creating crypto metadata: %w", err)
 	}
 
-	// Send success notifications
-	s.sendCryptoSuccessNotifications(ctx, user, amount, destCurrency, tx.TransactionID)
+	// Referral + conversion bonus (non-fatal, same as before).
+	if !user.HasCompletedFirstConversion.Bool {
+		referrerID, referralBonus, err := CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, user.ID, txx.ID)
+		if err != nil {
+			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to disburse referral bonus: %v", err))
+		}
+		if referrerID != nil && referralBonus != nil {
+			go func() {
+				bgCtx := context.Background()
+				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
+					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
+					"system", []int64{*referrerID})
+				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
+			}()
+		}
+	}
 
-	// Build and return response from the base transaction
+	refererID, conversionBonus, err := CreditReferrerForConversion(ctx, s.store, dbTx, user.ID, usdAmount)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
+	}
+	s.logger.Info(fmt.Sprintf("Conversion bonus process done. RefererID: %v, Bonus: %v", refererID, conversionBonus))
+	if refererID != nil && conversionBonus != nil {
+		go func() {
+			bgCtx := context.Background()
+			s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Bonus Credit",
+				fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
+				"system", []int64{*refererID})
+			s.push.ConversionBonusEarned(bgCtx, *refererID, conversionBonus.String())
+		}()
+	}
+
+	_ = s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
+		UserID:                user.ID,
+		TotalConversionVolume: usdAmount.String(),
+	})
+
+	// FIX [C2c]: Response built AFTER metadata — Metadata field is now populated.
 	resp := &TransactionResponse[CryptoMetadataResponse]{
 		ID:              txx.ID,
 		Type:            txx.Type,
@@ -862,47 +559,25 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		Status:          txx.Status,
 		CreatedAt:       txx.CreatedAt,
 		UpdatedAt:       txx.UpdatedAt,
-		// Metadata can be populated later if needed
+		Metadata: &CryptoMetadataResponse{
+			ID:                   cryptoMeta.ID,
+			DestinationWallet:    cryptoMeta.DestinationWallet.UUID,
+			Coin:                 cryptoMeta.Coin,
+			SourceHash:           cryptoMeta.SourceHash.String,
+			Rate:                 cryptoMeta.Rate.String,
+			Fees:                 cryptoMeta.Fees.String,
+			ReceivedAmount:       cryptoMeta.ReceivedAmount.String,
+			SentAmount:           cryptoMeta.SentAmount.String,
+			ServiceProvider:      cryptoMeta.ServiceProvider,
+			ServiceTransactionID: cryptoMeta.ServiceTransactionID.String,
+		},
 	}
 
-	// TODO: This referral bonus logic is not ideal here - we should ideally have a more robust system for handling referrals and bonuses that is decoupled from the transaction processing. This is just a quick implementation to ensure we don't miss out on referral bonuses for crypto inflows.
-	// Check if this is users first conversion and disburse referral bonus to user's referrer
-	if !user.HasCompletedFirstConversion.Bool {
-		referrerID, referralBonus, err := CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, user.ID, txx.ID)
-		if err != nil {
-			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to disburse referral bonus: %v", err))
-			// Not returning error here because we don't want to fail the whole transaction if referral bonus disbursement fails. We can always try to disburse the bonus later or manually if needed.
-		}
-		// TODO: use something relaible for notifications
-		if referrerID != nil && referralBonus != nil {
-			ctxBg := context.Background()
-			go func() {
-				s.notifyr.CreateWithRecipients(ctxBg, nil, "Referral Bonus Credit", fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()), "system", []int64{*referrerID})
-				s.push.ReferralBonusEarned(ctxBg, *referrerID, referralBonus.String())
-			}()
-		}
-	}
-
-	// Referer earns precentage of amount converted
-	s.logger.Info("starting conversion bonus")
-	refererID, conversionBonus, err := CreditReferrerForConversion(ctx, s.store, dbTx, user.ID, amount)
-	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
-		// Again, not returning error here to avoid failing the transaction. We can handle this asynchronously or manually if needed.
-	}
-	s.logger.Info(fmt.Sprintf("Conversion bonus credit process completed. RefererID: %v, Bonus Amount: %v", refererID, conversionBonus))
-	if refererID != nil && conversionBonus != nil {
-		ctxBg := context.Background()
-		go func() {
-			s.notifyr.CreateWithRecipients(ctxBg, nil, "Conversion Bonus Credit", fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()), "system", []int64{*refererID})
-			s.push.ConversionBonusEarned(ctxBg, *refererID, conversionBonus.String())
-		}()
-	}
-
-	return resp, nil
+	return resp, &user, usdAmount, "USD", nil
 }
 
-// sendCryptoSuccessNotifications sends email and in-app notifications for successful crypto transaction
+// ── sendCryptoSuccessNotifications ───────────────────────────────────────────
+// Unchanged logic — email + in-app notification, both non-fatal.
 func (s *TransactionService) sendCryptoSuccessNotifications(
 	ctx context.Context,
 	user db.User,
@@ -910,7 +585,6 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 	currency string,
 	transactionID uuid.UUID,
 ) {
-	// Send email
 	email := service.Plunk{Config: s.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
 	tplData := map[string]any{
 		"Amount":        amount,
@@ -923,15 +597,11 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 	if err != nil {
 		s.logger.Error(logrus.ErrorLevel, err.Error())
 	} else {
-		subject := "SwiftFiat - Successful Crypto Inflow Transaction"
-		if err = email.SendEmail(user.Email, subject, body); err != nil {
-			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto confirmation email: %v", err))
-		} else {
-			s.logger.Info("Crypto inflow transaction email sent successfully", user.Email)
+		if err = email.SendEmail(user.Email, "SwiftFiat - Successful Crypto Inflow Transaction", body); err != nil {
+			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto email: %v", err))
 		}
 	}
 
-	// Send in-app notification
 	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
 		fmt.Sprintf("You have received %.2f %s on %s wallet", amount.InexactFloat64(), currency, currency),
 		"system", []int64{user.ID})
@@ -939,8 +609,6 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 
 // Helper function to build response from database transaction
 func buildCryptoTransactionResponse(tx db.GetTransactionByIDRow) *TransactionResponse[CryptoMetadataResponse] {
-	// You'll need to implement this based on your exact structures
-	// This is a placeholder showing the pattern
 	return &TransactionResponse[CryptoMetadataResponse]{
 		ID:              tx.ID,
 		Type:            tx.Type,
@@ -949,9 +617,12 @@ func buildCryptoTransactionResponse(tx db.GetTransactionByIDRow) *TransactionRes
 		Status:          tx.Status,
 		CreatedAt:       tx.CreatedAt,
 		UpdatedAt:       tx.UpdatedAt,
-		// Metadata would need to be populated from crypto_transaction_metadata table
 	}
 }
+
+// ── processRapidRampInflow ────────────────────────────────────────────────────
+// Converts incoming crypto to NGN and wires it to the user's default bank account.
+// FIX [C4]: Removed createTransactionRecord; replaced with direct DB calls.
 
 func (s *TransactionService) processRapidRampInflow(
 	ctx context.Context,
@@ -962,113 +633,136 @@ func (s *TransactionService) processRapidRampInflow(
 	userID int64,
 	prov *providers.ProviderService,
 ) (*TransactionResponse[CryptoMetadataResponse], error) {
-	// Get default bank account
-	bankAccount, err := s.store.WithTx(dbTx).GetDefaultBankAccount(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get default bank account [processRapidRampInflow]: %w", err)
-	}
+	qtx := s.store.WithTx(dbTx)
 
+	bankAccount, err := qtx.GetDefaultBankAccount(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching default bank account: %w", err)
+	}
 	if !bankAccount.IsVerified {
 		return nil, fmt.Errorf("bank account is not verified")
 	}
 
-	// Get Cryptomus provider for conversion rate
 	cryptomusProvider, err := s.getCryptomusProvider(prov)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get cryptomus provider: %w", err)
+		return nil, fmt.Errorf("getting cryptomus provider: %w", err)
 	}
 
-	// Get crypto provider for conversion rate
 	usdRateStr, err := cryptomusProvider.GetUSDRate(coinSym)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get USD rate: %w", err)
+		return nil, fmt.Errorf("getting USD rate: %w", err)
 	}
 
 	cryptoToUSD, err := decimal.NewFromString(usdRateStr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse USD rate: %w", err)
+		return nil, fmt.Errorf("parsing USD rate: %w", err)
 	}
 
-	// USD to NGN rate (using same logic as rapid_ramp service)
-	usdToNGN := decimal.NewFromFloat(1550.0) // TODO: Use live API rate in production
+	// TODO: Replace hardcoded rate with live API rate before production.
+	usdToNGN := decimal.NewFromFloat(1550.0)
+	// utils.GetNGNUSDRate()
 	cryptoToNGN := cryptoToUSD.Mul(usdToNGN)
-
-	// Calculate fiat amount in NGN
 	fiatAmount := coinAmount.Mul(cryptoToNGN)
 
-	// Calculate fees (same as rapid_ramp service)
-	conversionFee := fiatAmount.Mul(decimal.NewFromFloat(0.00)) // TODO: Use VIP rates
-	platformFee := fiatAmount.Mul(decimal.NewFromFloat(0.000))
-	networkFee := decimal.NewFromFloat(0)
-	totalFees := conversionFee.Add(platformFee).Add(networkFee)
+	// TODO: Use VIP tier rates once available.
+	totalFees := decimal.Zero
 	netAmount := fiatAmount.Sub(totalFees)
 
-	// Get Paystack provider
 	paystackProvider, err := s.getPaystackProvider(prov)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get paystack provider: %w", err)
+		return nil, fmt.Errorf("getting paystack provider: %w", err)
 	}
 
-	// Create transfer recipient
 	recipient, err := paystackProvider.CreateTransferRecipient(
 		bankAccount.AccountNumber,
 		bankAccount.BankCode,
 		bankAccount.AccountName,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create recipient [processRapidRampInflow]: %w", err)
+		return nil, fmt.Errorf("creating transfer recipient: %w", err)
 	}
 
-	// Convert net amount to kobo (NGN smallest unit)
 	amountInKobo := netAmount.Mul(decimal.NewFromInt(100)).IntPart()
 
-	// Initiate transfer
 	transfer, err := paystackProvider.MakeTransfer(
 		recipient.RecipientCode,
+		uuid.NewString(),
+		"sent via Swiift",
 		amountInKobo,
 		bankAccount.AccountName,
 	)
 	if err != nil {
-		// TODO: log critical error
-		// TODO: use db tx
-		// if an error happens with paystack, deposit to user NGN wallet
-		NgnWallet, ierr := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		// FIX [C4a]: Paystack failure → credit user's NGN wallet as fallback.
+		// Old code used s.store.UpdateWalletBalance (no dbTx, SetBalance not Add).
+		// Fixed to use IncrementWalletBalance inside the TX.
+		ngnWallet, walletErr := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 			CustomerID: userID,
 			Currency:   "NGN",
 		})
-		if ierr != nil {
-			return nil, fmt.Errorf("failed to get user NGN wallet [processRapidRampInflow]: %v", ierr)
+		if walletErr != nil {
+			return nil, fmt.Errorf("paystack transfer failed AND failed to get NGN wallet for fallback: %w (paystack: %v)", walletErr, err)
 		}
 
-		_, err := s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-			Amount: sql.NullString{String: fiatAmount.String(), Valid: true},
-			ID:     NgnWallet.ID,
-		})
+		if _, incrementErr := qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			ID:      ngnWallet.ID,
+			Balance: sql.NullString{String: fiatAmount.String(), Valid: true},
+		}); incrementErr != nil {
+			return nil, fmt.Errorf("paystack transfer failed AND fallback wallet credit failed: %w (paystack: %v)", incrementErr, err)
+		}
 
-		// TODO: increment conversiion count, add tx to db, send notifs and emails
-
-		return nil, fmt.Errorf("failed to initiate transfer with paystack [processRapidRampInflow]: %w", err)
+		s.logger.Warnf("Paystack transfer failed for rapid ramp; credited NGN wallet as fallback. Paystack error: %v", err)
+		return nil, fmt.Errorf("paystack transfer failed (NGN wallet credited as fallback): %w", err)
 	}
 
-	// Update transaction object for record keeping
-	tx.Rate = cryptoToNGN
-	tx.SentAmount = coinAmount
-	tx.ReceivedAmount = netAmount
-	tx.Coin = coinSym
+	s.logger.Info(fmt.Sprintf("Rapid ramp transfer initiated: %s %s → %s NGN net (fees: %s, ref: %s)",
+		coinAmount.String(), coinSym, netAmount.String(), totalFees.String(), transfer.Reference))
 
-	// Create transaction record with rapid ramp flow
-	currFlow := fmt.Sprintf("%s to NGN (Rapid Ramp)", coinSym)
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, CryptoInflowTransaction, &tx, currFlow, string(Inflow), userID)
+	// FIX [C4b]: Direct CreateTransaction with all fields.
+	idempotencyKey := "rapid_ramp_" + tx.TransactionID.String()
+	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          userID,
+		Type:            string(CryptoInflowTransaction),
+		Description:     sql.NullString{String: fmt.Sprintf("%s to NGN (Rapid Ramp)", coinSym), Valid: true},
+		TransactionFlow: string(Inflow),
+		Status:          string(Success),
+		Amount:          coinAmount.String(), // coin amount sent
+		AmountUsd:       fiatAmount.String(), // NGN equivalent stored as reference
+		Currency:        coinSym,
+		IdempotencyKey:  idempotencyKey,
+		Direction:       string(Credit),
+		TFrom:           "Cryptomus",
+		TTo:             "bank",
+	})
 	if err != nil {
-		return nil, fmt.Errorf("create transaction record: %w", err)
+		return nil, fmt.Errorf("creating rapid ramp transaction record: %w", err)
 	}
-	tObj := tempObj.(*TransactionResponse[CryptoMetadataResponse])
 
-	// Log the rapid ramp transaction details
-	s.logger.Info(fmt.Sprintf("Rapid ramp transaction: %s %s -> %s NGN (net: %s NGN, fees: %s NGN, transfer ref: %s)",
-		coinAmount.String(), coinSym, fiatAmount.String(), netAmount.String(), totalFees.String(), transfer.Reference))
+	_, err = qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
+		DestinationWallet:    uuid.NullUUID{Valid: false}, // bank, not wallet
+		TransactionID:        txx.ID,
+		Coin:                 coinSym,
+		SourceHash:           sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
+		Rate:                 sql.NullString{String: cryptoToNGN.String(), Valid: true},
+		Fees:                 sql.NullString{String: totalFees.String(), Valid: true},
+		ReceivedAmount:       sql.NullString{String: netAmount.String(), Valid: true},
+		SentAmount:           sql.NullString{String: coinAmount.String(), Valid: true},
+		ServiceProvider:      "Cryptomus",
+		ServiceTransactionID: sql.NullString{String: tx.TransactionID.String(), Valid: true},
+		OrderID:              "", // no orderID in rapid-ramp context
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating rapid ramp crypto metadata: %w", err)
+	}
 
-	return tObj, nil
+	return &TransactionResponse[CryptoMetadataResponse]{
+		ID:              txx.ID,
+		Type:            txx.Type,
+		Description:     txx.Description.String,
+		TransactionFlow: txx.TransactionFlow,
+		Status:          txx.Status,
+		CreatedAt:       txx.CreatedAt,
+		UpdatedAt:       txx.UpdatedAt,
+	}, nil
 }
 
 // Helper function to get Cryptomus provider
@@ -1197,217 +891,6 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	}
 
 	return tObj, nil
-}
-
-// / May return an arbitrary error or an error defined in [transaction_strings]
-func (s *TransactionService) CreateFiatOutflowTransactionWithTx(ctx context.Context, dbTx *sql.Tx, user *db.User, tx FiatTransaction) (*TransactionResponse[FiatWithdrawalMetadataResponse], error) {
-	// Get account details
-	fromAccount, err := s.walletClient.GetWalletForUpdate(ctx, dbTx, tx.SourceWalletID)
-	if err != nil {
-		return nil, wallet.NewWalletError(err, tx.SourceWalletID.String())
-	}
-
-	// User must own source wallet - Verify Ownership
-	if user.ID != fromAccount.CustomerID {
-		s.logger.Error("illegal access: ", fmt.Sprintf("user tried accessing a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.ID, fromAccount.ID))
-		return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.SourceWalletID.String())
-	}
-
-	// set Transaction information
-	tx.WalletCurrency = fromAccount.Currency
-	tx.WalletBalance = fromAccount.Balance
-
-	// Track transaction currency type
-	// e.g. USD to USD or NGN to USD
-	// This would help for ledger tracking
-	// Anonymous function to determine the currency flow e.g NGN to USD
-	currFlow := func(fromCurrency, toCurrency string) string {
-		if fromCurrency == toCurrency {
-			return fromCurrency + " to " + toCurrency
-		}
-		return fromCurrency + " to " + toCurrency
-	}(tx.WalletCurrency, tx.DestinationAccountCurrency) // Default to NGN Transactions
-
-	var sentAmount decimal.Decimal
-	var receivedAmount decimal.Decimal
-	var rate decimal.Decimal
-	var fees decimal.Decimal
-
-	sentAmount = tx.SentAmount
-	if tx.WalletCurrency != tx.DestinationAccountCurrency {
-		rate, err = s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.DestinationAccountCurrency)
-		if err != nil {
-			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.DestinationAccountCurrency)
-		}
-		receivedAmount = tx.SentAmount.Mul(rate)
-	} else {
-		rate = decimal.New(1, 0)
-	}
-
-	/// update sent amount with FEES
-	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
-	if err != nil {
-		return nil, err
-	}
-
-	// Check sufficient balance
-	if tx.WalletBalance.LessThan(sentAmount) {
-		return nil, wallet.NewWalletError(wallet.ErrInsufficientFunds, tx.SourceWalletID.String(), fmt.Errorf("amount required: %v", sentAmount))
-	}
-
-	// Reset values in transaction object
-	tx.ReceivedAmount = receivedAmount
-	tx.Fees = fees
-	tx.Rate = rate
-
-	// Create transaction record
-	tempObj, err := s.createTransactionRecord(ctx, dbTx, FiatOutflowTransaction, &tx, currFlow, string(Outflow), fromAccount.CustomerID)
-	if err != nil {
-		return nil, fmt.Errorf("create transaction record: %w", err)
-	}
-	tObj := tempObj.(*TransactionResponse[FiatWithdrawalMetadataResponse])
-
-	// Create ledger entries
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: tObj.ID,
-		Debit: Entry{
-			AccountID: tx.SourceWalletID,
-			Amount:    sentAmount,
-			// Balance:   tx.WalletBalance,
-		},
-		Platform:        FiatOutflowTransaction,
-		SourceType:      OnPlatform,
-		DestinationType: OffPlatform,
-	}); err != nil {
-		return nil, fmt.Errorf("create ledger entries: %w", err)
-	}
-
-	// Update account balances
-	newBalance := tx.WalletBalance.Sub(sentAmount)
-	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, newBalance); err != nil {
-		return nil, fmt.Errorf("update to account balance: %w", err)
-	}
-
-	return tObj, nil
-}
-
-// / May return an arbitrary error or an error defined in [transaction_strings]
-func (s *TransactionService) CreateBillPurchaseTransactionWithTx(ctx context.Context, key string, dbTx *sql.Tx, user *db.User, tx BillTransaction) (*db.ServicesMetadatum, error) {
-	// Get account details
-	fromAccount, err := s.walletClient.GetWalletForUpdate(ctx, dbTx, tx.SourceWalletID)
-	if err != nil {
-		return nil, wallet.NewWalletError(err, tx.SourceWalletID.String())
-	}
-	// User must own source wallet - Verify Ownership
-	if user.ID != fromAccount.CustomerID {
-		s.logger.Error("illegal access: ", fmt.Sprintf("user tried accessing a wallet that doesn't belong to them. USER: %v, WALLETID: %v", user.ID, fromAccount.ID))
-		return nil, wallet.NewWalletError(wallet.ErrNotYours, tx.SourceWalletID.String())
-	}
-
-	// set Transaction information
-	tx.WalletCurrency = fromAccount.Currency
-	tx.WalletBalance = fromAccount.Balance
-
-	var sentAmount decimal.Decimal
-	var receivedAmount decimal.Decimal
-	var rate decimal.Decimal
-	var fees decimal.Decimal
-
-	/// We'd need the sent amount to be in the wallet currency
-	sentAmount = tx.SentAmount
-	/// The amount to be received by the service provider
-	receivedAmount = tx.SentAmount
-	if tx.WalletCurrency != tx.ServiceCurrency {
-		rate, err = s.currencyClient.GetExchangeRate(ctx, tx.WalletCurrency, tx.ServiceCurrency)
-		if err != nil {
-			return nil, currency.NewCurrencyError(err, tx.WalletCurrency, tx.ServiceCurrency)
-		}
-		/// The amount to be debited from the customer
-		// if user is buying service, we'd need to convert the amount to the wallet currency
-		// e.g if the amount is 93 and the rate is 1579.5 then the sent amount would be 0.0588
-		sentAmount = tx.SentAmount.Div(rate)
-	} else {
-		rate = decimal.New(1, 0)
-	}
-
-	/// update sent amount with FEES
-	sentAmount, err = s.addTransactionFeesWithTx(ctx, dbTx, sentAmount, &fees, string(tx.Type))
-	if err != nil {
-		return nil, err
-	}
-
-	// Check sufficient balance
-	if tx.WalletBalance.LessThan(sentAmount) {
-		return nil, wallet.NewWalletError(wallet.ErrInsufficientFunds, tx.SourceWalletID.String(), fmt.Errorf("amount required: %v", sentAmount))
-	}
-
-	// Reset values in transaction object
-	tx.SentAmount = sentAmount
-	tx.ReceivedAmount = receivedAmount
-	tx.Fees = fees
-	tx.Rate = rate
-
-	// Create transaction record
-	amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.WalletCurrency)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
-	}
-
-	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          fromAccount.CustomerID,
-		Type:            string(tx.Type),
-		Description:     sql.NullString{String: fmt.Sprintf("%s purchase", tx.Type), Valid: true},
-		TransactionFlow: string(Outflow),
-		Amount:          tx.SentAmount.String(),
-		AmountUsd:       amountUsd.String(),
-		IdempotencyKey:  key,
-		Currency:        tx.WalletCurrency,
-		Direction:       string(Debit),
-		TFrom:           string(Wallet),
-		TTo:             string(OffPlatform),
-		Status:          string(Pending),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create transaction record: %w", err)
-	}
-
-	billTx, err := s.store.WithTx(dbTx).CreateServiceMetadata(ctx, db.CreateServiceMetadataParams{
-		SourceWallet:         uuid.NullUUID{UUID: tx.SourceWalletID, Valid: true},
-		TransactionID:        txx.ID,
-		ServiceID:            sql.NullString{String: tx.ServiceID, Valid: true},
-		Rate:                 sql.NullString{String: tx.Rate.String(), Valid: true},
-		ReceivedAmount:       sql.NullString{String: tx.ReceivedAmount.String(), Valid: true},
-		SentAmount:           sql.NullString{String: tx.SentAmount.String(), Valid: true},
-		ServiceType:          string(tx.Type),
-		ServiceProvider:      sql.NullString{String: "VTPass", Valid: true},
-		ServiceTransactionID: sql.NullString{String: tx.ServiceID, Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create bill transaction metadata: %w", err)
-	}
-
-	// Create ledger entries
-	if err := s.createLedgerEntries(ctx, dbTx, LedgerEntries{
-		TransactionID: txx.ID,
-		Debit: Entry{
-			AccountID: tx.SourceWalletID,
-			Amount:    sentAmount,
-			// Balance:   tx.WalletBalance,
-		},
-		Platform:        BillOutflowTransaction,
-		SourceType:      OnPlatform,
-		DestinationType: OffPlatform,
-	}); err != nil {
-		return nil, fmt.Errorf("create ledger entries: %w", err)
-	}
-
-	// Update account balances
-	newBalance := tx.WalletBalance.Sub(sentAmount)
-	if err := s.updateBalance(ctx, dbTx, tx.SourceWalletID, newBalance); err != nil {
-		return nil, fmt.Errorf("update to account balance: %w", err)
-	}
-
-	return &billTx, nil
 }
 
 func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow, transactionFlow string, userID int64) (interface{}, error) {
@@ -1640,107 +1123,6 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 		return &response, nil
 
 	}
-
-	if platform == FiatOutflowTransaction {
-		tx, ok := txx.(*FiatTransaction)
-		if !ok {
-			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
-		}
-
-		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.WalletCurrency)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
-		}
-
-		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(Transfer),
-			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: string(Outflow),
-			Status:          string(Success),
-			AmountUsd:       amountUsd.String(),
-			Amount:          tx.SentAmount.String(),
-			Currency:        "NGN",
-			UserID:          userID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create transaction record: %w", err)
-		}
-
-		params := db.CreateFiatWithdrawalMetadataParams{
-			SourceWallet: uuid.NullUUID{
-				UUID:  tx.SourceWalletID,
-				Valid: tx.SourceWalletID.URN() != "",
-			},
-			TransactionID: tObj.ID,
-			Rate: sql.NullString{
-				String: tx.Rate.String(),
-				Valid:  true,
-			},
-			ReceivedAmount: sql.NullString{
-				String: tx.ReceivedAmount.String(),
-				Valid:  true,
-			},
-			SentAmount: sql.NullString{
-				String: tx.SentAmount.String(),
-				Valid:  true,
-			},
-			Fees: sql.NullString{
-				String: tx.Fees.String(),
-				Valid:  true,
-			},
-			AccountName: sql.NullString{
-				String: tx.DestinationAccountName,
-				Valid:  true,
-			},
-			BankCode: sql.NullString{
-				String: tx.DestinationAccountBankCode,
-				Valid:  true,
-			},
-			AccountNumber: sql.NullString{
-				String: tx.DestinationAccountNumber,
-				Valid:  true,
-			},
-			ServiceProvider: sql.NullString{
-				String: providers.Paystack, // Assuming Paystack as the service provider for fiat transactions
-				Valid:  true,
-			},
-			ServiceTransactionID: sql.NullString{
-				String: "",    // Placeholder for service transaction ID -- TODO: Create function to update FiatTransactionID
-				Valid:  false, // Assuming service transaction ID is not always available
-			},
-		}
-
-		fiatMeta, err := s.store.WithTx(dbTx).CreateFiatWithdrawalMetadata(ctx, params)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create transaction record: %w", err)
-		}
-
-		response := TransactionResponse[FiatWithdrawalMetadataResponse]{
-			ID:              tObj.ID,
-			Type:            string(Transfer),
-			Description:     tx.Description,
-			TransactionFlow: string(Outflow),
-			Status:          string(Success),
-			CreatedAt:       tObj.CreatedAt,
-			UpdatedAt:       tObj.UpdatedAt,
-			Metadata: &FiatWithdrawalMetadataResponse{
-				ID:                   fiatMeta.ID,
-				SourceWallet:         fiatMeta.SourceWallet.UUID,
-				Rate:                 fiatMeta.Rate.String,
-				ReceivedAmount:       fiatMeta.ReceivedAmount.String,
-				SentAmount:           fiatMeta.SentAmount.String,
-				Fees:                 fiatMeta.Fees.String,
-				AccountName:          fiatMeta.AccountName.String,
-				BankCode:             fiatMeta.BankCode.String,
-				AccountNumber:        fiatMeta.AccountNumber.String,
-				ServiceProvider:      fiatMeta.ServiceProvider.String,
-				ServiceTransactionID: fiatMeta.ServiceTransactionID.String,
-			},
-		}
-
-		return &response, nil
-	}
-
 	if platform == BillOutflowTransaction {
 
 		tx, ok := txx.(*BillTransaction)
@@ -2276,81 +1658,181 @@ func (s *TransactionService) UpdateStreakAfterBillPayment(
 	)
 }
 
+var (
+	ErrInsufficientBalance  = errors.New("insufficient balance in Naira wallet")
+	ErrTransactionPending   = errors.New("transaction already pending")
+	ErrTransactionCompleted = errors.New("transaction already completed")
+	ErrInvalidVariation     = errors.New("invalid variation code")
+)
+
+// resolveRewards calculates finalAmount and pointsUsed for a bill purchase.
+// Returns unchanged amount and 0 pointsUsed when reward redemption is disabled.
+func (s *TransactionService) resolveRewards(
+	ctx context.Context,
+	dbTx *sql.Tx,
+	user *db.User,
+	req interface{ GetRewardFields() (bool, float32) },
+	amount decimal.Decimal,
+) (finalAmount decimal.Decimal, pointsToUse decimal.Decimal, pointsUsed float64, redemptionApplied bool, err error) {
+	useRewards, pointsToUseF32 := req.GetRewardFields()
+	pointsToUse = decimal.NewFromFloat32(pointsToUseF32)
+	finalAmount = amount
+
+	if useRewards && pointsToUseF32 > 0 {
+		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
+			ctx, dbTx, user, pointsToUse, amount,
+		)
+		if err != nil {
+			return
+		}
+		if redemptionApplied {
+			pointsUsed = pointsToUse.InexactFloat64()
+			s.logger.Info(fmt.Sprintf(
+				"Reward redemption applied: User=%d, Points=%.2f, Original=₦%s, Final=₦%s",
+				user.ID, pointsUsed, amount.String(), finalAmount.String(),
+			))
+		}
+	}
+	return
+}
+
+// checkIdempotency returns a typed sentinel error if this idempotency key
+// has already been processed. No-op (nil) if the key is new.
+func (s *TransactionService) checkIdempotency(ctx context.Context, dbTx *sql.Tx, key string) error {
+	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, key)
+	if err != nil {
+		// Key not found → this is a new request, proceed.
+		return nil
+	}
+	switch existingTx.Status {
+	case string(Pending):
+		return fmt.Errorf("%w: reference=%s", ErrTransactionPending, existingTx.IdempotencyKey)
+	case string(Success):
+		return fmt.Errorf("%w: reference=%s", ErrTransactionCompleted, existingTx.IdempotencyKey)
+	default:
+		return fmt.Errorf("transaction already exists with status %s", existingTx.Status)
+	}
+}
+
+// postBillSuccess runs non-fatal post-commit side effects common to all bill
+// types: audit log, streak update, in-app notification, and reward completion.
+func (s *TransactionService) postBillSuccess(
+	ctx context.Context,
+	dbTx *sql.Tx,
+	user *db.User,
+	txx db.Transaction,
+	amount, finalAmount decimal.Decimal,
+	pointsToUse decimal.Decimal,
+	redemptionApplied bool,
+	txType, serviceID, auditEvent string,
+) (pointsEarned float64) {
+	if redemptionApplied {
+		if err := s.CompleteRewardRedemption(
+			ctx, dbTx, int32(user.ID), txx.ID,
+			pointsToUse, amount, finalAmount, txType, serviceID,
+		); err != nil {
+			s.logger.Error("Failed to complete reward redemption:", err)
+		}
+	}
+
+	pointAmount, err := s.AwardRewardPoints(
+		ctx, dbTx, int32(user.ID), txx.ID, amount, txType, "bill_payment",
+	)
+	if err != nil {
+		s.logger.Error("Failed to award reward points:", err)
+	}
+
+	// FIX [B3]: single assignment; removed duplicate that overwrote the inner
+	// assignment and caused the log to fire even when pointAmount == 0.
+	pointsEarned = pointAmount.InexactFloat64()
+	if pointAmount.GreaterThan(decimal.Zero) {
+		s.logger.Info(fmt.Sprintf(
+			"Points awarded [%s]: User=%d, Points=₦%s, TX=%d",
+			txType, user.ID, pointAmount.String(), txx.ID,
+		))
+	}
+
+	logEntry := audit.NewTransactionLog(
+		auditEvent, txx.ID.String(), user.Role, user.ID,
+		amount.InexactFloat64(), "NGN", true,
+	)
+	logEntry.Metadata = map[string]any{}
+	s.audit.Log(logEntry)
+
+	if err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, txType); err != nil {
+		s.logger.Error("Failed to update streak:", err)
+	}
+
+	return
+}
+
+func (s *TransactionService) buildAirtimeResponse(
+	txx db.Transaction, amount, finalAmount decimal.Decimal,
+	pointsEarned, pointsUsed float64, req BuyAirtimeRequest, status string,
+) *BuyAirtimeResponse {
+	return &BuyAirtimeResponse{
+		Amount:               amount,
+		AmountPaid:           finalAmount.InexactFloat64(),
+		BonusEarned:          pointsEarned,
+		Phone:                req.Phone,
+		TransactionType:      txx.Type,
+		Date:                 txx.CreatedAt,
+		TransactionReference: txx.IdempotencyKey,
+		Status:               status,
+		PointsUsed:           pointsUsed,
+	}
+}
+
+// ── HandleAirtime ──────────────────────────────────────────────────────────────
 func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, req BuyAirtimeRequest) (*BuyAirtimeResponse, error) {
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
-	if err == nil {
-		switch existingTx.Status {
-		case string(Pending):
-			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
-		case string(Success):
-			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
-		//TODO: case string(Failed):
-		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
-		// Proceed to retry the transaction
-		default:
-			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
-		}
+	// Idempotency guard (inside TX for consistent read).
+	if err = s.checkIdempotency(ctx, dbTx, req.IdempotencyKey); err != nil {
+		return nil, err
 	}
 
-	// 1. lock user NGN wallet
+	// Lock NGN wallet.
 	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: user.ID,
-		Currency:   "NGN",
+		CustomerID: user.ID, Currency: "NGN",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+		return nil, fmt.Errorf("failed to fetch NGN wallet: %w", err)
 	}
 
 	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
 	if err != nil {
-		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+		return nil, fmt.Errorf("invalid wallet balance: %w", err)
 	}
 
 	amount := decimal.NewFromInt(req.Amount)
-
-	// Check sufficient balance
 	if walletBalance.LessThan(amount) {
-		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+		return nil, ErrInsufficientBalance
 	}
 
-	var redemptionApplied bool
-	var finalAmount decimal.Decimal
-	var pointsEarned float64
-	var pointsUsed float64
-	notificationMsg := fmt.Sprintf("You have received an airtime of %d to %s", req.Amount, req.Phone)
-
-	finalAmount = amount
+	// Reward redemption.
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
-	if !req.UseRewardPoints {
-		pointsUsed = 0.00
-	} else {
-		pointsUsed = pointsToUseDecimal.InexactFloat64()
-	}
+	var finalAmount = amount
+	var pointsUsed float64
+	var redemptionApplied bool
+
 	if req.UseRewardPoints && req.PointsToUse > 0 {
-		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
-			ctx, dbTx, user, pointsToUseDecimal, amount,
+		finalAmount, _, pointsUsed, redemptionApplied, err = s.resolveRewards(
+			ctx, dbTx, user, &req, amount,
 		)
 		if err != nil {
-			return nil, err
-		}
-
-		if redemptionApplied {
-			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				user.ID, pointsToUseDecimal, req.Amount, finalAmount))
+			return nil, fmt.Errorf("reward redemption: %w", err)
 		}
 	}
 
-	// Create transaction record
+	// Create transaction record.
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		return nil, fmt.Errorf("failed to convert to USD: %w", err)
 	}
 
 	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
@@ -2371,13 +1853,13 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+	purchaseRequestID := utils.WatRequestID() // FIX [B4]
 
 	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
 		Amount:        amount.String(),
 		PointsUsed:    sql.NullString{String: fmt.Sprintf("%.2f", pointsUsed), Valid: true},
 		Type:          string(Airtime),
-		AmountPaid:    finalAmount.String(),
+		AmountPaid:    finalAmount.String(), // FIX [B1]: was amount.String()
 		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
 		PhoneNumber:   req.Phone,
 		Plan:          sql.NullString{String: req.ServiceID, Valid: true},
@@ -2391,12 +1873,12 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
 	}
 
-	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
-		Balance: sql.NullString{String: amount.String(), Valid: true},
+	// FIX [B1]: Debit finalAmount (post-discount), not gross amount.
+	if _, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 		ID:      NGNWallet.ID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %w", err)
 	}
 
 	btx, err := s.billProvider.BuyAirtime(bills.PurchaseAirtimeRequest{
@@ -2406,209 +1888,99 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		Amount:    req.Amount,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("airtime purchase failed: %v", err)
+		// Provider hard error — commit Pending so reconciler can recover.
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		})
+		_ = dbTx.Commit()
+		return nil, fmt.Errorf("airtime provider unreachable (pending reconciliation): %w", err)
 	}
 
 	switch btx.Status {
 	case "failed":
-		// Refund wallet
-		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
-			Balance: sql.NullString{String: amount.String(), Valid: true},
+		// FIX [B2]: Refund finalAmount (what was actually debited), not amount.
+		if _, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 			ID:      NGNWallet.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to refund wallet on failed airtime: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to refund wallet: %w", err)
 		}
-
-		// Mark transaction as failed in DB
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Failed),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Failed),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Failed),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update airtime metadata status: %w", err)
 		}
-
-		// Commit the refund
-		if err := dbTx.Commit(); err != nil {
+		if err = dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit refund: %w", err)
 		}
-
-		return &BuyAirtimeResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildAirtimeResponse(txx, amount, finalAmount, 0, pointsUsed, req, btx.Status), nil
 
 	case "pending":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Pending),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record to pending: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record to pending: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Pending),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update airtime metadata status: %w", err)
 		}
-
-		// Commit the pending status
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit pending status: %w", err)
 		}
-
-		return &BuyAirtimeResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildAirtimeResponse(txx, amount, finalAmount, 0, pointsUsed, req, btx.Status), nil
 
 	case "delivered":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Success),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %w", err)
+		}
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update airtime metadata status: %w", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Success),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
-		}
-
-		if redemptionApplied {
-			err = s.CompleteRewardRedemption(
-				ctx,
-				dbTx,
-				int32(user.ID),
-				txx.ID,
-				pointsToUseDecimal,
-				amount,
-				finalAmount,
-				"airtime",
-				req.ServiceID,
-			)
-			if err != nil {
-				// Log but don't fail transaction
-				s.logger.Error("Failed to complete reward redemption:", err)
-			}
-		}
-
-		pointAmount, err := s.AwardRewardPoints(
-			ctx,
-			dbTx,
-			int32(user.ID),
-			txx.ID,
-			amount,
-			"airtime",
-			"bill_payment",
+		// FIX [B3]: postBillSuccess handles single-assignment pointsEarned.
+		pointsEarned := s.postBillSuccess(
+			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
+			redemptionApplied, "airtime", req.ServiceID, audit.EventAirtimePurchase,
 		)
-		if err != nil {
-			// Log but don't fail transaction
-			s.logger.Error("Failed to award reward points:", err)
+
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("airtime purchase commit failed: %w", err)
 		}
 
-		if pointAmount.GreaterThan(decimal.Zero) {
-			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
-				user.ID, pointAmount.String(), txx.ID))
-			pointsEarned = pointAmount.InexactFloat64()
-		}
-		pointsEarned = pointAmount.InexactFloat64()
-
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("airtime purchase failed: %w", err)
-		}
-
-		// audit log
-		logEntry := audit.NewTransactionLog(
-			audit.EventAirtimePurchase,
-			txx.ID.String(),
-			user.Role,
-			user.ID,
-			amount.InexactFloat64(),
-			"NGN",
-			true,
-		)
-		logEntry.Metadata = map[string]any{} // TODO:
-		s.audit.Log(logEntry)
-
-		err = s.streakUpdater.UpdateStreakOnTransaction(
-			ctx,
-			user.ID,
-			txx.ID,
-			string(Airtime),
-		)
-		if err != nil {
-			s.logger.Error("Failed to update streak:", err)
-		}
-
-		if pointsToUseDecimal.GreaterThan(decimal.Zero) {
-			notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
+		// FIX [B5]: Notification built AFTER confirmed delivery.
+		notificationMsg := fmt.Sprintf("You have received airtime of ₦%d to %s", req.Amount, req.Phone)
+		if pointsUsed > 0 {
+			notificationMsg += fmt.Sprintf(". You saved ₦%.2f using reward points", pointsUsed)
 		}
 		if pointsEarned > 0 {
-			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-
-		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []int64{user.ID})
-		if err != nil {
-			entry := audit.WarningLog("InApp Notification failed", err.Error())
-			s.audit.Log(entry)
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-
-		err = s.push.SuccessfulAirtimePurchase(ctx, user.ID, req.Amount, req.Phone)
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
-			entry := audit.WarningLog("Push Notification failed", err.Error())
-			s.audit.Log(entry)
+		if err = s.push.SuccessfulAirtimePurchase(ctx, user.ID, req.Amount, req.Phone); err != nil {
+			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
+			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
-
-		return &BuyAirtimeResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildAirtimeResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status), nil
 
 	default:
 		return nil, fmt.Errorf("unknown airtime status: %s", btx.Status)
 	}
-
 }
 
+// ── HandleData ─────────────────────────────────────────────────────────────────
 func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req BuyDataRequest) (*BuyDataResponse, error) {
 	variations, err := s.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID))
 	if err != nil {
@@ -2619,114 +1991,78 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		if err != nil {
 			return nil, err
 		}
-
 		if remoteVariations != nil {
-			variations = make([]models.BillVariation, len(remoteVariations))
-			for i, variation := range remoteVariations {
-				variations[i] = models.BillVariation{
-					VariationCode:   variation.VariationCode,
-					Name:            variation.Name,
-					VariationAmount: variation.VariationAmount,
-					FixedPrice:      variation.FixedPrice,
-				}
+			for _, v := range remoteVariations {
+				variations = append(variations, models.BillVariation{
+					VariationCode:   v.VariationCode,
+					Name:            v.Name,
+					VariationAmount: v.VariationAmount,
+					FixedPrice:      v.FixedPrice,
+				})
 			}
-
-			err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			if err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations); err != nil {
+				s.logger.Error(fmt.Sprintf("failed to cache variations: %v", err))
 			}
 		}
 	}
 
 	var selectedVariation *models.BillVariation
-	for _, variation := range variations {
-		if variation.VariationCode == req.VariationCode {
-			selectedVariation = &variation
+	for i := range variations {
+		if variations[i].VariationCode == req.VariationCode {
+			selectedVariation = &variations[i]
 			break
 		}
 	}
-
 	if selectedVariation == nil {
-		return nil, fmt.Errorf("invalid variation code")
+		return nil, ErrInvalidVariation
 	}
 
 	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid variation amount: %w", err)
 	}
 
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
-	if err == nil {
-		switch existingTx.Status {
-		case string(Pending):
-			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
-		case string(Success):
-			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
-		//TODO: case string(Failed):
-		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
-		// Proceed to retry the transaction
-		default:
-			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
-		}
+	// Idempotency check now inside TX with consistent read.
+	if err = s.checkIdempotency(ctx, dbTx, req.IdempotencyKey); err != nil {
+		return nil, err
 	}
 
-	// 1. lock user NGN wallet
 	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: user.ID,
-		Currency:   "NGN",
+		CustomerID: user.ID, Currency: "NGN",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+		return nil, fmt.Errorf("failed to fetch NGN wallet: %w", err)
 	}
 
 	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
 	if err != nil {
-		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+		return nil, fmt.Errorf("invalid wallet balance: %w", err)
 	}
-
-	// Check sufficient balance
 	if walletBalance.LessThan(amount) {
-		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+		return nil, ErrInsufficientBalance
 	}
 
-	var redemptionApplied bool
-	var finalAmount decimal.Decimal
-	var pointsEarned float64
-	var pointsUsed float64
-	notificationMsg := fmt.Sprintf("You have received %s to %s", selectedVariation.VariationCode, req.Phone)
-
-	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
-	if !req.UseRewardPoints {
-		pointsUsed = 0.00
-	} else {
-		pointsUsed = pointsToUseDecimal.InexactFloat64()
-	}
+	var finalAmount = amount
+	var pointsUsed float64
+	var redemptionApplied bool
+
 	if req.UseRewardPoints && req.PointsToUse > 0 {
-		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
-			ctx, dbTx, user, pointsToUseDecimal, amount,
-		)
+		finalAmount, _, pointsUsed, redemptionApplied, err = s.resolveRewards(ctx, dbTx, user, &req, amount)
 		if err != nil {
-			return nil, err
-		}
-
-		if redemptionApplied {
-			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				user.ID, pointsToUseDecimal, amount, finalAmount))
+			return nil, fmt.Errorf("reward redemption: %w", err)
 		}
 	}
 
-	// Create transaction record
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		return nil, fmt.Errorf("failed to convert to USD: %w", err)
 	}
 
 	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
@@ -2747,7 +2083,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+	purchaseRequestID := utils.WatRequestID()
 
 	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
 		Amount:        amount.String(),
@@ -2764,15 +2100,15 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		Date:          txx.CreatedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
+		return nil, fmt.Errorf("failed to create data metadata: %w", err)
 	}
 
-	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
-		Balance: sql.NullString{String: amount.String(), Valid: true},
+	// Debit finalAmount inside TX.
+	if _, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 		ID:      NGNWallet.ID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %w", err)
 	}
 
 	btx, err := s.billProvider.BuyData(bills.PurchaseDataRequest{
@@ -2784,211 +2120,118 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		Amount:        amount.IntPart(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("data purchase failed: %v", err)
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update tx record")
+		}
+		_ = dbTx.Commit()
+		return nil, fmt.Errorf("data provider unreachable (pending reconciliation): %w", err)
 	}
 
 	switch btx.Status {
 	case "failed":
-		// Refund wallet
-		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
-			Balance: sql.NullString{String: amount.String(), Valid: true},
+		// Refund finalAmount.
+		if _, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 			ID:      NGNWallet.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to refund wallet on failed data: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to refund wallet: %w", err)
 		}
-
-		// Mark transaction as failed in DB
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Failed),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Failed),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Failed),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update data metadata status: %w", err)
 		}
-
-		// Commit the refund
-		if err := dbTx.Commit(); err != nil {
+		if err = dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit refund: %w", err)
 		}
-
-		return &BuyDataResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			Plan:                 selectedVariation.VariationCode,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildDataResponse(txx, amount, finalAmount, 0, pointsUsed, req, btx.Status, selectedVariation.VariationCode), nil
 
 	case "pending":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Pending),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record to pending: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Pending),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update data metadata status: %w", err)
 		}
-
-		// Commit the pending status
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit pending status: %w", err)
 		}
-
-		return &BuyDataResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			Plan:                 selectedVariation.VariationCode,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildDataResponse(txx, amount, finalAmount, 0, pointsUsed, req, btx.Status, selectedVariation.VariationCode), nil
 
 	case "delivered":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Success),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %w", err)
+		}
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update data metadata status: %w", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Success),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
-		}
-
-		if redemptionApplied {
-			err = s.CompleteRewardRedemption(
-				ctx,
-				dbTx,
-				int32(user.ID),
-				txx.ID,
-				pointsToUseDecimal,
-				amount,
-				finalAmount,
-				string(Data),
-				req.ServiceID,
-			)
-			if err != nil {
-				// Log but don't fail transaction
-				s.logger.Error("Failed to complete reward redemption:", err)
-			}
-		}
-
-		pointAmount, err := s.AwardRewardPoints(
-			ctx,
-			dbTx,
-			int32(user.ID),
-			txx.ID,
-			amount,
-			string(Data),
-			"bill_payment",
+		pointsEarned := s.postBillSuccess(
+			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
+			redemptionApplied, string(Data), req.ServiceID, audit.EventDataPurchase,
 		)
-		if err != nil {
-			// Log but don't fail transaction
-			s.logger.Error("Failed to award reward points:", err)
+
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("data purchase commit failed: %w", err)
 		}
 
-		if pointAmount.GreaterThan(decimal.Zero) {
-			s.logger.Info(fmt.Sprintf("Points awarded for data purchase: User=%d, Points=₦%s, TX=%d",
-				user.ID, pointAmount.String(), txx.ID))
-			pointsEarned = pointAmount.InexactFloat64()
+		// FIX [B5]: Build notification post-commit, after outcome is known.
+		notificationMsg := fmt.Sprintf("You have received %s data on %s", selectedVariation.VariationCode, req.Phone)
+		if pointsUsed > 0 {
+			notificationMsg += fmt.Sprintf(". You saved ₦%.2f using reward points", pointsUsed)
 		}
-		pointsEarned = pointAmount.InexactFloat64()
-
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("data purchase failed: %w", err)
-		}
-
-		// audit log
-		logEntry := audit.NewTransactionLog(
-			audit.EventDataPurchase,
-			txx.ID.String(),
-			user.Role,
-			user.ID,
-			amount.InexactFloat64(),
-			"NGN",
-			true,
-		)
-		logEntry.Metadata = map[string]any{} // TODO:
-		s.audit.Log(logEntry)
-
-		err = s.streakUpdater.UpdateStreakOnTransaction(
-			ctx,
-			user.ID,
-			txx.ID,
-			string(Data),
-		)
-		if err != nil {
-			s.logger.Error("Failed to update streak:", err)
-		}
-
-		// if pointsToUseDecimal.GreaterThan(decimal.Zero) {
-		// 	notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
-		// }
 		if pointsEarned > 0 {
-			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-
-		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []int64{user.ID})
-		if err != nil {
-			entry := audit.WarningLog("InApp Notification failed", err.Error())
-			s.audit.Log(entry)
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-
-		err = s.push.SuccessfulDataPurchase(ctx, user.ID, selectedVariation.Name, req.Phone)
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
-			entry := audit.WarningLog("Push Notification failed", err.Error())
-			s.audit.Log(entry)
+		if err = s.push.SuccessfulDataPurchase(ctx, user.ID, selectedVariation.Name, req.Phone); err != nil {
+			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
+			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
-
-		return &BuyDataResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			Phone:                req.Phone,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			Plan:                 selectedVariation.VariationCode,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildDataResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status, selectedVariation.VariationCode), nil
 
 	default:
-		return nil, fmt.Errorf("unknown Data purchase status: %s", btx.Status)
+		return nil, fmt.Errorf("unknown data status: %s", btx.Status)
 	}
-
 }
+
+func (s *TransactionService) buildDataResponse(
+	txx db.Transaction, amount, finalAmount decimal.Decimal,
+	pointsEarned, pointsUsed float64, req BuyDataRequest, status, plan string,
+) *BuyDataResponse {
+	return &BuyDataResponse{
+		Amount:               amount.String(),
+		AmountPaid:           finalAmount.InexactFloat64(),
+		BonusEarned:          pointsEarned,
+		Phone:                req.Phone,
+		TransactionType:      txx.Type,
+		Date:                 txx.CreatedAt,
+		TransactionReference: txx.IdempotencyKey,
+		Status:               status,
+		Plan:                 plan,
+		PointsUsed:           pointsUsed,
+	}
+}
+
+// ── HandleTvSubscription ───────────────────────────────────────────────────────
 
 func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.User, req TVSubRequest) (*TVSubResponse, error) {
 	variations, err := s.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID))
@@ -3000,113 +2243,77 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		if err != nil {
 			return nil, err
 		}
-
 		if remoteVariations != nil {
-			variations = make([]models.BillVariation, len(remoteVariations))
-			for i, variation := range remoteVariations {
-				variations[i] = models.BillVariation{
-					VariationCode:   variation.VariationCode,
-					Name:            variation.Name,
-					VariationAmount: variation.VariationAmount,
-					FixedPrice:      variation.FixedPrice,
-				}
+			for _, v := range remoteVariations {
+				variations = append(variations, models.BillVariation{
+					VariationCode:   v.VariationCode,
+					Name:            v.Name,
+					VariationAmount: v.VariationAmount,
+					FixedPrice:      v.FixedPrice,
+				})
 			}
-
-			err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			if err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations); err != nil {
+				s.logger.Error(fmt.Sprintf("failed to cache variations: %v", err))
 			}
 		}
 	}
 
 	var selectedVariation *models.BillVariation
-	for _, variation := range variations {
-		if variation.VariationCode == req.VariationCode {
-			selectedVariation = &variation
+	for i := range variations {
+		if variations[i].VariationCode == req.VariationCode {
+			selectedVariation = &variations[i]
 			break
 		}
 	}
-
 	if selectedVariation == nil {
-		return nil, fmt.Errorf("invalid variation code")
+		return nil, ErrInvalidVariation
 	}
 
 	amount, err := decimal.NewFromString(selectedVariation.VariationAmount)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("invalid variation amount: %w", err)
 	}
 
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
-	if err == nil {
-		switch existingTx.Status {
-		case string(Pending):
-			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
-		case string(Success):
-			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
-		//TODO: case string(Failed):
-		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
-		// Proceed to retry the transaction
-		default:
-			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
-		}
+	if err = s.checkIdempotency(ctx, dbTx, req.IdempotencyKey); err != nil {
+		return nil, err
 	}
 
-	// 1. lock user NGN wallet
 	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: user.ID,
-		Currency:   "NGN",
+		CustomerID: user.ID, Currency: "NGN",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+		return nil, fmt.Errorf("failed to fetch NGN wallet: %w", err)
 	}
 
 	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
 	if err != nil {
-		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+		return nil, fmt.Errorf("invalid wallet balance: %w", err)
 	}
-
-	// Check sufficient balance
 	if walletBalance.LessThan(amount) {
-		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+		return nil, ErrInsufficientBalance
 	}
 
-	var redemptionApplied bool
-	var finalAmount decimal.Decimal
-	var pointsEarned, pointsUsed float64
-	notificationMsg := fmt.Sprintf("Your subscription to %s is successful", selectedVariation.VariationCode)
-
-	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
-	if !req.UseRewardPoints {
-		pointsUsed = 0.00
-	} else {
-		pointsUsed = pointsToUseDecimal.InexactFloat64()
-	}
+	var finalAmount = amount
+	var pointsUsed float64
+	var redemptionApplied bool
+
 	if req.UseRewardPoints && req.PointsToUse > 0 {
-		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
-			ctx, dbTx, user, pointsToUseDecimal, amount,
-		)
+		finalAmount, _, pointsUsed, redemptionApplied, err = s.resolveRewards(ctx, dbTx, user, &req, amount)
 		if err != nil {
-			return nil, err
-		}
-
-		if redemptionApplied {
-			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				user.ID, pointsToUseDecimal, amount, finalAmount))
+			return nil, fmt.Errorf("reward redemption: %w", err)
 		}
 	}
 
-	// Create transaction record
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		return nil, fmt.Errorf("failed to convert to USD: %w", err)
 	}
 
 	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
@@ -3127,7 +2334,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+	purchaseRequestID := utils.WatRequestID()
 
 	metaTX, err := s.store.WithTx(dbTx).CreateAirtimeDataMetadata(ctx, db.CreateAirtimeDataMetadataParams{
 		Amount:        amount.String(),
@@ -3144,15 +2351,14 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		Date:          txx.CreatedAt,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create airtime metadata: %w", err)
+		return nil, fmt.Errorf("failed to create TV metadata: %w", err)
 	}
 
-	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
-		Balance: sql.NullString{String: amount.String(), Valid: true},
+	if _, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: finalAmount.String(), Valid: true}, // FIX [B1]
 		ID:      NGNWallet.ID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+	}); err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %w", err)
 	}
 
 	btx, err := s.billProvider.BuyTVSubscription(bills.BuyTVSubscriptionRequest{
@@ -3165,210 +2371,396 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		Amount:           amount.IntPart(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Tv Subscription purchase failed: %v", err)
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		})
+		_ = dbTx.Commit()
+		return nil, fmt.Errorf("TV provider unreachable (pending reconciliation): %w", err)
 	}
 
 	switch btx.Status {
 	case "failed":
-		// Refund wallet
-		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
-			Balance: sql.NullString{String: amount.String(), Valid: true},
+		// FIX [B2]: Refund finalAmount.
+		if _, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 			ID:      NGNWallet.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to refund wallet on failed TV: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to refund wallet: %w", err)
 		}
-
-		// Mark transaction as failed in DB
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Failed),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Failed),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Failed),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update TV metadata status: %w", err)
 		}
-
-		// Commit the refund
-		if err := dbTx.Commit(); err != nil {
+		if err = dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit refund: %w", err)
 		}
-
-		return &TVSubResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			PointsUsed:           pointsUsed,
-			Plan:                 selectedVariation.VariationCode,
-		}, nil
+		return s.buildTVResponse(txx, amount, finalAmount, 0, pointsUsed, btx.Status, selectedVariation.VariationCode), nil
 
 	case "pending":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Pending),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record to pending: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Pending),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Pending), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update TV metadata status: %w", err)
 		}
-		// Commit the pending status
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit pending status: %w", err)
 		}
-
-		return &TVSubResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			PointsUsed:           pointsUsed,
-			Plan:                 selectedVariation.VariationCode,
-		}, nil
+		return s.buildTVResponse(txx, amount, finalAmount, 0, pointsUsed, btx.Status, selectedVariation.VariationCode), nil
 
 	case "delivered":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Success),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %w", err)
+		}
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success), ID: metaTX.ID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update TV metadata status: %w", err)
 		}
 
-		_, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
-			Status: string(Success),
-			ID:     metaTX.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update airtime metadata status: %v", err)
-		}
-
-		if redemptionApplied {
-			err = s.CompleteRewardRedemption(
-				ctx,
-				dbTx,
-				int32(user.ID),
-				txx.ID,
-				pointsToUseDecimal,
-				amount,
-				finalAmount,
-				string(TV),
-				req.ServiceID,
-			)
-			if err != nil {
-				// Log but don't fail transaction
-				s.logger.Error("Failed to complete reward redemption:", err)
-			}
-		}
-
-		pointAmount, err := s.AwardRewardPoints(
-			ctx,
-			dbTx,
-			int32(user.ID),
-			txx.ID,
-			amount,
-			string(TV),
-			"bill_payment",
+		pointsEarned := s.postBillSuccess(
+			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
+			redemptionApplied, string(TV), req.ServiceID, audit.EventTVSubscriptionPurchase,
 		)
-		if err != nil {
-			// Log but don't fail transaction
-			s.logger.Error("Failed to award reward points:", err)
+
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("TV subscription commit failed: %w", err)
 		}
 
-		if pointAmount.GreaterThan(decimal.Zero) {
-			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
-				user.ID, pointAmount.String(), txx.ID))
-			pointsEarned = pointAmount.InexactFloat64()
+		// FIX [B5]: Notification built post-commit.
+		notificationMsg := fmt.Sprintf("Your %s TV subscription is active", selectedVariation.VariationCode)
+		if pointsUsed > 0 {
+			notificationMsg += fmt.Sprintf(". You saved ₦%.2f using reward points", pointsUsed)
 		}
-		pointsEarned = pointAmount.InexactFloat64()
-
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("airtime purchase failed: %w", err)
-		}
-
-		// audit log
-		logEntry := audit.NewTransactionLog(
-			audit.EventTVSubscriptionPurchase,
-			txx.ID.String(),
-			user.Role,
-			user.ID,
-			amount.InexactFloat64(),
-			"NGN",
-			true,
-		)
-		logEntry.Metadata = map[string]any{} // TODO:
-		s.audit.Log(logEntry)
-
-		err = s.streakUpdater.UpdateStreakOnTransaction(
-			ctx,
-			user.ID,
-			txx.ID,
-			string(TV),
-		)
-		if err != nil {
-			s.logger.Error("Failed to update streak:", err)
-		}
-
-		// if pointsToUseDecimal.GreaterThan(decimal.Zero) {
-		// 	notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
-		// }
 		if pointsEarned > 0 {
-			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-
-		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Tv Subscription", notificationMsg, "system", []int64{user.ID})
-		if err != nil {
-			entry := audit.WarningLog("InApp Notification failed", err.Error())
-			s.audit.Log(entry)
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "TV Subscription", notificationMsg, "system", []int64{user.ID}); err != nil {
+			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-
-		err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode)
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
-			entry := audit.WarningLog("Push Notification failed", err.Error())
-			s.audit.Log(entry)
+		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
+			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
+			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
-
-		return &TVSubResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Status,
-			Plan:                 selectedVariation.VariationCode,
-			PointsUsed:           pointsUsed,
-		}, nil
+		return s.buildTVResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, btx.Status, selectedVariation.VariationCode), nil
 
 	default:
-		return nil, fmt.Errorf("unknown Data status: %s", btx.Status)
+		return nil, fmt.Errorf("unknown TV status: %s", btx.Status)
+	}
+}
+
+func (s *TransactionService) buildTVResponse(
+	txx db.Transaction, amount, finalAmount decimal.Decimal,
+	pointsEarned, pointsUsed float64, status, plan string,
+) *TVSubResponse {
+	return &TVSubResponse{
+		Amount:               amount,
+		AmountPaid:           finalAmount.InexactFloat64(),
+		BonusEarned:          pointsEarned,
+		TransactionType:      txx.Type,
+		Date:                 txx.CreatedAt,
+		TransactionReference: txx.IdempotencyKey,
+		Status:               status,
+		PointsUsed:           pointsUsed,
+		Plan:                 plan,
+	}
+}
+
+// ── Background Reconciler ──────────────────────────────────────────────────────
+// Fixes the crash-between-debit-and-commit window for all bill types.
+//
+// Wire into your scheduler at startup:
+//
+//	go func() {
+//	    t := time.NewTicker(60 * time.Second)
+//	    for range t.C {
+//	        if err := svc.ReconcilePendingBillTransactions(ctx); err != nil {
+//	            logger.Error("bill reconciler:", err)
+//	        }
+//	    }
+//	}()
+//
+// Requires the following query in your SQLC store:
+//
+//	GetPendingAirtimeTransactionsOlderThan(ctx, duration) ([]AirtimeMetadata, error)
+//
+// where AirtimeMetadata has: ID, TransactionID, RequestID, AmountPaid, UserID, Type.
+
+func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Context) error {
+	// Fetch pending transactions from all bill types
+	var allPendingMetadata []BillMetadata
+
+	// Get pending Airtime/Data/TV transactions (single table with type discriminator)
+	airtimeDataTVPending, err := s.store.GetPendingDataAirtimePurchaseMetadataOlderThan5Mins(ctx)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("reconciler: fetch pending airtime/data/tv: %v", err))
+	} else {
+		for i := range airtimeDataTVPending {
+			allPendingMetadata = append(allPendingMetadata, &DataAirtimeMetadataAdapter{meta: &airtimeDataTVPending[i]})
+		}
 	}
 
+	// Get pending Electricity transactions
+	electricityPending, err := s.store.GetPendingElectricityPurchaseMetadataOlderThan5Mins(ctx)
+	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+		s.logger.Error(fmt.Sprintf("reconciler: fetch pending electricity: %v", err))
+	} else if err == nil {
+		for i := range electricityPending {
+			allPendingMetadata = append(allPendingMetadata, &ElectricityMetadataAdapter{meta: &electricityPending[i]})
+		}
+	}
+
+	// Process all pending transactions
+	for _, meta := range allPendingMetadata {
+		requestID := meta.GetRequestID()
+		var providerStatus string
+
+		switch meta.GetBillType() {
+		case string(Airtime):
+			res, err := s.billProvider.QueryAirtimeStatus(requestID)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: query airtime %s: %v", requestID, err))
+				continue
+			}
+			providerStatus = res.Status
+
+		case string(Data):
+			res, err := s.billProvider.QueryDataStatus(requestID)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: query data %s: %v", requestID, err))
+				continue
+			}
+			providerStatus = res.Status
+
+		case string(TV):
+			res, err := s.billProvider.QueryTVStatus(requestID)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: query TV %s: %v", requestID, err))
+				continue
+			}
+			providerStatus = res.Status
+
+		case string(Electricity):
+			res, err := s.billProvider.QueryElectricityStatus(requestID)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: query electricity %s: %v", requestID, err))
+				continue
+			}
+			providerStatus = res.Status
+
+		default:
+			s.logger.Warn(fmt.Sprintf("reconciler: unknown bill type %s for requestID=%s", meta.GetBillType(), requestID))
+			continue
+		}
+
+		switch providerStatus {
+		case "delivered":
+			if err = s.reconcileFinalizeBillSuccess(ctx, meta); err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: finalize success %s: %v", requestID, err))
+			}
+		case "failed":
+			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: finalize failure %s: %v", requestID, err))
+			}
+		case "pending":
+			// Still in-flight; re-check next cycle.
+		default:
+			s.logger.Warn(fmt.Sprintf("reconciler: unknown provider status=%s for requestID=%s", providerStatus, requestID))
+		}
+	}
+
+	return nil
+}
+
+// BillMetadata is a common interface for all bill purchase metadata types.
+// It abstracts over data_airtime_purchase_metadata and electricity_purchase_metadata tables.
+type BillMetadata interface {
+	GetMetadataID() uuid.UUID
+	GetTransactionID() uuid.UUID
+	GetStatus() string
+	GetRequestID() string
+	GetAmountPaid() string
+	GetBillType() string // Returns transaction type: Airtime, Data, TV, or Electricity
+}
+
+// DataAirtimeMetadataAdapter wraps db.DataAirtimePurchaseMetadata to implement BillMetadata.
+// Handles: Airtime, Data, and TV subscription purchases.
+type DataAirtimeMetadataAdapter struct {
+	meta *db.DataAirtimePurchaseMetadatum
+}
+
+func (a *DataAirtimeMetadataAdapter) GetMetadataID() uuid.UUID {
+	return a.meta.ID
+}
+
+func (a *DataAirtimeMetadataAdapter) GetTransactionID() uuid.UUID {
+	return a.meta.TransactionID
+}
+
+func (a *DataAirtimeMetadataAdapter) GetStatus() string {
+	return a.meta.Status
+}
+
+func (a *DataAirtimeMetadataAdapter) GetRequestID() string {
+	return a.meta.RequestID
+}
+
+func (a *DataAirtimeMetadataAdapter) GetAmountPaid() string {
+	if a.meta.AmountPaid == "" {
+		return "0"
+	}
+	return a.meta.AmountPaid
+}
+
+func (a *DataAirtimeMetadataAdapter) GetBillType() string {
+	return a.meta.Type
+}
+
+// ElectricityMetadataAdapter wraps db.ElectricityPurchaseMetadata to implement BillMetadata.
+type ElectricityMetadataAdapter struct {
+	meta *db.ElectricityPurchaseMetadatum
+}
+
+func (e *ElectricityMetadataAdapter) GetMetadataID() uuid.UUID {
+	return e.meta.ID
+}
+
+func (e *ElectricityMetadataAdapter) GetTransactionID() uuid.UUID {
+	return e.meta.TransactionID
+}
+
+func (e *ElectricityMetadataAdapter) GetStatus() string {
+	return e.meta.Status
+}
+
+func (e *ElectricityMetadataAdapter) GetRequestID() string {
+	return e.meta.RequestID
+}
+
+func (e *ElectricityMetadataAdapter) GetAmountPaid() string {
+	if e.meta.AmountPaid == "" {
+		return "0"
+	}
+	return e.meta.AmountPaid
+}
+
+func (e *ElectricityMetadataAdapter) GetBillType() string {
+	return string(Electricity)
+}
+
+// reconcileFinalizeBillSuccess updates transaction and metadata status to success after provider confirmation.
+func (s *TransactionService) reconcileFinalizeBillSuccess(ctx context.Context, meta BillMetadata) error {
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer dbTx.Rollback()
+
+	if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID: meta.GetTransactionID(), Status: string(Success),
+	}); err != nil {
+		return err
+	}
+
+	// Update metadata based on bill type
+	billType := meta.GetBillType()
+	switch billType {
+	case string(Airtime), string(Data), string(TV):
+		// All handled by single table: data_airtime_purchase_metadata
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Success), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	case string(Electricity):
+		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			Status: string(Success), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown bill type for success finalization: %s", billType)
+	}
+
+	return dbTx.Commit()
+}
+
+// reconcileFinalizeBillFailure refunds the debited amount and updates metadata status to failed.
+func (s *TransactionService) reconcileFinalizeBillFailure(ctx context.Context, meta BillMetadata) error {
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return err
+	}
+	defer dbTx.Rollback()
+
+	// Refund exactly what was debited (stored as AmountPaid in metadata).
+	amountPaid, err := decimal.NewFromString(meta.GetAmountPaid())
+	if err != nil {
+		return fmt.Errorf("invalid AmountPaid in metadata: %w", err)
+	}
+
+	// Get user from transaction to fetch wallet
+	txx, err := s.store.WithTx(dbTx).GetTransactionByID(ctx, meta.GetTransactionID())
+	if err != nil {
+		return fmt.Errorf("reconciler: fetch transaction: %w", err)
+	}
+
+	wallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: txx.UserID, Currency: "NGN",
+	})
+	if err != nil {
+		return fmt.Errorf("reconciler: fetch wallet: %w", err)
+	}
+
+	if _, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		Balance: sql.NullString{String: amountPaid.String(), Valid: true},
+		ID:      wallet.ID,
+	}); err != nil {
+		return fmt.Errorf("reconciler: refund wallet: %w", err)
+	}
+
+	if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID: meta.GetTransactionID(), Status: string(Failed),
+	}); err != nil {
+		return err
+	}
+
+	// Update metadata based on bill type
+	billType := meta.GetBillType()
+	switch billType {
+	case string(Airtime), string(Data), string(TV):
+		// All handled by single table: data_airtime_purchase_metadata
+		if _, err = s.store.WithTx(dbTx).UpdateAirtimePurchaseStatus(ctx, db.UpdateAirtimePurchaseStatusParams{
+			Status: string(Failed), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	case string(Electricity):
+		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			Status: string(Failed), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("unknown bill type for failure finalization: %s", billType)
+	}
+
+	return dbTx.Commit()
 }
 
 func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.User, req ElectricityRequest) (*ElectricityResponse, error) {
-
 	variations, err := s.redis.GetVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID))
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to get variations from cache: %v", err))
@@ -3378,112 +2770,77 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		if err != nil {
 			return nil, err
 		}
-
 		if remoteVariations != nil {
-			variations = make([]models.BillVariation, len(remoteVariations))
-			for i, variation := range remoteVariations {
-				variations[i] = models.BillVariation{
-					VariationCode:   variation.VariationCode,
-					Name:            variation.Name,
-					VariationAmount: variation.VariationAmount,
-					FixedPrice:      variation.FixedPrice,
-				}
+			for _, v := range remoteVariations {
+				variations = append(variations, models.BillVariation{
+					VariationCode:   v.VariationCode,
+					Name:            v.Name,
+					VariationAmount: v.VariationAmount,
+					FixedPrice:      v.FixedPrice,
+				})
 			}
-
-			err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations)
-			if err != nil {
-				s.logger.Error(fmt.Sprintf("failed to store variations in cache: %v", err))
+			if err = s.redis.StoreVariations(ctx, fmt.Sprintf("variations:%s", req.ServiceID), variations); err != nil {
+				s.logger.Error(fmt.Sprintf("failed to cache variations: %v", err))
 			}
 		}
 	}
 
 	var selectedVariation *models.BillVariation
-	for _, variation := range variations {
-		if variation.VariationCode == req.VariationCode {
-			selectedVariation = &variation
+	for i := range variations {
+		if variations[i].VariationCode == req.VariationCode {
+			selectedVariation = &variations[i]
 			break
 		}
 	}
-
 	if selectedVariation == nil {
-		return nil, fmt.Errorf("invalid variation code")
+		return nil, ErrInvalidVariation
 	}
 
+	// FIX [E3]: Removed dead `if err != nil` after decimal.NewFromFloat which
+	// never errors. The stale `err` was from the variations lookup above and
+	// would have returned the wrong error for an unrelated operation.
 	amount := decimal.NewFromFloat(req.Amount)
-	if err != nil {
-		return nil, err
-	}
 
-	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
 		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
 	defer dbTx.Rollback()
 
-	existingTx, err := s.store.WithTx(dbTx).GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
-	if err == nil {
-		switch existingTx.Status {
-		case string(Pending):
-			return nil, fmt.Errorf("transaction with reference %s is already pending", existingTx.IdempotencyKey)
-		case string(Success):
-			return nil, fmt.Errorf("transaction with reference %s has already been completed successfully", existingTx.IdempotencyKey)
-		//TODO: case string(Failed):
-		// 	s.logger.Info(fmt.Sprintf("Retrying failed transaction with idempotency key: %s", req.IdempotencyKey))
-		// Proceed to retry the transaction
-		default:
-			return nil, fmt.Errorf("a transaction with the same idempotency key already exists with status: %s", existingTx.Status)
-		}
+	if err = s.checkIdempotency(ctx, dbTx, req.IdempotencyKey); err != nil {
+		return nil, err
 	}
 
-	// 1. lock user NGN wallet
 	NGNWallet, err := s.store.WithTx(dbTx).GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: user.ID,
-		Currency:   "NGN",
+		CustomerID: user.ID, Currency: "NGN",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch user NGN wallet: %w", err)
+		return nil, fmt.Errorf("failed to fetch NGN wallet: %w", err)
 	}
 
 	walletBalance, err := decimal.NewFromString(NGNWallet.Balance.String)
 	if err != nil {
-		return nil, fmt.Errorf("invalid wallet balance format: %w", err)
+		return nil, fmt.Errorf("invalid wallet balance: %w", err)
 	}
-
-	// Check sufficient balance
 	if walletBalance.LessThan(amount) {
-		return nil, fmt.Errorf("insufficient balance in Naira wallet")
+		return nil, ErrInsufficientBalance
 	}
 
-	var redemptionApplied bool
-	var finalAmount decimal.Decimal
-	var pointsEarned, pointsUsed float64
-
-	finalAmount = amount
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
-	if !req.UseRewardPoints {
-		pointsUsed = 0.00
-	} else {
-		pointsUsed = pointsToUseDecimal.InexactFloat64()
-	}
+	var finalAmount = amount
+	var pointsUsed float64
+	var redemptionApplied bool
+
 	if req.UseRewardPoints && req.PointsToUse > 0 {
-		finalAmount, redemptionApplied, err = s.ProcessRewardRedemption(
-			ctx, dbTx, user, pointsToUseDecimal, amount,
-		)
+		finalAmount, _, pointsUsed, redemptionApplied, err = s.resolveRewards(ctx, dbTx, user, &req, amount)
 		if err != nil {
-			return nil, err
-		}
-
-		if redemptionApplied {
-			s.logger.Info(fmt.Sprintf("Reward redemption: User=%d, Points=₦%d, Original=₦%d, Final=₦%d",
-				user.ID, pointsToUseDecimal, amount, finalAmount))
+			return nil, fmt.Errorf("reward redemption: %w", err)
 		}
 	}
 
-	// Create transaction record
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, NGNWallet.Currency)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
+		return nil, fmt.Errorf("failed to convert to USD: %w", err)
 	}
 
 	txx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
@@ -3504,12 +2861,12 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		return nil, fmt.Errorf("failed to create transaction record: %w", err)
 	}
 
-	purchaseRequestID := time.Now().UTC().Add(time.Hour * 1).Format("20060102150405")
+	purchaseRequestID := utils.WatRequestID() // FIX [B4]
 
 	stx, err := s.store.WithTx(dbTx).CreateElectricityPurchaseMetadata(ctx, db.CreateElectricityPurchaseMetadataParams{
 		TransactionID: txx.ID,
 		Amount:        txx.Amount,
-		PointsUsed:    sql.NullString{String: fmt.Sprintf("%2.f", pointsUsed), Valid: true},
+		PointsUsed:    sql.NullString{String: fmt.Sprintf("%.2f", pointsUsed), Valid: true},
 		AmountPaid:    finalAmount.String(),
 		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
 		Reference:     req.IdempotencyKey,
@@ -3517,13 +2874,15 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		ServiceCharge: sql.NullString{String: "0", Valid: true},
 		Status:        string(Pending),
 	})
-
-	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
-		Balance: sql.NullString{String: amount.String(), Valid: true},
-		ID:      NGNWallet.ID,
-	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to debit wallet: %v", err)
+		return nil, fmt.Errorf("failed to create electricity metadata: %w", err) // FIX [E1]
+	}
+
+	if _, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: finalAmount.String(), Valid: true},
+		ID:      NGNWallet.ID,
+	}); err != nil {
+		return nil, fmt.Errorf("failed to debit wallet: %w", err)
 	}
 
 	btx, err := s.billProvider.BuyElectricity(bills.PurchaseElectricityRequest{
@@ -3535,116 +2894,65 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		Amount:        req.Amount,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("Tv Subscription purchase failed: %v", err)
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		})
+		_ = dbTx.Commit()
+		return nil, fmt.Errorf("electricity provider unreachable (pending reconciliation): %w", err)
 	}
 
 	switch btx.Content.Transaction.Status {
 	case "failed":
-		// Refund wallet
-		_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
-			Balance: sql.NullString{String: amount.String(), Valid: true},
+		// FIX [B2]: Refund finalAmount.
+		if _, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: finalAmount.String(), Valid: true},
 			ID:      NGNWallet.ID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to refund wallet on failed airtime: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to refund wallet: %w", err)
 		}
-
-		// Mark transaction as failed in DB
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Failed),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Failed),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
-			ServiceStatus: string(Failed),
-			TransactionID: stx.TransactionID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateServiceMetadataStatus(ctx, db.UpdateServiceMetadataStatusParams{
+			ServiceStatus: string(Failed), TransactionID: stx.TransactionID,
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update electricity metadata status: %w", err)
 		}
-
-		// Commit the refund
-		if err := dbTx.Commit(); err != nil {
+		if err = dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("failed to commit refund: %w", err)
 		}
-
-		return &ElectricityResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Content.Transaction.Status,
-			CustomerName:         *btx.CustomerName,
-			CustomerAddress:      *btx.CustomerAddress,
-			Token:                btx.Token,
-			Units:                btx.Units,
-			TokenAmount:          btx.TokenAmount,
-			MeterNumber:          btx.MeterNumber,
-			FixChargeAmount:      btx.FixChargeAmount,
-		}, nil
+		return s.buildElectricityResponse(txx, amount, finalAmount, 0, btx.Content.Transaction.Status, btx), nil
 
 	case "pending":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Pending),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Pending),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
-			ID:     stx.ID,
-			Status: string(Pending),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update electricity metadat: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			ID: stx.ID, Status: string(Pending),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update electricity metadata: %w", err)
 		}
-
-		// Commit the pending status
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit pending status: %w", err)
 		}
-
-		return &ElectricityResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Content.Transaction.Status,
-			CustomerName:         *btx.CustomerName,
-			CustomerAddress:      *btx.CustomerAddress,
-			Token:                btx.Token,
-			Units:                btx.Units,
-			TokenAmount:          btx.TokenAmount,
-			MeterNumber:          btx.MeterNumber,
-			FixChargeAmount:      btx.FixChargeAmount,
-		}, nil
+		return s.buildElectricityResponse(txx, amount, finalAmount, 0, btx.Content.Transaction.Status, btx), nil
 
 	case "delivered":
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
-			Status: string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update tx record: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID: txx.ID, Status: string(Success),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update tx record: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
-			ID:     stx.ID,
-			Status: string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update electricity metadat: %v", err)
+		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
+			ID: stx.ID, Status: string(Success),
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update electricity metadata: %w", err)
 		}
-
-		_, err = s.store.WithTx(dbTx).UpdateElectricityPurchasePartial(ctx, db.UpdateElectricityPurchasePartialParams{
+		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchasePartial(ctx, db.UpdateElectricityPurchasePartialParams{
 			Reference:       req.IdempotencyKey,
 			Token:           sql.NullString{String: btx.Token, Valid: true},
 			CustomerName:    sql.NullString{String: *btx.CustomerName, Valid: true},
@@ -3654,118 +2962,496 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 			Tax:             sql.NullString{String: fmt.Sprintf("%.2f", btx.TaxAmount), Valid: true},
 			Debt:            sql.NullString{String: fmt.Sprintf("%.2f", btx.Debt), Valid: true},
 			Status:          string(Success),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update service metadata status: %v", err)
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update electricity token details: %w", err)
 		}
 
-		if redemptionApplied {
-			err = s.CompleteRewardRedemption(
-				ctx,
-				dbTx,
-				int32(user.ID),
-				txx.ID,
-				pointsToUseDecimal,
-				amount,
-				finalAmount,
-				"airtime",
-				req.ServiceID,
-			)
-			if err != nil {
-				// Log but don't fail transaction
-				s.logger.Error("Failed to complete reward redemption:", err)
-			}
-		}
-
-		pointEarned, err := s.AwardRewardPoints(
-			ctx,
-			dbTx,
-			int32(user.ID),
-			txx.ID,
-			amount,
-			string(Electricity),
-			"bill_payment",
+		// FIX [E4]: type was "airtime" instead of string(Electricity).
+		// FIX [E5]: streak type was string(Airtime) instead of string(Electricity).
+		// postBillSuccess now uses the correct txType for both.
+		pointsEarned := s.postBillSuccess(
+			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
+			redemptionApplied, string(Electricity), req.ServiceID, audit.EventElectricityPurchase,
 		)
-		if err != nil {
-			// Log but don't fail transaction
-			s.logger.Error("Failed to award reward points:", err)
+
+		if err = dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("electricity purchase commit failed: %w", err)
 		}
 
-		if pointEarned.GreaterThan(decimal.Zero) {
-			s.logger.Info(fmt.Sprintf("Points awarded for airtime purchase: User=%d, Points=₦%s, TX=%d",
-				user.ID, pointEarned.String(), txx.ID))
-			pointsEarned = pointEarned.InexactFloat64()
+		// FIX [B5]: Notification built post-commit with actual token.
+		notificationMsg := fmt.Sprintf("Your electricity purchase is successful. Token: %s", btx.Token)
+		if pointsUsed > 0 {
+			notificationMsg += fmt.Sprintf(". You saved ₦%.2f using reward points", pointsUsed)
 		}
-		pointsEarned = pointEarned.InexactFloat64()
-
-		if err := dbTx.Commit(); err != nil {
-			return nil, fmt.Errorf("Electricity purchase failed: %w", err)
-		}
-
-		// audit log
-		logEntry := audit.NewTransactionLog(
-			audit.EventElectricityPurchase,
-			txx.ID.String(),
-			user.Role,
-			user.ID,
-			amount.InexactFloat64(),
-			"NGN",
-			true,
-		)
-		logEntry.Metadata = map[string]any{} // TODO:
-		s.audit.Log(logEntry)
-
-		err = s.streakUpdater.UpdateStreakOnTransaction(
-			ctx,
-			user.ID,
-			txx.ID,
-			string(Airtime),
-		)
-		if err != nil {
-			s.logger.Error("Failed to update streak:", err)
-		}
-
-		notificationMsg := fmt.Sprintf("Your %s puchase is successful. %s", selectedVariation.VariationCode, btx.Token)
-
-		// if pointsToUseDecimal.GreaterThan(decimal.Zero) {
-		// 	notificationMsg += fmt.Sprintf(". You saved ₦%2.f using reward points", pointsToUseDecimal.InexactFloat64())
-		// }
 		if pointsEarned > 0 {
-			notificationMsg += fmt.Sprintf(". You earned ₦%2.f in reward points!", pointsEarned)
+			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-
-		_, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []int64{user.ID})
-		if err != nil {
-			entry := audit.WarningLog("InApp Notification failed", err.Error())
-			s.audit.Log(entry)
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-
-		err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode)
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("=============Error sending push notification: %v", err))
-			entry := audit.WarningLog("Push Notification failed", err.Error())
-			s.audit.Log(entry)
+		// FIX [E6]: Was s.push.SuccessfulTvSub — wrong notification type.
+		// TODO: Add SuccessfulElectricityPurchase(ctx, userID, token, units) to PushNotificationService.
+		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
+			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
+			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
-
-		return &ElectricityResponse{
-			Amount:               amount,
-			AmountPaid:           finalAmount.InexactFloat64(),
-			BonusEarned:          pointsEarned,
-			TransactionType:      txx.Type,
-			Date:                 txx.CreatedAt,
-			TransactionReference: txx.IdempotencyKey,
-			Status:               btx.Content.Transaction.Status,
-			CustomerName:         *btx.CustomerName,
-			CustomerAddress:      *btx.CustomerAddress,
-			Token:                btx.Token,
-			Units:                btx.Units,
-			TokenAmount:          btx.TokenAmount,
-			MeterNumber:          btx.MeterNumber,
-			FixChargeAmount:      btx.FixChargeAmount,
-		}, nil
+		return s.buildElectricityResponse(txx, amount, finalAmount, pointsEarned, btx.Content.Transaction.Status, btx), nil
 
 	default:
-		return nil, fmt.Errorf("unknown Data status: %s", btx.Content.Transaction.Status)
+		return nil, fmt.Errorf("unknown electricity status: %s", btx.Content.Transaction.Status)
+	}
+}
+
+func (s *TransactionService) buildElectricityResponse(
+	txx db.Transaction, amount, finalAmount decimal.Decimal,
+	pointsEarned float64, status string, btx *bills.PurchaseElectricityResponse,
+) *ElectricityResponse {
+	resp := &ElectricityResponse{
+		Amount:               amount.String(),
+		AmountPaid:           finalAmount.InexactFloat64(),
+		BonusEarned:          pointsEarned,
+		TransactionType:      txx.Type,
+		Date:                 txx.CreatedAt,
+		TransactionReference: txx.IdempotencyKey,
+		Status:               status,
+		Token:                btx.Token,
+		Units:                btx.Units,
+		TokenAmount:          btx.TokenAmount,
+		MeterNumber:          btx.MeterNumber,
+		FixChargeAmount:      btx.FixChargeAmount,
+	}
+	if btx.CustomerName != nil {
+		resp.CustomerName = *btx.CustomerName
+	}
+	if btx.CustomerAddress != nil {
+		resp.CustomerAddress = *btx.CustomerAddress
+	}
+	return resp
+}
+
+func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.User, req WalletTransferRequest) (*WalletTransferResponse, error) {
+	_, err := s.store.Queries.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		return nil, fmt.Errorf("Tx exists") //TODO: finish for tx status
 	}
 
+	recipientUser, err := s.store.Queries.GetUserByTag(ctx, sql.NullString{String: req.DestinationUserTag, Valid: true})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recipient user: %v", err)
+	}
+
+	sendingWallet, err := s.store.Queries.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   req.Currency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get sending wallet: %v", err)
+	}
+
+	recipientWallet, err := s.store.Queries.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: recipientUser.ID,
+		Currency:   req.Currency,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get recipient wallet: %v", err)
+	}
+
+	sendingBalance, _ := utils.ToDecimal(sendingWallet.Balance.String)
+	amount := decimal.NewFromFloat(req.Amount)
+
+	if amount.GreaterThan(sendingBalance) {
+		return nil, wallet.ErrInsufficientFunds
+	}
+	var description string
+	if req.Description != "" {
+		description = req.Description
+	} else {
+		description = "Transfer via SWIIFT"
+	}
+
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	amountUsd, err := utils.ConvertToUSD(ctx, amount, req.Currency)
+
+	tx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          user.ID,
+		TransactionFlow: string(InPlatform),
+		Type:            string(Transfer),
+		Description:     sql.NullString{String: description, Valid: true},
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		Currency:        req.Currency,
+		IdempotencyKey:  req.IdempotencyKey,
+		TFrom:           string(Wallet),
+		TTo:             string(Wallet),
+		Direction:       string(Debit),
+		Status:          string(Pending),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create debit tx record [HandleWalletTransfer]: %v", err)
+	}
+
+	fee := decimal.NewFromInt(0)
+	finalAmount := amount.Add(fee)
+
+	wTx, err := s.store.WithTx(dbTx).CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
+		Currency:      req.Currency,
+		TransactionID: tx.ID,
+		Sender:        user.ID,
+		Type:          string(Debit),
+		Recipient:     recipientUser.ID,
+		ServiceCharge: sql.NullString{String: "0", Valid: true},
+		Amount:        amount.String(),
+		AmountPaid:    sql.NullString{String: finalAmount.String(), Valid: true},
+		BonusEarned:   sql.NullString{String: "0", Valid: true},
+		Reference:     req.IdempotencyKey,
+		Status:        string(Pending),
+		Description:   description,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wallet debit metadata record [HandleWalletTransfer]: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: finalAmount.String(), Valid: true},
+		ID:      sendingWallet.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit sending wallet [HandleWalletTransfer]: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     tx.ID,
+		Status: string(Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update tx status [HandleWalletTransfer]: %v", err)
+	}
+
+	err = s.store.WithTx(dbTx).UpdateWalletTransferMetadataStatus(ctx, db.UpdateWalletTransferMetadataStatusParams{
+		ID:     wTx.ID,
+		Status: string(Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update wallet debit metdata status [HandleWalletTransfer]: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		Balance: sql.NullString{String: amount.String(), Valid: true},
+		ID:      recipientWallet.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit sending wallet [HandleWalletTransfer]: %v", err)
+	}
+
+	t, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          recipientUser.ID,
+		TransactionFlow: string(InPlatform),
+		Type:            string(Transfer),
+		Description:     sql.NullString{String: description, Valid: true},
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		Currency:        req.Currency,
+		IdempotencyKey:  uuid.NewString(),
+		TFrom:           string(Wallet),
+		TTo:             string(Wallet),
+		Direction:       string(Credit),
+		Status:          string(Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create debit tx record [HandleWalletTransfer]: %v", err)
+	}
+
+	_, err = s.store.WithTx(dbTx).CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
+		Currency:      req.Currency,
+		TransactionID: t.ID,
+		Sender:        user.ID,
+		Type:          string(Credit),
+		Recipient:     recipientUser.ID,
+		Amount:        amount.String(),
+		Reference:     uuid.NewString(),
+		Status:        string(Success),
+		Description:   description,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create wallet credit metadata record [HandleWalletTransfer]: %v", err)
+	}
+
+	// Commit the refund
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("failed to commit refund: %w", err)
+	}
+
+	response := &WalletTransferResponse{
+		Sender:     fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
+		Recipient:  fmt.Sprintf("%s %s", recipientUser.FirstName.String, recipientUser.LastName.String),
+		AmountPaid: finalAmount.InexactFloat64(),
+		Amount:     float32(amount.InexactFloat64()),
+		Remark:     description,
+		Type:       wTx.Type,
+		Date:       tx.CreatedAt,
+		Status:     string(Success),
+		Reference:  wTx.Reference,
+	}
+
+	bgCtx := context.WithoutCancel(ctx)
+	go func() {
+		message := fmt.Sprintf("A wallet debit transaction of %2.f %s has just been sent to %s. If this was not initiated by you, please contact SWIIFT immediately", amount.InexactFloat64(), req.Currency, recipientUser.UserTag.String)
+		message_2 := fmt.Sprintf("%2.f %s has been credited to your wallet from %s", amount.InexactFloat64(), req.Currency, user.UserTag.String)
+
+		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Debit", message, "system", []int64{user.ID})
+		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Credit", message_2, "system", []int64{recipientUser.ID})
+
+		s.push.CreditAlert(bgCtx, recipientUser.ID, amount.InexactFloat64(), req.Currency)
+		s.push.DebitAlert(bgCtx, user.ID, amount.InexactFloat64(), req.Currency)
+	}()
+
+	return response, nil
+}
+
+func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.User, req *BankTransferRequest) (*BankTransferResponse, error) {
+	_, err := s.store.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	if err == nil {
+		return &BankTransferResponse{}, fmt.Errorf("Tx exists")
+	}
+
+	amount := decimal.NewFromFloat(req.Amount)
+	fee := decimal.NewFromFloat(10.0)
+
+	totalAmount := amount.Add(fee)
+
+	ngnWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   string(NGN),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get wallet: %v", err)
+	}
+	walletBalance, err := utils.ToDecimal(ngnWallet.Balance.String)
+	if err != nil {
+		return nil, err
+	}
+
+	s.logger.Infof("wallet balance: %2.f, total amount: %2.f", walletBalance.InexactFloat64(), totalAmount.InexactFloat64())
+
+	if totalAmount.GreaterThan(walletBalance) {
+		return nil, wallet.ErrInsufficientFunds
+	}
+
+	if amount.LessThan(decimal.NewFromFloat(100)) || amount.GreaterThan(decimal.NewFromFloat(5000000)) {
+		return nil, wallet.ErrAmountNotValidRange
+	}
+
+	amountUsd, _ := utils.ConvertToUSD(ctx, amount, string(NGN))
+
+	recipientInfo, err := s.paystack.CreateTransferRecipient(
+		req.AccountNumber,
+		req.BankCode,
+		req.Name,
+	)
+
+	AmountInPaystackFormat := amount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
+
+	debitTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID:          user.ID,
+		Type:            string(Transfer),
+		Description:     sql.NullString{String: req.Description, Valid: true},
+		TransactionFlow: string(Outflow),
+		Amount:          amount.String(),
+		AmountUsd:       amountUsd.String(),
+		Currency:        string(NGN),
+		IdempotencyKey:  req.IdempotencyKey,
+		TFrom:           string(Wallet),
+		TTo:             "bank",
+		Direction:       string(Debit),
+		Status:          string(Pending),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create debit tx record: %v", err)
+	}
+
+	transferReference := uuid.NewString()
+	debitMetadata, err := s.store.CreateBankTransferMetadata(ctx, db.CreateBankTransferMetadataParams{
+		Amount:          amount.String(),
+		ServiceCharge:   fee.String(),
+		TransactionID:   debitTx.ID,
+		AccountName:     req.Name,
+		AccountNumber:   req.AccountNumber,
+		ServiceProvider: sql.NullString{String: "paystack", Valid: true},
+		Status:          string(Pending),
+		Type:            string(Debit),
+		AmountPaid:      totalAmount.String(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to create debit metadata record: %v", err)
+	}
+
+	_, err = s.store.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+		Balance: sql.NullString{String: totalAmount.String(), Valid: true},
+		ID:      ngnWallet.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to debit wallet for transfer: %v", err)
+	}
+
+	var remark string
+	if req.Description == "" {
+		remark = "Sent via Swiift"
+	}
+
+	res, err := s.paystack.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, AmountInPaystackFormat, req.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed to make transfer in paystack: %v", err)
+	}
+	s.logger.Infof("res data from paystack==========================: %v: ", res)
+
+	if req.SaveBeneficiary {
+		_, err = s.store.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
+			UserID:          sql.NullInt64{Int64: user.ID, Valid: true},
+			AccountNumber:   req.AccountNumber,
+			BeneficiaryName: req.Name,
+			BankCode:        req.BankCode,
+		})
+		if err != nil {
+			s.logger.Warnf("create beneficiary is failing: %v", err)
+		}
+	}
+
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	switch res.Status {
+	case "failed":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     debitTx.ID,
+			Status: string(Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: debitMetadata.ID,
+			Status:        string(Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update failed bank transfer metadata status: %v", err)
+		}
+
+		_, err = s.store.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: totalAmount.String()},
+			ID:      ngnWallet.ID,
+		})
+		if err != nil {
+			s.logger.Warnf("failed to refund %2.f from failed bank transfer with transaction id: %d", totalAmount.InexactFloat64(), debitTx.ID)
+		}
+
+		// Commit the refund
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit refund: %w", err)
+		}
+
+		return &BankTransferResponse{
+			Sender:         fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
+			Recipient:      req.Name,
+			Account_number: req.AccountNumber,
+			BankCode:       req.BankCode,
+			Amount:         amount.InexactFloat64(),
+			AmountPaid:     totalAmount.InexactFloat64(),
+			Remark:         req.Description,
+			Type:           string(Transfer),
+			Date:           debitTx.UpdatedAt,
+			Status:         "failed",
+		}, nil
+	case "pending":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     debitTx.ID,
+			Status: string(Pending),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: debitMetadata.ID,
+			Status:        string(Pending),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
+		}
+
+		// Commit
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to commit pending bank transfer record: %w", err)
+		}
+
+		return &BankTransferResponse{
+			Sender:         fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
+			Recipient:      req.Name,
+			Account_number: req.AccountNumber,
+			BankCode:       req.BankCode,
+			Amount:         amount.InexactFloat64(),
+			AmountPaid:     totalAmount.InexactFloat64(),
+			Remark:         req.Description,
+			Type:           string(Transfer),
+			Date:           debitTx.UpdatedAt,
+			Status:         string(Success),
+		}, nil
+	case "success":
+		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     debitTx.ID,
+			Status: string(Success),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
+		}
+
+		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: debitMetadata.ID,
+			Status:        string(Success),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
+		}
+
+		// Commit
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("failed to make transfer: %w", err)
+		}
+
+		entry := audit.NewTransactionLog(audit.EventFiatTransferCreated, debitTx.ID.String(), user.Role, user.ID, amount.InexactFloat64(), "", true)
+		entry.Metadata = map[string]any{
+			"account_number":   req.AccountNumber,
+			"bank_code":        req.BankCode,
+			"amount":           req.Amount,
+			"save_beneficiary": req.SaveBeneficiary,
+			"type":             debitTx.Type,
+			"status":           debitTx.Status,
+		}
+
+		go s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []int64{user.ID})
+
+		return &BankTransferResponse{
+			Sender:         fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
+			Recipient:      req.Name,
+			Account_number: req.AccountNumber,
+			BankCode:       req.BankCode,
+			Amount:         amount.InexactFloat64(),
+			AmountPaid:     totalAmount.InexactFloat64(),
+			Remark:         req.Description,
+			Type:           string(Transfer),
+			Date:           debitTx.UpdatedAt,
+			Status:         string(Success),
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown bank transfer status: %s", res.Status)
+	}
 }

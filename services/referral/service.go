@@ -279,7 +279,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 			"system",
 			[]int64{userID},
 		)
-		s.push.CreditAlert(ctx, userID, amount.InexactFloat64())
+		s.push.CreditAlert(ctx, userID, amount.InexactFloat64(), "NGN")
 	}()
 
 	return transx, nil

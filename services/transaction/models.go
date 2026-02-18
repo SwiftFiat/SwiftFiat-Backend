@@ -156,6 +156,10 @@ type BuyAirtimeRequest struct {
 	PointsToUse     float32 `json:"points_to_use"`
 }
 
+func (req *BuyAirtimeRequest) GetRewardFields() (bool, float32) {
+	return req.UseRewardPoints, req.PointsToUse
+}
+
 type BuyAirtimeResponse struct {
 	Amount               decimal.Decimal `json:"amount"`
 	AmountPaid           float64         `json:"amount_paid"`
@@ -178,17 +182,21 @@ type BuyDataRequest struct {
 	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
 }
 
+func (req *BuyDataRequest) GetRewardFields() (bool, float32) {
+	return req.UseRewardPoints, req.PointsToUse
+}
+
 type BuyDataResponse struct {
-	Amount               decimal.Decimal `json:"amount"`
-	AmountPaid           float64         `json:"amount_paid"`
-	BonusEarned          float64         `json:"bonus_earned"`
-	Phone                string          `json:"phone"`
-	TransactionType      string          `json:"transaction_type"`
-	Date                 time.Time       `json:"transaction_date"`
-	TransactionReference string          `json:"transaction_reference"`
-	Status               string          `json:"status"`
-	Plan                 string          `json:"plan"`
-	PointsUsed           float64         `json:"cashback_used"`
+	Amount               string    `json:"amount"`
+	AmountPaid           float64   `json:"amount_paid"`
+	BonusEarned          float64   `json:"bonus_earned"`
+	Phone                string    `json:"phone"`
+	TransactionType      string    `json:"transaction_type"`
+	Date                 time.Time `json:"transaction_date"`
+	TransactionReference string    `json:"transaction_reference"`
+	Status               string    `json:"status"`
+	Plan                 string    `json:"plan"`
+	PointsUsed           float64   `json:"cashback_used"`
 }
 
 type TVSubRequest struct {
@@ -200,6 +208,10 @@ type TVSubRequest struct {
 	UseRewardPoints  bool    `json:"use_reward_points"`
 	PointsToUse      float32 `json:"points_to_use"`
 	IdempotencyKey   string  `json:"idempotency_key" binding:"required"`
+}
+
+func (req *TVSubRequest) GetRewardFields() (bool, float32) {
+	return req.UseRewardPoints, req.PointsToUse
 }
 
 type TVSubResponse struct {
@@ -225,25 +237,29 @@ type ElectricityRequest struct {
 	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
 }
 
+func (req *ElectricityRequest) GetRewardFields() (bool, float32) {
+	return req.UseRewardPoints, req.PointsToUse
+}
+
 type ElectricityResponse struct {
-	Amount               decimal.Decimal `json:"amount"`
-	AmountPaid           float64         `json:"amount_paid"`
-	BonusEarned          float64         `json:"bonus_earned"`
-	TransactionType      string          `json:"transaction_type"`
-	Date                 time.Time       `json:"transaction_date"`
-	TransactionReference string          `json:"transaction_reference"`
-	Status               string          `json:"status"`
-	CustomerName         string          `json:"customer_name"`
-	CustomerAddress      string          `json:"customer_address"`
-	Token                string          `json:"token"`
-	Units                string          `json:"units"`
-	ProviderRequestID    string          `json:"provider_request_id"`
-	TokenAmount          any             `json:"token_amount"`
-	MeterNumber          string          `json:"meter_number"`
-	TaxAmount            any             `json:"tax"`
-	Debt                 any             `json:"debt"`
-	FixChargeAmount      any             `json:"fixChargeAmount"`
-	PointsUsed           float64         `json:"cashback_used"`
+	Amount               string    `json:"amount"`
+	AmountPaid           float64   `json:"amount_paid"`
+	BonusEarned          float64   `json:"bonus_earned"`
+	TransactionType      string    `json:"transaction_type"`
+	Date                 time.Time `json:"transaction_date"`
+	TransactionReference string    `json:"transaction_reference"`
+	Status               string    `json:"status"`
+	CustomerName         string    `json:"customer_name"`
+	CustomerAddress      string    `json:"customer_address"`
+	Token                string    `json:"token"`
+	Units                string    `json:"units"`
+	ProviderRequestID    string    `json:"provider_request_id"`
+	TokenAmount          any       `json:"token_amount"`
+	MeterNumber          string    `json:"meter_number"`
+	TaxAmount            any       `json:"tax"`
+	Debt                 any       `json:"debt"`
+	FixChargeAmount      any       `json:"fixChargeAmount"`
+	PointsUsed           float64   `json:"cashback_used"`
 }
 
 type BillTransaction struct {
@@ -406,4 +422,50 @@ type StablecoinMetadataResponse struct {
 	SentAmount           string    `json:"sent_amount"`
 	ServiceProvider      string    `json:"service_provider"`
 	ServiceTransactionID string    `json:"service_transaction_id"`
+}
+
+type WalletTransferRequest struct {
+	Currency           string  `json:"currency" binding:"required"`
+	Amount             float64 `json:"amount" binding:"required"`
+	DestinationUserTag string  `json:"target_user_tag" binding:"required"`
+	Description        string  `json:"description"`
+	Pin                string  `json:"pin" binding:"required"`
+	IdempotencyKey     string  `json:"idempotency_key" binding:"required"`
+}
+
+type WalletTransferResponse struct {
+	Sender     string    `json:"sender"`
+	Recipient  string    `json:"recipient"`
+	Amount     float32   `json:"amount"`
+	AmountPaid float64   `json:"amount_paid"`
+	Remark     string    `json:"remark"`
+	Type       string    `json:"transaction_type"`
+	Date       time.Time `json:"date"`
+	Status     string    `json:"status"`
+	Reference  string    `json:"reference"`
+}
+
+type BankTransferRequest struct {
+	Name            string  `json:"name" binding:"required"`
+	AccountNumber   string  `json:"account_number" binding:"required"`
+	BankCode        string  `json:"bank_code" binding:"required"`
+	Amount          float64 `json:"amount" binding:"required"`
+	Pin             string  `json:"pin" binding:"required"`
+	SaveBeneficiary bool    `json:"save_beneficiary,omitempty"`
+	Description     string  `json:"description,omitempty"`
+	IdempotencyKey  string  `json:"idempotency_key" binding:"required"`
+}
+
+type BankTransferResponse struct {
+	Sender         string    `json:"sender"`
+	Recipient      string    `json:"recipient"`
+	Account_number string    `json:"account_number"`
+	BankCode       string    `json:"bank_code"`
+	Amount         float64   `json:"amount"`
+	AmountPaid     float64   `json:"amount_paid"`
+	Remark         string    `json:"remark"`
+	Type           string    `json:"transaction_type"`
+	Date           time.Time `json:"date"`
+	Status         string    `json:"status"`
+	Reference      string    `json:"reference"`
 }

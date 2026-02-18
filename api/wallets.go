@@ -17,12 +17,9 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
-	"github.com/SwiftFiat/SwiftFiat-Backend/api/errors"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
-	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
@@ -31,7 +28,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 type Wallet struct {
@@ -60,7 +56,6 @@ func (w Wallet) router(server *Server) {
 	serverGroupV1.GET("transactions-cursor", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionsCursor)
 	serverGroupV1.GET("transactions/:id", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransaction)
 	serverGroupV1.POST("transfer", w.server.authMiddleware.AuthenticatedMiddleware(), w.walletTransfer)
-	serverGroupV1.POST("swap", w.server.authMiddleware.AuthenticatedMiddleware(), w.swap)
 	serverGroupV1.GET("banks", w.server.authMiddleware.AuthenticatedMiddleware(), w.banks)
 	serverGroupV1.GET("resolve-bank-account", w.server.authMiddleware.AuthenticatedMiddleware(), w.resolveBankAccount)
 	serverGroupV1.GET("resolve-user-tag", w.server.authMiddleware.AuthenticatedMiddleware(), w.resolveUserTag)
@@ -437,48 +432,20 @@ func (w *Wallet) getTransactionsCursor(ctx *gin.Context) {
 
 }
 
-// walletTransfer godoc
-// @Summary      Transfer Between Wallets
-// @Description  Performs a transfer between user wallets. This endpoint handles internal transfers between users' wallets.
-// @Tags         Wallets
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        request  body      object  true  "Transfer Request"  SchemaExample({"source_account":"uuid","destination_account":"uuid","amount":100.00,"target_user_tag":"user123","description":"Transfer description","pin":"1234"})
-// @Success      200      {object}  transaction.TransactionResponse[transaction.SwapTransferMetadataResponse]
-// @Failure      400      {object}  basemodels.ErrorResponse
-// @Failure      401      {object}  basemodels.ErrorResponse
-// @Failure      403      {object}  basemodels.ErrorResponse
-// @Failure      500      {object}  basemodels.ErrorResponse
-// @Router       /api/v1/wallets/transfer [post]
 func (w *Wallet) walletTransfer(ctx *gin.Context) {
-
-	/// Active USER must OWN source wallet
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
-	// Transfer Type -> Wallet -> Withdrawal -> Swap
-	// Call the appropriate walletService handler based on type
-
-	// Observe request
-	request := struct {
-		FromAccountID      string  `json:"source_account"`
-		ToAccountID        string  `json:"destination_account"`
-		Amount             float64 `json:"amount"`
-		DestinationUserTag string  `json:"target_user_tag"`
-		Description        string  `json:"description"`
-		Pin                string  `json:"pin"`
-	}{}
+	var request transaction.WalletTransferRequest
 
 	if err := ctx.ShouldBindJSON(&request); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	user, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
@@ -488,216 +455,22 @@ func (w *Wallet) walletTransfer(ctx *gin.Context) {
 		return
 	}
 
-	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
+	if err = utils.VerifyHashValue(request.Pin, user.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return
 	}
 
-	sourceAccount, err := uuid.Parse(request.FromAccountID)
+	response, err := w.transactionService.HandleWalletTransfer(ctx, &user, request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account seems to be wrong"))
+		ctx.JSON(500, basemodels.NewError(err.Error()))
 		return
 	}
 
-	destinationAccount, err := uuid.Parse(request.ToAccountID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("destination account seems to be wrong"))
-		return
+	switch response.Status {
+	case "successful":
+		ctx.JSON(200, basemodels.NewSuccess("Transfer Successful", response))
+
 	}
-
-	if sourceAccount == destinationAccount {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source and destination cannot be same"))
-		return
-	}
-
-	wallett, err := w.server.queries.GetWallet(ctx, sourceAccount)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account not found"))
-		return
-	}
-
-	amount := decimal.NewFromFloat(request.Amount)
-
-	tparams := transaction.IntraTransaction{
-		FromAccountID: sourceAccount,
-		ToAccountID:   destinationAccount,
-		SentAmount:    amount,
-		// ReceivedAmount: to be set after rate is decided
-		UserTag:     request.DestinationUserTag,
-		Description: request.Description,
-		Type:        transaction.Transfer,
-	}
-
-	tObj, err := w.transactionService.CreateWalletTransaction(ctx, tparams, &activeUser)
-	if err != nil {
-		w.server.logger.Error(err)
-		if wallError, ok := err.(*wallet.WalletError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
-			return
-		}
-		if currError, ok := err.(*currency.CurrencyError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(currError.ErrorOut()))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// Audit Log
-	entry := audit.NewTransactionLog(audit.EventWalletTransferCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
-	entry.Metadata = map[string]any{
-		"from_account":        request.FromAccountID,
-		"to_account":          request.ToAccountID,
-		"destination_usertag": request.DestinationUserTag,
-		"description":         request.Description,
-		"type":                tObj.Type,
-		"status":              tObj.Status,
-	}
-	w.audit.Log(entry)
-
-	destUser, err := w.server.queries.GetUserNameByUserTag(ctx, sql.NullString{String: request.DestinationUserTag, Valid: true})
-	hasDestUser := true
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to get destination user for wallet transfer notification: %s", err))
-		hasDestUser = false
-	}
-
-	go func() {
-		// Notifications
-		_, err = w.notifr.CreateWithRecipients(ctx, nil, "Outgoing Wallet Transfer", fmt.Sprintf("Transfer of %.2f %s was successful", request.Amount, wallett.Currency), "system", []int64{activeUser.UserID})
-		w.pushService.SendWalletTransfer(ctx, activeUser.UserID, request.Amount)
-		if hasDestUser {
-			w.notifr.CreateWithRecipients(ctx, nil, "Incoming Wallet Transfer", fmt.Sprintf("You have received a transfer of %.2f %s", request.Amount, wallett.Currency), "system", []int64{destUser.ID})
-			w.pushService.RecieveWalletTransfer(ctx, int64(destUser.ID), request.Amount)
-		}
-	}()
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Created Successfully", tObj))
-}
-
-// swap godoc
-// @Summary      Swap Between Currencies
-// @Description  Performs a currency swap between user's wallets. This endpoint handles currency conversion between supported currencies.
-// @Tags         Wallets
-// @Accept       json
-// @Produce      json
-// @Security     BearerAuth
-// @Param        request  body      object  true  "Swap Request"  SchemaExample({"source_account":"uuid","destination_account":"uuid","amount":100.00,"description":"Swap description","pin":"1234"})
-// @Success      200      {object}  transaction.TransactionResponse[transaction.SwapTransferMetadataResponse]
-// @Failure      400      {object}  basemodels.ErrorResponse
-// @Failure      401      {object}  basemodels.ErrorResponse
-// @Failure      403      {object}  basemodels.ErrorResponse
-// @Failure      500      {object}  basemodels.ErrorResponse
-// @Router       /api/v1/wallets/swap [post]
-func (w *Wallet) swap(ctx *gin.Context) {
-
-	/// Active USER must OWN source wallet
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	// Observe request
-	request := struct {
-		FromAccountID string  `json:"source_account"`
-		ToAccountID   string  `json:"destination_account"`
-		Amount        float64 `json:"amount"`
-		Description   string  `json:"description"`
-		Pin           string  `json:"pin"`
-	}{}
-
-	if err := ctx.ShouldBindJSON(&request); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionInput))
-		return
-	}
-
-	kycUser, err := w.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-	if err != nil {
-		if err == sql.ErrNoRows {
-			ctx.JSON(errors.KYCNotActive, basemodels.NewError(errors.KYCNotActiveMessage))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
-
-	if kycUser.Status != "active" {
-		ctx.JSON(errors.KYCNotActive, basemodels.NewCustomResponse("failed", errors.KYCNotActiveMessage, models.ToUserKYCInformation(&kycUser)))
-		return
-	}
-
-	dbUser, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("user does not exist"))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
-		return
-	}
-
-	if err = utils.VerifyHashValue(request.Pin, dbUser.HashedPin.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
-		return
-	}
-
-	sourceAccount, err := uuid.Parse(request.FromAccountID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source account seems to be wrong"))
-		return
-	}
-
-	destinationAccount, err := uuid.Parse(request.ToAccountID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("destination account seems to be wrong"))
-		return
-	}
-
-	if sourceAccount == destinationAccount {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("source and destination cannot be same"))
-		return
-	}
-
-	amount := decimal.NewFromFloat(request.Amount)
-
-	tparams := transaction.IntraTransaction{
-		FromAccountID: sourceAccount,
-		ToAccountID:   destinationAccount,
-		SentAmount:    amount,
-		// ReceivedAmount: to be set after rate is decided
-		Description: request.Description,
-		Type:        transaction.Swap,
-	}
-
-	tObj, err := w.transactionService.CreateWalletTransaction(ctx, tparams, &activeUser)
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to create wallet transaction: %s", err))
-		if wallError, ok := err.(*wallet.WalletError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
-			return
-		}
-		if currError, ok := err.(*currency.CurrencyError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(currError.ErrorOut()))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// audit log
-	entry := audit.NewTransactionLog(audit.EventWalletSwapCreated, tObj.ID.String(), activeUser.Role, activeUser.UserID, request.Amount, "", true)
-	entry.Metadata = map[string]any{
-		"from_account": request.FromAccountID,
-		"to_account":   request.ToAccountID,
-		"description":  request.Description,
-		"type":         tObj.Type,
-		"status":       tObj.Status,
-	}
-
-	w.notifr.CreateWithRecipients(ctx, nil, "Successful Swap Transaction", fmt.Sprintf("Swap transaction of %f was successful", request.Amount), "system", []int64{activeUser.UserID})
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Swapped Successfully", tObj))
 }
 
 // banks godoc
@@ -846,21 +619,11 @@ type FiatTransferResponse struct {
 // @Failure      500     {object}  basemodels.ErrorResponse
 // @Router       /api/v1/wallets/withdraw [post]
 func (w *Wallet) fiatTransfer(ctx *gin.Context) {
-
-	request := struct {
-		Name            string `json:"name" binding:"required"`
-		AccountNumber   string `json:"account_number" binding:"required"`
-		BankCode        string `json:"bank_code" binding:"required"`
-		WalletID        string `json:"wallet_id" binding:"required"`
-		Amount          int64  `json:"amount" binding:"required"`
-		Pin             string `json:"pin" binding:"required"`
-		SaveBeneficiary bool   `json:"save_beneficiary,omitempty"`
-	}{}
-
+	var request transaction.BankTransferRequest
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
 		w.server.logger.Error(err)
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please check your entered details: 'name', 'account_numner', 'bank_code', 'wallet_id', 'amount' and 'pin'"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
@@ -868,26 +631,6 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	provider, exists := w.server.provider.GetProvider(providers.Paystack)
-	if !exists {
-		w.server.logger.Error("FIAT Provider does not exist - Paystack")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	fiatProvider, ok := provider.(*fiat.PaystackProvider)
-	if !ok {
-		w.server.logger.Error("could not resolve to FIAT Provider - Paystack")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	walletUUID, err := uuid.Parse(request.WalletID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("failed to parse wallet ID, please use correct wallet"))
 		return
 	}
 
@@ -906,124 +649,21 @@ func (w *Wallet) fiatTransfer(ctx *gin.Context) {
 		return
 	}
 
-	w.server.logger.Info("starting fiat withrawal transaction")
-
-	// Start transaction
-	dbTx, err := w.server.queries.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
+	response, err := w.transactionService.HandleBankTransfer(ctx, &dbUserValue, &request)
 	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to begin transaction: %s", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		ctx.JSON(500, basemodels.NewError(err.Error()))
 		return
 	}
-	defer dbTx.Rollback()
-
-	// Create Withdrawal Transaction
-	transactionInfo, err := w.transactionService.CreateFiatOutflowTransactionWithTx(ctx, dbTx, &dbUserValue, transaction.FiatTransaction{
-		SourceWalletID:             walletUUID,
-		DestinationAccountName:     request.Name,
-		DestinationAccountNumber:   request.AccountNumber,
-		DestinationAccountBankCode: request.BankCode,
-		DestinationAccountCurrency: "NGN",
-		Description:                "withdrawal-from-swift",
-		Type:                       transaction.Withdrawal,
-		SentAmount:                 decimal.NewFromInt(request.Amount),
-	})
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to debit customer: %s", err))
-		if wallError, ok := err.(*wallet.WalletError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(wallError.ErrorOut()))
-			return
-		}
-		if currError, ok := err.(*currency.CurrencyError); ok {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError(currError.ErrorOut()))
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+	if response.Status == "failed" {
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer failed", response))
+		return
+	}
+	if response.Status == "pending" {
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer pending", response))
 		return
 	}
 
-	recipientInfo, err := fiatProvider.CreateTransferRecipient(request.AccountNumber, request.BankCode, request.Name)
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	parsedAmount, err := decimal.NewFromString(transactionInfo.Metadata.SentAmount)
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to parse amount from transaction: %s", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// Convert transaction amount back to smallest denom of source wallet as required by FiatProvier - Paystack
-	paystackAmount := parsedAmount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
-	if paystackAmount == 0 {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("cannot withdraw 0 amount"))
-		return
-	}
-
-	_, err = fiatProvider.MakeTransfer(recipientInfo.RecipientCode, paystackAmount, request.Name)
-	if err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// Try to save beneficiary
-	_, err = w.server.queries.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
-		UserID: sql.NullInt64{
-			Int64: activeUser.UserID,
-			Valid: true,
-		},
-		AccountNumber:   request.AccountNumber,
-		BeneficiaryName: request.Name,
-		BankCode:        request.BankCode,
-	})
-
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		w.server.logger.Error(fmt.Errorf("failed to perform transaction: %s", err))
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	w.server.logger.Info("fiat withdrawal transaction completed successfully", transactionInfo)
-
-	w.server.logger.Info("transaction (withdraw) completed successfully")
-	var savedBeneficiary bool = true
-
-	if err != nil {
-		w.server.logger.Error(err)
-		savedBeneficiary = false
-	}
-
-	// response := struct {
-	// 	TransactionInfo  transaction.TransactionResponse[transaction.FiatWithdrawalMetadataResponse] `json:"transaction"`
-	// 	SavedBeneficiary bool                                                                        `json:"saved_beneficiary"`
-	// }{
-	// 	TransactionInfo:  *transactionInfo,
-	// 	SavedBeneficiary: savedBeneficiary,
-	// }
-
-	// audit log
-	entry := audit.NewTransactionLog(audit.EventFiatTransferCreated, transactionInfo.ID.String(), activeUser.Role, activeUser.UserID, float64(request.Amount), "", true)
-	entry.Metadata = map[string]any{
-		"wallet_id":        request.WalletID,
-		"account_number":   request.AccountNumber,
-		"bank_code":        request.BankCode,
-		"amount":           request.Amount,
-		"save_beneficiary": request.SaveBeneficiary,
-		"type":             transactionInfo.Type,
-		"status":           transactionInfo.Status,
-	}
-
-	w.notifr.CreateWithRecipients(ctx, nil, "Successful Transfer", fmt.Sprintf("Transfer of %d was successful", paystackAmount), "system", []int64{activeUser.UserID})
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", FiatTransferResponse{
-		TransactionInfo:  *transactionInfo,
-		SavedBeneficiary: savedBeneficiary,
-	}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("transfer successful", response))
 }
 
 // createTransactionFee godoc

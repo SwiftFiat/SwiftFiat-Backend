@@ -315,7 +315,7 @@ func (ys *YieldService) creditYieldToVault(
 	}
 
 	// Create vault transaction for yield credit
-	transactionRef := utils.NewTxRef("yield")
+	transactionRef := utils.WatRequestID()
 	balanceBefore := vault.CurrentBalance
 	balanceAfter := newBalance.StringFixed(4)
 
@@ -331,8 +331,12 @@ func (ys *YieldService) creditYieldToVault(
 		Amount:          result.YieldAmount,
 		Currency:        vault.Currency,
 		AmountUsd:       amountUsd.String(),
+		IdempotencyKey:  utils.WatRequestID(),
 		Status:          string(transaction.Success),
 		TransactionFlow: string(transaction.InPlatform),
+		Direction:       string(transaction.Credit),
+		TTo:             string(transaction.Vault),
+		TFrom:           "Platform",
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create transaction record: %w", err)
@@ -393,11 +397,11 @@ func (ys *YieldService) creditYieldToVault(
 
 	// Mark yield as credited
 	err = qtx.UpdateYieldStatus(ctx, db.UpdateYieldStatusParams{
-		ID:     yieldRecord.ID,
+		ID:      yieldRecord.ID,
 		Column2: "credited",
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update yield status: %w", err) 
+		return fmt.Errorf("failed to update yield status: %w", err)
 	}
 
 	// Commit transaction

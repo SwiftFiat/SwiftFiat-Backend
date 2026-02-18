@@ -22,5 +22,5 @@ journalctl -u swiftfiat -n 10 --no-pager
 
 echo "✅ Deployment complete!"
 
-# sudo systemctl stop 
+# sudo systemctl stop swiftfiat
 # sudo journalctl -u swiftfiat -f

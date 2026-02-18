@@ -35,6 +35,40 @@ CREATE TABLE IF NOT EXISTS "swap_transfer_metadata" (
     CONSTRAINT "unique_swift_wallet_transaction" UNIQUE (transaction_id)
 ); 
 
+CREATE TABLE IF NOT EXISTS "wallet_transfer_metadata" (
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    "currency" VARCHAR(3) NOT NULL,
+    "type" VARCHAR(10) NOT NULL CHECK(type IN ('debit', 'credit')),
+    "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    "sender" BIGINT REFERENCES users(id) NOT NULL,
+    "recipient" BIGINT REFERENCES users(id) NOT NULL, 
+    "service_charge" DECIMAL(10,2), -- determines fees charged to transaction initiator (i.e. sender)
+    "amount" DECIMAL(10,2) NOT NUlL,
+    "amount_paid" DECIMAL(10,2),
+    "bonus_earned" DECIMAL(10,2),
+    "reference" VARCHAR(250) NOT NULL UNIQUE,
+    "description" TEXT NOT NULL,
+    "status" VARCHAR(20) NOT NULL,
+    "date" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT "unique_swiift_wallet_transaction" UNIQUE (transaction_id)
+); 
+CREATE INDEX idx_wallet_transfer_sender 
+ON wallet_transfer_metadata(sender);
+
+CREATE INDEX idx_wallet_transfer_recipient 
+ON wallet_transfer_metadata(recipient);
+
+CREATE INDEX idx_wallet_transfer_date 
+ON wallet_transfer_metadata(date DESC);
+
+CREATE INDEX idx_wallet_transfer_reference 
+ON wallet_transfer_metadata(reference);
+
+CREATE INDEX idx_wallet_sender_date 
+ON wallet_transfer_metadata(sender, date DESC);
+
+
+
 -- Crypto transaction metadata
 CREATE TABLE IF NOT EXISTS "crypto_transaction_metadata" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -66,22 +100,33 @@ CREATE TABLE IF NOT EXISTS "giftcard_transaction_metadata" (
     CONSTRAINT "unique_transaction_giftcard" UNIQUE (transaction_id)
 );
 
--- Fiat withdrawal metadata
-CREATE TABLE IF NOT EXISTS "fiat_withdrawal_metadata" (
-    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "source_wallet" UUID REFERENCES swift_wallets(id), -- wallet from which withdrawal is initiated
-    "rate" DECIMAL(19,4), -- rate from source to destination FIAT account
-    "received_amount" DECIMAL(19,4), -- amount received into FIAT account
-    "sent_amount" DECIMAL(19,4), -- amount pulled from the wallet in the wallet's currency
-    "fees" DECIMAL(19,4), -- determines platform charges to sender's wallet
-    "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-    "account_name" VARCHAR(100), -- FIAT account name
-    "bank_code" VARCHAR(20), -- FIAT account's bank code
-    "account_number" VARCHAR(20), -- FIAT account's NUBAN
-    "service_provider" VARCHAR(100), -- e.g., Paystack
-    "service_transaction_id" VARCHAR(100), -- e.g to track the withdrawal at service provider level
-    CONSTRAINT "unique_transaction_fiat" UNIQUE (transaction_id)
+CREATE TABLE IF NOT EXISTS bank_transfer_metadata (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    amount DECIMAL(19,2) NOT NULL,
+    service_charge DECIMAL(10,2) NOT NULL,
+    transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
+    account_name VARCHAR(100) NOT NULL,
+    account_number VARCHAR(20) NOT NULL,
+    service_provider VARCHAR(100),
+    type VARCHAR(10) NOT NULL CHECK(type IN ('debit', 'credit')),
+    service_transaction_id VARCHAR(100),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('pending','failed','successful')),
+    date TIMESTAMPTZ NOT NULL DEFAULT now(),
+    amount_paid DECIMAL(19,2) NOT NULL,
+    points_earned DECIMAL(19,2),
+    CONSTRAINT unique_transaction_fiat UNIQUE (transaction_id)
 );
+CREATE INDEX idx_bank_transfer_status
+ON bank_transfer_metadata(status);
+CREATE INDEX idx_bank_transfer_service_tx
+ON bank_transfer_metadata(service_transaction_id);
+CREATE INDEX idx_bank_transfer_account_number
+ON bank_transfer_metadata(account_number);
+CREATE INDEX idx_bank_transfer_date
+ON bank_transfer_metadata(date DESC);
+CREATE INDEX idx_bank_transfer_status_date
+ON bank_transfer_metadata(status, date);
+
 
 -- Services metadata for services like TV subscription, airtime-data purchase, etc.
 CREATE TABLE IF NOT EXISTS "services_metadata" (
@@ -198,13 +243,11 @@ CREATE INDEX IF NOT EXISTS idx_transactions_created_at ON transactions(created_a
 CREATE INDEX IF NOT EXISTS idx_swap_transfer_transaction_id ON swap_transfer_metadata(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_crypto_transaction_id ON crypto_transaction_metadata(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_giftcard_transaction_id ON giftcard_transaction_metadata(transaction_id);
-CREATE INDEX IF NOT EXISTS idx_fiat_transaction_id ON fiat_withdrawal_metadata(transaction_id);
 CREATE INDEX IF NOT EXISTS idx_services_transaction_id ON services_metadata(transaction_id);
 -- Other metadata table indexes
 CREATE INDEX IF NOT EXISTS idx_swap_transfer_source_wallet ON swap_transfer_metadata(source_wallet);
 CREATE INDEX IF NOT EXISTS idx_crypto_source_hash ON crypto_transaction_metadata(source_hash);
 CREATE INDEX IF NOT EXISTS idx_giftcard_source_wallet ON giftcard_transaction_metadata(source_wallet);
-CREATE INDEX IF NOT EXISTS idx_fiat_withdrawal_source_wallet ON fiat_withdrawal_metadata(source_wallet);
 CREATE INDEX IF NOT EXISTS idx_services_metadata_source_wallet ON services_metadata(source_wallet);
 
 
@@ -227,5 +270,4 @@ COMMENT ON TABLE transactions IS 'Core transaction table storing all financial t
 COMMENT ON TABLE swap_transfer_metadata IS 'Metadata for wallet-to-wallet transfers and swaps';
 COMMENT ON TABLE crypto_transaction_metadata IS 'Metadata for cryptocurrency transactions';
 COMMENT ON TABLE giftcard_transaction_metadata IS 'Metadata for giftcard purchases';
-COMMENT ON TABLE fiat_withdrawal_metadata IS 'Metadata for fiat currency withdrawals';
 COMMENT ON TABLE services_metadata IS 'Metadata for service purchases like airtime and TV subscriptions';

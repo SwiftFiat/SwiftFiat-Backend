@@ -353,6 +353,22 @@ type BankAccount struct {
 	DeletedAt             sql.NullTime   `json:"deleted_at"`
 }
 
+type BankTransferMetadatum struct {
+	ID                   uuid.UUID      `json:"id"`
+	Amount               string         `json:"amount"`
+	ServiceCharge        string         `json:"service_charge"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	AccountName          string         `json:"account_name"`
+	AccountNumber        string         `json:"account_number"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	Type                 string         `json:"type"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+	Status               string         `json:"status"`
+	Date                 time.Time      `json:"date"`
+	AmountPaid           string         `json:"amount_paid"`
+	PointsEarned         sql.NullString `json:"points_earned"`
+}
+
 type Beneficiary struct {
 	ID              uuid.UUID     `json:"id"`
 	UserID          sql.NullInt64 `json:"user_id"`
@@ -693,22 +709,6 @@ type FaqDocument struct {
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	Tsv          interface{}    `json:"tsv"`
-}
-
-// Metadata for fiat currency withdrawals
-type FiatWithdrawalMetadatum struct {
-	ID                   uuid.UUID      `json:"id"`
-	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
-	Rate                 sql.NullString `json:"rate"`
-	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           sql.NullString `json:"sent_amount"`
-	Fees                 sql.NullString `json:"fees"`
-	TransactionID        uuid.UUID      `json:"transaction_id"`
-	AccountName          sql.NullString `json:"account_name"`
-	BankCode             sql.NullString `json:"bank_code"`
-	AccountNumber        sql.NullString `json:"account_number"`
-	ServiceProvider      sql.NullString `json:"service_provider"`
-	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
 }
 
 type GiftCard struct {
@@ -1711,4 +1711,21 @@ type VwVipUpgradeCandidate struct {
 	EligibleLevelRank      int32          `json:"eligible_level_rank"`
 	EligibleLevelID        uuid.UUID      `json:"eligible_level_id"`
 	VolumeToNextLevel      int32          `json:"volume_to_next_level"`
+}
+
+type WalletTransferMetadatum struct {
+	ID            uuid.UUID      `json:"id"`
+	Currency      string         `json:"currency"`
+	Type          string         `json:"type"`
+	TransactionID uuid.UUID      `json:"transaction_id"`
+	Sender        int64          `json:"sender"`
+	Recipient     int64          `json:"recipient"`
+	ServiceCharge sql.NullString `json:"service_charge"`
+	Amount        string         `json:"amount"`
+	AmountPaid    sql.NullString `json:"amount_paid"`
+	BonusEarned   sql.NullString `json:"bonus_earned"`
+	Reference     string         `json:"reference"`
+	Description   string         `json:"description"`
+	Status        string         `json:"status"`
+	Date          time.Time      `json:"date"`
 }

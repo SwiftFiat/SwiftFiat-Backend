@@ -1522,7 +1522,7 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 		"description": goal.Description,
 		"goal_amount": goal.GoalAmount,
 	}
-	newValues := make(map[string]interface{})
+	newValues := make(map[string]any)
 	if req.Name != nil {
 		newValues["name"] = *req.Name
 	}
@@ -1606,7 +1606,7 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
 	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
-	auditLog.OldValues = map[string]interface{}{
+	auditLog.OldValues = map[string]any{
 		"id":             goal.ID,
 		"user_id":        goal.UserID,
 		"name":           goal.VaultName,
