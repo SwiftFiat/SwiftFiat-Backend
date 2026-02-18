@@ -19,8 +19,8 @@ WHERE id = $3 RETURNING *;
 -- name: GetUserByID :one
 SELECT * FROM users WHERE id = $1;
 
--- name: GetUserNameByUserTag :one
-SELECT first_name, last_name, email, id FROM users WHERE user_tag = $1;
+-- name: GetUserByTag :one
+SELECT * FROM users WHERE user_tag = $1;
 
 -- name: CheckUserTag :one
 SELECT EXISTS (

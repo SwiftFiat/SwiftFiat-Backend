@@ -232,14 +232,14 @@ func NewServer(envPath string) *Server {
 	// currency service
 	cs := currency.NewCurrencyService(q, l)
 
-	// transaction service
-	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, pn, streakScheduler, bp, rs, ads, r)
-
 	// smart conversion exchange rate service
 	scex := exchangerate.NewExchangeRateService(cryptomus, l)
 
 	// Rates manager
 	rm := ratemanager.NewService(q, scex, ads, l)
+
+	// transaction service
+	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, pn, streakScheduler, bp, rs, ads, r, fp, rm)
 
 	// qrcode service
 	qr := rapidramp.NewQRCodeService(q, l, cryptomus, p, c, rm)
@@ -436,6 +436,18 @@ func (s *Server) Start() error {
 			s.logger.Error("Failed to start price alert scheduler", "error", err)
 		}
 	}
+
+	// Start bill transaction reconciler
+	// Fixes the crash-between-debit-and-commit window for airtime, data, TV, and electricity purchases
+	go func() {
+		ticker := time.NewTicker(60 * time.Second)
+		defer ticker.Stop()
+		for range ticker.C {
+			if err := s.transactionService.ReconcilePendingBillTransactions(context.Background()); err != nil {
+				s.logger.Error("bill reconciler error", "error", err)
+			}
+		}
+	}()
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))
 	return err

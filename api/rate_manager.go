@@ -13,7 +13,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 )
 
 type RateManagerHandler struct {
@@ -571,17 +570,11 @@ func (r *RateManagerHandler) GetCurrentRateWithAdjustment(c *gin.Context) {
 
 	from := c.Query("from")
 	to := c.Query("to")
-	amountStr := c.Query("amount")
+	amount := c.Query("amount")
 	user_id := activeUser.UserID
 
-	if from == "" || to == "" || amountStr == "" {
+	if from == "" || to == "" || amount == "" {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("Missing required parameters: from, to, amount"))
-		return
-	}
-
-	amount, err := decimal.NewFromString(amountStr)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 

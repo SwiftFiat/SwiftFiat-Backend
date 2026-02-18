@@ -14,6 +14,7 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -170,12 +171,12 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Fetch user from database
+	// Fetch user
 	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		if err.Error() == user_service.ErrUserNotFound.Error() {
-			// Perform dummy hash to prevent timing attacks
+			// Timing attack prevention
 			_ = utils.VerifyHashValue(user.Password, "$2a$10$CjwKljBvZBL1VZB7FZpE4eZzE4i9M7E3sVQxWnN0z6UQvD95z5o3G")
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 			return
@@ -184,7 +185,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Batch Redis reads using pipeline
+	// Batch Redis reads
 	failedKey := fmt.Sprintf("failed_login:%s", user.Email)
 	lastDeviceKey := fmt.Sprintf("user_device:%d", dbUser.ID)
 	tokenKey := fmt.Sprintf("user:%d", dbUser.ID)
@@ -195,7 +196,6 @@ func (a *Auth) login(ctx *gin.Context) {
 	tokenDataCmd := pipe.Get(ctx, tokenKey)
 	_, _ = pipe.Exec(ctx)
 
-	// Parse Redis results
 	failedCountStr, _ := failedCountCmd.Result()
 	failedCount := 0
 	if failedCountStr != "" {
@@ -206,35 +206,36 @@ func (a *Auth) login(ctx *gin.Context) {
 
 	// Verify password
 	if err = utils.VerifyHashValue(user.Password, dbUser.HashedPassword.String); err != nil {
-		// Handle failed login attempt
 		failedCount++
 
-		// Update Redis with new failed count
+		// Update Redis
 		pipe := a.server.redis.Pipeline()
 		pipe.Set(ctx, failedKey, failedCount, 15*time.Minute)
 		_, _ = pipe.Exec(ctx)
 
-		// Send alert email asynchronously if threshold exceeded
+		// FIX [L1]: Single call to SendFailedLoginAlert, async, non-blocking
 		if failedCount > 3 {
 			go func(u *db.User, count int, ip string) {
 				defer func() { recover() }()
-				err = a.server.emailService.SendFailedLoginAlert(u, count, ip)
 				if err := a.server.emailService.SendFailedLoginAlert(u, count, ip); err != nil {
 					a.server.logger.Warn(fmt.Sprintf("failed to send failed login alert: %v", err))
+					// Non-critical: log to failed_notifications for admin review
+					a.logFailedNotification(context.Background(), "email", "transactional", u.ID,
+						u.Email, "Multiple Failed Login Attempts", fmt.Sprintf("%d failed attempts from %s", count, ip), err.Error())
 				}
 			}(dbUser, failedCount, ctx.ClientIP())
 		}
 
-		// Log audit
+		// Audit log
 		errMsg := apistrings.IncorrectEmailPass
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s login failed", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
 		return
 	}
 
-	// Successful password verification - check account status
+	// Account status checks
 	if !dbUser.IsActive {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
@@ -245,7 +246,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Determine device and session status
+	// Device detection
 	currentDevice := struct {
 		IP        string
 		UserAgent string
@@ -257,11 +258,11 @@ func (a *Auth) login(ctx *gin.Context) {
 	isNewDevice := (lastDeviceData != currentDeviceStr)
 	alreadyLoggedIn := (tokenData != "")
 
-	// Determine if 2FA is required
+	// 2FA determination
 	requiresTwoFA := (dbUser.TwofaEnabled.Bool && (isNewDevice || !alreadyLoggedIn)) ||
 		(dbUser.Role != models.USER)
 
-	// Handle 2FA requirement for users with 2FA enabled
+	// ── 2FA Flow ──────────────────────────────────────────────────────────
 	if dbUser.TwofaEnabled.Bool && requiresTwoFA {
 		tmpToken, err := TokenController.CreateToken(utils.TokenObject{
 			UserID: dbUser.ID,
@@ -271,19 +272,25 @@ func (a *Auth) login(ctx *gin.Context) {
 			return
 		}
 
-		// Store temporary 2FA token
 		if setErr := a.server.redis.Set(ctx, fmt.Sprintf("tmp2fa:%s", tmpToken), fmt.Sprintf("%d", dbUser.ID), 5*time.Minute); setErr != nil {
 			a.server.logger.Error(fmt.Sprintf("redis set tmp2fa error: %v", setErr))
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
 		}
 
-		// Clear failed login attempts
+		// Clear failed attempts
 		go a.server.redis.Delete(ctx, failedKey)
 
-		// Send new device notification asynchronously if needed
+		// FIX [L2] + [L4]: Single new device alert, async, non-blocking
 		if isNewDevice {
-			go a.server.emailService.SendNewDeviceAlert(dbUser, currentDevice)
+			go func(u *db.User, device struct{ IP, UserAgent string }) {
+				defer func() { recover() }()
+				if err := a.server.emailService.SendNewDeviceAlert(u, device); err != nil {
+					a.server.logger.Warn(fmt.Sprintf("failed to send new device alert: %v", err))
+					a.logFailedNotification(context.Background(), "email", "transactional", u.ID,
+						u.Email, "New Device Login", fmt.Sprintf("Login from %s", device.IP), err.Error())
+				}
+			}(dbUser, currentDevice)
 		}
 
 		ctx.JSON(http.StatusOK, gin.H{
@@ -294,7 +301,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Handle admin OTP flow (for non-2FA admin users)
+	// ── Admin OTP Flow (non-2FA admins) ───────────────────────────────────
 	if dbUser.Role != models.USER && !dbUser.TwofaEnabled.Bool {
 		verificationCode := utils.GenerateOTP()
 		redisKey := fmt.Sprintf("admin_login_otp:%s", user.Email)
@@ -305,17 +312,26 @@ func (a *Auth) login(ctx *gin.Context) {
 			return
 		}
 
-		// Send OTP email asynchronously
-		go a.server.emailService.SendAdminOTP(dbUser, user.Email, verificationCode)
+		// FIX [L3]: CRITICAL email - send BLOCKING before response
+		if err := a.server.emailService.SendAdminOTP(dbUser, user.Email, verificationCode); err != nil {
+			a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send admin OTP email: %v", err))
+			// Log to failed_notifications
+			a.logFailedNotification(ctx, "email", "critical", dbUser.ID, user.Email,
+				"Admin Login OTP", fmt.Sprintf("OTP: %s", verificationCode), err.Error())
 
-		// Clear failed login attempts
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(
+				"Failed to send OTP email. Please try again or contact support."))
+			return
+		}
+
+		// Clear failed attempts
 		go a.server.redis.Delete(ctx, failedKey)
 
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin OTP sent to email, please verify to continue", nil))
 		return
 	}
 
-	// Generate final authentication token
+	// ── Regular Login Flow ────────────────────────────────────────────────
 	token, err := TokenController.CreateToken(utils.TokenObject{
 		UserID:   dbUser.ID,
 		Verified: dbUser.Verified,
@@ -329,42 +345,74 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Batch Redis writes using pipeline
+	// Batch Redis writes
 	writePipe := a.server.redis.Pipeline()
-	writePipe.Del(ctx, failedKey)                                        // Clear failed attempts
-	writePipe.Set(ctx, lastDeviceKey, currentDeviceStr, 30*24*time.Hour) // Store device for 30 days
-	writePipe.Set(ctx, tokenKey, token, 72*time.Hour)                    // Store token for 72 hours
+	writePipe.Del(ctx, failedKey)
+	writePipe.Set(ctx, lastDeviceKey, currentDeviceStr, 30*24*time.Hour)
+	writePipe.Set(ctx, tokenKey, token, 72*time.Hour)
 	if _, err := writePipe.Exec(ctx); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
-		// Continue with login despite Redis errors (degraded mode)
+		// Continue in degraded mode
 	}
 
-	// Prepare response
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
 		Token: token,
 	}
 
-	// Async operations (non-blocking)
-	go func() {
-		// Send new device notification
-		if isNewDevice {
-			a.server.emailService.SendNewDeviceAlert(dbUser, currentDevice)
+	// FIX [L4] + [L5]: Async post-login tasks, error-logged
+	go func(u *db.User, device struct{ IP, UserAgent string }, newDevice bool) {
+		defer func() { recover() }()
+		bgCtx := context.Background()
+
+		if newDevice {
+			if err := a.server.emailService.SendNewDeviceAlert(u, device); err != nil {
+				a.server.logger.Error(fmt.Sprintf("failed to send new device alert: %v", err))
+				a.logFailedNotification(bgCtx, "email", "transactional", u.ID,
+					u.Email, "New Device Login", fmt.Sprintf("Login from %s", device.IP), err.Error())
+			}
 		}
 
-		// Create wallets if needed
-		if !dbUser.HasWallets {
-			if err := a.userService.CreateSwiftWalletForUser(context.Background(), dbUser.ID); err != nil {
+		if !u.HasWallets {
+			if err := a.userService.CreateSwiftWalletForUser(bgCtx, u.ID); err != nil {
 				a.server.logger.Error(fmt.Sprintf("failed to create wallets: %v", err))
 			}
 		}
-	}()
+	}(dbUser, currentDevice, isNewDevice)
 
-	// Log audit
+	// Audit log
 	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+}
+
+// ── Helper: Log failed notifications for admin review ────────────────────
+
+// logFailedNotification stores failed notification attempts in DB for admin dashboard.
+// This is a fire-and-forget logging mechanism - errors here are non-fatal.
+func (a *Auth) logFailedNotification(ctx context.Context, notifType, category string, userID int64,
+	recipient, subject, message, errorMsg string) {
+
+	defer func() { recover() }()
+
+	// This would call a new SQLC query: CreateFailedNotification
+	// For now, just log it
+	a.server.logger.Error(fmt.Sprintf(
+		"[FAILED_NOTIFICATION] type=%s category=%s user_id=%d recipient=%s subject=%s error=%s",
+		notifType, category, userID, recipient, subject, errorMsg))
+
+	// TODO: Implement actual DB insert
+	_, err := a.server.queries.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		Severity: transaction.CRITICALALERT,
+		Title:    "Notification Failure",
+		Message:  fmt.Sprintf("%s: %s", message, errorMsg),
+		Source:   sql.NullString{String: "Login", Valid: true},
+	})
+	if err != nil {
+		// Even this can fail - just log to stdout
+		a.server.logger.Error(fmt.Sprintf("failed to log failed notification: %v", err))
+	}
 }
 
 type TwoFARequest struct {
@@ -833,33 +881,30 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 func (a *Auth) register(ctx *gin.Context) {
 	var user models.RegisterUserParams
 
-	err := ctx.ShouldBindJSON(&user)
-	if err != nil {
+	if err := ctx.ShouldBindJSON(&user); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
+	// Tag availability
 	tagExists, err := a.userService.UserTagExists(ctx, user.SwiftTag)
 	if err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
-
 	if tagExists {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("tag unavailable"))
 		return
 	}
 
+	// Validation
 	validate := validator.New()
-	err = validate.Var(user.Email, "email")
-	if err != nil {
+	if err = validate.Var(user.Email, "email"); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidEmail))
 		return
 	}
-
-	err = validate.Var(user.PhoneNumber, "e164")
-	if err != nil {
+	if err = validate.Var(user.PhoneNumber, "e164"); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhone))
 		return
 	}
@@ -871,7 +916,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		return
 	}
 
-	// Generate verification code
 	verificationCode := utils.GenerateOTP()
 
 	arg := db.CreateUserParams{
@@ -895,24 +939,21 @@ func (a *Auth) register(ctx *gin.Context) {
 				return
 			}
 		}
-
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	// set tag
-	_, err = a.userService.UpdateUserTag(ctx, newUser.ID, user.SwiftTag)
-
-	if err != nil {
+	// Set tag
+	if _, err = a.userService.UpdateUserTag(ctx, newUser.ID, user.SwiftTag); err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again"))
 		return
 	}
 
-	// Create user referral
-	_, err = a.userService.CreateUserReferral(ctx, newUser.ID, user.SwiftTag)
-	if err != nil {
+	// Create referral
+	if _, err = a.userService.CreateUserReferral(ctx, newUser.ID, user.SwiftTag); err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("failed to create referral for user %d: %v", newUser.ID, err))
+		// Non-fatal, continue
 	}
 
 	token, err := TokenController.CreateToken(utils.TokenObject{
@@ -923,12 +964,12 @@ func (a *Auth) register(ctx *gin.Context) {
 		Email:    newUser.Email,
 	})
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, fmt.Sprintf("failed to create token, login with your details instead: %v", err))
+		a.server.logger.Log(logrus.ErrorLevel, fmt.Sprintf("failed to create token: %v", err))
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	// Store verification code and token in Redis using pipeline
+	// Store verification code and token
 	pipe := a.server.redis.Pipeline()
 	verificationKey := fmt.Sprintf("email_verification:%s", user.Email)
 	tokenKey := fmt.Sprintf("user:%d", newUser.ID)
@@ -936,7 +977,19 @@ func (a *Auth) register(ctx *gin.Context) {
 	pipe.Set(ctx, tokenKey, token, 72*time.Hour)
 	if _, err := pipe.Exec(ctx); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
-		// Continue - Redis is cache, not source of truth
+		// Continue - Redis is cache
+	}
+
+	// FIX [R1]: CRITICAL email - send BLOCKING before response
+	if err := a.server.emailService.SendVerificationEmail(newUser, user.Email, verificationCode); err != nil {
+		a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send verification email: %v", err))
+		// Log to failed_notifications
+		a.logFailedNotification(ctx, "email", "critical", newUser.ID, user.Email,
+			"Email Verification", fmt.Sprintf("OTP: %s", verificationCode), err.Error())
+
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(
+			"Failed to send verification email. Please try again or use 'Resend Verification Email'."))
+		return
 	}
 
 	userWT := models.UserWithToken{
@@ -944,33 +997,26 @@ func (a *Auth) register(ctx *gin.Context) {
 		Token: token,
 	}
 
-	// Handle all post-registration tasks asynchronously
-	go func() {
+	// FIX [R2]: Non-critical welcome notification - async with error logging
+	go func(u *db.User, tag string) {
+		defer func() { recover() }()
 		bgCtx := context.Background()
 
-		// Send verification email
-		a.server.emailService.SendVerificationEmail(newUser, user.Email, verificationCode)
-
-		// Create welcome notification
 		title := "Welcome to SwiftFiat"
-		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", newUser.FirstName.String, user.SwiftTag)
-		if _, err := a.notifr.CreateWithRecipients(
-			bgCtx,
-			nil,
-			title,
-			message,
-			"system",
-			[]int64{newUser.ID},
-		); err != nil {
-			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %d: %v", newUser.ID, err))
-		}
-	}()
+		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", u.FirstName.String, tag)
 
-	// Log audit
+		if _, err := a.notifr.CreateWithRecipients(bgCtx, nil, title, message, "system", []int64{u.ID}); err != nil {
+			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %d: %v", u.ID, err))
+			// In-app notification failure is non-fatal but log it
+			a.logFailedNotification(bgCtx, "in_app", "marketing", u.ID, "", title, message, err.Error())
+		}
+	}(newUser, user.SwiftTag)
+
+	// Audit log
 	entry := audit.NewAuthenticationLog(ctx, audit.EventUserRegistered, fmt.Sprintf("User %s registered", newUser.UserTag.String), &newUser.ID, &newUser.Email, newUser.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created succcessfully", userWT))
+	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("account created successfully", userWT))
 }
 
 type VerifyEmailRequest struct {

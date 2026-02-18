@@ -1,0 +1,25 @@
+meta {
+  name: Validate bank details
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BaseURl}}/wallets/resolve-bank-account?accountNumber=8118773038&bankCode=999992
+  body: json
+  auth: bearer
+}
+
+params:query {
+  accountNumber: 8118773038
+  bankCode: 999992
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

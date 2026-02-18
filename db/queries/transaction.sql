@@ -80,22 +80,31 @@ SET service_transaction_id = $1
 WHERE transaction_id = $2
 RETURNING *;
 
--- name: CreateFiatWithdrawalMetadata :one
-INSERT INTO fiat_withdrawal_metadata (
-    source_wallet,
+-- name: CreateBankTransferMetadata :one
+INSERT INTO bank_transfer_metadata (
+    amount,
+    service_charge,
     transaction_id,
-    rate,
-    received_amount,
-    sent_amount,
-    fees,
     account_name,
-    bank_code,
     account_number,
     service_provider,
-    service_transaction_id
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-) RETURNING *;
+    service_transaction_id,
+    type,
+    status,
+    amount_paid,
+    points_earned
+)
+VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+)
+RETURNING *;
+
+-- name: UpdateBankTransferStatus :one
+UPDATE bank_transfer_metadata
+SET status = $2
+WHERE transaction_id = $1
+RETURNING *;
+
 
 -- name: CreateServiceMetadata :one
 INSERT INTO services_metadata (
@@ -123,18 +132,18 @@ RETURNING *;
 -- name: GetTransactionByID :one
 SELECT
     t.*,
-    COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, fw.source_wallet, sm.source_wallet) as source_wallet,
+    COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, fw.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
@@ -156,15 +165,15 @@ SELECT
         ELSE 'destination'
     END as wallet_role,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, fw.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 WHERE st.source_wallet = sqlc.arg(wallet_id)
    OR st.destination_wallet = sqlc.arg(wallet_id)
@@ -179,15 +188,15 @@ LIMIT sqlc.arg(_limit) OFFSET sqlc.arg(_offset);
 SELECT
     t.*,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
 LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
@@ -262,7 +271,7 @@ FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
@@ -306,10 +315,10 @@ wallet_transactions AS (
 
     UNION ALL
 
-    -- Get transactions from fiat_withdrawal_metadata where wallet is source
+    -- Get transactions from bank_transfer_metadata where wallet is source
     SELECT t.*, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
     FROM transactions t
-    JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+    JOIN bank_transfer_metadata bt ON t.id = fw.transaction_id
     JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
 
     UNION ALL
@@ -356,7 +365,7 @@ matching_transactions AS (
        OR cm.destination_wallet = sqlc.arg(usdc_wallet_id)
        OR cm.destination_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
-    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
     WHERE fm.source_wallet = sqlc.arg(usd_wallet_id) 
        OR fm.source_wallet = sqlc.arg(ngn_wallet_id)
        OR fm.source_wallet = sqlc.arg(usdc_wallet_id)
@@ -474,7 +483,7 @@ transaction_data AS (
                     'service_provider', fm.service_provider,
                     'service_transaction_id', fm.service_transaction_id
                 )::jsonb
-                FROM public.fiat_withdrawal_metadata fm
+                FROM public.bank_transfer_metadata fm
                 WHERE fm.transaction_id = t.id
             )
             WHEN t.type = 'giftcard' THEN (
@@ -551,7 +560,7 @@ matching_transactions AS (
        OR cm.destination_wallet = sqlc.arg(usdc_wallet_id)
        OR cm.destination_wallet = sqlc.arg(usdt_wallet_id)
     UNION ALL
-    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
     WHERE fm.source_wallet = sqlc.arg(usd_wallet_id) 
        OR fm.source_wallet = sqlc.arg(ngn_wallet_id)
        OR fm.source_wallet = sqlc.arg(usdc_wallet_id)
@@ -649,7 +658,7 @@ transaction_data AS (
                     'service_provider', fm.service_provider,
                     'service_transaction_id', fm.service_transaction_id
                 )::jsonb
-                FROM public.fiat_withdrawal_metadata fm
+                FROM public.bank_transfer_metadata fm
                 WHERE fm.transaction_id = t.id
             )
             WHEN t.type = 'giftcard' THEN (
@@ -789,7 +798,7 @@ SELECT
                         'service_provider', fm.service_provider,
                         'service_transaction_id', fm.service_transaction_id
                     )::jsonb
-                    FROM public.fiat_withdrawal_metadata fm
+                    FROM public.bank_transfer_metadata fm
                     WHERE fm.transaction_id = t.id
                 )
                 WHEN t.type = 'giftcard' THEN (
@@ -978,7 +987,7 @@ JOIN users u ON u.id = t.user_id
 LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
 LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
+LEFT JOIN bank_transfer_metadata fwm ON t.id = fwm.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
@@ -1537,3 +1546,49 @@ UPDATE electricity_purchase_metadata
 SET status = $2
 WHERE id = $1
 RETURNING *;
+
+-- name: CreateWalletTransferMetadata :one
+INSERT INTO wallet_transfer_metadata (
+    currency,
+    transaction_id,
+    sender,
+    type,
+    recipient,
+    service_charge,
+    amount,
+    amount_paid,
+    bonus_earned,
+    reference,
+    status,
+    description
+)
+VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+)
+RETURNING *;
+
+-- name: UpdateWalletTransferMetadataStatus :exec
+UPDATE wallet_transfer_metadata
+SET status = $2
+WHERE id = $1;
+
+-- name: GetPendingDataAirtimePurchaseMetadataOlderThan5Mins :many
+SELECT *
+FROM data_airtime_purchase_metadata
+WHERE status = 'pending'
+  AND date < NOW() - INTERVAL '5 minutes'
+ORDER BY date ASC;
+
+-- name: GetPendingElectricityPurchaseMetadataOlderThan5Mins :many
+SELECT * FROM electricity_purchase_metadata
+WHERE status = 'pending'
+  AND date < NOW() - INTERVAL '5 minutes'
+ORDER BY date ASC;
+
+-- name: UpdateTransactionAmountUSD :exec
+UPDATE transactions SET amount_usd = $2 WHERE id = $1;
+
+-- name: UpdateCryptoMetadataFinalAmounts :exec
+UPDATE crypto_transaction_metadata
+SET rate = $2, received_amount = $3
+WHERE transaction_id = $1;

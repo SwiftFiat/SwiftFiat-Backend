@@ -164,7 +164,7 @@ func (p *PaystackProvider) CreateTransferRecipient(accountNumber string, bankCod
 	return &response.Data, nil
 }
 
-func (p *PaystackProvider) MakeTransfer(recipient string, amount int64, beneficiaryName string) (*TransferResponse, error) {
+func (p *PaystackProvider) MakeTransfer(recipient, reference, reason string, amount int64, beneficiaryName string) (*TransferResponse, error) {
 	base, err := url.Parse(p.BaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
@@ -178,7 +178,8 @@ func (p *PaystackProvider) MakeTransfer(recipient string, amount int64, benefici
 		Source:    "balance",
 		Recipient: recipient,
 		Amount:    amount,
-		Reason:    fmt.Sprintf("SwiftFiat %v Transfer", beneficiaryName),
+		Reason:    reason,
+		Reference: reference,
 	}
 
 	resp, err := p.MakeRequest("POST", base.String(), request, nil)

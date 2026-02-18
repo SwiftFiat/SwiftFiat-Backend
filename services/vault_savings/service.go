@@ -862,7 +862,6 @@ type DepositRequest struct {
 	FromWalletID   uuid.UUID `json:"from_wallet_id" binding:"required"`
 	Amount         string    `json:"amount" binding:"required"`
 	Currency       string    `json:"currency"`
-	Reference      string    `json:"reference"`
 	Description    string    `json:"description"`
 	IdempotencyKey string    `json:"idempotency_key" binding:"required"`
 }
@@ -1160,10 +1159,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	// newWalletBalance := walletBalance.Sub(amount)
 
 	// Generate reference
-	reference := req.Reference
-	if reference == "" {
-		reference = utils.NewTxRef("vd_")
-	}
+	reference := req.IdempotencyKey
 
 	amountUsd, err := utils.ConvertToUSD(ctx, amount, vault.Currency)
 	if err != nil {
@@ -1180,7 +1176,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Pending),
 		TransactionFlow: string(transaction.InPlatform),
-		IdempotencyKey:  req.IdempotencyKey,
+		IdempotencyKey:  reference,
 		TFrom:           string(transaction.Wallet),
 		TTo:             string(transaction.Vault),
 		Direction:       string(transaction.Debit),
@@ -1260,22 +1256,6 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		// Update main transaction status to Success
-		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     maintx.ID,
-			Status: string(transaction.Failed),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update main transaction status: %w", err)
-		}
-
-		err = qtx.UpdateVaultTransactionStatus(ctx, db.UpdateVaultTransactionStatusParams{
-			ID:     vtx.ID,
-			Status: sql.NullString{String: string(transaction.Failed), Valid: true},
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to update vault transaction status: %w", err)
-		}
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
@@ -1609,13 +1589,13 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 
 	// Process the deposit
 	depositReq := DepositRequest{
-		UserID:       vault.UserID,
-		VaultID:      vault.ID,
-		FromWalletID: sourceWallet.ID,
-		Amount:       rule.Amount,
-		Currency:     vault.Currency,
-		Description:  "Recurring deposit",
-		Reference:    utils.NewTxRef("vault_auto_deposit"),
+		UserID:         vault.UserID,
+		VaultID:        vault.ID,
+		FromWalletID:   sourceWallet.ID,
+		Amount:         rule.Amount,
+		Currency:       vault.Currency,
+		Description:    "Recurring deposit",
+		IdempotencyKey: utils.WatRequestID(),
 	}
 
 	_, err = s.Deposit(ctx, depositReq)
@@ -1653,7 +1633,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 	if rule.NotifyOnSuccess {
 		user, _ := s.store.GetUserByID(ctx, vault.UserID)
 		if s.emailService != nil {
-			_ = s.emailService.SendRecurringDepositSuccessEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency, depositReq.Reference, depositDate)
+			_ = s.emailService.SendRecurringDepositSuccessEmail(ctx, &user, vault.VaultName, rule.Amount, vault.Currency, depositReq.IdempotencyKey, depositDate)
 		}
 		if s.pushService != nil {
 			_ = s.pushService.SendRecurringDepositSuccessPush(ctx, vault.UserID, vault.VaultName, rule.Amount, vault.Currency)

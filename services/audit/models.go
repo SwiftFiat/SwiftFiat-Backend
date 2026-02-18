@@ -161,7 +161,7 @@ const (
 
 	// Transfer events
 	EventWalletTransferCreated = "wallet.transfer.created"
-	EventFiatTransferCreated   = "fiat.transfer.created"
+	EventFiatTransferCreated   = "bank.transfer.created"
 
 	// Crypto events
 	EventCreateStaticWallet   = "cryptomus.wallet.created"

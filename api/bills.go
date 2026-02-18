@@ -1,12 +1,13 @@
 package api
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
+	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bills"
@@ -20,7 +21,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type Bills struct {
@@ -57,31 +57,47 @@ func (b Bills) router(server *Server) {
 	serverGroupV1.POST("buy-electricity", b.server.authMiddleware.AuthenticatedMiddleware(), b.buyElectricity)
 }
 
-// updateStreakAsync updates user streak asynchronously
-func (b *Bills) updateStreakAsync(userID int64, transactionID uuid.UUID, txType tx.TransactionType) {
-	bgCtx := context.Background()
-	if err := b.transactionService.UpdateStreakAfterBillPayment(
-		bgCtx,
-		userID,
-		transactionID,
-		txType,
-	); err != nil {
-		b.server.logger.Error(fmt.Sprintf("Failed to update streak for user %d: %v", userID, err))
+// mapBillError converts typed service errors to appropriate HTTP status codes.
+// Centralised here so all four handlers stay consistent.
+func mapBillError(ctx *gin.Context, err error) {
+	switch {
+	case errors.Is(err, transaction.ErrInsufficientBalance):
+		ctx.JSON(http.StatusUnprocessableEntity, basemodels.NewError(err.Error()))
+	case errors.Is(err, transaction.ErrTransactionPending):
+		ctx.JSON(http.StatusConflict, basemodels.NewError(err.Error()))
+	case errors.Is(err, transaction.ErrTransactionCompleted):
+		ctx.JSON(http.StatusConflict, basemodels.NewError(err.Error()))
+	case errors.Is(err, transaction.ErrInvalidVariation):
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+	default:
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 	}
 }
 
-// getCategories godoc
-// @Summary Get categories
-// @Description Get categories
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/categories [get]
-// @Security BearerAuth
+// validateBillRequest is a shared pre-flight that binds JSON, checks pin,
+// authenticates the caller, fetches userInfo, and verifies the transaction PIN.
+// Returns (userInfo, ok). If ok is false the response is already written.
+func (b *Bills) validateBillRequest(ctx *gin.Context, pin *string) (db.User, bool) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return db.User{}, false
+	}
+
+	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError(apistrings.UserNotFound))
+		return db.User{}, false
+	}
+
+	if err = utils.VerifyHashValue(*pin, userInfo.HashedPin.String); err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.InvalidTransactionPIN))
+		return db.User{}, false
+	}
+
+	return userInfo, true
+}
+
 func (b *Bills) getCategories(ctx *gin.Context) {
 	provider, exists := b.server.provider.GetProvider(providers.VTPass)
 	if !exists {
@@ -104,19 +120,6 @@ func (b *Bills) getCategories(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched bill categories", categories))
 }
 
-// getServices godoc
-// @Summary Get services
-// @Description Get services
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param identifier query string true "Identifier"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/services [get]
-// @Security BearerAuth
 func (b *Bills) getServices(ctx *gin.Context) {
 	identifier := ctx.Query("identifier")
 
@@ -147,20 +150,6 @@ func (b *Bills) getServices(ctx *gin.Context) {
 // It then returns the variations to the client
 // The cache is set to expire in 10 minutes
 // If the cache is empty, it will be set to expire in 10 seconds
-
-// getServiceVariations godoc
-// @Summary Get service variations
-// @Description Get service variations
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param service_id query string true "Service ID"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/service-variations [get]
-// @Security BearerAuth
 func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	serviceID := ctx.Query("serviceID")
 
@@ -230,164 +219,72 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched service variations", variations))
 }
 
-// buyAirtime godoc
-// @Summary Buy airtime
-// @Description Buy airtime
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param wallet_id query string true "Wallet ID"
-// @Param service_id query string true "Service ID"
-// @Param phone query string true "Phone"
-// @Param amount query int true "Amount"
-// @Param pin query string true "Pin"
-// @Param use_reward_points query bool false "Use reward points"
-// @Param points_to_use query int false "Points to use"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/buy-airtime [post]
-// @Security BearerAuth
 func (b *Bills) buyAirtime(ctx *gin.Context) {
 	var request transaction.BuyAirtimeRequest
-
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-
 	if request.Pin == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
-	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
+	userInfo, ok := b.validateBillRequest(ctx, &request.Pin)
+	if !ok {
+		return
+	}
+
+	b.server.logger.Infof("buy airtime: %+v", request)
+
+	response, err := b.transactionService.HandleAirtime(ctx, &userInfo, request)
 	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		mapBillError(ctx, err)
 		return
 	}
 
-	// Pull user information
-	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
-		return
-	}
-
-	b.server.logger.Infof("buy airtime: %v", request)
-	response, err := b.transactionService.HandleAirtime(
-		ctx,
-		&userInfo,
-		request,
-	)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return
-	}
-
-	if response.Status == "pending" {
+	switch response.Status {
+	case "pending":
 		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Airtime is processing", response))
-		return
-	}
-
-	if response.Status == "failed" {
+	case "failed":
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("airtime purchase failed"))
-		return
+	default:
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("Airtime purchase successful", response))
 	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase airtime successful", response))
-
 }
 
-// buyData godoc
-// @Summary Buy data
-// @Description Buy data
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param wallet_id query string true "Wallet ID"
-// @Param service_id query string true "Service ID"
-// @Param phone query string true "Phone"
-// @Param variation_code query string true "Variation Code"
-// @Param pin query string true "Pin"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/buy-data [post]
-// @Security BearerAuth
 func (b *Bills) buyData(ctx *gin.Context) {
 	var request transaction.BuyDataRequest
-
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-
 	if request.Pin == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
-	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	// Pull user information
-	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
+	userInfo, ok := b.validateBillRequest(ctx, &request.Pin)
+	if !ok {
 		return
 	}
 
 	response, err := b.transactionService.HandleData(ctx, &userInfo, request)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		mapBillError(ctx, err)
 		return
 	}
 
-	if response.Status == "pending" {
-		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Airtime is processing", response))
-		return
+	switch response.Status {
+	case "pending":
+		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Data is processing", response)) // FIX [H2]
+	case "failed":
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("data purchase failed")) // FIX [H3]
+	default:
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("Data purchase successful", response))
 	}
-
-	if response.Status == "failed" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("airtime purchase failed"))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase data successful", response))
 }
 
-// getCustomerInfo godoc
-// @Summary Get customer info
-// @Description Get customer info
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param service_id query string true "Service ID"
-// @Param billers_code query string true "Billers Code"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/customer-info [post]
-// @Security BearerAuth
 func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 	request := struct {
 		ServiceID   string `json:"service_id" binding:"required"`
@@ -424,92 +321,39 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer info", models.ToCustomerInfoResponse(*customerInfo)))
 }
 
-// buyTVSubscription godoc
-// @Summary Buy TV subscription
-// @Description Buy TV subscription
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param wallet_id query string true "Wallet ID"
-// @Param service_id query string true "Service ID"
-// @Param billers_code query string true "Billers Code"
-// @Param subscription_type query string true "Subscription Type"
-// @Param variation_code query string true "Variation Code"
-// @Param pin query string true "Pin"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/buy-tv [post]
-// @Security BearerAuth
 func (b *Bills) buyTVSubscription(ctx *gin.Context) {
 	var request transaction.TVSubRequest
-
-	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-
 	if request.Pin == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
-	// Pull user information
-	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+	userInfo, ok := b.validateBillRequest(ctx, &request.Pin)
+	if !ok {
 		return
 	}
 
-	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
-		return
-	}
-
-	// Create BillTransaction
 	response, err := b.transactionService.HandleTvSubscription(ctx, &userInfo, request)
 	if err != nil {
 		b.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		mapBillError(ctx, err) // FIX [H1]
 		return
 	}
 
-	if response.Status == "pending" {
-		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Airtime is processing", response))
-		return
+	switch response.Status {
+	case "pending":
+		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "TV subscription is processing", response)) // FIX [H4]
+	case "failed":
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("TV subscription failed")) // FIX [H5]
+	default:
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("TV subscription successful", response))
 	}
-
-	if response.Status == "failed" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("airtime purchase failed"))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase tv subscription successful", response))
 }
 
-// getCustomerMeterInfo godoc
-// @Summary Get customer meter info
-// @Description Get customer meter info
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param service_id query string true "Service ID"
-// @Param billers_code query string true "Billers Code"
-// @Param type query string true "Type"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/customer-meter-info [post]
-// @Security BearerAuth
 func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 	request := struct {
 		ServiceID   string `json:"service_id" binding:"required"`
@@ -547,60 +391,36 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("fetched customer meter info", models.ToMeterInfoResponse(*customerMeterInfo)))
 }
 
-// buyElectricity godoc
-// @Summary Buy electricity
-// @Description Buy electricity
-// @Tags bills
-// @Accept json
-// @Produce json
-// @Param wallet_id query string true "Wallet ID"
-// @Param service_id query string true "Service ID"
-// @Param billers_code query string true "Billers Code"
-// @Param variation_code query string true "Variation Code"
-// @Param amount query int true "Amount"
-// @Param pin query string true "Pin"
-// @Success 200 {object} basemodels.SuccessResponse
-// @Failure 401 {object} basemodels.ErrorResponse
-// @Failure 403 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/bills/buy-electricity [post]
-// @Security BearerAuth
 func (b *Bills) buyElectricity(ctx *gin.Context) {
 	var request transaction.ElectricityRequest
-	// Fetch user details
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-
 	if request.Pin == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("pin is required"))
 		return
 	}
 
-	// Pull user information
-	userInfo, err := b.server.queries.GetUserByID(ctx, activeUser.UserID)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if err = utils.VerifyHashValue(request.Pin, userInfo.HashedPin.String); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidTransactionPIN))
+	userInfo, ok := b.validateBillRequest(ctx, &request.Pin)
+	if !ok {
 		return
 	}
 
 	response, err := b.transactionService.HandleBuyElectricity(ctx, &userInfo, request)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		mapBillError(ctx, err) // FIX [H1]
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("purchase electricity successful", response))
+	// FIX [H7]: Original always returned 200 regardless of provider status.
+	// Electricity can return pending (token not yet generated) or failed.
+	switch response.Status {
+	case "pending":
+		ctx.JSON(http.StatusAccepted, basemodels.NewCustomResponse("", "Electricity purchase is processing", response))
+	case "failed":
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("electricity purchase failed"))
+	default:
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("Electricity purchase successful", response))
+	}
 }

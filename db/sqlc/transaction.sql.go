@@ -103,6 +103,73 @@ func (q *Queries) CreateAirtimeDataMetadata(ctx context.Context, arg CreateAirti
 	return i, err
 }
 
+const createBankTransferMetadata = `-- name: CreateBankTransferMetadata :one
+INSERT INTO bank_transfer_metadata (
+    amount,
+    service_charge,
+    transaction_id,
+    account_name,
+    account_number,
+    service_provider,
+    service_transaction_id,
+    type,
+    status,
+    amount_paid,
+    points_earned
+)
+VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11
+)
+RETURNING id, amount, service_charge, transaction_id, account_name, account_number, service_provider, type, service_transaction_id, status, date, amount_paid, points_earned
+`
+
+type CreateBankTransferMetadataParams struct {
+	Amount               string         `json:"amount"`
+	ServiceCharge        string         `json:"service_charge"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	AccountName          string         `json:"account_name"`
+	AccountNumber        string         `json:"account_number"`
+	ServiceProvider      sql.NullString `json:"service_provider"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
+	Type                 string         `json:"type"`
+	Status               string         `json:"status"`
+	AmountPaid           string         `json:"amount_paid"`
+	PointsEarned         sql.NullString `json:"points_earned"`
+}
+
+func (q *Queries) CreateBankTransferMetadata(ctx context.Context, arg CreateBankTransferMetadataParams) (BankTransferMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, createBankTransferMetadata,
+		arg.Amount,
+		arg.ServiceCharge,
+		arg.TransactionID,
+		arg.AccountName,
+		arg.AccountNumber,
+		arg.ServiceProvider,
+		arg.ServiceTransactionID,
+		arg.Type,
+		arg.Status,
+		arg.AmountPaid,
+		arg.PointsEarned,
+	)
+	var i BankTransferMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.Amount,
+		&i.ServiceCharge,
+		&i.TransactionID,
+		&i.AccountName,
+		&i.AccountNumber,
+		&i.ServiceProvider,
+		&i.Type,
+		&i.ServiceTransactionID,
+		&i.Status,
+		&i.Date,
+		&i.AmountPaid,
+		&i.PointsEarned,
+	)
+	return i, err
+}
+
 const createCryptoMetadata = `-- name: CreateCryptoMetadata :one
 INSERT INTO crypto_transaction_metadata (
     destination_wallet,
@@ -269,70 +336,6 @@ func (q *Queries) CreateElectricityPurchaseMetadata(ctx context.Context, arg Cre
 		&i.ServiceCharge,
 		&i.Status,
 		&i.Date,
-	)
-	return i, err
-}
-
-const createFiatWithdrawalMetadata = `-- name: CreateFiatWithdrawalMetadata :one
-INSERT INTO fiat_withdrawal_metadata (
-    source_wallet,
-    transaction_id,
-    rate,
-    received_amount,
-    sent_amount,
-    fees,
-    account_name,
-    bank_code,
-    account_number,
-    service_provider,
-    service_transaction_id
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
-) RETURNING id, source_wallet, rate, received_amount, sent_amount, fees, transaction_id, account_name, bank_code, account_number, service_provider, service_transaction_id
-`
-
-type CreateFiatWithdrawalMetadataParams struct {
-	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
-	TransactionID        uuid.UUID      `json:"transaction_id"`
-	Rate                 sql.NullString `json:"rate"`
-	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           sql.NullString `json:"sent_amount"`
-	Fees                 sql.NullString `json:"fees"`
-	AccountName          sql.NullString `json:"account_name"`
-	BankCode             sql.NullString `json:"bank_code"`
-	AccountNumber        sql.NullString `json:"account_number"`
-	ServiceProvider      sql.NullString `json:"service_provider"`
-	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
-}
-
-func (q *Queries) CreateFiatWithdrawalMetadata(ctx context.Context, arg CreateFiatWithdrawalMetadataParams) (FiatWithdrawalMetadatum, error) {
-	row := q.db.QueryRowContext(ctx, createFiatWithdrawalMetadata,
-		arg.SourceWallet,
-		arg.TransactionID,
-		arg.Rate,
-		arg.ReceivedAmount,
-		arg.SentAmount,
-		arg.Fees,
-		arg.AccountName,
-		arg.BankCode,
-		arg.AccountNumber,
-		arg.ServiceProvider,
-		arg.ServiceTransactionID,
-	)
-	var i FiatWithdrawalMetadatum
-	err := row.Scan(
-		&i.ID,
-		&i.SourceWallet,
-		&i.Rate,
-		&i.ReceivedAmount,
-		&i.SentAmount,
-		&i.Fees,
-		&i.TransactionID,
-		&i.AccountName,
-		&i.BankCode,
-		&i.AccountNumber,
-		&i.ServiceProvider,
-		&i.ServiceTransactionID,
 	)
 	return i, err
 }
@@ -585,6 +588,77 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
 		&i.DeletedToAccountID,
+	)
+	return i, err
+}
+
+const createWalletTransferMetadata = `-- name: CreateWalletTransferMetadata :one
+INSERT INTO wallet_transfer_metadata (
+    currency,
+    transaction_id,
+    sender,
+    type,
+    recipient,
+    service_charge,
+    amount,
+    amount_paid,
+    bonus_earned,
+    reference,
+    status,
+    description
+)
+VALUES (
+    $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12
+)
+RETURNING id, currency, type, transaction_id, sender, recipient, service_charge, amount, amount_paid, bonus_earned, reference, description, status, date
+`
+
+type CreateWalletTransferMetadataParams struct {
+	Currency      string         `json:"currency"`
+	TransactionID uuid.UUID      `json:"transaction_id"`
+	Sender        int64          `json:"sender"`
+	Type          string         `json:"type"`
+	Recipient     int64          `json:"recipient"`
+	ServiceCharge sql.NullString `json:"service_charge"`
+	Amount        string         `json:"amount"`
+	AmountPaid    sql.NullString `json:"amount_paid"`
+	BonusEarned   sql.NullString `json:"bonus_earned"`
+	Reference     string         `json:"reference"`
+	Status        string         `json:"status"`
+	Description   string         `json:"description"`
+}
+
+func (q *Queries) CreateWalletTransferMetadata(ctx context.Context, arg CreateWalletTransferMetadataParams) (WalletTransferMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, createWalletTransferMetadata,
+		arg.Currency,
+		arg.TransactionID,
+		arg.Sender,
+		arg.Type,
+		arg.Recipient,
+		arg.ServiceCharge,
+		arg.Amount,
+		arg.AmountPaid,
+		arg.BonusEarned,
+		arg.Reference,
+		arg.Status,
+		arg.Description,
+	)
+	var i WalletTransferMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.Currency,
+		&i.Type,
+		&i.TransactionID,
+		&i.Sender,
+		&i.Recipient,
+		&i.ServiceCharge,
+		&i.Amount,
+		&i.AmountPaid,
+		&i.BonusEarned,
+		&i.Reference,
+		&i.Description,
+		&i.Status,
+		&i.Date,
 	)
 	return i, err
 }
@@ -1079,6 +1153,102 @@ func (q *Queries) GetPendingCryptoTransactionByTransactionID(ctx context.Context
 	return i, err
 }
 
+const getPendingDataAirtimePurchaseMetadataOlderThan5Mins = `-- name: GetPendingDataAirtimePurchaseMetadataOlderThan5Mins :many
+SELECT id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
+FROM data_airtime_purchase_metadata
+WHERE status = 'pending'
+  AND date < NOW() - INTERVAL '5 minutes'
+ORDER BY date ASC
+`
+
+func (q *Queries) GetPendingDataAirtimePurchaseMetadataOlderThan5Mins(ctx context.Context) ([]DataAirtimePurchaseMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingDataAirtimePurchaseMetadataOlderThan5Mins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []DataAirtimePurchaseMetadatum{}
+	for rows.Next() {
+		var i DataAirtimePurchaseMetadatum
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.Amount,
+			&i.PointsUsed,
+			&i.Type,
+			&i.AmountPaid,
+			&i.PointsEarned,
+			&i.PhoneNumber,
+			&i.Plan,
+			&i.Reference,
+			&i.RequestID,
+			&i.ServiceCharge,
+			&i.Status,
+			&i.Date,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getPendingElectricityPurchaseMetadataOlderThan5Mins = `-- name: GetPendingElectricityPurchaseMetadataOlderThan5Mins :many
+SELECT id, transaction_id, amount, points_used, amount_paid, token, customer_name, customer_address, units, meter_number, tax, debt, points_earned, phone_number, reference, request_id, service_charge, status, date FROM electricity_purchase_metadata
+WHERE status = 'pending'
+  AND date < NOW() - INTERVAL '5 minutes'
+ORDER BY date ASC
+`
+
+func (q *Queries) GetPendingElectricityPurchaseMetadataOlderThan5Mins(ctx context.Context) ([]ElectricityPurchaseMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingElectricityPurchaseMetadataOlderThan5Mins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ElectricityPurchaseMetadatum{}
+	for rows.Next() {
+		var i ElectricityPurchaseMetadatum
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.Amount,
+			&i.PointsUsed,
+			&i.AmountPaid,
+			&i.Token,
+			&i.CustomerName,
+			&i.CustomerAddress,
+			&i.Units,
+			&i.MeterNumber,
+			&i.Tax,
+			&i.Debt,
+			&i.PointsEarned,
+			&i.PhoneNumber,
+			&i.Reference,
+			&i.RequestID,
+			&i.ServiceCharge,
+			&i.Status,
+			&i.Date,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getPendingTransactions = `-- name: GetPendingTransactions :many
 SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE status = 'pending'
@@ -1388,18 +1558,18 @@ func (q *Queries) GetTotalTransactions(ctx context.Context) (int64, error) {
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT
     t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-    COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, fw.source_wallet, sm.source_wallet) as source_wallet,
+    COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, fw.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
@@ -1432,8 +1602,8 @@ type GetTransactionByIDRow struct {
 	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	Fees                 sql.NullString `json:"fees"`
-	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           sql.NullString `json:"sent_amount"`
+	ReceivedAmount       string         `json:"received_amount"`
+	SentAmount           string         `json:"sent_amount"`
 }
 
 func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTransactionByIDRow, error) {
@@ -1581,7 +1751,7 @@ FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
@@ -1714,7 +1884,7 @@ SELECT
                         'service_provider', fm.service_provider,
                         'service_transaction_id', fm.service_transaction_id
                     )::jsonb
-                    FROM public.fiat_withdrawal_metadata fm
+                    FROM public.bank_transfer_metadata fm
                     WHERE fm.transaction_id = t.id
                 )
                 WHEN t.type = 'giftcard' THEN (
@@ -1890,15 +2060,15 @@ const getTransactionsByDateRange = `-- name: GetTransactionsByDateRange :many
 SELECT
     t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
 LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
@@ -1939,7 +2109,7 @@ type GetTransactionsByDateRangeRow struct {
 	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           sql.NullString `json:"sent_amount"`
+	SentAmount           string         `json:"sent_amount"`
 }
 
 func (q *Queries) GetTransactionsByDateRange(ctx context.Context, arg GetTransactionsByDateRangeParams) ([]GetTransactionsByDateRangeRow, error) {
@@ -2028,10 +2198,10 @@ wallet_transactions AS (
 
     UNION ALL
 
-    -- Get transactions from fiat_withdrawal_metadata where wallet is source
+    -- Get transactions from bank_transfer_metadata where wallet is source
     SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
     FROM transactions t
-    JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+    JOIN bank_transfer_metadata bt ON t.id = fw.transaction_id
     JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
 
     UNION ALL
@@ -2132,15 +2302,15 @@ SELECT
         ELSE 'destination'
     END as wallet_role,
     COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, fw.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, fw.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.sent_amount, sm.sent_amount) as sent_amount
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
+    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fw ON t.id = fw.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 WHERE st.source_wallet = $1
    OR st.destination_wallet = $1
@@ -2180,8 +2350,8 @@ type GetTransactionsByWalletRow struct {
 	Currency_2           string         `json:"currency_2"`
 	Rate                 sql.NullString `json:"rate"`
 	Fees                 sql.NullString `json:"fees"`
-	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           sql.NullString `json:"sent_amount"`
+	ReceivedAmount       string         `json:"received_amount"`
+	SentAmount           string         `json:"sent_amount"`
 }
 
 func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactionsByWalletParams) ([]GetTransactionsByWalletRow, error) {
@@ -2243,7 +2413,7 @@ matching_transactions AS (
        OR cm.destination_wallet = $5
        OR cm.destination_wallet = $6
     UNION ALL
-    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
     WHERE fm.source_wallet = $3 
        OR fm.source_wallet = $4
        OR fm.source_wallet = $5
@@ -2361,7 +2531,7 @@ transaction_data AS (
                     'service_provider', fm.service_provider,
                     'service_transaction_id', fm.service_transaction_id
                 )::jsonb
-                FROM public.fiat_withdrawal_metadata fm
+                FROM public.bank_transfer_metadata fm
                 WHERE fm.transaction_id = t.id
             )
             WHEN t.type = 'giftcard' THEN (
@@ -2461,7 +2631,7 @@ matching_transactions AS (
        OR cm.destination_wallet = $4
        OR cm.destination_wallet = $5
     UNION ALL
-    SELECT fm.transaction_id FROM public.fiat_withdrawal_metadata fm
+    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
     WHERE fm.source_wallet = $2 
        OR fm.source_wallet = $3
        OR fm.source_wallet = $4
@@ -2559,7 +2729,7 @@ transaction_data AS (
                     'service_provider', fm.service_provider,
                     'service_transaction_id', fm.service_transaction_id
                 )::jsonb
-                FROM public.fiat_withdrawal_metadata fm
+                FROM public.bank_transfer_metadata fm
                 WHERE fm.transaction_id = t.id
             )
             WHEN t.type = 'giftcard' THEN (
@@ -2790,7 +2960,7 @@ JOIN users u ON u.id = t.user_id
 LEFT JOIN swap_transfer_metadata stm ON t.id = stm.transaction_id
 LEFT JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 LEFT JOIN giftcard_transaction_metadata gtm ON t.id = gtm.transaction_id
-LEFT JOIN fiat_withdrawal_metadata fwm ON t.id = fwm.transaction_id
+LEFT JOIN bank_transfer_metadata fwm ON t.id = fwm.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
@@ -3278,6 +3448,39 @@ func (q *Queries) UpdateAirtimeStatusIfPending(ctx context.Context, arg UpdateAi
 	return i, err
 }
 
+const updateBankTransferStatus = `-- name: UpdateBankTransferStatus :one
+UPDATE bank_transfer_metadata
+SET status = $2
+WHERE transaction_id = $1
+RETURNING id, amount, service_charge, transaction_id, account_name, account_number, service_provider, type, service_transaction_id, status, date, amount_paid, points_earned
+`
+
+type UpdateBankTransferStatusParams struct {
+	TransactionID uuid.UUID `json:"transaction_id"`
+	Status        string    `json:"status"`
+}
+
+func (q *Queries) UpdateBankTransferStatus(ctx context.Context, arg UpdateBankTransferStatusParams) (BankTransferMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, updateBankTransferStatus, arg.TransactionID, arg.Status)
+	var i BankTransferMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.Amount,
+		&i.ServiceCharge,
+		&i.TransactionID,
+		&i.AccountName,
+		&i.AccountNumber,
+		&i.ServiceProvider,
+		&i.Type,
+		&i.ServiceTransactionID,
+		&i.Status,
+		&i.Date,
+		&i.AmountPaid,
+		&i.PointsEarned,
+	)
+	return i, err
+}
+
 const updateBillServiceTransactionID = `-- name: UpdateBillServiceTransactionID :one
 UPDATE services_metadata
 SET service_transaction_id = $1
@@ -3308,6 +3511,23 @@ func (q *Queries) UpdateBillServiceTransactionID(ctx context.Context, arg Update
 		&i.ServiceTransactionID,
 	)
 	return i, err
+}
+
+const updateCryptoMetadataFinalAmounts = `-- name: UpdateCryptoMetadataFinalAmounts :exec
+UPDATE crypto_transaction_metadata
+SET rate = $2, received_amount = $3
+WHERE transaction_id = $1
+`
+
+type UpdateCryptoMetadataFinalAmountsParams struct {
+	TransactionID  uuid.UUID      `json:"transaction_id"`
+	Rate           sql.NullString `json:"rate"`
+	ReceivedAmount sql.NullString `json:"received_amount"`
+}
+
+func (q *Queries) UpdateCryptoMetadataFinalAmounts(ctx context.Context, arg UpdateCryptoMetadataFinalAmountsParams) error {
+	_, err := q.db.ExecContext(ctx, updateCryptoMetadataFinalAmounts, arg.TransactionID, arg.Rate, arg.ReceivedAmount)
+	return err
 }
 
 const updateCryptoMetadataRate = `-- name: UpdateCryptoMetadataRate :one
@@ -3551,6 +3771,20 @@ func (q *Queries) UpdateServiceMetadataStatus(ctx context.Context, arg UpdateSer
 	return i, err
 }
 
+const updateTransactionAmountUSD = `-- name: UpdateTransactionAmountUSD :exec
+UPDATE transactions SET amount_usd = $2 WHERE id = $1
+`
+
+type UpdateTransactionAmountUSDParams struct {
+	ID        uuid.UUID `json:"id"`
+	AmountUsd string    `json:"amount_usd"`
+}
+
+func (q *Queries) UpdateTransactionAmountUSD(ctx context.Context, arg UpdateTransactionAmountUSDParams) error {
+	_, err := q.db.ExecContext(ctx, updateTransactionAmountUSD, arg.ID, arg.AmountUsd)
+	return err
+}
+
 const updateTransactionStatus = `-- name: UpdateTransactionStatus :one
 UPDATE transactions
 SET status = $2
@@ -3631,4 +3865,20 @@ func (q *Queries) UpdateTransactionToFailed(ctx context.Context, arg UpdateTrans
 		&i.DeletedToAccountID,
 	)
 	return i, err
+}
+
+const updateWalletTransferMetadataStatus = `-- name: UpdateWalletTransferMetadataStatus :exec
+UPDATE wallet_transfer_metadata
+SET status = $2
+WHERE id = $1
+`
+
+type UpdateWalletTransferMetadataStatusParams struct {
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
+}
+
+func (q *Queries) UpdateWalletTransferMetadataStatus(ctx context.Context, arg UpdateWalletTransferMetadataStatusParams) error {
+	_, err := q.db.ExecContext(ctx, updateWalletTransferMetadataStatus, arg.ID, arg.Status)
+	return err
 }

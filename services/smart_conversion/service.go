@@ -207,7 +207,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 	}
 
 	// Get vip adjusted rate
-	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, amount)
+	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, req.Amount)
 	if err != nil {
 		s.logger.Warnf("%s", fmt.Sprintf("Failed to get VIP-adjusted rate: %v", err))
 		// fallback to base rate if vip rate fails

@@ -205,3 +205,13 @@ func ConvertToUSD(
 		return amount.Mul(rate), nil
 	}
 }
+
+// watRequestID generates a WAT-formatted request ID for VTPass idempotency.
+// FIX [B4]: was time.Now().UTC().Add(time.Hour * 1) — fragile manual offset.
+func WatRequestID() string {
+	loc, err := time.LoadLocation("Africa/Lagos")
+	if err != nil {
+		loc = time.FixedZone("WAT", 3600) // safe fallback on stripped tzdata
+	}
+	return time.Now().In(loc).Format("20060102150405")
+}

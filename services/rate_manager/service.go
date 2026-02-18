@@ -935,7 +935,7 @@ type UserVIPStatusResponse struct {
 // =====================================================
 
 // GetAdjustedRateForUser calculates the adjusted rate for a specific user
-func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from, to string, amount decimal.Decimal) (*RateSimulationResponse, error) {
+func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from, to string, amount string) (*RateSimulationResponse, error) {
 	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %d: %s -> %s, amount: %s", userID, from, to, amount))
 
 	// Get base rate from exchange rate service
@@ -948,7 +948,7 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from
 	applicableRule, err := s.store.GetApplicableRulesForUser(ctx, db.GetApplicableRulesForUserParams{
 		SourceCurrency:      from,
 		TargetCurrency:      to,
-		MinConversionAmount: sql.NullString{String: amount.String(), Valid: true},
+		MinConversionAmount: sql.NullString{String: amount, Valid: true},
 		UserID:              userID,
 	})
 
@@ -982,13 +982,14 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from
 
 	// Calculate conversion amounts
 	feePercentage := s.exchangeRateService.GetFeePercentage(from, to)
-	targetAmount, fees, netAmount := s.exchangeRateService.CalculateConversionAmount(amount, adjustedRate, feePercentage)
+	amt, _ := utils.ToDecimal(amount)
+	targetAmount, fees, netAmount := s.exchangeRateService.CalculateConversionAmount(amt, adjustedRate, feePercentage)
 
 	return &RateSimulationResponse{
 		BaseRate:            baseRate.Rate.String(),
 		AdjustedRate:        adjustedRate.String(),
 		AdjustmentAmount:    adjustmentAmount.String(),
-		SourceAmount:        amount.String(),
+		SourceAmount:        amount,
 		TargetAmount:        targetAmount.String(),
 		Fees:                fees.String(),
 		NetAmount:           netAmount.String(),

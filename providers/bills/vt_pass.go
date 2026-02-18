@@ -518,3 +518,208 @@ func (p *VTPassProvider) BuyElectricity(request PurchaseElectricityRequest) (*Pu
 
 	return &newModel, nil
 }
+
+// QueryAirtimeStatus queries the status of a previous airtime purchase using the request ID
+func (p *VTPassProvider) QueryAirtimeStatus(requestID string) (*Transaction, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "api/requery"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	// Add request ID as query parameter
+	q := base.Query()
+	q.Set("request_id", requestID)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Reset the response body
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel PayResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Content.Transaction, nil
+}
+
+// QueryDataStatus queries the status of a previous data purchase using the request ID
+func (p *VTPassProvider) QueryDataStatus(requestID string) (*Transaction, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "api/requery"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	q := base.Query()
+	q.Set("request_id", requestID)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Reset the response body
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel PayResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Content.Transaction, nil
+}
+
+// QueryTVStatus queries the status of a previous TV subscription using the request ID
+func (p *VTPassProvider) QueryTVStatus(requestID string) (*Transaction, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "api/requery"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	q := base.Query()
+	q.Set("request_id", requestID)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Reset the response body
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel PayResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Content.Transaction, nil
+}
+
+// QueryElectricityStatus queries the status of a previous electricity purchase using the request ID
+func (p *VTPassProvider) QueryElectricityStatus(requestID string) (*Transaction, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+	}
+
+	base.Path += "api/requery"
+	headers := map[string]string{
+		"public-key": p.config.VTPassPK,
+		"secret-key": p.config.VTPassSK,
+		"api-key":    p.config.VTPassKey,
+	}
+
+	q := base.Query()
+	q.Set("request_id", requestID)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read the response body
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("failed to read response body", err)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Reset the response body
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	// Check the status code
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error(fmt.Sprintf("response body: %v\nresponse statusCode: %v", string(bodyBytes), resp.StatusCode))
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+	}
+
+	// Decode the response body
+	var newModel PayResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Content.Transaction, nil
+}
