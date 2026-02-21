@@ -152,7 +152,8 @@ type ManualConversionRequest struct {
 	TargetWalletID uuid.UUID `json:"target_wallet_id" binding:"required"` // UUID of the target wallet
 	SourceCurrency string    `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
 	TargetCurrency string    `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
-	Amount         string    `json:"amount" binding:"required,gt=0"`           // Amount to convert
+	Amount         string    `json:"amount" binding:"required,gt=0"` // Amount to convert
+	Pin            string    `json:"pin" binding:"required"`
 	// AmountType     string    `json:"-" binding:"required,oneof=source target"` // Indicates if the amount is in source or target currency
 }
 
