@@ -481,6 +481,11 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		return
 	}
 
+	if err = utils.VerifyHashValue(req.Pin, user.HashedPin.String); err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.InvalidTransactionPIN))
+		return
+	}
+
 	result, err := s.conversionSvc.ExecuteManualConversion(c.Request.Context(), &req, &user)
 	if err != nil {
 		if err == smartconversion.ErrInsufficientBalance {
