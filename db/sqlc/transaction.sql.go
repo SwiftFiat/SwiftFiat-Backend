@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/lib/pq"
 )
 
 const countPendingCryptoTransactions = `-- name: CountPendingCryptoTransactions :one
@@ -536,7 +535,7 @@ INSERT INTO transactions (
     status
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
-) RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+) RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type CreateTransactionParams struct {
@@ -584,6 +583,9 @@ func (q *Queries) CreateTransaction(ctx context.Context, arg CreateTransactionPa
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -616,9 +618,9 @@ RETURNING id, currency, type, transaction_id, sender, recipient, service_charge,
 type CreateWalletTransferMetadataParams struct {
 	Currency      string         `json:"currency"`
 	TransactionID uuid.UUID      `json:"transaction_id"`
-	Sender        int64          `json:"sender"`
+	Sender        string         `json:"sender"`
 	Type          string         `json:"type"`
-	Recipient     int64          `json:"recipient"`
+	Recipient     string         `json:"recipient"`
 	ServiceCharge sql.NullString `json:"service_charge"`
 	Amount        string         `json:"amount"`
 	AmountPaid    sql.NullString `json:"amount_paid"`
@@ -1040,7 +1042,7 @@ func (q *Queries) GetDailyTransactionSummary(ctx context.Context) ([]GetDailyTra
 }
 
 const getPendingCryptoTransactionByOrderID = `-- name: GetPendingCryptoTransactionByOrderID :one
-SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id 
+SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.risk_score, t.fraud_status, t.flagged_at, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id 
 FROM transactions t
 JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 WHERE ctm.order_id = $1 
@@ -1066,6 +1068,9 @@ func (q *Queries) GetPendingCryptoTransactionByOrderID(ctx context.Context, orde
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -1075,7 +1080,7 @@ func (q *Queries) GetPendingCryptoTransactionByOrderID(ctx context.Context, orde
 }
 
 const getPendingCryptoTransactionByTransactionID = `-- name: GetPendingCryptoTransactionByTransactionID :one
-SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, ctm.id, ctm.destination_wallet, ctm.transaction_id, ctm.coin, ctm.source_hash, ctm.rate, ctm.fees, ctm.received_amount, ctm.sent_amount, ctm.service_provider, ctm.order_id, ctm.service_transaction_id
+SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.risk_score, t.fraud_status, t.flagged_at, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, ctm.id, ctm.destination_wallet, ctm.transaction_id, ctm.coin, ctm.source_hash, ctm.rate, ctm.fees, ctm.received_amount, ctm.sent_amount, ctm.service_provider, ctm.order_id, ctm.service_transaction_id
 FROM transactions t
 JOIN crypto_transaction_metadata ctm ON t.id = ctm.transaction_id
 WHERE t.id = $1
@@ -1098,6 +1103,9 @@ type GetPendingCryptoTransactionByTransactionIDRow struct {
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
+	RiskScore            sql.NullInt32  `json:"risk_score"`
+	FraudStatus          sql.NullString `json:"fraud_status"`
+	FlaggedAt            sql.NullTime   `json:"flagged_at"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
@@ -1133,6 +1141,9 @@ func (q *Queries) GetPendingCryptoTransactionByTransactionID(ctx context.Context
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -1250,7 +1261,7 @@ func (q *Queries) GetPendingElectricityPurchaseMetadataOlderThan5Mins(ctx contex
 }
 
 const getPendingTransactions = `-- name: GetPendingTransactions :many
-SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
+SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE status = 'pending'
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $1
@@ -1284,6 +1295,9 @@ func (q *Queries) GetPendingTransactions(ctx context.Context, arg GetPendingTran
 			&i.Currency,
 			&i.AmountUsd,
 			&i.Status,
+			&i.RiskScore,
+			&i.FraudStatus,
+			&i.FlaggedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedFromAccountID,
@@ -1304,7 +1318,7 @@ func (q *Queries) GetPendingTransactions(ctx context.Context, arg GetPendingTran
 
 const getPendingTransactionsByUser = `-- name: GetPendingTransactionsByUser :many
 SELECT 
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.risk_score, t.fraud_status, t.flagged_at, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     ctm.coin,
     ctm.source_hash,
     ctm.rate,
@@ -1332,6 +1346,9 @@ type GetPendingTransactionsByUserRow struct {
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
+	RiskScore            sql.NullInt32  `json:"risk_score"`
+	FraudStatus          sql.NullString `json:"fraud_status"`
+	FlaggedAt            sql.NullTime   `json:"flagged_at"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
@@ -1366,6 +1383,9 @@ func (q *Queries) GetPendingTransactionsByUser(ctx context.Context, userID int64
 			&i.Currency,
 			&i.AmountUsd,
 			&i.Status,
+			&i.RiskScore,
+			&i.FraudStatus,
+			&i.FlaggedAt,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedFromAccountID,
@@ -1557,7 +1577,7 @@ func (q *Queries) GetTotalTransactions(ctx context.Context) (int64, error) {
 
 const getTransactionByID = `-- name: GetTransactionByID :one
 SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
+    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.risk_score, t.fraud_status, t.flagged_at, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
     COALESCE(st.currency, ct.coin) as currency,
@@ -1593,6 +1613,9 @@ type GetTransactionByIDRow struct {
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
+	RiskScore            sql.NullInt32  `json:"risk_score"`
+	FraudStatus          sql.NullString `json:"fraud_status"`
+	FlaggedAt            sql.NullTime   `json:"flagged_at"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
@@ -1623,6 +1646,9 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -1639,7 +1665,7 @@ func (q *Queries) GetTransactionByID(ctx context.Context, id uuid.UUID) (GetTran
 }
 
 const getTransactionByIDForUpdate = `-- name: GetTransactionByIDForUpdate :one
-SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
+SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE id = $1 LIMIT 1 
 FOR UPDATE
 `
@@ -1661,6 +1687,9 @@ func (q *Queries) GetTransactionByIDForUpdate(ctx context.Context, id uuid.UUID)
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -1670,7 +1699,7 @@ func (q *Queries) GetTransactionByIDForUpdate(ctx context.Context, id uuid.UUID)
 }
 
 const getTransactionByIdempotencyKey = `-- name: GetTransactionByIdempotencyKey :one
-SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
+SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id FROM transactions
 WHERE idempotency_key = $1
 `
 
@@ -1691,6 +1720,9 @@ func (q *Queries) GetTransactionByIdempotencyKey(ctx context.Context, idempotenc
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -1857,34 +1889,36 @@ SELECT
                     WHERE vt.transaction_id = t.id
                     LIMIT 1
                 )
-                WHEN t.type = 'deposit' THEN (
+                WHEN t.type = 'electricity' THEN (
                     SELECT jsonb_build_object(
-                        'destination_wallet', cm.destination_wallet,
-                        'coin', cm.coin,
-                        'rate', cm.rate,
-                        'fees', cm.fees,
-                        'received_amount', cm.received_amount,
-                        'sent_amount', cm.sent_amount,
-                        'service_provider', cm.service_provider,
-                        'service_transaction_id', cm.service_transaction_id
+                        'amount', epm.amount,
+                        'points_used', epm.points_used,
+                        'amount_paid', epm.amount_paid,
+                        'token', epm.token,
+                        'customer_name', epm.customer_name,
+                        'customer_address', epm.customer_address,
+                        'units', epm.units,
+                        'meter_number', epm.meter_number,
+                        'debt', epm.debt,
+                        'points_earned', epm.points_earned,
+                        'phone_number', epm.phone_number,
+                        'tax', epm.tax,
+                        'date', epm.date
                     )::jsonb
-                    FROM public.crypto_transaction_metadata cm
-                    WHERE cm.transaction_id = t.id
+                    FROM public.electricity_purchase_metadata epm
+                    WHERE epm.transaction_id = t.id
                 )
-                WHEN t.type = 'withdrawal' THEN (
+                WHEN t.type = 'rewards' THEN (
                     SELECT jsonb_build_object(
-                        'source_wallet', fm.source_wallet,
-                        'rate', fm.rate,
-                        'received_amount', fm.received_amount,
-                        'sent_amount', fm.sent_amount,
-                        'fees', fm.fees,
-                        'account_name', fm.account_name,
-                        'bank_code', fm.bank_code,
-                        'account_number', fm.account_number,
-                        'service_provider', fm.service_provider,
-                        'service_transaction_id', fm.service_transaction_id
+                        'transaction_type', fm.transaction_type,
+                        'source_transaction_type', fm.source_transaction_type,
+                        'transaction_amount', fm.transaction_amount,
+                        'points_amount', fm.points_amount,
+                        'naira_value', fm.naira_value,
+                        'status', fm.status,
+                        'created_at', fm.created_at
                     )::jsonb
-                    FROM public.bank_transfer_metadata fm
+                    FROM public.reward_transactions fm
                     WHERE fm.transaction_id = t.id
                 )
                 WHEN t.type = 'giftcard' THEN (
@@ -1900,36 +1934,39 @@ SELECT
                     FROM public.giftcard_transaction_metadata gm 
                     WHERE gm.transaction_id = t.id
                 )
-                WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
+                WHEN t.type IN ('airtime', 'data', 'tv_subscription') THEN (
                     SELECT jsonb_build_object(
-                        'source_wallet', sm.source_wallet,
-                        'rate', sm.rate,
-                        'received_amount', sm.received_amount,
-                        'sent_amount', sm.sent_amount,
-                        'fees', sm.fees,
-                        'service_type', sm.service_type,
-                        'service_provider', sm.service_provider,
-                        'service_id', sm.service_id,
-                        'service_status', sm.service_status,
-                        'service_transaction_id', sm.service_transaction_id
+                        'amount', sm.amount,
+                        'points_used', sm.points_used,
+                        'type', sm.type,
+                        'amount_paid', sm.amount_paid,
+                        'service_charge', sm.service_charge,
+                        'points_earned', sm.points_earned,
+                        'phone_number', sm.phone_number,
+                        'plan', sm.plan,
+                        'reference', sm.reference,
+                        'date', sm.date,
+                        'status', sm.status
                     )::jsonb
-                    FROM public.services_metadata sm
+                    FROM public.data_airtime_purchase_metadata sm
                     WHERE sm.transaction_id = t.id
                 )
                 WHEN t.type IN ('transfer') THEN (
                     SELECT jsonb_build_object(
                         'currency', stm.currency,
-                        'transfer_type', stm.transfer_type,
-                        'description', stm.description,
-                        'source_wallet', stm.source_wallet,
-                        'destination_wallet', stm.destination_wallet,
-                        'user_tag', stm.user_tag,
-                        'rate', stm.rate,
-                        'fees', stm.fees,
-                        'received_amount', stm.received_amount,
-                        'sent_amount', stm.sent_amount
+                        'type', stm.type,
+                        'recipient', stm.recipient,
+                        'sender', stm.sender,
+                        'service_charge', stm.service_charge,
+                        'amount', stm.amount,
+                        'amount_paid', stm.amount_paid,
+                        'bonus_earned', stm.bonus_earned,
+                        'reference', stm.reference,
+                        'status', stm.status,
+                        'date', stm.date,
+                        'description', stm.description
                     )::jsonb 
-                    FROM public.swap_transfer_metadata stm
+                    FROM public.wallet_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
                 )
                 WHEN t.type IN ('card') THEN (
@@ -1952,15 +1989,11 @@ SELECT
                 )
                 WHEN t.type IN ('swap') THEN (
                     SELECT jsonb_build_object(
-                        'user_id', ch.user_id,
                         'source_currency', ch.source_currency,
                         'target_currency', ch.target_currency,
                         'source_amount', ch.source_amount,
                         'target_amount', ch.target_amount,
-                        'source_wallet_id', ch.source_wallet_id,
-                        'target_wallet_id', ch.target_wallet_id,
                         'fees', ch.fees,
-                        'rate_provider', ch.rate_provider,
                         'net_amount', ch.net_amount,
                         'source_balance_before', ch.source_balance_before,
                         'target_balance_before', ch.target_balance_before,
@@ -2009,32 +2042,38 @@ SELECT
                 )
                 WHEN t.type IN ('reward') THEN (
                     SELECT jsonb_build_object(
-                        'reward_id', rt.id,
                         'transaction_type', rt.transaction_type,
                         'points_amount', rt.points_amount,
                         'naira_value', rt.naira_value,
-                        'transaction_id', rt.transaction_id,
                         'source_transaction_type', rt.source_transaction_type,
                         'transaction_amount', rt.transaction_amount,
-                        'balance_after', rt.balance_after,
                         'status', rt.status,
                         'description', rt.description,
-                        'created_at', rt.created_at,
-                        'updated_at', rt.updated_at
+                        'created_at', rt.created_at
                     )::jsonb
                     FROM public.reward_transactions rt
                     WHERE rt.transaction_id = t.id
+                )
+                WHEN t.type IN ('referral') THEN (
+                    SELECT jsonb_build_object(
+                        'amount', rft.amount,
+                        'transaction_type', rft.transaction_type,
+                        'reference', rft.reference,
+                        'status', rft.status,
+                        'date', rft.created_at
+                    )::jsonb
+                    FROM public.referral_transactions rft
+                    WHERE rft.transaction_id = t.id
                 )
                 WHEN t.type IN ('crypto') THEN (
                     SELECT jsonb_build_object(
                         'destination_wallet', cm.destination_wallet,
                         'coin', cm.coin,
                         'rate', cm.rate,
-                        'source_hash', cm.source_hash,
                         'fees', cm.fees,
+                        'order_id', cm.order_id,
                         'received_amount', cm.received_amount,
                         'sent_amount', cm.sent_amount,
-                        'service_provider', cm.service_provider,
                         'service_transaction_id', cm.service_transaction_id
                     )::jsonb
                     FROM public.crypto_transaction_metadata cm
@@ -2051,786 +2090,6 @@ LIMIT 1
 
 func (q *Queries) GetTransactionWithMetadata(ctx context.Context, transactionID uuid.UUID) (json.RawMessage, error) {
 	row := q.db.QueryRowContext(ctx, getTransactionWithMetadata, transactionID)
-	var result json.RawMessage
-	err := row.Scan(&result)
-	return result, err
-}
-
-const getTransactionsByDateRange = `-- name: GetTransactionsByDateRange :many
-SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-    COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
-FROM transactions t
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
-LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
-LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
-LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
-LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
-LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
-WHERE t.created_at BETWEEN $1 AND $2
-AND ($3::text IS NULL OR t.type = $3)
-ORDER BY t.created_at DESC
-LIMIT $5 OFFSET $4
-`
-
-type GetTransactionsByDateRangeParams struct {
-	StartDate       time.Time `json:"start_date"`
-	EndDate         time.Time `json:"end_date"`
-	TransactionType string    `json:"transaction_type"`
-	Offset          int32     `json:"_offset"`
-	Limit           int32     `json:"_limit"`
-}
-
-type GetTransactionsByDateRangeRow struct {
-	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
-	Type                 string         `json:"type"`
-	Description          sql.NullString `json:"description"`
-	TransactionFlow      string         `json:"transaction_flow"`
-	Amount               string         `json:"amount"`
-	IdempotencyKey       string         `json:"idempotency_key"`
-	TFrom                string         `json:"t_from"`
-	TTo                  string         `json:"t_to"`
-	Direction            string         `json:"direction"`
-	Currency             string         `json:"currency"`
-	AmountUsd            string         `json:"amount_usd"`
-	Status               string         `json:"status"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
-	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
-	Currency_2           string         `json:"currency_2"`
-	Rate                 sql.NullString `json:"rate"`
-	ReceivedAmount       sql.NullString `json:"received_amount"`
-	SentAmount           string         `json:"sent_amount"`
-}
-
-func (q *Queries) GetTransactionsByDateRange(ctx context.Context, arg GetTransactionsByDateRangeParams) ([]GetTransactionsByDateRangeRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTransactionsByDateRange,
-		arg.StartDate,
-		arg.EndDate,
-		arg.TransactionType,
-		arg.Offset,
-		arg.Limit,
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetTransactionsByDateRangeRow{}
-	for rows.Next() {
-		var i GetTransactionsByDateRangeRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Type,
-			&i.Description,
-			&i.TransactionFlow,
-			&i.Amount,
-			&i.IdempotencyKey,
-			&i.TFrom,
-			&i.TTo,
-			&i.Direction,
-			&i.Currency,
-			&i.AmountUsd,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedFromAccountID,
-			&i.DeletedToAccountID,
-			&i.Currency_2,
-			&i.Rate,
-			&i.ReceivedAmount,
-			&i.SentAmount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTransactionsByUserID = `-- name: GetTransactionsByUserID :many
-WITH user_wallets AS (
-    -- If user_id is provided, get all their wallets
-    SELECT id as wallet_id
-    FROM swift_wallets
-    WHERE CASE
-        WHEN $4::bigint IS NOT NULL THEN customer_id = $4::bigint
-        ELSE id = ANY($5::uuid[])
-    END
-),
-wallet_transactions AS (
-    -- Get transactions from swap_transfer_metadata where wallet is source or destination
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'swap_transfer' as metadata_type, to_jsonb(st.*) as metadata
-    FROM transactions t
-    JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-    JOIN user_wallets uw ON st.source_wallet = uw.wallet_id OR st.destination_wallet = uw.wallet_id
-
-    UNION ALL
-
-    -- Get transactions from crypto_transaction_metadata where wallet is destination
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'crypto' as metadata_type, to_jsonb(ct.*) as metadata
-    FROM transactions t
-    JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-    JOIN user_wallets uw ON ct.destination_wallet = uw.wallet_id
-
-    UNION ALL
-
-    -- Get transactions from giftcard_transaction_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'giftcard' as metadata_type, to_jsonb(gt.*) as metadata
-    FROM transactions t
-    JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-    JOIN user_wallets uw ON gt.source_wallet = uw.wallet_id
-
-    UNION ALL
-
-    -- Get transactions from bank_transfer_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'withdrawal' as metadata_type, to_jsonb(fw.*) as metadata
-    FROM transactions t
-    JOIN bank_transfer_metadata bt ON t.id = fw.transaction_id
-    JOIN user_wallets uw ON fw.source_wallet = uw.wallet_id
-
-    UNION ALL
-
-    -- Get transactions from services_metadata where wallet is source
-    SELECT t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id, 'service' as metadata_type, to_jsonb(sm.*) as metadata
-    FROM transactions t
-    JOIN services_metadata sm ON t.id = sm.transaction_id
-    JOIN user_wallets uw ON sm.source_wallet = uw.wallet_id
-)
-SELECT
-    t.id,
-    t.type,
-    t.description,
-    t.transaction_flow,
-    t.status,
-    t.created_at,
-    t.updated_at,
-    jsonb_build_object(
-        'type', t.metadata_type,
-        'data', t.metadata
-    ) as metadata
-FROM wallet_transactions t
-WHERE CASE
-    WHEN $1::timestamptz IS NOT NULL THEN t.created_at < $1::timestamptz
-    ELSE true
-END
-AND CASE
-    WHEN $2::uuid IS NOT NULL THEN t.id < $2::uuid
-    ELSE true
-END
-ORDER BY t.created_at DESC, t.id DESC
-LIMIT $3
-`
-
-type GetTransactionsByUserIDParams struct {
-	CreatedAt     sql.NullTime  `json:"created_at"`
-	TransactionID uuid.NullUUID `json:"transaction_id"`
-	Limit         int32         `json:"_limit"`
-	UserID        sql.NullInt64 `json:"user_id"`
-	WalletIds     []uuid.UUID   `json:"wallet_ids"`
-}
-
-type GetTransactionsByUserIDRow struct {
-	ID              uuid.UUID       `json:"id"`
-	Type            string          `json:"type"`
-	Description     sql.NullString  `json:"description"`
-	TransactionFlow string          `json:"transaction_flow"`
-	Status          string          `json:"status"`
-	CreatedAt       time.Time       `json:"created_at"`
-	UpdatedAt       time.Time       `json:"updated_at"`
-	Metadata        json.RawMessage `json:"metadata"`
-}
-
-func (q *Queries) GetTransactionsByUserID(ctx context.Context, arg GetTransactionsByUserIDParams) ([]GetTransactionsByUserIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTransactionsByUserID,
-		arg.CreatedAt,
-		arg.TransactionID,
-		arg.Limit,
-		arg.UserID,
-		pq.Array(arg.WalletIds),
-	)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetTransactionsByUserIDRow{}
-	for rows.Next() {
-		var i GetTransactionsByUserIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Type,
-			&i.Description,
-			&i.TransactionFlow,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.Metadata,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTransactionsByWallet = `-- name: GetTransactionsByWallet :many
-SELECT
-    t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-    CASE
-        WHEN st.source_wallet = $1 THEN 'source'
-        ELSE 'destination'
-    END as wallet_role,
-    COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
-FROM transactions t
-LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
-LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
-LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
-LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
-WHERE st.source_wallet = $1
-   OR st.destination_wallet = $1
-   OR ct.destination_wallet = $1
-   OR gt.source_wallet = $1
-   OR fw.source_wallet = $1
-   OR sm.source_wallet = $1
-ORDER BY t.created_at DESC
-LIMIT $3 OFFSET $2
-`
-
-type GetTransactionsByWalletParams struct {
-	WalletID uuid.NullUUID `json:"wallet_id"`
-	Offset   int32         `json:"_offset"`
-	Limit    int32         `json:"_limit"`
-}
-
-type GetTransactionsByWalletRow struct {
-	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
-	Type                 string         `json:"type"`
-	Description          sql.NullString `json:"description"`
-	TransactionFlow      string         `json:"transaction_flow"`
-	Amount               string         `json:"amount"`
-	IdempotencyKey       string         `json:"idempotency_key"`
-	TFrom                string         `json:"t_from"`
-	TTo                  string         `json:"t_to"`
-	Direction            string         `json:"direction"`
-	Currency             string         `json:"currency"`
-	AmountUsd            string         `json:"amount_usd"`
-	Status               string         `json:"status"`
-	CreatedAt            time.Time      `json:"created_at"`
-	UpdatedAt            time.Time      `json:"updated_at"`
-	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
-	DeletedToAccountID   uuid.NullUUID  `json:"deleted_to_account_id"`
-	WalletRole           string         `json:"wallet_role"`
-	Currency_2           string         `json:"currency_2"`
-	Rate                 sql.NullString `json:"rate"`
-	Fees                 sql.NullString `json:"fees"`
-	ReceivedAmount       string         `json:"received_amount"`
-	SentAmount           string         `json:"sent_amount"`
-}
-
-func (q *Queries) GetTransactionsByWallet(ctx context.Context, arg GetTransactionsByWalletParams) ([]GetTransactionsByWalletRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTransactionsByWallet, arg.WalletID, arg.Offset, arg.Limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	items := []GetTransactionsByWalletRow{}
-	for rows.Next() {
-		var i GetTransactionsByWalletRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.Type,
-			&i.Description,
-			&i.TransactionFlow,
-			&i.Amount,
-			&i.IdempotencyKey,
-			&i.TFrom,
-			&i.TTo,
-			&i.Direction,
-			&i.Currency,
-			&i.AmountUsd,
-			&i.Status,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.DeletedFromAccountID,
-			&i.DeletedToAccountID,
-			&i.WalletRole,
-			&i.Currency_2,
-			&i.Rate,
-			&i.Fees,
-			&i.ReceivedAmount,
-			&i.SentAmount,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getTransactionsForWallet = `-- name: GetTransactionsForWallet :one
-WITH pagination AS (
-    SELECT $1::int as page_limit,
-           $2::int as page_offset
-),
-matching_transactions AS (
-    SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
-    WHERE cm.destination_wallet = $3 
-       OR cm.destination_wallet = $4
-       OR cm.destination_wallet = $5
-       OR cm.destination_wallet = $6
-    UNION ALL
-    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
-    WHERE fm.source_wallet = $3 
-       OR fm.source_wallet = $4
-       OR fm.source_wallet = $5
-       OR fm.source_wallet = $6
-    UNION ALL
-    SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
-    WHERE gm.source_wallet = $3 
-       OR gm.source_wallet = $4
-       OR gm.source_wallet = $5
-       OR gm.source_wallet = $6
-    UNION ALL
-    SELECT sm.transaction_id FROM public.services_metadata sm
-    WHERE sm.source_wallet = $3 
-       OR sm.source_wallet = $4
-       OR sm.source_wallet = $5
-       OR sm.source_wallet = $6
-    UNION ALL
-    SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
-    WHERE stm.source_wallet = $3 
-       OR stm.source_wallet = $4
-       OR stm.source_wallet = $5
-       OR stm.source_wallet = $6
-       OR stm.destination_wallet = $3 
-       OR stm.destination_wallet = $4
-       OR stm.destination_wallet = $5
-       OR stm.destination_wallet = $6
-    UNION ALL
-    -- Add vault transactions: match transactions with transaction_flow = 'Vault' 
-    -- that have corresponding vault_transactions with matching wallet IDs
-    SELECT t.id as transaction_id FROM public.transactions t
-    INNER JOIN public.vault_transactions vt ON vt.transaction_id = t.id
-    WHERE t.transaction_flow IN ('wallet -> savings', 'savings -> wallet')
-        AND (
-            (vt.source_wallet IS NOT NULL AND (
-                vt.source_wallet = $3 
-                OR vt.source_wallet = $4
-                OR vt.source_wallet = $5
-                OR vt.source_wallet = $6
-            ))
-            OR (vt.destination_wallet IS NOT NULL AND (
-                vt.destination_wallet = $3 
-                OR vt.destination_wallet = $4
-                OR vt.destination_wallet = $5
-                OR vt.destination_wallet = $6
-            ))
-        )
-    ),
-total_count AS (
-    SELECT COUNT(*) as total FROM matching_transactions
-),
-transaction_data AS (
-    SELECT
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        CASE
-            WHEN t.transaction_flow IN ('wallet -> savings', 'savings -> wallet') THEN (
-                -- Handle vault transactions
-                SELECT jsonb_build_object(
-                    'vault_id', vt.vault_id,
-                    'transaction_type', vt.transaction_type,
-                    'source_wallet', vt.source_wallet,
-                    'destination_wallet', vt.destination_wallet,
-                    'amount', vt.amount,
-                    'currency', vt.currency,
-                    'balance_before', vt.balance_before,
-                    'balance_after', vt.balance_after,
-                    'reference', vt.reference,
-                    'description', vt.description,
-                    'metadata', vt.metadata,
-                    'status', vt.status,
-                    'requires_2fa', vt.requires_2fa
-                )::jsonb
-                FROM public.vault_transactions vt
-                WHERE ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at))) < 5
-                  AND (
-                      (vt.source_wallet IS NOT NULL AND (
-                          vt.source_wallet = $3 
-                          OR vt.source_wallet = $4
-                          OR vt.source_wallet = $5
-                          OR vt.source_wallet = $6
-                      ))
-                      OR (vt.destination_wallet IS NOT NULL AND (
-                          vt.destination_wallet = $3 
-                          OR vt.destination_wallet = $4
-                          OR vt.destination_wallet = $5
-                          OR vt.destination_wallet = $6
-                      ))
-                  )
-                ORDER BY ABS(EXTRACT(EPOCH FROM (t.created_at - vt.created_at)))
-                LIMIT 1
-            )
-            WHEN t.type = 'deposit' THEN (
-                SELECT jsonb_build_object(
-                    'destination_wallet', cm.destination_wallet,
-                    'coin', cm.coin,
-                    'rate', cm.rate,
-                    'fees', cm.fees,
-                    'received_amount', cm.received_amount,
-                    'sent_amount', cm.sent_amount,
-                    'service_provider', cm.service_provider,
-                    'service_transaction_id', cm.service_transaction_id
-                )::jsonb
-                FROM public.crypto_transaction_metadata cm
-                WHERE cm.transaction_id = t.id
-            )
-            WHEN t.type = 'withdrawal' THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', fm.source_wallet,
-                    'rate', fm.rate,
-                    'received_amount', fm.received_amount,
-                    'sent_amount', fm.sent_amount,
-                    'fees', fm.fees,
-                    'account_name', fm.account_name,
-                    'bank_code', fm.bank_code,
-                    'account_number', fm.account_number,
-                    'service_provider', fm.service_provider,
-                    'service_transaction_id', fm.service_transaction_id
-                )::jsonb
-                FROM public.bank_transfer_metadata fm
-                WHERE fm.transaction_id = t.id
-            )
-            WHEN t.type = 'giftcard' THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', gm.source_wallet,
-                    'rate', gm.rate,
-                    'received_amount', gm.received_amount,
-                    'sent_amount', gm.sent_amount,
-                    'fees', gm.fees,
-                    'service_provider', gm.service_provider,
-                    'service_transaction_id', gm.service_transaction_id
-                )::jsonb
-                FROM public.giftcard_transaction_metadata gm
-                WHERE gm.transaction_id = t.id
-            )
-            WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', sm.source_wallet,
-                    'rate', sm.rate,
-                    'received_amount', sm.received_amount,
-                    'sent_amount', sm.sent_amount,
-                    'fees', sm.fees,
-                    'service_type', sm.service_type,
-                    'service_provider', sm.service_provider,
-                    'service_id', sm.service_id,
-                    'service_status', sm.service_status,
-                    'service_transaction_id', sm.service_transaction_id
-                )::jsonb
-                FROM public.services_metadata sm
-                WHERE sm.transaction_id = t.id
-            )
-            WHEN t.type IN ('transfer', 'swap') THEN (
-                SELECT jsonb_build_object(
-                    'currency', stm.currency,
-                    'transfer_type', stm.transfer_type,
-                    'description', stm.description,
-                    'source_wallet', stm.source_wallet,
-                    'destination_wallet', stm.destination_wallet,
-                    'user_tag', stm.user_tag,
-                    'rate', stm.rate,
-                    'fees', stm.fees,
-                    'received_amount', stm.received_amount,
-                    'sent_amount', stm.sent_amount
-                )::jsonb
-                FROM public.swap_transfer_metadata stm
-                WHERE stm.transaction_id = t.id
-            )
-        END as metadata
-    FROM matching_transactions mt
-    JOIN public.transactions t ON t.id = mt.transaction_id
-    ORDER BY t.created_at DESC
-    LIMIT (SELECT page_limit FROM pagination)
-    OFFSET (SELECT page_offset FROM pagination)
-)
-SELECT
-    jsonb_build_object(
-        'transactions', jsonb_agg(to_jsonb(transaction_data.*)),
-        'page_limit', (SELECT page_limit FROM pagination),
-        'page_offset', (SELECT page_offset FROM pagination),
-        'total_count', (SELECT total FROM total_count),
-        'has_more', (SELECT (page_offset + page_limit) < total FROM pagination, total_count)
-    ) as result
-FROM transaction_data
-`
-
-type GetTransactionsForWalletParams struct {
-	Limit        int32         `json:"_limit"`
-	Offset       int32         `json:"_offset"`
-	UsdWalletID  uuid.NullUUID `json:"usd_wallet_id"`
-	NgnWalletID  uuid.NullUUID `json:"ngn_wallet_id"`
-	UsdcWalletID uuid.NullUUID `json:"usdc_wallet_id"`
-	UsdtWalletID uuid.NullUUID `json:"usdt_wallet_id"`
-}
-
-func (q *Queries) GetTransactionsForWallet(ctx context.Context, arg GetTransactionsForWalletParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, getTransactionsForWallet,
-		arg.Limit,
-		arg.Offset,
-		arg.UsdWalletID,
-		arg.NgnWalletID,
-		arg.UsdcWalletID,
-		arg.UsdtWalletID,
-	)
-	var result json.RawMessage
-	err := row.Scan(&result)
-	return result, err
-}
-
-const getTransactionsForWalletCursor = `-- name: GetTransactionsForWalletCursor :one
-WITH pagination AS (
-    SELECT $1::int as page_limit
-),
-matching_transactions AS (
-    SELECT cm.transaction_id FROM public.crypto_transaction_metadata cm
-    WHERE cm.destination_wallet = $2 
-       OR cm.destination_wallet = $3
-       OR cm.destination_wallet = $4
-       OR cm.destination_wallet = $5
-    UNION ALL
-    SELECT fm.transaction_id FROM public.bank_transfer_metadata fm
-    WHERE fm.source_wallet = $2 
-       OR fm.source_wallet = $3
-       OR fm.source_wallet = $4
-       OR fm.source_wallet = $5
-    UNION ALL
-    SELECT gm.transaction_id FROM public.giftcard_transaction_metadata gm
-    WHERE gm.source_wallet = $2 
-       OR gm.source_wallet = $3
-       OR gm.source_wallet = $4
-       OR gm.source_wallet = $5
-    UNION ALL
-    SELECT sm.transaction_id FROM public.services_metadata sm
-    WHERE sm.source_wallet = $2 
-       OR sm.source_wallet = $3
-       OR sm.source_wallet = $4
-       OR sm.source_wallet = $5
-    UNION ALL
-    SELECT stm.transaction_id FROM public.swap_transfer_metadata stm
-    WHERE stm.source_wallet = $2 
-       OR stm.source_wallet = $3
-       OR stm.source_wallet = $4
-       OR stm.source_wallet = $5
-       OR stm.destination_wallet = $2 
-       OR stm.destination_wallet = $3
-       OR stm.destination_wallet = $4
-       OR stm.destination_wallet = $5
-    UNION ALL
-    -- Add vault transactions
-    SELECT t.id as transaction_id FROM public.transactions t
-    INNER JOIN public.vault_transactions vt ON vt.transaction_id = t.id
-    WHERE t.transaction_flow IN ('wallet -> savings', 'savings -> wallet')
-        AND (
-            (vt.source_wallet IS NOT NULL AND (
-                vt.source_wallet = $2 
-                OR vt.source_wallet = $3
-                OR vt.source_wallet = $4
-                OR vt.source_wallet = $5
-            ))
-            OR (vt.destination_wallet IS NOT NULL AND (
-                vt.destination_wallet = $2 
-                OR vt.destination_wallet = $3
-                OR vt.destination_wallet = $4
-                OR vt.destination_wallet = $5
-            ))
-        )
-    ),
-transaction_data AS (
-    SELECT
-        t.id, t.type, t.description, t.transaction_flow, t.status, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
-        CASE
-        WHEN t.transaction_flow IN ('wallet -> savings', 'savings -> wallet') THEN (
-                SELECT jsonb_build_object(
-                    'vault_id', vt.vault_id,
-                    'transaction_type', vt.transaction_type,
-                    'source_wallet', vt.source_wallet,
-                    'destination_wallet', vt.destination_wallet,
-                    'amount', vt.amount,
-                    'currency', vt.currency,
-                    'balance_before', vt.balance_before,
-                    'balance_after', vt.balance_after,
-                    'reference', vt.reference,
-                    'description', vt.description,
-                    'metadata', vt.metadata,
-                    'status', vt.status,
-                    'requires_2fa', vt.requires_2fa
-                )::jsonb
-                FROM public.vault_transactions vt
-                WHERE vt.transaction_id = t.id
-                LIMIT 1
-            )
-            WHEN t.type = 'deposit' THEN (
-                SELECT jsonb_build_object(
-                    'destination_wallet', cm.destination_wallet,
-                    'coin', cm.coin,
-                    'rate', cm.rate,
-                    'fees', cm.fees,
-                    'received_amount', cm.received_amount,
-                    'sent_amount', cm.sent_amount,
-                    'service_provider', cm.service_provider,
-                    'service_transaction_id', cm.service_transaction_id
-                )::jsonb
-                FROM public.crypto_transaction_metadata cm
-                WHERE cm.transaction_id = t.id
-            )
-            WHEN t.type = 'withdrawal' THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', fm.source_wallet,
-                    'rate', fm.rate,
-                    'received_amount', fm.received_amount,
-                    'sent_amount', fm.sent_amount,
-                    'fees', fm.fees,
-                    'account_name', fm.account_name,
-                    'bank_code', fm.bank_code,
-                    'account_number', fm.account_number,
-                    'service_provider', fm.service_provider,
-                    'service_transaction_id', fm.service_transaction_id
-                )::jsonb
-                FROM public.bank_transfer_metadata fm
-                WHERE fm.transaction_id = t.id
-            )
-            WHEN t.type = 'giftcard' THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', gm.source_wallet,
-                    'rate', gm.rate,
-                    'received_amount', gm.received_amount,
-                    'sent_amount', gm.sent_amount,
-                    'fees', gm.fees,
-                    'service_provider', gm.service_provider,
-                    'service_transaction_id', gm.service_transaction_id
-                )::jsonb
-                FROM public.giftcard_transaction_metadata gm
-                WHERE gm.transaction_id = t.id
-            )
-            WHEN t.type IN ('airtime', 'data', 'tv', 'electricity') THEN (
-                SELECT jsonb_build_object(
-                    'source_wallet', sm.source_wallet,
-                    'rate', sm.rate,
-                    'received_amount', sm.received_amount,
-                    'sent_amount', sm.sent_amount,
-                    'fees', sm.fees,
-                    'service_type', sm.service_type,
-                    'service_provider', sm.service_provider,
-                    'service_id', sm.service_id,
-                    'service_status', sm.service_status,
-                    'service_transaction_id', sm.service_transaction_id
-                )::jsonb
-                FROM public.services_metadata sm
-                WHERE sm.transaction_id = t.id
-            )
-            WHEN t.type IN ('transfer', 'swap') THEN (
-                SELECT jsonb_build_object(
-                    'currency', stm.currency,
-                    'transfer_type', stm.transfer_type,
-                    'description', stm.description,
-                    'source_wallet', stm.source_wallet,
-                    'destination_wallet', stm.destination_wallet,
-                    'user_tag', stm.user_tag,
-                    'rate', stm.rate,
-                    'fees', stm.fees,
-                    'received_amount', stm.received_amount,
-                    'sent_amount', stm.sent_amount
-                )::jsonb
-                FROM public.swap_transfer_metadata stm
-                WHERE stm.transaction_id = t.id
-            )
-        END as metadata
-    FROM matching_transactions mt
-    JOIN public.transactions t ON t.id = mt.transaction_id
-    WHERE CASE
-        WHEN $6::timestamptz IS NOT NULL THEN t.created_at < $6::timestamptz
-        ELSE true
-    END
-    AND CASE
-        WHEN $7::uuid IS NOT NULL THEN t.id < $7::uuid
-        ELSE true
-    END
-    ORDER BY t.created_at DESC, t.id DESC
-    LIMIT (SELECT page_limit FROM pagination) + 1
-),
-result_set AS (
-    SELECT id, type, description, transaction_flow, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id, metadata FROM transaction_data
-    LIMIT (SELECT page_limit FROM pagination)
-)
-SELECT
-    jsonb_build_object(
-        'transactions', jsonb_agg(to_jsonb(result_set.*)),
-        'has_more', (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination),
-        'next_cursor', CASE
-            WHEN (SELECT COUNT(*) FROM transaction_data) > (SELECT page_limit FROM pagination) THEN
-                jsonb_build_object(
-                    'created_at', (SELECT created_at FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1),
-                    'transaction_id', (SELECT id FROM result_set ORDER BY created_at ASC, id ASC LIMIT 1)
-                )
-            ELSE NULL
-        END
-    ) as result
-FROM result_set
-`
-
-type GetTransactionsForWalletCursorParams struct {
-	Limit         int32         `json:"_limit"`
-	UsdWalletID   uuid.NullUUID `json:"usd_wallet_id"`
-	NgnWalletID   uuid.NullUUID `json:"ngn_wallet_id"`
-	UsdcWalletID  uuid.NullUUID `json:"usdc_wallet_id"`
-	UsdtWalletID  uuid.NullUUID `json:"usdt_wallet_id"`
-	CreatedAt     sql.NullTime  `json:"created_at"`
-	TransactionID uuid.NullUUID `json:"transaction_id"`
-}
-
-func (q *Queries) GetTransactionsForWalletCursor(ctx context.Context, arg GetTransactionsForWalletCursorParams) (json.RawMessage, error) {
-	row := q.db.QueryRowContext(ctx, getTransactionsForWalletCursor,
-		arg.Limit,
-		arg.UsdWalletID,
-		arg.NgnWalletID,
-		arg.UsdcWalletID,
-		arg.UsdtWalletID,
-		arg.CreatedAt,
-		arg.TransactionID,
-	)
 	var result json.RawMessage
 	err := row.Scan(&result)
 	return result, err
@@ -3571,7 +2830,7 @@ SET
     status = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type UpdateCryptoTransactionStatusParams struct {
@@ -3596,6 +2855,9 @@ func (q *Queries) UpdateCryptoTransactionStatus(ctx context.Context, arg UpdateC
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -3789,7 +3051,7 @@ const updateTransactionStatus = `-- name: UpdateTransactionStatus :one
 UPDATE transactions
 SET status = $2
 WHERE id = $1
-RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type UpdateTransactionStatusParams struct {
@@ -3814,6 +3076,9 @@ func (q *Queries) UpdateTransactionStatus(ctx context.Context, arg UpdateTransac
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,
@@ -3833,7 +3098,7 @@ SET
     END,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+RETURNING id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
 `
 
 type UpdateTransactionToFailedParams struct {
@@ -3859,6 +3124,9 @@ func (q *Queries) UpdateTransactionToFailed(ctx context.Context, arg UpdateTrans
 		&i.Currency,
 		&i.AmountUsd,
 		&i.Status,
+		&i.RiskScore,
+		&i.FraudStatus,
+		&i.FlaggedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.DeletedFromAccountID,

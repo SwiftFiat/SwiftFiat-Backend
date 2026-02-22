@@ -148,24 +148,20 @@ type ConversionStats struct {
 }
 
 type ManualConversionRequest struct {
-	SourceWalletID uuid.UUID `json:"source_wallet_id" binding:"required"` // UUID of the source wallet
-	TargetWalletID uuid.UUID `json:"target_wallet_id" binding:"required"` // UUID of the target wallet
-	SourceCurrency string    `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
-	TargetCurrency string    `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
-	Amount         string    `json:"amount" binding:"required,gt=0"` // Amount to convert
-	Pin            string    `json:"pin" binding:"required"`
-	// AmountType     string    `json:"-" binding:"required,oneof=source target"` // Indicates if the amount is in source or target currency
+	SourceCurrency string `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
+	TargetCurrency string `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
+	Amount         string `json:"amount" binding:"required,gt=0"` // Amount to convert
+	Pin            string `json:"pin" binding:"required"`
 }
 
 type ManualConversionResponse struct {
-	ConversionID  uuid.UUID       `json:"conversion_id"`
-	TransactionID uuid.UUID       `json:"transaction_id"`
-	SourceAmount  decimal.Decimal `json:"source_amount"`
-	TargetAmount  decimal.Decimal `json:"target_amount"`
-	ExecutedRate  decimal.Decimal `json:"executed_rate"`
-	Fees          decimal.Decimal `json:"fees"`
-	NetAmount     decimal.Decimal `json:"net_amount"`
-	Status        string          `json:"status"`
+	SourceAmount float64 `json:"source_amount"`
+	Reference    string  `json:"reference"`
+	TargetAmount float64 `json:"target_amount"`
+	ExecutedRate float64 `json:"rate"`
+	Fees         float64 `json:"fees"`
+	NetAmount    float64 `json:"net_amount"`
+	Status       string  `json:"status"`
 }
 
 // ============================================================

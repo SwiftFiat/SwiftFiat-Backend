@@ -1,0 +1,16 @@
+meta {
+  name: Set default bank account
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{BaseURl}}/user/bank-accounts/1/set-default
+  body: json
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

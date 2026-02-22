@@ -1,0 +1,26 @@
+meta {
+  name: Get current rate
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{BaseURl}}/rate-manager/current-rate?from=USD&to=NGN&amount=10
+  body: none
+  auth: bearer
+}
+
+params:query {
+  from: USD
+  to: NGN
+  amount: 10
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
