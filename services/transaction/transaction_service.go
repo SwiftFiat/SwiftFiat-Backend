@@ -419,8 +419,13 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching user: %w", err)
 	}
 
+
+	s.logger.Infof("======================amount in satoshis is %2.f", tx.AmountInSatoshis.InexactFloat64())
+
 	coinSym := strings.ToUpper(tx.Coin)
 	coinAmount := tx.AmountInSatoshis
+
+	s.logger.Infof("======================coin amount is %2.f", coinAmount.InexactFloat64())
 
 	// ── Rapid Ramp path ───────────────────────────────────────────────────────
 	if user.IsRapidRampOn {
@@ -436,12 +441,12 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 	}
 
 	// ── Normal path: convert to USD and credit USD wallet ────────────────────
-	rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
-	if err != nil {
-		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching exchange rate: %w", err)
-	}
+	// rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
+	// if err != nil {
+	// 	return nil, nil, decimal.Zero, "", fmt.Errorf("fetching exchange rate: %w", err)
+	// }
 
-	VipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, user.ID, string(USD), string(NGN), user.TotalConversionVolume.String)
+	vip_rate, err := s.rateManager.GetAdjustedRateForUser(ctx, user.ID, coinSym, string(USD), coinAmount.String())
 	if err != nil {
 		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: WARNINGALERT,
@@ -449,10 +454,11 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 			Message:  fmt.Sprintf("vip rates is failing with error: %v", err),
 			Source:   sql.NullString{String: "Crypto Coversion", Valid: true},
 		})
-	} else {
-		vipRateAmount, _ := utils.ToDecimal(VipRate.AdjustmentAmount)
-		rate = vipRateAmount
-	}
+	} 
+
+	rate, _ := utils.ToDecimal(vip_rate.AdjustedRate)
+
+	s.logger.Infof("======================rate is %2.f", rate.InexactFloat64())
 
 	usdAmount := coinAmount.Mul(rate)
 
@@ -464,7 +470,9 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching USD wallet: %w", err)
 	}
 
-	idempotencyKey := "crypto_inflow_" + tx.TransactionID.String()
+	s.logger.Infof("======================usd amount is %2.f", usdAmount.InexactFloat64())
+
+	idempotencyKey := utils.WatRequestID()
 
 	// FIX [C2a]: Create directly with Success — no need for a Pending→Success hop.
 	// FIX [C2b]: Amount = coin amount, not USD equivalent.
@@ -561,15 +569,13 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		UpdatedAt:       txx.UpdatedAt,
 		Metadata: &CryptoMetadataResponse{
 			ID:                   cryptoMeta.ID,
-			DestinationWallet:    cryptoMeta.DestinationWallet.UUID,
+			DestinationWallet:    destWallet.Currency,
 			Coin:                 cryptoMeta.Coin,
-			SourceHash:           cryptoMeta.SourceHash.String,
-			Rate:                 cryptoMeta.Rate.String,
-			Fees:                 cryptoMeta.Fees.String,
+			Rate:                 rate.InexactFloat64(),
+			Fees:                 0.00,
 			ReceivedAmount:       cryptoMeta.ReceivedAmount.String,
-			SentAmount:           cryptoMeta.SentAmount.String,
-			ServiceProvider:      cryptoMeta.ServiceProvider,
-			ServiceTransactionID: cryptoMeta.ServiceTransactionID.String,
+			SentAmount:           tx.SentAmount.InexactFloat64(),
+			OrderID:      cryptoMeta.OrderID,
 		},
 	}
 
@@ -731,7 +737,7 @@ func (s *TransactionService) processRapidRampInflow(
 		IdempotencyKey:  idempotencyKey,
 		Direction:       string(Credit),
 		TFrom:           "Cryptomus",
-		TTo:             "bank",
+		TTo:             "Bank",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating rapid ramp transaction record: %w", err)
@@ -962,96 +968,6 @@ func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *
 			},
 		}
 
-		return &response, nil
-
-	}
-
-	if platform == CryptoInflowTransaction {
-		tx, ok := txx.(*CryptoTransaction)
-		if !ok {
-			return nil, fmt.Errorf("failed to parse transaction into TransactionObject")
-		}
-
-		amountUsd, err := utils.ConvertToUSD(ctx, tx.SentAmount, tx.Coin)
-		if err != nil {
-			return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
-		}
-
-		s.logger.Info("=================== crypto inflow transaction record creating...")
-		tObj, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
-			Type:            string(CryptoInflowTransaction),
-			Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
-			TransactionFlow: string(Inflow),
-			Status:          string(Success),
-			AmountUsd:       amountUsd.String(),
-			Amount:          tx.SentAmount.String(),
-			Currency:        tx.Coin,
-			UserID:          userID,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create transaction record: %w", err)
-		}
-
-		params := db.CreateCryptoMetadataParams{
-			DestinationWallet: uuid.NullUUID{
-				UUID:  tx.DestinationAccount,
-				Valid: tx.DestinationAccount.URN() != "",
-			},
-			TransactionID: tObj.ID,
-			Coin:          tx.Coin,
-			SourceHash: sql.NullString{
-				String: tx.SourceHash,
-				Valid:  tx.SourceHash != "",
-			},
-			Rate: sql.NullString{
-				String: tx.Rate.String(),
-				Valid:  true,
-			},
-			Fees: sql.NullString{
-				String: tx.Fees.String(),
-				Valid:  true,
-			},
-			ReceivedAmount: sql.NullString{
-				String: tx.ReceivedAmount.String(),
-				Valid:  true,
-			},
-			SentAmount: sql.NullString{
-				String: tx.SentAmount.String(),
-				Valid:  true,
-			},
-			ServiceProvider: providers.Cryptomus,
-			ServiceTransactionID: sql.NullString{
-				String: "",    // Placeholder for service transaction ID -- TODO: Create function to update CryptoTransactionID
-				Valid:  false, // Assuming service transaction ID is not always available
-			},
-		}
-
-		cryptoMeta, err := s.store.WithTx(dbTx).CreateCryptoMetadata(ctx, params)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create transaction record: %w", err)
-		}
-
-		response := TransactionResponse[CryptoMetadataResponse]{
-			ID:              tObj.ID,
-			Type:            string(Transfer),
-			Description:     tx.Description,
-			TransactionFlow: string(Outflow),
-			Status:          string(Success),
-			CreatedAt:       tObj.CreatedAt,
-			UpdatedAt:       tObj.UpdatedAt,
-			Metadata: &CryptoMetadataResponse{
-				ID:                   cryptoMeta.ID,
-				DestinationWallet:    cryptoMeta.DestinationWallet.UUID,
-				Coin:                 cryptoMeta.Coin,
-				SourceHash:           cryptoMeta.SourceHash.String,
-				Rate:                 cryptoMeta.Rate.String,
-				Fees:                 cryptoMeta.Fees.String,
-				ReceivedAmount:       cryptoMeta.ReceivedAmount.String,
-				SentAmount:           cryptoMeta.SentAmount.String,
-				ServiceProvider:      cryptoMeta.ServiceProvider,
-				ServiceTransactionID: cryptoMeta.ServiceTransactionID.String,
-			},
-		}
 		return &response, nil
 
 	}
@@ -1893,6 +1809,12 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title: "Buy Airtime Failing",
+			Message: fmt.Sprintf("VTPASS buy airtime endpoint failed with error: %v", err.Error()),
+			Source: sql.NullString{String: "HandleAirtime", Valid: true},
+		})
 		return nil, fmt.Errorf("airtime provider unreachable (pending reconciliation): %w", err)
 	}
 
@@ -2127,6 +2049,12 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			return nil, fmt.Errorf("failed to update tx record")
 		}
 		_ = dbTx.Commit()
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title: "Buy Data Failing",
+			Message: fmt.Sprintf("VTPASS buy data endpoint failed with error: %v", err),
+			Source: sql.NullString{String: "HandleData", Valid: true},
+		})
 		return nil, fmt.Errorf("data provider unreachable (pending reconciliation): %w", err)
 	}
 
@@ -2375,6 +2303,12 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title: "Buy Tv Subscription Failing",
+			Message: fmt.Sprintf("VTPASS buy tv sub endpoint failed with error: %v", err.Error()),
+			Source: sql.NullString{String: "HandleAirtime", Valid: true},
+		})
 		return nil, fmt.Errorf("TV provider unreachable (pending reconciliation): %w", err)
 	}
 
@@ -2989,8 +2923,6 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-		// FIX [E6]: Was s.push.SuccessfulTvSub — wrong notification type.
-		// TODO: Add SuccessfulElectricityPurchase(ctx, userID, token, units) to PushNotificationService.
 		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
 			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
 			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
@@ -3102,9 +3034,9 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 	wTx, err := s.store.WithTx(dbTx).CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
 		Currency:      req.Currency,
 		TransactionID: tx.ID,
-		Sender:        user.ID,
+		Sender:        user.UserTag.String,
 		Type:          string(Debit),
-		Recipient:     recipientUser.ID,
+		Recipient:     recipientUser.UserTag.String,
 		ServiceCharge: sql.NullString{String: "0", Valid: true},
 		Amount:        amount.String(),
 		AmountPaid:    sql.NullString{String: finalAmount.String(), Valid: true},
@@ -3170,9 +3102,9 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 	_, err = s.store.WithTx(dbTx).CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
 		Currency:      req.Currency,
 		TransactionID: t.ID,
-		Sender:        user.ID,
+		Sender:        user.UserTag.String,
 		Type:          string(Credit),
-		Recipient:     recipientUser.ID,
+		Recipient:     recipientUser.UserTag.String,
 		Amount:        amount.String(),
 		Reference:     uuid.NewString(),
 		Status:        string(Success),

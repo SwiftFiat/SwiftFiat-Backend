@@ -172,23 +172,25 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 // ============================================================
 
 // ExecuteManualConversion executes a manual conversion with vip rate
-func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*db.ConversionHistory, error) {
+func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*ManualConversionResponse, error) {
 	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.ID))
 
 	// Validate wallets
-	sourceWallet, err := s.store.GetWallet(ctx, req.SourceWalletID)
+	sourceWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   req.SourceCurrency,
+	})
 	if err != nil {
 		return nil, ErrWalletNotFound
 	}
 
-	s.logger.Infof("source wallet is %s", sourceWallet.Currency)
-
-	targetWallet, err := s.store.GetWallet(ctx, req.TargetWalletID)
+	targetWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
+		CustomerID: user.ID,
+		Currency:   req.TargetCurrency,
+	})
 	if err != nil {
 		return nil, ErrWalletNotFound
 	}
-
-	s.logger.Infof("target wallet is %s", targetWallet.Currency)
 
 	if sourceWallet.CustomerID != user.ID || targetWallet.CustomerID != user.ID {
 		return nil, fmt.Errorf("unauthorized")
@@ -212,7 +214,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		s.logger.Warnf("%s", fmt.Sprintf("Failed to get VIP-adjusted rate: %v", err))
 		// fallback to base rate if vip rate fails
 		s.logger.Warnf("%s", fmt.Sprintf("Falling back to base rate for user %d", user.ID))
-		return s.executeWithBaseRate(ctx, user.ID, req)
+		return s.executeWithBaseRate(ctx, user.ID, req, targetWallet.ID, sourceWallet.ID)
 	}
 
 	if rate.AdjustedRate != "" {
@@ -245,8 +247,8 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 	history, err := s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         user.ID,
 		ruleID:         nil,
-		sourceWalletID: req.SourceWalletID,
-		targetWalletID: req.TargetWalletID,
+		sourceWalletID: sourceWallet.ID,
+		targetWalletID: targetWallet.ID,
 		sourceCurrency: req.SourceCurrency,
 		targetCurrency: req.TargetCurrency,
 		sourceAmount:   sourceAmount,
@@ -275,7 +277,9 @@ func (s *ConversionService) executeWithBaseRate(
 	ctx context.Context,
 	userID int64,
 	req *ManualConversionRequest,
-) (*db.ConversionHistory, error) {
+	targetWalletID uuid.UUID,
+	sourceWalletID uuid.UUID,
+) (*ManualConversionResponse, error) {
 	s.logger.Info("Executing conversion with base rate (VIP adjustment unavailable)")
 
 	// Get base rate
@@ -319,8 +323,8 @@ func (s *ConversionService) executeWithBaseRate(
 	history, err := s.executeConversion(ctx, &conversionExecutionParams{
 		userID:         userID,
 		ruleID:         nil,
-		sourceWalletID: req.SourceWalletID,
-		targetWalletID: req.TargetWalletID,
+		sourceWalletID: sourceWalletID,
+		targetWalletID: targetWalletID,
 		sourceCurrency: req.SourceCurrency,
 		targetCurrency: req.TargetCurrency,
 		sourceAmount:   sourceAmount,
@@ -359,7 +363,7 @@ type conversionExecutionParams struct {
 }
 
 // executeConversion performs the actual conversion in a database transaction
-func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*db.ConversionHistory, error) {
+func (s *ConversionService) executeConversion(ctx context.Context, params *conversionExecutionParams) (*ManualConversionResponse, error) {
 
 	sourceWallet, err := s.store.GetWalletForUpdate(ctx, params.sourceWalletID)
 	if err != nil {
@@ -413,6 +417,10 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		Currency:        params.sourceCurrency,
 		AmountUsd:       amountUsd.String(),
 		Status:          string(transaction.Success),
+		IdempotencyKey:  utils.WatRequestID(),
+		TFrom:           params.sourceCurrency,
+		TTo:             params.targetCurrency,
+		Direction:       "conversion",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create transaction: %w", err)
@@ -458,7 +466,15 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		// Don't fail the conversion for this
 	}
 
-	return &history, nil
+	return &ManualConversionResponse{
+		SourceAmount: params.sourceAmount.InexactFloat64(),
+		TargetAmount: params.targetAmount.InexactFloat64(),
+		ExecutedRate: params.executedRate.InexactFloat64(),
+		Reference:    mainTx.IdempotencyKey,
+		Fees:         params.fees.InexactFloat64(),
+		NetAmount:    params.netAmount.InexactFloat64(),
+		Status:       history.Status,
+	}, nil
 }
 
 // CheckAndExecuteRateBasedRules checks rate-based rules and executes if triggered

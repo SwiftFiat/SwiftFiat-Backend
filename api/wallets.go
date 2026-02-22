@@ -14,7 +14,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -52,8 +51,6 @@ func (w Wallet) router(server *Server) {
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/wallets")
 	serverGroupV1.GET("", w.server.authMiddleware.AuthenticatedMiddleware(), w.getUserWallets)
-	serverGroupV1.GET("transactions", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactions)
-	serverGroupV1.GET("transactions-cursor", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransactionsCursor)
 	serverGroupV1.GET("transactions/:id", w.server.authMiddleware.AuthenticatedMiddleware(), w.getTransaction)
 	serverGroupV1.POST("transfer", w.server.authMiddleware.AuthenticatedMiddleware(), w.walletTransfer)
 	serverGroupV1.GET("banks", w.server.authMiddleware.AuthenticatedMiddleware(), w.banks)
@@ -205,111 +202,6 @@ func (w *Wallet) getUserWallets(ctx *gin.Context) {
 // 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transaction Fetched Successfully", transaction))
 // }
 
-// getTransactions godoc
-// @Summary      Get User Wallet Transactions
-// @Description  Retrieves the transactions associated with the authenticated user's wallets.
-// @Tags         Wallets
-// @Accept       json
-// @Produce      json
-// @Security 	 BearerAuth
-// @Param        page_limit     query     int     false "Number of transactions to retrieve per page"
-// @Param        page_offset    query     int     false "Offset for pagination"
-// @Success      200            {object}  basemodels.SuccessResponse{data=[]models.TransactionResponse}
-// @Failure      400            {object}  basemodels.ErrorResponse
-// @Failure      401            {object}  basemodels.ErrorResponse
-// @Failure      500            {object}  basemodels.ErrorResponse
-// @Router       /api/v1/wallets/transactions [get]
-func (w *Wallet) getTransactions(ctx *gin.Context) {
-	/// Pagination
-	// cursor := ctx.Query("cursor")
-	pageLimit := ctx.Query("page_limit")
-	pageLimitInt, err := strconv.Atoi(pageLimit)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid page limit"))
-		return
-	}
-	pageOffset := ctx.Query("page_offset")
-	pageOffsetInt, err := strconv.Atoi(pageOffset)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid page offset"))
-		return
-	}
-
-	if pageLimitInt == 0 {
-		pageLimitInt = 10
-	}
-
-	if pageOffsetInt == 0 {
-		pageOffsetInt = 0
-	}
-
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	wallet, err := w.server.queries.GetWalletByCustomerID(ctx, activeUser.UserID)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
-		return
-	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	// transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
-	// 	UsdWalletID: uuid.NullUUID{
-	// 		UUID:  wallet[0].ID,
-	// 		Valid: true,
-	// 	},
-	// 	NgnWalletID: uuid.NullUUID{
-	// 		UUID:  wallet[1].ID,
-	// 		Valid: true,
-	// 	},
-	// 	Limit:  int32(pageLimitInt),
-	// 	Offset: int32(pageOffsetInt),
-	// })
-
-	// Find wallets by currency
-	var usdWalletID, ngnWalletID, usdcWalletID, usdtWalletID uuid.NullUUID
-
-	for _, w := range wallet {
-		switch w.Currency {
-		case "USD":
-			usdWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
-		case "NGN":
-			ngnWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
-		case "USDC":
-			usdcWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
-		case "USDT":
-			usdtWalletID = uuid.NullUUID{UUID: w.ID, Valid: true}
-		}
-	}
-
-	transactions, err := w.server.queries.GetTransactionsForWallet(ctx, db.GetTransactionsForWalletParams{
-		UsdWalletID:  usdWalletID,
-		NgnWalletID:  ngnWalletID,
-		UsdcWalletID: usdcWalletID,
-		UsdtWalletID: usdtWalletID,
-		Limit:        int32(pageLimitInt),
-		Offset:       int32(pageOffsetInt),
-	})
-
-	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
-		return
-	} else if err != nil {
-		w.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", models.ToTransactionResponseObject(transactions)))
-
-}
-
 // getTransaction godoc
 // @Summary      Get Single Wallet Transaction
 // @Description  Retrieves a specific transaction associated with the authenticated user's wallet.
@@ -343,92 +235,6 @@ func (w *Wallet) getTransaction(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Transaction Fetched Successfully", models.ToTransactionResponse(transaction)))
-
-}
-
-// getTransactionsCursor godoc
-// @Summary      Get User Wallet Transactions with Cursor Pagination
-// @Description  Retrieves the transactions associated with the authenticated user's wallets using cursor-based pagination.
-// @Tags         Wallets
-// @Accept       json
-// @Produce      json
-// @Security 	 BearerAuth
-// @Param        cursor_date        query     string  false "Cursor date for pagination (RFC3339 format)"
-// @Param        cursor_transaction_id  query     string  false "Cursor transaction ID for pagination"
-// @Success      200                {object}  basemodels.SuccessResponse{data=[]models.TransactionResponse}
-// @Failure      400                {object}  basemodels.ErrorResponse
-// @Failure	  	 401                {object}  basemodels.ErrorResponse
-// @Failure      500                {object}  basemodels.ErrorResponse
-// @Router       /api/v1/wallets/transactions-cursor [get]
-func (w *Wallet) getTransactionsCursor(ctx *gin.Context) {
-	/// Pagination
-	var cursorDate time.Time
-	cursorDateQuery := ctx.Query("cursor_date")
-	if cursorDateQuery != "" {
-		var err error
-		cursorDate, err = time.Parse(time.RFC3339, cursorDateQuery)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor date"))
-			return
-		}
-	}
-
-	var cursorTransactionIDUUID uuid.UUID
-	cursorTransactionIDQuery := ctx.Query("cursor_transaction_id")
-	if cursorTransactionIDQuery != "" {
-		var err error
-		cursorTransactionIDUUID, err = uuid.Parse(cursorTransactionIDQuery)
-		if err != nil {
-			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid cursor transaction id"))
-			return
-		}
-	}
-
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	wallet, err := w.server.queries.GetWalletByCustomerID(ctx, activeUser.UserID)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
-		return
-	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	transactions, err := w.server.queries.GetTransactionsForWalletCursor(ctx, db.GetTransactionsForWalletCursorParams{
-		UsdWalletID: uuid.NullUUID{
-			UUID:  wallet[0].ID,
-			Valid: true,
-		},
-		NgnWalletID: uuid.NullUUID{
-			UUID:  wallet[1].ID,
-			Valid: true,
-		},
-		CreatedAt: sql.NullTime{
-			Time:  cursorDate,
-			Valid: true,
-		},
-		TransactionID: uuid.NullUUID{
-			UUID:  cursorTransactionIDUUID,
-			Valid: true,
-		},
-	})
-
-	// transactions, err := w.server.queries.GetTransactionsByUserID(ctx, params)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoWallet))
-		return
-	} else if err != nil {
-		w.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User Wallet Transactions Fetched Successfully", transactions))
 
 }
 

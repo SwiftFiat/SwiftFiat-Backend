@@ -1,0 +1,16 @@
+meta {
+  name: Get default bank account
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{BaseURl}}/user/bank-accounts/default
+  body: none
+  auth: inherit
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

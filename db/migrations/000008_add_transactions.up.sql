@@ -2,17 +2,20 @@
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE SET NULL,
-    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity', 'qr_code', 'card', 'rewards', 'service', 'referral')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
+    "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'electricity', 'qr_code', 'card', 'rewards', 'referral')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
     "description" TEXT, -- e.g. User entered transaction description
     "transaction_flow" VARCHAR(50) CHECK (transaction_flow IN ('inflow', 'outflow', 'inplatform')) NOT NULL, -- e.g. inflow -> USD | outflow -> USD | inplatform
     "amount" DECIMAL(20, 2) NOT NULL,
     "idempotency_key" VARCHAR(255) UNIQUE NOT NULL,
     "t_from" VARCHAR(50) NOT NULL,
     "t_to" VARCHAR(50) NOT NULL,
-    "direction" VARCHAR(10) NOT NULL CHECK (direction IN ('credit', 'debit')),
+    "direction" VARCHAR(10) NOT NULL CHECK (direction IN ('credit', 'debit', 'conversion')),
     "currency" VARCHAR(10) NOT NULL,
     "amount_usd" DECIMAL(20, 2) NOT NULL,  -- Pre-converted to USD
     "status" VARCHAR(20) NOT NULL CHECK (status IN ('failed', 'pending', 'successful')), -- e.g success | pending | failed
+    "risk_score" INT DEFAULT 0,
+    "fraud_status" VARCHAR(20) CHECK (fraud_status IN ('clear', 'flagged', 'blocked', 'manual_review')) DEFAULT 'clear',
+    "flagged_at" TIMESTAMPTZ,
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(), 
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -40,8 +43,8 @@ CREATE TABLE IF NOT EXISTS "wallet_transfer_metadata" (
     "currency" VARCHAR(3) NOT NULL,
     "type" VARCHAR(10) NOT NULL CHECK(type IN ('debit', 'credit')),
     "transaction_id" UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
-    "sender" BIGINT REFERENCES users(id) NOT NULL,
-    "recipient" BIGINT REFERENCES users(id) NOT NULL, 
+    "sender" VARCHAR(200) NOT NULL,
+    "recipient" VARCHAR(200) NOT NULL, 
     "service_charge" DECIMAL(10,2), -- determines fees charged to transaction initiator (i.e. sender)
     "amount" DECIMAL(10,2) NOT NUlL,
     "amount_paid" DECIMAL(10,2),

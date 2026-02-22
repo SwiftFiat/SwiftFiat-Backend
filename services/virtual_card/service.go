@@ -109,44 +109,47 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 				s.logger.Errorf("error updating lastname from kyc: %v", err)
 				return nil, err
 			}
+
+			// set SetBridgeCardCardholderID to user
+			if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
+				BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
+				UpdatedAt:              time.Now(),
+				ID:                     int64(userID),
+			}); setErr != nil {
+				s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
+			}
+
+			// update kyc
+			_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+				IsKycVerified: true,
+				UpdatedAt:     time.Now(),
+				ID:            int64(userID),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("update user kyc status error: %v", err)
+			}
+
+			// Update cardholder verification status
+			err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
+				ID:                           int64(userID),
+				BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
+				UpdatedAt:                    time.Now(),
+			})
+			if err != nil {
+				return nil, fmt.Errorf("update cardholder verification status error: %w", err)
+			}
+
+			// Commit transaction
+			if err := dbTx.Commit(); err != nil {
+				return nil, fmt.Errorf("commit transaction: %w", err)
+			}
+
+			// s.notifySvc
+
+			return response, nil
 		}
 	}
 
-	// set SetBridgeCardCardholderID to user
-	if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
-		BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
-		UpdatedAt:              time.Now(),
-		ID:                     int64(userID),
-	}); setErr != nil {
-		s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
-	}
-
-	// update kyc
-	_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		IsKycVerified: true,
-		UpdatedAt:     time.Now(),
-		ID:            int64(userID),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("update user kyc status error: %v", err)
-	}
-
-	// fund referrer referral bonus
-
-	// Update cardholder verification status
-	err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-		ID:                           int64(userID),
-		BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
-		UpdatedAt:                    time.Now(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("update cardholder verification status error: %w", err)
-	}
-
-	// Commit transaction
-	if err := dbTx.Commit(); err != nil {
-		return nil, fmt.Errorf("commit transaction: %w", err)
-	}
 	return response, nil
 
 }

@@ -64,6 +64,10 @@ CREATE TABLE IF NOT EXISTS "users" (
     "first_conversion_id" UUID NULL,
     "first_conversion_at" TIMESTAMP NULL,
 
+    "frozen" BOOLEAN DEFAULT FALSE,
+    "frozen_reason" TEXT,
+    "frozen_at" TIMESTAMPTZ,
+
     -- Audit timestamps
     "created_at" timestamptz NOT NULL DEFAULT (now()),
     "updated_at" timestamptz NOT NULL DEFAULT (now()),

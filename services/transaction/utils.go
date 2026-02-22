@@ -180,12 +180,12 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 	// Create a transaction for the referral bonus
 	txx, err := store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          referrerID,
-		Amount:          amount.String(),
+		Amount:          referralBonus.String(),
 		AmountUsd:       referralBonus.String(),
 		Type:            string(Referral),
 		Description:     sql.NullString{String: "Referral bonus for referring a user who completed a conversion", Valid: true},
 		TransactionFlow: "inplatform",
-		Currency:        "NGN",
+		Currency:        "USD",
 		IdempotencyKey:  uuid.New().String(),
 		TFrom:           "Platform",
 		TTo:             "Referral",

@@ -472,3 +472,14 @@ func (u *UserService) ToggleRapidRamp(ctx context.Context, userID int64) (bool, 
 
 	return b, nil
 }
+
+
+func (u *UserService) CheckUserForTx(user *db.User) error {
+	if !user.Frozen.Bool {
+		return fmt.Errorf("account frozen. contact support.")
+	}
+	if !user.Verified {
+		return fmt.Errorf("verify your email to continue.")
+	}
+	return nil
+}

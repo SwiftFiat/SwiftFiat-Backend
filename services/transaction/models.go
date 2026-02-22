@@ -10,10 +10,19 @@ import (
 type TransactionStatus string
 
 const (
-	Success TransactionStatus = "successful"
-	Pending TransactionStatus = "pending"
-	Failed  TransactionStatus = "failed"
-	Unknown TransactionStatus = "unknown"
+	Success             TransactionStatus = "successful"
+	Pending             TransactionStatus = "pending"
+	Failed              TransactionStatus = "failed"
+	Unknown             TransactionStatus = "unknown"
+	MinAirtimeAmount                      = 50
+	InAppTransferLimitu                   = 50000
+	InAppTransferLimitv                   = 10000000
+	BankTransferLimitu                    = 50000
+	BankTransferLimitv                    = 10000000
+	AirtimeDailyLimitu                    = 50000
+	AirtimeDailyLimitv                    = 200000
+	OtherBillsLimitu                      = 500000
+	OtherBillsLimitv                      = 1000000
 )
 
 type TransactionType string // type of transaction
@@ -325,17 +334,14 @@ type SwapTransferMetadataResponse struct {
 }
 
 type CryptoMetadataResponse struct {
-	ID                   uuid.UUID `json:"id"`
-	DestinationWallet    uuid.UUID `json:"destination_wallet"`
-	Coin                 string    `json:"coin"`
-	SourceHash           string    `json:"source_hash,omitempty"`
-	Rate                 string    `json:"rate,omitempty"`
-	Fees                 string    `json:"fees,omitempty"`
-	ReceivedAmount       string    `json:"received_amount,omitempty"`
-	SentAmount           string    `json:"sent_amount,omitempty"`
-	ServiceProvider      string    `json:"service_provider"`
-	OrderID              string    `json:"order_id"`
-	ServiceTransactionID string    `json:"service_transaction_id,omitempty"`
+	ID                uuid.UUID `json:"id"`
+	DestinationWallet string    `json:"destination_wallet"`
+	Coin              string    `json:"coin"`
+	Rate              float64   `json:"rate,omitempty"`
+	Fees              float32   `json:"fees,omitempty"`
+	ReceivedAmount    string    `json:"received_amount,omitempty"`
+	SentAmount        float64   `json:"sent_amount,omitempty"`
+	OrderID           string    `json:"order_id"`
 }
 
 type GiftcardMetadataResponse struct {

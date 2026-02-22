@@ -506,7 +506,7 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		c,
 		audit.CategoryConversion,
 		audit.EventManualConversion,
-		result.ID.String(),
+		result.Reference,
 		"Manual conversion executed successfully",
 		&activeUser.UserID,
 		activeUser.Role,

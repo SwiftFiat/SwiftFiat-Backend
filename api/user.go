@@ -66,7 +66,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.POST("/bank-accounts", u.createBankAccount)
 	serverGroupV1.GET("/bank-accounts", u.GetBankAccounts)
 	serverGroupV1.GET("/bank-accounts/default", u.GetDefaultBankAccount)
-	serverGroupV1.POST("/bank-accounts/:account_id/set-default", u.GetDefaultBankAccount)
+	serverGroupV1.POST("/bank-accounts/:account_id/set-default", u.SetDefaultBankAccount)
 	serverGroupV1.DELETE("bank-accounts/:account_id", u.DeleteBankAccount)
 	serverGroupV1.GET("/admin/bank-accounts", u.GetAllBankAccounts)
 	serverGroupV1.GET("/transactions", u.ListUserTransactions)
@@ -1405,7 +1405,6 @@ func (u *User) ListUserTransactions(c *gin.Context) {
 // @Router /api/v1/user/transactions/{transaction_id} [get]
 // @Security BearerAuth
 func (u *User) GetTransactionDetails(c *gin.Context) {
-
 	transactionID, err := uuid.Parse(c.Param("transaction_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid transaction ID"))

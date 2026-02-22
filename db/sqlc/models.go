@@ -1319,6 +1319,9 @@ type Transaction struct {
 	Currency             string         `json:"currency"`
 	AmountUsd            string         `json:"amount_usd"`
 	Status               string         `json:"status"`
+	RiskScore            sql.NullInt32  `json:"risk_score"`
+	FraudStatus          sql.NullString `json:"fraud_status"`
+	FlaggedAt            sql.NullTime   `json:"flagged_at"`
 	CreatedAt            time.Time      `json:"created_at"`
 	UpdatedAt            time.Time      `json:"updated_at"`
 	DeletedFromAccountID uuid.NullUUID  `json:"deleted_from_account_id"`
@@ -1382,6 +1385,9 @@ type User struct {
 	HasCompletedFirstConversion  sql.NullBool   `json:"has_completed_first_conversion"`
 	FirstConversionID            uuid.NullUUID  `json:"first_conversion_id"`
 	FirstConversionAt            sql.NullTime   `json:"first_conversion_at"`
+	Frozen                       sql.NullBool   `json:"frozen"`
+	FrozenReason                 sql.NullString `json:"frozen_reason"`
+	FrozenAt                     sql.NullTime   `json:"frozen_at"`
 	CreatedAt                    time.Time      `json:"created_at"`
 	UpdatedAt                    time.Time      `json:"updated_at"`
 	DeletedAt                    sql.NullTime   `json:"deleted_at"`
@@ -1718,8 +1724,8 @@ type WalletTransferMetadatum struct {
 	Currency      string         `json:"currency"`
 	Type          string         `json:"type"`
 	TransactionID uuid.UUID      `json:"transaction_id"`
-	Sender        int64          `json:"sender"`
-	Recipient     int64          `json:"recipient"`
+	Sender        string         `json:"sender"`
+	Recipient     string         `json:"recipient"`
 	ServiceCharge sql.NullString `json:"service_charge"`
 	Amount        string         `json:"amount"`
 	AmountPaid    sql.NullString `json:"amount_paid"`
