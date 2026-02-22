@@ -151,6 +151,7 @@ type ManualConversionRequest struct {
 	SourceCurrency string `json:"source_currency" binding:"required,oneof=USD NGN USDT USDC"`
 	TargetCurrency string `json:"target_currency" binding:"required,oneof=USD NGN USDT USDC"`
 	Amount         string `json:"amount" binding:"required,gt=0"` // Amount to convert
+	Reference      string `json:"reference" binding:"required"`
 	Pin            string `json:"pin" binding:"required"`
 }
 

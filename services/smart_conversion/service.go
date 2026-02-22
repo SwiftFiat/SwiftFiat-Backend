@@ -175,6 +175,11 @@ func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uui
 func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *ManualConversionRequest, user *db.User) (*ManualConversionResponse, error) {
 	s.logger.Info(fmt.Sprintf("Executing manual conversion for user %d", user.ID))
 
+	_, err := s.store.GetTransactionByIdempotencyKey(ctx, req.Reference)
+	if err == nil {
+		return nil, fmt.Errorf("tx exists")
+	}
+
 	// Validate wallets
 	sourceWallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: user.ID,
