@@ -8,7 +8,7 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-  "docs:preview": "redocly preview -p 8081 -d ./docs",
+    "docs:preview": "redocly preview -p 8081 -d ./docs",
     "docs:bundle": "redocly bundle ./docs/swagger.yaml --output docs/bundle.yaml",
     "docs:build": "redocly build-docs ./docs/swagger.yaml --output-dir docs/site"
   },
@@ -26,5 +26,8 @@
   "homepage": "https://github.com/SwiftFiat/SwiftFiat-Backend#readme",
   "devDependencies": {
     "@redocly/cli": "^2.7.0"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.4.1"
   }
 }
