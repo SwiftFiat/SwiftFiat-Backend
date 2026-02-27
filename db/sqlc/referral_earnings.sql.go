@@ -82,7 +82,7 @@ func (q *Queries) CreateReferralConfig(ctx context.Context, arg CreateReferralCo
 const createReferralEarnings = `-- name: CreateReferralEarnings :one
 INSERT INTO referral_earnings (user_id)
 VALUES ($1)
-    RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, created_at, updated_at
+    RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at
 `
 
 func (q *Queries) CreateReferralEarnings(ctx context.Context, userID int32) (ReferralEarning, error) {
@@ -94,6 +94,10 @@ func (q *Queries) CreateReferralEarnings(ctx context.Context, userID int32) (Ref
 		&i.TotalEarned,
 		&i.AvailableBalance,
 		&i.WithdrawnBalance,
+		&i.IsFrozen,
+		&i.FreezedAt,
+		&i.Flagged,
+		&i.FlaggedReason,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -146,6 +150,76 @@ DELETE FROM referral_configs WHERE id = $1
 func (q *Queries) DeleteReferralConfig(ctx context.Context, id int64) error {
 	_, err := q.db.ExecContext(ctx, deleteReferralConfig, id)
 	return err
+}
+
+const flagReferralEarning = `-- name: FlagReferralEarning :exec
+UPDATE referral_earnings
+SET
+    flagged = TRUE,
+    flagged_reason = $1,
+    updated_at = NOW()
+WHERE user_id = $2
+`
+
+type FlagReferralEarningParams struct {
+	FlaggedReason sql.NullString `json:"flagged_reason"`
+	UserID        int32          `json:"user_id"`
+}
+
+func (q *Queries) FlagReferralEarning(ctx context.Context, arg FlagReferralEarningParams) error {
+	_, err := q.db.ExecContext(ctx, flagReferralEarning, arg.FlaggedReason, arg.UserID)
+	return err
+}
+
+const freezeReferralEarning = `-- name: FreezeReferralEarning :exec
+UPDATE referral_earnings
+SET
+    is_frozen = TRUE,
+    freezed_at = NOW()
+WHERE user_id = $1
+`
+
+func (q *Queries) FreezeReferralEarning(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, freezeReferralEarning, userID)
+	return err
+}
+
+const getAllReferralTransactions = `-- name: GetAllReferralTransactions :many
+SELECT id, user_id, amount, transaction_id, transaction_type, reference, status, created_at, updated_at FROM referral_transactions
+ORDER BY created_at
+`
+
+func (q *Queries) GetAllReferralTransactions(ctx context.Context) ([]ReferralTransaction, error) {
+	rows, err := q.db.QueryContext(ctx, getAllReferralTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReferralTransaction{}
+	for rows.Next() {
+		var i ReferralTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Amount,
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.Reference,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getAllReferrals = `-- name: GetAllReferrals :many
@@ -219,7 +293,7 @@ func (q *Queries) GetReferralConfig(ctx context.Context) (ReferralConfig, error)
 }
 
 const getReferralEarnings = `-- name: GetReferralEarnings :one
-SELECT id, user_id, total_earned, available_balance, withdrawn_balance, created_at, updated_at FROM referral_earnings WHERE user_id = $1
+SELECT id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at FROM referral_earnings WHERE user_id = $1
 `
 
 func (q *Queries) GetReferralEarnings(ctx context.Context, userID int32) (ReferralEarning, error) {
@@ -231,6 +305,10 @@ func (q *Queries) GetReferralEarnings(ctx context.Context, userID int32) (Referr
 		&i.TotalEarned,
 		&i.AvailableBalance,
 		&i.WithdrawnBalance,
+		&i.IsFrozen,
+		&i.FreezedAt,
+		&i.Flagged,
+		&i.FlaggedReason,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -293,6 +371,19 @@ func (q *Queries) GetUserReferrals(ctx context.Context, referrerID int32) ([]Use
 	return items, nil
 }
 
+const unFreezeReferralEarning = `-- name: UnFreezeReferralEarning :exec
+UPDATE referral_earnings
+SET
+    is_frozen = FALSE,
+    freezed_at = NULL
+WHERE user_id = $1
+`
+
+func (q *Queries) UnFreezeReferralEarning(ctx context.Context, userID int32) error {
+	_, err := q.db.ExecContext(ctx, unFreezeReferralEarning, userID)
+	return err
+}
+
 const updateAvailableBalanceAfterWithdrawal = `-- name: UpdateAvailableBalanceAfterWithdrawal :one
 UPDATE referral_earnings
 SET
@@ -303,7 +394,7 @@ SET
 WHERE user_id = $1
   AND $2 > 0
   AND available_balance >= $2
-RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, created_at, updated_at
+RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at
 `
 
 type UpdateAvailableBalanceAfterWithdrawalParams struct {
@@ -320,6 +411,10 @@ func (q *Queries) UpdateAvailableBalanceAfterWithdrawal(ctx context.Context, arg
 		&i.TotalEarned,
 		&i.AvailableBalance,
 		&i.WithdrawnBalance,
+		&i.IsFrozen,
+		&i.FreezedAt,
+		&i.Flagged,
+		&i.FlaggedReason,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -364,7 +459,7 @@ SET
     available_balance = available_balance + $2,
     updated_at = NOW()
 WHERE user_id = $1
-    RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, created_at, updated_at
+    RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at
 `
 
 type UpdateReferralEarningsParams struct {
@@ -381,6 +476,10 @@ func (q *Queries) UpdateReferralEarnings(ctx context.Context, arg UpdateReferral
 		&i.TotalEarned,
 		&i.AvailableBalance,
 		&i.WithdrawnBalance,
+		&i.IsFrozen,
+		&i.FreezedAt,
+		&i.Flagged,
+		&i.FlaggedReason,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

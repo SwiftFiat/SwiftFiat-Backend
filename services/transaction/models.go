@@ -44,6 +44,7 @@ const (
 	Rewards        TransactionType = "rewards"
 	Referral       TransactionType = "referral"
 	Wallet         TransactionType = "wallet"
+	RapidRamp      TransactionType = "rapid_ramp"
 	Other          TransactionType = "other"
 )
 

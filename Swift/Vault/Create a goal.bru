@@ -16,19 +16,17 @@ auth:bearer {
 
 body:json {
   {
-    "name": "tezt",
+    "name": "Buy Car",
     "description": "",
     "target_amount": "400000",
     "currency": "NGN",
     "recurring_rule": {
       "enabled": true,
       "amount": "2000",
-      "interval": "monthly",
-      "day_of_week": 2,
-      "day_of_month": 18,
+      "interval": "daily",
       "time_of_day": "15:42"
     },
-    "vault_type": "locked"
+    "vault_type": "flexible"
   }
 }
 

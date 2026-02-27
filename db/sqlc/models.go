@@ -1058,13 +1058,17 @@ type ReferralConfig struct {
 }
 
 type ReferralEarning struct {
-	ID               int64     `json:"id"`
-	UserID           int32     `json:"user_id"`
-	TotalEarned      string    `json:"total_earned"`
-	AvailableBalance string    `json:"available_balance"`
-	WithdrawnBalance string    `json:"withdrawn_balance"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	ID               int64          `json:"id"`
+	UserID           int32          `json:"user_id"`
+	TotalEarned      string         `json:"total_earned"`
+	AvailableBalance string         `json:"available_balance"`
+	WithdrawnBalance string         `json:"withdrawn_balance"`
+	IsFrozen         sql.NullBool   `json:"is_frozen"`
+	FreezedAt        sql.NullTime   `json:"freezed_at"`
+	Flagged          sql.NullBool   `json:"flagged"`
+	FlaggedReason    sql.NullString `json:"flagged_reason"`
+	CreatedAt        time.Time      `json:"created_at"`
+	UpdatedAt        time.Time      `json:"updated_at"`
 }
 
 type ReferralEntry struct {
@@ -1270,13 +1274,15 @@ type SystemAlertMetric struct {
 }
 
 type SystemSetting struct {
-	ID                      int32        `json:"id"`
-	RewardsEnabled          sql.NullBool `json:"rewards_enabled"`
-	VaultsEnabled           sql.NullBool `json:"vaults_enabled"`
-	SmartConversionsEnabled sql.NullBool `json:"smart_conversions_enabled"`
-	RapidRampEnabled        sql.NullBool `json:"rapid_ramp_enabled"`
-	CreatedAt               sql.NullTime `json:"created_at"`
-	UpdatedAt               sql.NullTime `json:"updated_at"`
+	ID                      int32           `json:"id"`
+	RewardsEnabled          sql.NullBool    `json:"rewards_enabled"`
+	VaultsEnabled           sql.NullBool    `json:"vaults_enabled"`
+	SmartConversionsEnabled sql.NullBool    `json:"smart_conversions_enabled"`
+	RapidRampEnabled        sql.NullBool    `json:"rapid_ramp_enabled"`
+	MaxCardFailedTxns       sql.NullInt32   `json:"max_card_failed_txns"`
+	CardDeclineFee          sql.NullFloat64 `json:"card_decline_fee"`
+	CreatedAt               sql.NullTime    `json:"created_at"`
+	UpdatedAt               sql.NullTime    `json:"updated_at"`
 }
 
 type Ticket struct {

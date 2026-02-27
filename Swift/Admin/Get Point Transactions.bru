@@ -1,0 +1,20 @@
+meta {
+  name: Get Point Transactions
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BaseURl}}/rewards/admin/transactions
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

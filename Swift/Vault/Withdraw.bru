@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{BaseURl}}/vault/goals/cec886a3-19a1-4d29-86df-92cb7980efc3/withdraw
+  url: {{BaseURl}}/vault/goals/f91e3365-381e-41a0-9eb4-787c9eb089f8/withdraw
   body: json
   auth: bearer
 }
@@ -17,7 +17,8 @@ auth:bearer {
 body:json {
   {
     "amount":"10",
-    "to_wallet_id": "d02b24d3-d98b-4fd4-a501-b13448ac96ce"
+    "to_wallet_id": "d180e0de-0e7c-4f76-bdf2-36d7f402d33e",
+    "idempotency_key": "345-ufb9"
   }
 }
 

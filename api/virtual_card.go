@@ -64,6 +64,7 @@ func (v Virtualcard) router(server *Server) {
 		v1.GET("/admin/get-issuing-wallet-balance", server.authMiddleware.AuthenticatedMiddleware(), v.GetIssuingWalletBalance)        //done
 		v1.GET("/admin/get-all-issued-cards", server.authMiddleware.AuthenticatedMiddleware(), v.GetAllIssuedCards)                    //done
 		v1.GET("/admin/list-card-transactions-by-user", server.authMiddleware.AuthenticatedMiddleware(), v.ListCardTransactionsByUser) //done
+		
 	}
 
 }

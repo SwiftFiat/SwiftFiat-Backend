@@ -1,0 +1,28 @@
+meta {
+  name: Send notifications to users
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{BaseURl}}/analytics/create-notification
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "title": "sample title",
+    "message": "sample message",
+    "recipients": [1, 2]
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

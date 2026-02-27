@@ -1,0 +1,20 @@
+meta {
+  name: et rapid ramp users
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{BaseURl}}/analytics/list-rapid-ramp-users
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

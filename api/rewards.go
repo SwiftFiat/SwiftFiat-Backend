@@ -43,13 +43,12 @@ func (r Rewards) router(server *Server) {
 	rewards.GET("/admin/config", r.getRewardConfiguration)
 	rewards.GET("/admin/configurations", r.listRewardConfigurations)
 	rewards.PUT("/admin/configure/:id", r.updateRewardConfiguration)
-	// rewards.PUT("/admin/configure/:id/activate", r.activateRewardConfiguration)
-	// rewards.PUT("/admin/configure/:id/deactivate", r.deactivateRewardConfiguration)
 
 	// Analytics
 	rewards.GET("/admin/statistics", r.getRewardStatistics)
 	rewards.GET("/admin/top-users", r.getTopRewardUsers)
 	rewards.POST("/withdraw", r.withdraw)
+	rewards.GET("/admin/transactions", r.transactions)
 }
 
 func (r Rewards) withdraw(ctx *gin.Context) {
@@ -887,4 +886,38 @@ func (r *Rewards) getRewardStatistics(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, stats)
+}
+
+
+func (r *Rewards) transactions(ctx *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(ctx)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("rewards points are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		r.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	txs, err := r.server.queries.ListAllRewardTransactions(ctx) 
+	if err != nil {
+		ctx.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	ctx.JSON(200, basemodels.NewSuccess("", txs))
 }

@@ -2449,6 +2449,57 @@ func (q *Queries) ListPendingCryptoTransactions(ctx context.Context, arg ListPen
 	return items, nil
 }
 
+const listRapidRampTransactions = `-- name: ListRapidRampTransactions :many
+SELECT id, user_id, type, description, transaction_flow, amount, idempotency_key, t_from, t_to, direction, currency, amount_usd, status, risk_score, fraud_status, flagged_at, created_at, updated_at, deleted_from_account_id, deleted_to_account_id
+FROM transactions
+WHERE type = 'rapid_ramp'
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListRapidRampTransactions(ctx context.Context) ([]Transaction, error) {
+	rows, err := q.db.QueryContext(ctx, listRapidRampTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []Transaction{}
+	for rows.Next() {
+		var i Transaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Type,
+			&i.Description,
+			&i.TransactionFlow,
+			&i.Amount,
+			&i.IdempotencyKey,
+			&i.TFrom,
+			&i.TTo,
+			&i.Direction,
+			&i.Currency,
+			&i.AmountUsd,
+			&i.Status,
+			&i.RiskScore,
+			&i.FraudStatus,
+			&i.FlaggedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedFromAccountID,
+			&i.DeletedToAccountID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTransactionsByType = `-- name: ListTransactionsByType :many
 SELECT
     t.id AS transaction_id,

@@ -1,0 +1,20 @@
+meta {
+  name: Get system settings
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{BaseURl}}/analytics/get-system-settings
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

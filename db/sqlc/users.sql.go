@@ -895,6 +895,75 @@ func (q *Queries) ListAllUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
+const listRapidRampUsers = `-- name: ListRapidRampUsers :many
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+FROM users
+WHERE is_rapid_ramp_on = TRUE
+  AND deleted_at IS NULL
+ORDER BY created_at DESC
+`
+
+func (q *Queries) ListRapidRampUsers(ctx context.Context) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listRapidRampUsers)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []User{}
+	for rows.Next() {
+		var i User
+		if err := rows.Scan(
+			&i.ID,
+			&i.AvatarUrl,
+			&i.AvatarBlob,
+			&i.FirstName,
+			&i.LastName,
+			&i.Email,
+			&i.HashedPassword,
+			&i.HashedPasscode,
+			&i.HashedPin,
+			&i.PhoneNumber,
+			&i.Role,
+			&i.Verified,
+			&i.IsKycVerified,
+			&i.BridgecardVerificationStatus,
+			&i.BridgecardCardholderID,
+			&i.IsRapidRampOn,
+			&i.HasCompletedFirstConversion,
+			&i.FirstConversionID,
+			&i.FirstConversionAt,
+			&i.Frozen,
+			&i.FrozenReason,
+			&i.FrozenAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+			&i.HasWallets,
+			&i.UserTag,
+			&i.FreshChatID,
+			&i.IsActive,
+			&i.TwofaSecret,
+			&i.TwofaEnabled,
+			&i.RewardBalance,
+			&i.TotalRewardEarned,
+			&i.TotalRewardRedeemed,
+			&i.TotalConversionVolume,
+			&i.TotalTransactionVolume,
+			&i.CurrentVipLevelID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listUsers = `-- name: ListUsers :many
 SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE deleted_at IS NULL ORDER BY id
 LIMIT $1 OFFSET $2

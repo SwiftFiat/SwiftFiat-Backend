@@ -3435,6 +3435,66 @@ func (q *Queries) ListCardPlans(ctx context.Context) ([]CardPlan, error) {
 	return items, nil
 }
 
+const listCardTransactions = `-- name: ListCardTransactions :many
+SELECT id, transaction_id, card_id, user_id, bridgecard_transaction_id, transaction_type, merchant_name, merchant_category, merchant_category_code, amount, fee, currency, billing_amount, billing_currency, status, decline_reason, is_recurring_merchant, subscription_id, balance_after, webhook_received_at, raw_webhook_data, mode, transaction_date, transaction_timestamp, created_at FROM card_transactions
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListCardTransactionsParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+func (q *Queries) ListCardTransactions(ctx context.Context, arg ListCardTransactionsParams) ([]CardTransaction, error) {
+	rows, err := q.db.QueryContext(ctx, listCardTransactions, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []CardTransaction{}
+	for rows.Next() {
+		var i CardTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.TransactionID,
+			&i.CardID,
+			&i.UserID,
+			&i.BridgecardTransactionID,
+			&i.TransactionType,
+			&i.MerchantName,
+			&i.MerchantCategory,
+			&i.MerchantCategoryCode,
+			&i.Amount,
+			&i.Fee,
+			&i.Currency,
+			&i.BillingAmount,
+			&i.BillingCurrency,
+			&i.Status,
+			&i.DeclineReason,
+			&i.IsRecurringMerchant,
+			&i.SubscriptionID,
+			&i.BalanceAfter,
+			&i.WebhookReceivedAt,
+			&i.RawWebhookData,
+			&i.Mode,
+			&i.TransactionDate,
+			&i.TransactionTimestamp,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listSubscriptionMerchants = `-- name: ListSubscriptionMerchants :many
 SELECT id, merchant_name, display_name, aliases, category, subcategory, logo_url, website, description, merchant_country, typical_intervals, typical_amounts, mcc_codes, match_confidence, is_active, auto_detect, created_at, updated_at FROM subscription_merchants
 WHERE is_active = TRUE

@@ -11,7 +11,7 @@ import (
 )
 
 const getSystemSettings = `-- name: GetSystemSettings :one
-SELECT id, rewards_enabled, vaults_enabled, smart_conversions_enabled, rapid_ramp_enabled, created_at, updated_at FROM system_settings
+SELECT id, rewards_enabled, vaults_enabled, smart_conversions_enabled, rapid_ramp_enabled, max_card_failed_txns, card_decline_fee, created_at, updated_at FROM system_settings
 `
 
 func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) {
@@ -23,6 +23,8 @@ func (q *Queries) GetSystemSettings(ctx context.Context) (SystemSetting, error) 
 		&i.VaultsEnabled,
 		&i.SmartConversionsEnabled,
 		&i.RapidRampEnabled,
+		&i.MaxCardFailedTxns,
+		&i.CardDeclineFee,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -34,22 +36,28 @@ UPDATE system_settings
 SET 
     rewards_enabled = COALESCE($1, rewards_enabled), 
     vaults_enabled = COALESCE($2, vaults_enabled), 
-    smart_conversions_enabled = COALESCE($3, smart_conversions_enabled), 
-    rapid_ramp_enabled = COALESCE($4, rapid_ramp_enabled) 
+    max_card_failed_txns = COALESCE($3, max_card_failed_txns),
+    card_decline_fee = COALESCE($4, card_decline_fee),
+    smart_conversions_enabled = COALESCE($5, smart_conversions_enabled), 
+    rapid_ramp_enabled = COALESCE($6, rapid_ramp_enabled) 
 WHERE id = 1
 `
 
 type UpdateSystemSettingsParams struct {
-	RewardsEnabled          sql.NullBool `json:"rewards_enabled"`
-	VaultsEnabled           sql.NullBool `json:"vaults_enabled"`
-	SmartConversionsEnabled sql.NullBool `json:"smart_conversions_enabled"`
-	RapidRampEnabled        sql.NullBool `json:"rapid_ramp_enabled"`
+	RewardsEnabled          sql.NullBool    `json:"rewards_enabled"`
+	VaultsEnabled           sql.NullBool    `json:"vaults_enabled"`
+	MaxCardFailedTxns       sql.NullInt32   `json:"max_card_failed_txns"`
+	CardDeclineFee          sql.NullFloat64 `json:"card_decline_fee"`
+	SmartConversionsEnabled sql.NullBool    `json:"smart_conversions_enabled"`
+	RapidRampEnabled        sql.NullBool    `json:"rapid_ramp_enabled"`
 }
 
 func (q *Queries) UpdateSystemSettings(ctx context.Context, arg UpdateSystemSettingsParams) error {
 	_, err := q.db.ExecContext(ctx, updateSystemSettings,
 		arg.RewardsEnabled,
 		arg.VaultsEnabled,
+		arg.MaxCardFailedTxns,
+		arg.CardDeclineFee,
 		arg.SmartConversionsEnabled,
 		arg.RapidRampEnabled,
 	)
