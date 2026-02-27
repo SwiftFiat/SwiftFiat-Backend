@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -46,6 +47,9 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.POST("/admin/create-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.CreateReferralConfig)
 	serverGroupV1.PUT("/admin/update-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.UpdateReferralConfig)
 	serverGroupV1.GET("/admin/get-referral-config", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetReferralConfig)
+	serverGroupV1.GET("/admin/transactions", r.server.authMiddleware.AuthenticatedMiddleware(), r.transactions)
+	serverGroupV1.PUT("/freeze/:user_id", r.server.authMiddleware.AuthenticatedMiddleware(), r.freeze)
+	serverGroupV1.PUT("/unfreeze/:user_id", r.server.authMiddleware.AuthenticatedMiddleware(), r.unfreeze)
 	serverGroupV1.POST("/withdraw", r.server.authMiddleware.AuthenticatedMiddleware(), r.withdraw)
 }
 
@@ -362,8 +366,8 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 	}
 
 	var req struct {
-		MinimumWithdrawalThreshold string `json:"minimum_withdrawal_threshold" binding:"required"`
-		ReferralAmount             string `json:"referral_amount" binding:"required"`
+		ReferralPercentageEarnedPerConversion string `json:"referral_percentage_earned_per_conversion" binding:"required"`
+		ReferralAmount                        string `json:"referral_amount" binding:"required"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -372,7 +376,7 @@ func (r *Referral) CreateReferralConfig(c *gin.Context) {
 		return
 	}
 
-	minimumWithdrawalThreshold, err := decimal.NewFromString(req.MinimumWithdrawalThreshold)
+	minimumWithdrawalThreshold, err := decimal.NewFromString(req.ReferralPercentageEarnedPerConversion)
 	if err != nil {
 		r.logger.Error(err)
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid minimum withdrawal threshold"))
@@ -436,16 +440,16 @@ func (r *Referral) UpdateReferralConfig(c *gin.Context) {
 	}
 
 	//	check if active user is admin
-	if activeUser.Role == models.USER {
+	if activeUser.Role == models.ADMIN {
 		r.logger.Error(fmt.Errorf("unauthorized access"))
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
 	var req struct {
-		ID                         int64   `json:"id" binding:"required"`
-		MinimumWithdrawalThreshold *string `json:"minimum_withdrawal_threshold"`
-		ReferralAmount             *string `json:"referral_amount"`
+		ID                                    int64   `json:"id" binding:"required"`
+		ReferralPercentageEarnedPerConversion *string `json:"referral_percentage_earned_per_conversion"`
+		ReferralAmount                        *string `json:"referral_amount"`
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -457,8 +461,8 @@ func (r *Referral) UpdateReferralConfig(c *gin.Context) {
 	var minThresholdPtr *decimal.Decimal
 	var refAmountPtr *decimal.Decimal
 
-	if req.MinimumWithdrawalThreshold != nil {
-		val, err := decimal.NewFromString(*req.MinimumWithdrawalThreshold)
+	if req.ReferralPercentageEarnedPerConversion != nil {
+		val, err := decimal.NewFromString(*req.ReferralPercentageEarnedPerConversion)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, basemodels.NewError("invalid threshold"))
 			return
@@ -598,4 +602,118 @@ func (r *Referral) withdraw(c *gin.Context) {
 	r.audit.Log(auditLog)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal completed successfully", tx))
+}
+
+func (r *Referral) transactions(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	txs, err := r.server.queries.GetAllReferralTransactions(c)
+	if err != nil {
+		c.JSON(500, basemodels.NewError("failed to get transactions, try again"))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("", txs))
+}
+
+func (r *Referral) freeze(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	userId, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(400, basemodels.NewError("invalid user id"))
+		return
+	}
+
+	err = r.server.queries.FreezeReferralEarning(c, int32(userId))
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Referral earnings freezed", nil))
+}
+
+func (r *Referral) unfreeze(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	// check if active user is admin
+	if activeUser.Role == models.USER {
+		r.logger.Error(fmt.Errorf("unauthorized access"))
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	userId, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(400, basemodels.NewError("invalid user id"))
+		return
+	}
+
+	err = r.server.queries.UnFreezeReferralEarning(c, int32(userId))
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Referral earnings unfreezed", nil))
 }

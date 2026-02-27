@@ -1,0 +1,24 @@
+meta {
+  name: List services
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{BaseURl}}/bills/services?identifier=electricity-bill
+  body: none
+  auth: bearer
+}
+
+params:query {
+  identifier: electricity-bill
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -1,0 +1,28 @@
+meta {
+  name: Get meter info
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{BaseURl}}/bills/customer-meter-info
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "service_id": "ikeja-electric",
+    "billers_code": "1111111111111",
+    "type": "prepaid"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -9,6 +9,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	ratemanager "github.com/SwiftFiat/SwiftFiat-Backend/services/rate_manager"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
@@ -24,6 +25,8 @@ type ConversionService struct {
 	exchangeRateService *exchangerate.ExchangeRateService
 	transactionService  *transaction.TransactionService
 	streakScheduler     *streaks.StreakScheduler
+	notifyr             *service.Notification
+	push                *service.PushNotificationService
 }
 
 func NewConversionService(
@@ -33,6 +36,8 @@ func NewConversionService(
 	exchangeRateService *exchangerate.ExchangeRateService,
 	transactionService *transaction.TransactionService,
 	streakScheduler *streaks.StreakScheduler,
+	notifyr *service.Notification,
+	push *service.PushNotificationService,
 ) *ConversionService {
 	return &ConversionService{
 		store:               store,
@@ -41,6 +46,8 @@ func NewConversionService(
 		exchangeRateService: exchangeRateService,
 		transactionService:  transactionService,
 		streakScheduler:     streakScheduler,
+		notifyr:             notifyr,
+		push:                push,
 	}
 }
 
@@ -305,18 +312,10 @@ func (s *ConversionService) executeWithBaseRate(
 	}
 
 	var sourceAmount, targetAmount, fees, netAmount decimal.Decimal
-	// if req.AmountType == "source" {
 	sourceAmount = amount
 	targetAmount, fees, netAmount = s.exchangeRateService.CalculateConversionAmount(
 		sourceAmount, baseRate.Rate, feePercentage,
 	)
-
-	// else {
-	// 	sourceAmount, fees, netAmount = s.exchangeRateService.CalculateInverseAmount(
-	// 		amount, baseRate.Rate, feePercentage,
-	// 	)
-	// 	targetAmount = amount
-	// }
 
 	s.logger.Infof("source amount is %s", sourceAmount)
 	s.logger.Infof("target amount is %s", targetAmount)
@@ -390,30 +389,20 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	targetBalance, _ := decimal.NewFromString(targetWallet.Balance.String)
 	newTargetBalance := targetBalance.Add(params.netAmount)
 
-	// update source wallet
-	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		Amount: sql.NullString{String: newSourceBalance.String(), Valid: true},
-		ID:     params.sourceWalletID,
-	})
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return nil, fmt.Errorf("failed to update source wallet: %w", err)
+		return nil, fmt.Errorf("begin transaction: %w", err)
 	}
+	defer dbTx.Rollback()
 
-	// update target wallet
-	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
-		ID:     params.targetWalletID,
-		Amount: sql.NullString{String: newTargetBalance.String(), Valid: true},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to update target wallet: %w", err)
-	}
+	qtx := s.store.WithTx(dbTx)
 
 	amountUsd, err := utils.ConvertToUSD(ctx, params.sourceAmount, params.sourceCurrency)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert amount to USD: %w", err)
 	}
 
-	mainTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
+	mainTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          params.userID,
 		Type:            string(transaction.Swap),
 		Description:     sql.NullString{String: "Conversion from " + params.sourceCurrency + " to " + params.targetCurrency, Valid: true},
@@ -421,7 +410,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		Amount:          params.sourceAmount.String(),
 		Currency:        params.sourceCurrency,
 		AmountUsd:       amountUsd.String(),
-		Status:          string(transaction.Success),
+		Status:          string(transaction.Pending),
 		IdempotencyKey:  utils.WatRequestID(),
 		TFrom:           params.sourceCurrency,
 		TTo:             params.targetCurrency,
@@ -432,7 +421,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	}
 
 	// Create conversion history
-	history, err := s.store.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
+	history, err := qtx.CreateConversionHistory(ctx, db.CreateConversionHistoryParams{
 		ConversionRuleID:    s.uuidToNullUUID(params.ruleID),
 		UserID:              params.userID,
 		SourceCurrency:      params.sourceCurrency,
@@ -452,12 +441,47 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		TargetBalanceAfter:  sql.NullString{String: newTargetBalance.String(), Valid: true},
 		ExecutionType:       params.executionType,
 		TriggerType:         s.stringToNullString(params.triggerType),
-		Status:              "success",
+		Status:              string(transaction.Pending),
 		TransactionID:       uuid.NullUUID{UUID: mainTx.ID, Valid: true},
 	})
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create conversion history: %w", err)
+	}
+
+	// update source wallet
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		Amount: sql.NullString{String: newSourceBalance.String(), Valid: true},
+		ID:     params.sourceWalletID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update source wallet: %w", err)
+	}
+
+	// update target wallet
+	_, err = qtx.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+		ID:     params.targetWalletID,
+		Amount: sql.NullString{String: newTargetBalance.String(), Valid: true},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update target wallet: %w", err)
+	}
+
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID: mainTx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update tx record: %v", err)
+	}
+
+	_, err = qtx.UpdateConversionHistoryStatus(ctx, db.UpdateConversionHistoryStatusParams{
+		ID: history.ID,
+		Status: string(transaction.Success),
+		FailureReason: sql.NullString{String: "", Valid: false},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update conversion history: %v", err)
 	}
 
 	// Update user streak
@@ -471,6 +495,27 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		// Don't fail the conversion for this
 	}
 
+	user, err := s.store.GetUserByID(ctx, params.userID)
+	if err != nil {
+		s.logger.Error("failed to get user")
+	}
+
+	if !user.HasCompletedFirstConversion.Bool {
+		referrerID, referralBonus, err := transaction.CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, params.userID, mainTx.ID)
+		if err != nil {
+			s.logger.Errorf("Failed to disburse referral bonus: %v", err)
+		}
+		if referrerID != nil && referralBonus != nil {
+			go func() {
+				bgCtx := context.Background()
+				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
+					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
+					"system", []int64{*referrerID})
+				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
+			}()
+		}
+	}
+
 	return &ManualConversionResponse{
 		SourceAmount: params.sourceAmount.InexactFloat64(),
 		TargetAmount: params.targetAmount.InexactFloat64(),
@@ -478,7 +523,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		Reference:    mainTx.IdempotencyKey,
 		Fees:         params.fees.InexactFloat64(),
 		NetAmount:    params.netAmount.InexactFloat64(),
-		Status:       history.Status,
+		Status:       string(transaction.Success),
 	}, nil
 }
 

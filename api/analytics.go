@@ -12,6 +12,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -19,12 +20,14 @@ import (
 
 type Analytics struct {
 	server *Server
-	audit  audit.Service
+	audit  *audit.Service
+	notif  *service.Notification
 }
 
 func (h Analytics) router(server *Server) {
 	h.server = server
-	h.audit = *server.auditService
+	h.audit = server.auditService
+	h.notif = server.inAppnotificationService
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
@@ -47,16 +50,26 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/transactions-by-type", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListTransactionsByType)
 	serverGroupV1.GET("/transactions-with-metadata/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetTransactionWithMetadata)
 	serverGroupV1.PUT("/update-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.UpdateSystemSettings)
+	serverGroupV1.GET("/get-system-settings", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetSystemSettings)
 	serverGroupV1.GET("/schedulers/stats", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetSchedulerStats)
 	serverGroupV1.POST("/schedulers/trigger", h.server.authMiddleware.AuthenticatedMiddleware(), h.TriggerSchedulerTask)
 	serverGroupV1.GET("/daily-transactions-summary", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDailyTransactions)
+	serverGroupV1.POST("/create-notification", h.server.authMiddleware.AuthenticatedMiddleware(), h.createNotification)
+	serverGroupV1.GET("/list-admin-alerts", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAdminAlerts)
+	serverGroupV1.GET("/mark-alert-as-read", h.server.authMiddleware.AuthenticatedMiddleware(), h.MarkAlertAsRead)
+	serverGroupV1.GET("/list-unread-alerts", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListUnReadAlerts)
+	serverGroupV1.GET("/list-card-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllVirtualCardTransactions)
+	serverGroupV1.GET("/list-rapid-ramp-users", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRapidRampUsers)
+	serverGroupV1.GET("/list-rapid-ramp-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRapidRampTransactions)
 }
 
 type UpdateSystemSettingsRequest struct {
-	RewardsEnabled          *bool `json:"rewards_enabled"`
-	VaultsEnabled           *bool `json:"vaults_enabled"`
-	SmartConversionsEnabled *bool `json:"smart_conversions_enabled"`
-	RapidRampEnabled        *bool `json:"rapid_ramp_enabled"`
+	RewardsEnabled          *bool    `json:"rewards_enabled"`
+	VaultsEnabled           *bool    `json:"vaults_enabled"`
+	SmartConversionsEnabled *bool    `json:"smart_conversions_enabled"`
+	RapidRampEnabled        *bool    `json:"rapid_ramp_enabled"`
+	CardDeclineFee          *float32 `json:"card_decline_fee"`
+	MaxCardFailedTxns       *int32   `json:"max_card_failed_txns"`
 }
 
 func toNullBool(b *bool) sql.NullBool {
@@ -64,6 +77,64 @@ func toNullBool(b *bool) sql.NullBool {
 		return sql.NullBool{Valid: false}
 	}
 	return sql.NullBool{Bool: *b, Valid: true}
+}
+
+func toNullInt32(i *int32) sql.NullInt32 {
+	if i == nil {
+		return sql.NullInt32{Valid: false}
+	}
+	return sql.NullInt32{Int32: *i, Valid: true}
+}
+
+func toNullFloat64(f *float64) sql.NullFloat64 {
+	if f == nil {
+		return sql.NullFloat64{Valid: false}
+	}
+	return sql.NullFloat64{Float64: *f, Valid: true}
+}
+
+type SystemSetting struct {
+	ID                      int32     `json:"id"`
+	RewardsEnabled          bool      `json:"rewards_enabled"`
+	VaultsEnabled           bool      `json:"vaults_enabled"`
+	SmartConversionsEnabled bool      `json:"smart_conversions_enabled"`
+	RapidRampEnabled        bool      `json:"rapid_ramp_enabled"`
+	MaxCardFailedTxns       int32     `json:"max_card_failed_txns"`
+	CardDeclineFee          float64   `json:"card_decline_fee"`
+	CreatedAt               time.Time `json:"created_at"`
+	UpdatedAt               time.Time `json:"updated_at"`
+}
+
+func (h *Analytics) GetSystemSettings(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
+
+	if activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
+		return
+	}
+
+	settings, err := h.server.queries.GetSystemSettings(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	response := SystemSetting{
+		ID:                      settings.ID,
+		RewardsEnabled:          settings.RewardsEnabled.Bool,
+		VaultsEnabled:           settings.VaultsEnabled.Bool,
+		SmartConversionsEnabled: settings.SmartConversionsEnabled.Bool,
+		CardDeclineFee:          settings.CardDeclineFee.Float64,
+		MaxCardFailedTxns:       settings.MaxCardFailedTxns.Int32,
+		CreatedAt:               settings.CreatedAt.Time,
+		UpdatedAt:               settings.UpdatedAt.Time,
+	}
+
+	c.JSON(http.StatusOK, response)
 }
 
 // UpdateSystemSettings godoc
@@ -84,6 +155,11 @@ func toNullBool(b *bool) sql.NullBool {
 func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
+		c.JSON(http.StatusForbidden, err.Error())
+		return
+	}
+
+	if activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, apistrings.UnauthorizedAccess)
 		return
 	}
@@ -98,9 +174,17 @@ func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 	if req.RewardsEnabled == nil &&
 		req.VaultsEnabled == nil &&
 		req.SmartConversionsEnabled == nil &&
+		req.CardDeclineFee == nil &&
+		req.MaxCardFailedTxns == nil &&
 		req.RapidRampEnabled == nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("no fields provided for update"))
 		return
+	}
+
+	var cardDeclineFee *float64
+	if req.CardDeclineFee != nil {
+		f64 := float64(*req.CardDeclineFee)
+		cardDeclineFee = &f64
 	}
 
 	params := db.UpdateSystemSettingsParams{
@@ -108,6 +192,8 @@ func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 		VaultsEnabled:           toNullBool(req.VaultsEnabled),
 		SmartConversionsEnabled: toNullBool(req.SmartConversionsEnabled),
 		RapidRampEnabled:        toNullBool(req.RapidRampEnabled),
+		MaxCardFailedTxns:       toNullInt32(req.MaxCardFailedTxns),
+		CardDeclineFee:          toNullFloat64(cardDeclineFee),
 	}
 
 	if err := h.server.queries.UpdateSystemSettings(
@@ -252,7 +338,7 @@ func (h *Analytics) ListAllTransactions(c *gin.Context) {
 		h.server.logger.Error(fmt.Sprintf("error fetching all transactions: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch transactions"))
 	}
- 
+
 	volume, err := h.server.queries.GetTotalTransactionVolume(c)
 	if err != nil {
 		h.server.logger.Error(fmt.Sprintf("error fetching transaction volume: %v", err))
@@ -1030,9 +1116,9 @@ func (h *Analytics) TriggerSchedulerTask(c *gin.Context) {
 // @Failure      500  {object}  basemodels.ErrorResponse
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/daily-transactions-summary [get]
-func(h *Analytics) GetDailyTransactions(c *gin.Context) {
+func (h *Analytics) GetDailyTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1044,4 +1130,156 @@ func(h *Analytics) GetDailyTransactions(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("Daily transactions retrieved successfully", dailyTransactions))
+}
+
+type CreateNotif struct {
+	Title      string  `json:"title" binding:"required"`
+	Message    string  `json:"message" binding:"required"`
+	Recipients []int64 `json:"recipients" binding:"required"`
+}
+
+func (h *Analytics) createNotification(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	var req *CreateNotif
+	if err = c.ShouldBindJSON(&req); err != nil {
+		c.JSON(400, basemodels.NewError(err.Error()))
+		return
+	}
+
+	_, err = h.notif.CreateWithRecipients(
+		c,
+		&activeUser.UserID,
+		req.Title,
+		req.Message,
+		activeUser.Role,
+		req.Recipients,
+	)
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Notification sent", nil))
+}
+
+func (h *Analytics) ListAdminAlerts(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	alerts, err := h.notif.ListAdminAlerts(c, 10, 0) // You can adjust the limit and offset as needed
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Admin alerts retrieved successfully", alerts))
+}
+
+func (h *Analytics) MarkAlertAsRead(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	alertIDStr := c.Param("id")
+	alertID, err := strconv.ParseInt(alertIDStr, 10, 64)
+	if err != nil {
+		c.JSON(400, basemodels.NewError("invalid alert ID"))
+		return
+	}
+
+	err = h.notif.AcknowledgeAdminAlert(c, alertID)
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Alert marked as read", nil))
+}
+
+func (h *Analytics) ListUnReadAlerts(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	alerts, err := h.notif.ListUnacknowledgedAdminAlerts(c)
+	if err != nil {
+		c.JSON(500, basemodels.NewError(err.Error()))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("Read admin alerts retrieved successfully", alerts))
+}
+
+func (h *Analytics) ListAllVirtualCardTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.ADMIN {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListCardTransactions(c, db.ListCardTransactionsParams{
+		Limit:  50, // Set to nil to fetch all transactions
+		Offset: 0,
+	}) // You can implement pagination by passing limit and offset instead of nil
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching all virtual card transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch virtual card transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Virtual card transactions retrieved successfully", gin.H{
+		"transactions": transactions,
+	}))
+}
+
+func (h Analytics) GetRapidRampUsers(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.ADMIN {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	users, err := h.server.queries.ListRapidRampUsers(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching rapid ramp users: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch rapid ramp users"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Rapid Ramp users retrieved successfully", gin.H{
+		"users": users,
+		"count": len(users),
+	}))
+}
+
+func (h Analytics) GetRapidRampTransactions(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.ADMIN {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	transactions, err := h.server.queries.ListRapidRampTransactions(c)
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error fetching rapid ramp transactions: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch rapid ramp transactions"))
+		return
+	}
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Rapid Ramp transactions retrieved successfully", gin.H{
+		"transactions": transactions,
+		"count":        len(transactions),
+	}))
 }

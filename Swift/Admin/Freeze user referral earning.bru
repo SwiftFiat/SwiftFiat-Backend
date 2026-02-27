@@ -1,0 +1,20 @@
+meta {
+  name: Freeze user referral earning
+  type: http
+  seq: 5
+}
+
+put {
+  url: {{BaseURl}}/referral/freeze/1
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -48,6 +48,10 @@ CREATE TABLE referral_earnings (
                                    "total_earned" DECIMAL(10, 2) NOT NULL DEFAULT 0,
                                    "available_balance" DECIMAL(10, 2) NOT NULL DEFAULT 0,
                                    "withdrawn_balance" DECIMAL(10, 2) NOT NULL DEFAULT 0,
+                                   "is_frozen" BOOLEAN DEFAULT false,
+                                   "freezed_at" timestamptz,
+                                   "flagged" BOOLEAN DEFAULT false,
+                                   "flagged_reason" TEXT,
                                    "created_at" timestamptz NOT NULL DEFAULT (now()),
                                    "updated_at" timestamptz NOT NULL DEFAULT (now())
 );

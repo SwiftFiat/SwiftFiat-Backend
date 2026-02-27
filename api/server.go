@@ -253,7 +253,7 @@ func NewServer(envPath string) *Server {
 	)
 
 	// smart conversion service
-	scs := smartconversion.NewConversionService(q, l, rm, scex, txs, streakScheduler)
+	scs := smartconversion.NewConversionService(q, l, rm, scex, txs, streakScheduler, ns, pn)
 
 	// smart conversion scheduler
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)

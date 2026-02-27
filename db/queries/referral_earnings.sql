@@ -36,6 +36,28 @@ SET
 WHERE user_id = $1
     RETURNING *;
 
+-- name: FlagReferralEarning :exec
+UPDATE referral_earnings
+SET
+    flagged = TRUE,
+    flagged_reason = $1,
+    updated_at = NOW()
+WHERE user_id = $2;
+
+-- name: FreezeReferralEarning :exec
+UPDATE referral_earnings
+SET
+    is_frozen = TRUE,
+    freezed_at = NOW()
+WHERE user_id = $1;
+
+-- name: UnFreezeReferralEarning :exec
+UPDATE referral_earnings
+SET
+    is_frozen = FALSE,
+    freezed_at = NULL
+WHERE user_id = $1;
+
 -- name: UpdateAvailableBalanceAfterWithdrawal :one
 UPDATE referral_earnings
 SET
@@ -87,3 +109,6 @@ WHERE id = $1;
 -- name: GetReferralTransaction :one
 SELECT * FROM referral_transactions WHERE id = $1;
 
+-- name: GetAllReferralTransactions :many
+SELECT * FROM referral_transactions
+ORDER BY created_at;

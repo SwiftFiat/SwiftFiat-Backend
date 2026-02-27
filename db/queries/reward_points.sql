@@ -182,6 +182,10 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 LIMIT $2 OFFSET $3;
 
+-- name: ListAllRewardTransactions :many
+SELECT * FROM reward_transactions
+ORDER BY created_at;
+
 -- name: ListUserRewardTransactionsByType :many
 -- List reward transactions filtered by type (earned/redeemed)
 SELECT * FROM reward_transactions

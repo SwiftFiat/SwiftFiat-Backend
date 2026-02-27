@@ -288,6 +288,11 @@ INSERT INTO card_transactions (
 -- name: GetCardTransaction :one
 SELECT * FROM card_transactions WHERE id = $1;
 
+-- name: ListCardTransactions :many
+SELECT * FROM card_transactions
+ORDER BY created_at DESC
+LIMIT $1 OFFSET $2;
+
 -- name: GetCardTransactionByBridgeCardID :one
 SELECT * FROM card_transactions WHERE bridgecard_transaction_id = $1;
 

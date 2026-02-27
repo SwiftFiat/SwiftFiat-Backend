@@ -440,12 +440,6 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return tObj, &user, coinAmount, coinSym, nil
 	}
 
-	// ── Normal path: convert to USD and credit USD wallet ────────────────────
-	// rate, err := s.currencyClient.GetCryptoExchangeRateFromCryptomus(ctx, coinSym, prov)
-	// if err != nil {
-	// 	return nil, nil, decimal.Zero, "", fmt.Errorf("fetching exchange rate: %w", err)
-	// }
-
 	vip_rate, err := s.rateManager.GetAdjustedRateForUser(ctx, user.ID, coinSym, string(USD), coinAmount.String())
 	if err != nil {
 		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
@@ -628,8 +622,6 @@ func buildCryptoTransactionResponse(tx db.GetTransactionByIDRow) *TransactionRes
 
 // ── processRapidRampInflow ────────────────────────────────────────────────────
 // Converts incoming crypto to NGN and wires it to the user's default bank account.
-// FIX [C4]: Removed createTransactionRecord; replaced with direct DB calls.
-
 func (s *TransactionService) processRapidRampInflow(
 	ctx context.Context,
 	dbTx *sql.Tx,
@@ -664,13 +656,14 @@ func (s *TransactionService) processRapidRampInflow(
 		return nil, fmt.Errorf("parsing USD rate: %w", err)
 	}
 
-	// TODO: Replace hardcoded rate with live API rate before production.
-	usdToNGN := decimal.NewFromFloat(1550.0)
-	// utils.GetNGNUSDRate()
-	cryptoToNGN := cryptoToUSD.Mul(usdToNGN)
+	vipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, userID, "USD", "NGN", cryptoToUSD.String())
+	rate, err := utils.ToDecimal(vipRate.AdjustmentAmount) 
+	if err != nil {
+		return nil, fmt.Errorf("to decimal error: %v", err)
+	}
+	cryptoToNGN := cryptoToUSD.Mul(rate)
 	fiatAmount := coinAmount.Mul(cryptoToNGN)
 
-	// TODO: Use VIP tier rates once available.
 	totalFees := decimal.Zero
 	netAmount := fiatAmount.Sub(totalFees)
 
@@ -697,6 +690,10 @@ func (s *TransactionService) processRapidRampInflow(
 		amountInKobo,
 		bankAccount.AccountName,
 	)
+
+	// TODO: if transfer is successful, deduct wallet and created pending and failed states
+	// if failed, keep money in ngn wallet
+	// Create CreateCryptoMetadata and transfer metadata also
 	if err != nil {
 		// FIX [C4a]: Paystack failure → credit user's NGN wallet as fallback.
 		// Old code used s.store.UpdateWalletBalance (no dbTx, SetBalance not Add).
@@ -724,20 +721,20 @@ func (s *TransactionService) processRapidRampInflow(
 		coinAmount.String(), coinSym, netAmount.String(), totalFees.String(), transfer.Reference))
 
 	// FIX [C4b]: Direct CreateTransaction with all fields.
-	idempotencyKey := "rapid_ramp_" + tx.TransactionID.String()
+	idempotencyKey := utils.WatRequestID()
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          userID,
-		Type:            string(CryptoInflowTransaction),
+		Type:            string(RapidRamp),
 		Description:     sql.NullString{String: fmt.Sprintf("%s to NGN (Rapid Ramp)", coinSym), Valid: true},
-		TransactionFlow: string(Inflow),
+		TransactionFlow: string(Outflow),
 		Status:          string(Success),
 		Amount:          coinAmount.String(), // coin amount sent
 		AmountUsd:       fiatAmount.String(), // NGN equivalent stored as reference
 		Currency:        coinSym,
 		IdempotencyKey:  idempotencyKey,
 		Direction:       string(Credit),
-		TFrom:           "Cryptomus",
-		TTo:             "Bank",
+		TFrom:           "crypto_deposit",
+		TTo:             "bank",
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating rapid ramp transaction record: %w", err)
@@ -768,6 +765,8 @@ func (s *TransactionService) processRapidRampInflow(
 		Status:          txx.Status,
 		CreatedAt:       txx.CreatedAt,
 		UpdatedAt:       txx.UpdatedAt,
+		// bank details
+		// reference for transfer tx
 	}, nil
 }
 

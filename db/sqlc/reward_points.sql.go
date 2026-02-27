@@ -1344,6 +1344,50 @@ func (q *Queries) ListActiveRewardConfigurations(ctx context.Context) ([]RewardC
 	return items, nil
 }
 
+const listAllRewardTransactions = `-- name: ListAllRewardTransactions :many
+SELECT id, user_id, transaction_id, transaction_type, source_transaction_type, transaction_amount, points_amount, naira_value, reward_config_id, description, status, balance_after, metadata, created_at, updated_at FROM reward_transactions
+ORDER BY created_at
+`
+
+func (q *Queries) ListAllRewardTransactions(ctx context.Context) ([]RewardTransaction, error) {
+	rows, err := q.db.QueryContext(ctx, listAllRewardTransactions)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []RewardTransaction{}
+	for rows.Next() {
+		var i RewardTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.SourceTransactionType,
+			&i.TransactionAmount,
+			&i.PointsAmount,
+			&i.NairaValue,
+			&i.RewardConfigID,
+			&i.Description,
+			&i.Status,
+			&i.BalanceAfter,
+			&i.Metadata,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRewardConfigurations = `-- name: ListRewardConfigurations :many
 SELECT id, config_name, reward_rate, transaction_type, min_transaction_amount, max_points_per_transaction, is_active, valid_from, valid_until, created_by, created_at, updated_at FROM reward_configurations
 ORDER BY created_at DESC

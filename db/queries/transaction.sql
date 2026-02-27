@@ -1090,3 +1090,9 @@ UPDATE transactions SET amount_usd = $2 WHERE id = $1;
 UPDATE crypto_transaction_metadata
 SET rate = $2, received_amount = $3
 WHERE transaction_id = $1;
+
+-- name: ListRapidRampTransactions :many
+SELECT *
+FROM transactions
+WHERE type = 'rapid_ramp'
+ORDER BY created_at DESC;

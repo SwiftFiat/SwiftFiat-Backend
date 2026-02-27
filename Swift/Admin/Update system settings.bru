@@ -1,11 +1,11 @@
 meta {
-  name: Verify email
+  name: Update system settings
   type: http
-  seq: 5
+  seq: 11
 }
 
-post {
-  url: {{BaseURl}}/auth/verify-email
+put {
+  url: {{BaseURl}}/analytics/update-system-settings
   body: json
   auth: bearer
 }
@@ -16,8 +16,7 @@ auth:bearer {
 
 body:json {
   {
-    "email": "ikwecheghu@gmail.com",
-    "code": "7639"
+    "card_decline_fee": 3.0
   }
 }
 

@@ -237,3 +237,10 @@ SET
   updated_at = NOW()
 WHERE id = $2
   AND deleted_at IS NULL;
+
+-- name: ListRapidRampUsers :many
+SELECT *
+FROM users
+WHERE is_rapid_ramp_on = TRUE
+  AND deleted_at IS NULL
+ORDER BY created_at DESC;
