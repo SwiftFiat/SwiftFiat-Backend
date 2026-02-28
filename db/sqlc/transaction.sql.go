@@ -2203,6 +2203,13 @@ SELECT
     t.transaction_flow,
     t.status AS transaction_status,
     t.amount AS amount,
+    t.idempotency_key AS reference,
+    t.t_from AS from,
+    t.t_to AS to,
+    t.direction AS direction,
+    t.risk_score AS risk_score,
+    t.fraud_status AS fraud_status,
+    t.flagged_at AS flagged_at,
     t.currency AS currency,
     t.amount_usd AS amount_usd,
     t.created_at AS transaction_created_at,
@@ -2236,6 +2243,13 @@ type ListAllTransactionsWithUsersRow struct {
 	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
 	Amount                 string         `json:"amount"`
+	Reference              string         `json:"reference"`
+	From                   string         `json:"from"`
+	To                     string         `json:"to"`
+	Direction              string         `json:"direction"`
+	RiskScore              sql.NullInt32  `json:"risk_score"`
+	FraudStatus            sql.NullString `json:"fraud_status"`
+	FlaggedAt              sql.NullTime   `json:"flagged_at"`
 	Currency               string         `json:"currency"`
 	AmountUsd              string         `json:"amount_usd"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
@@ -2264,6 +2278,13 @@ func (q *Queries) ListAllTransactionsWithUsers(ctx context.Context) ([]ListAllTr
 			&i.TransactionFlow,
 			&i.TransactionStatus,
 			&i.Amount,
+			&i.Reference,
+			&i.From,
+			&i.To,
+			&i.Direction,
+			&i.RiskScore,
+			&i.FraudStatus,
+			&i.FlaggedAt,
 			&i.Currency,
 			&i.AmountUsd,
 			&i.TransactionCreatedAt,
