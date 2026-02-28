@@ -477,7 +477,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 
 	_, err = qtx.UpdateConversionHistoryStatus(ctx, db.UpdateConversionHistoryStatusParams{
 		ID: history.ID,
-		Status: string(transaction.Success),
+		Status: "success",
 		FailureReason: sql.NullString{String: "", Valid: false},
 	})
 	if err != nil {
