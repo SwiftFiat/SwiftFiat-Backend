@@ -395,6 +395,13 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	}
 	defer dbTx.Rollback()
 
+	// Commit at the end before returning
+	defer func() {
+		if err == nil {
+			err = dbTx.Commit()
+		}
+	}()
+
 	qtx := s.store.WithTx(dbTx)
 
 	amountUsd, err := utils.ConvertToUSD(ctx, params.sourceAmount, params.sourceCurrency)
@@ -468,7 +475,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	}
 
 	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-		ID: mainTx.ID,
+		ID:     mainTx.ID,
 		Status: string(transaction.Success),
 	})
 	if err != nil {
@@ -476,8 +483,8 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	}
 
 	_, err = qtx.UpdateConversionHistoryStatus(ctx, db.UpdateConversionHistoryStatusParams{
-		ID: history.ID,
-		Status: "success",
+		ID:            history.ID,
+		Status:        "success",
 		FailureReason: sql.NullString{String: "", Valid: false},
 	})
 	if err != nil {
