@@ -81,6 +81,8 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 
 	qtx := s.store.WithTx(dbTx)
 
+	s.logger.Infof("response status is: %s", response.Status)
+
 	if response.Status == "success" {
 		// TODO: use redis
 		user, err := qtx.GetUserByID(ctx, int64(userID))
@@ -89,8 +91,19 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 			return nil, err
 		}
 
+		// Always set the cardholder ID regardless of name match
+		if setErr := qtx.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
+			BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
+			UpdatedAt:              time.Now(),
+			ID:                     int64(userID),
+		}); setErr != nil {
+			s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
+			return nil, setErr
+		}
+
+		// Update names if they differ
 		if user.FirstName.String != req.FirstName || user.LastName.String != req.LastName {
-			_, err = s.store.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
+			_, err = qtx.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
 				FirstName: sql.NullString{String: req.FirstName, Valid: true},
 				UpdatedAt: time.Now(),
 				ID:        user.ID,
@@ -100,7 +113,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 				return nil, err
 			}
 
-			_, err = s.store.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
+			_, err = qtx.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
 				LastName:  sql.NullString{String: req.LastName, Valid: true},
 				ID:        user.ID,
 				UpdatedAt: time.Now(),
@@ -109,45 +122,36 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 				s.logger.Errorf("error updating lastname from kyc: %v", err)
 				return nil, err
 			}
-
-			// set SetBridgeCardCardholderID to user
-			if setErr := s.store.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
-				BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
-				UpdatedAt:              time.Now(),
-				ID:                     int64(userID),
-			}); setErr != nil {
-				s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
-			}
-
-			// update kyc
-			_, err = s.store.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-				IsKycVerified: true,
-				UpdatedAt:     time.Now(),
-				ID:            int64(userID),
-			})
-			if err != nil {
-				return nil, fmt.Errorf("update user kyc status error: %v", err)
-			}
-
-			// Update cardholder verification status
-			err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-				ID:                           int64(userID),
-				BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
-				UpdatedAt:                    time.Now(),
-			})
-			if err != nil {
-				return nil, fmt.Errorf("update cardholder verification status error: %w", err)
-			}
-
-			// Commit transaction
-			if err := dbTx.Commit(); err != nil {
-				return nil, fmt.Errorf("commit transaction: %w", err)
-			}
-
-			// s.notifySvc
-
-			return response, nil
 		}
+
+		// update kyc
+		_, err = qtx.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+			IsKycVerified: true,
+			UpdatedAt:     time.Now(),
+			ID:            int64(userID),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update user kyc status error: %v", err)
+		}
+
+		// Update cardholder verification status
+		err = qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
+			ID:                           int64(userID),
+			BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
+			UpdatedAt:                    time.Now(),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update cardholder verification status error: %w", err)
+		}
+
+		// Commit transaction
+		if err := dbTx.Commit(); err != nil {
+			return nil, fmt.Errorf("commit transaction: %w", err)
+		}
+
+		// s.notifySvc
+
+		return response, nil
 	}
 
 	return response, nil
