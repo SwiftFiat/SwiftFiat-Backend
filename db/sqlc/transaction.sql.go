@@ -2586,6 +2586,9 @@ SELECT
     t.transaction_flow,
     t.status AS transaction_status, 
     t.amount AS amount,
+    t.direction AS direction,
+    t.t_from AS from,
+    t.t_to AS to,
     t.currency AS currency,
     t.created_at AS transaction_created_at,
     t.updated_at AS transaction_updated_at,
@@ -2607,6 +2610,9 @@ type ListUserTransactionsRow struct {
 	TransactionFlow        string         `json:"transaction_flow"`
 	TransactionStatus      string         `json:"transaction_status"`
 	Amount                 string         `json:"amount"`
+	Direction              string         `json:"direction"`
+	From                   string         `json:"from"`
+	To                     string         `json:"to"`
 	Currency               string         `json:"currency"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
@@ -2633,6 +2639,9 @@ func (q *Queries) ListUserTransactions(ctx context.Context, userID int64) ([]Lis
 			&i.TransactionFlow,
 			&i.TransactionStatus,
 			&i.Amount,
+			&i.Direction,
+			&i.From,
+			&i.To,
 			&i.Currency,
 			&i.TransactionCreatedAt,
 			&i.TransactionUpdatedAt,
