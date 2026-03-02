@@ -3860,21 +3860,21 @@ func (q *Queries) UpdateCardBilling(ctx context.Context, arg UpdateCardBillingPa
 const updateCardBillingStatus = `-- name: UpdateCardBillingStatus :one
 UPDATE card_billing_history
 SET 
-    status = $2,
-    failure_reason = $3,
-    processed_at = CASE WHEN $2 IN ('successful', 'failed') THEN NOW() ELSE processed_at END
-WHERE id = $1
+    status = $1,
+    failure_reason = $2,
+    processed_at = NOW()
+WHERE id = $3
 RETURNING id, transaction_id, card_id, user_id, card_plan_id, billing_type, amount, currency, billing_period_start, billing_period_end, source_wallet_id, status, failure_reason, created_at, processed_at
 `
 
 type UpdateCardBillingStatusParams struct {
-	ID            uuid.UUID      `json:"id"`
 	Status        string         `json:"status"`
 	FailureReason sql.NullString `json:"failure_reason"`
+	ID            uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateCardBillingStatus(ctx context.Context, arg UpdateCardBillingStatusParams) (CardBillingHistory, error) {
-	row := q.db.QueryRowContext(ctx, updateCardBillingStatus, arg.ID, arg.Status, arg.FailureReason)
+	row := q.db.QueryRowContext(ctx, updateCardBillingStatus, arg.Status, arg.FailureReason, arg.ID)
 	var i CardBillingHistory
 	err := row.Scan(
 		&i.ID,

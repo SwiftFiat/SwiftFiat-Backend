@@ -160,6 +160,8 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 
 // CreateCard creates a new virtual card with BridgeCard and handles all setup
 func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCardRequest) (*bridgecards.CreateCardResponse, error) {
+	s.logger.Infof("IdempotencyKey 1: '%s'", params.IdempotencyKey)
+	s.logger.Infof("IdempotencyKey 2: '%s'", params.IdempotencyKey2)
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
@@ -342,6 +344,11 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		Direction:       string(transaction.Debit),
 	})
 	if err != nil {
+		// Handle duplicate key error gracefully
+		if strings.Contains(err.Error(), "duplicate key") && strings.Contains(err.Error(), "idempotency_key") {
+			s.logger.Warn(fmt.Sprintf("Duplicate card funding request for idempotency key: %s", params.IdempotencyKey2))
+			return nil, fmt.Errorf("this card funding request is already in progress or was completed")
+		}
 		return nil, fmt.Errorf("card funding transaction failed: %w", err)
 	}
 
@@ -449,8 +456,9 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	_, err = qtx.UpdateCardBillingStatus(ctx, db.UpdateCardBillingStatusParams{
-		ID:     billingTx.ID,
-		Status: string(transaction.Success),
+		ID:            billingTx.ID,
+		Status:        string(transaction.Success),
+		FailureReason: sql.NullString{String: "", Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("update card billing status error: %w", err)

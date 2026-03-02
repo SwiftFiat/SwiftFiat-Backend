@@ -592,10 +592,10 @@ INSERT INTO card_billing_history (
 -- name: UpdateCardBillingStatus :one
 UPDATE card_billing_history
 SET 
-    status = $2,
-    failure_reason = $3,
-    processed_at = CASE WHEN $2 IN ('successful', 'failed') THEN NOW() ELSE processed_at END
-WHERE id = $1
+    status = sqlc.arg('status'),
+    failure_reason = sqlc.narg('failure_reason'),
+    processed_at = NOW()
+WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: GetCardBillingHistory :many

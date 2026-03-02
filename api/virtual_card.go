@@ -335,6 +335,8 @@ type CreateCardRequest struct {
 	CardColor     string `json:"color" binding:"omitempty"`
 	CardHolderID  string `json:"card_holder_id" binding:"required"`
 	FundingAmount string `json:"funding_amount" binding:"required"`
+	IdempotencyKey string `json:"idempotency_key" binding:"required"`
+	IdempotencyKey2 string `json:"idempotency_key_2" binding:"required"`
 }
 
 // CreateCard godoc
@@ -369,6 +371,8 @@ func (v *Virtualcard) CreateCard(c *gin.Context) {
 		CardColor:     req.CardColor,
 		CardHolderID:  req.CardHolderID,
 		FundingAmount: req.FundingAmount,
+		IdempotencyKey: req.IdempotencyKey,
+		IdempotencyKey2: req.IdempotencyKey2,
 	})
 
 	v.server.logger.Infof("create card result is ====: %v", result)
@@ -429,13 +433,13 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 		return
 	}
 
-	var req *bridgecards.CreateCardHolderRequest
+	var req bridgecards.CreateCardHolderRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	response, err := v.virtualCardSvc.CreateCardHolder(c, int32(activeUser.UserID), req)
+	response, err := v.virtualCardSvc.CreateCardHolder(c, int32(activeUser.UserID), &req)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
