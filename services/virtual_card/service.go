@@ -153,7 +153,6 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		go s.pushSvc.SendKYCVerifiedPushNotification(ctx, int64(userID))
 		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc verified", "Your kyc is verified", "system", []int64{int64(userID)})
 
-
 		return response, nil
 	}
 
@@ -282,14 +281,14 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, ErrInsufficientFunds
 	}
 
-	// create main tx record
+	// creation fee tx record
 	cardCreationTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          params.UserID,
 		Type:            string(transaction.Card),
 		Description:     sql.NullString{String: "card-creation-fee", Valid: true},
-		Amount:          totalCost.String(),
+		Amount:          creationFee.String(),
 		Currency:        "USD",
-		AmountUsd:       totalCost.String(),
+		AmountUsd:       creationFee.String(),
 		Status:          string(transaction.Pending),
 		TransactionFlow: string(transaction.Outflow),
 		IdempotencyKey:  params.IdempotencyKey,
@@ -332,6 +331,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	now := time.Now()
 	nextBillingDate := now.AddDate(0, 1, 0) // One month from now
 
+	// initial funding tx record
 	fundcardTx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          params.UserID,
 		Type:            string(transaction.Card),
@@ -370,8 +370,32 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, fmt.Errorf("create card record in db error: %w", err)
 	}
 
-	// create card transaction
-	dbCardtx, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+	// create card transaction for creation fee
+	s.logger.Infof("About to create card creation fee transaction with bridgecard_id: cc_%s", uuid.New().String())
+	cardCreationtxmeta, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  dbCard.ID,
+		UserID:                  params.UserID,
+		Amount:                  creationFee.IntPart(),
+		Currency:                "USD",
+		Status:                  string(transaction.Pending),
+		TransactionType:         string(transaction.Credit),
+		TransactionDate:         now,
+		WebhookReceivedAt:       sql.NullTime{Time: now, Valid: true},
+		BalanceAfter:            sql.NullString{String: fundingAmountDecimal.String(), Valid: true},
+		Mode:                    true,
+		TransactionTimestamp:    now,
+		BridgecardTransactionID: "cc_" + uuid.New().String(),
+		TransactionID:           cardCreationTx.ID,
+	})
+	if err != nil {
+		s.logger.Errorf("failed to create card creation transaction: %v", err)
+		return nil, fmt.Errorf("create card creation transaction error: %w", err)
+	}
+	s.logger.Infof("Successfully created card creation fee transaction with ID: %s", cardCreationtxmeta.ID)
+
+	// create card transaction for funding
+	s.logger.Infof("About to create card funding transaction with bridgecard_id: cf_%s", uuid.New().String())
+	cardFundingtxmeta, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
 		CardID:                  dbCard.ID,
 		UserID:                  params.UserID,
 		Amount:                  fundingAmountDecimal.IntPart(),
@@ -383,12 +407,14 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		BalanceAfter:            sql.NullString{String: fundingAmountDecimal.String(), Valid: true},
 		Mode:                    true,
 		TransactionTimestamp:    now,
-		BridgecardTransactionID: utils.NewTxRef("dummy"),
-		TransactionID:           cardCreationTx.ID,
+		BridgecardTransactionID: "cf_" + uuid.New().String(),
+		TransactionID:           fundcardTx.ID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("create card transaction error: %w", err)
+		s.logger.Errorf("failed to create card funding transaction: %v", err)
+		return nil, fmt.Errorf("create card funding transaction error: %w", err)
 	}
+	s.logger.Infof("Successfully created card funding transaction with ID: %s", cardFundingtxmeta.ID)
 
 	// Log creation fee billing
 	// TODO: card billing should point to a transaction record
@@ -451,11 +477,19 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 	}
 
 	_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
-		ID:     dbCardtx.ID,
+		ID:     cardCreationtxmeta.ID,
 		Status: string(transaction.Success),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("update card transaction status error: %w", err)
+		return nil, fmt.Errorf("update card creation meta transaction status error: %w", err)
+	}
+
+	_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
+		ID:     cardFundingtxmeta.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card funding meta transaction status error: %w", err)
 	}
 
 	_, err = qtx.UpdateCardBillingStatus(ctx, db.UpdateCardBillingStatusParams{
@@ -494,11 +528,19 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		}
 
 		_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
-			ID:     dbCardtx.ID,
+			ID:     cardCreationtxmeta.ID,
 			Status: string(transaction.Failed),
 		})
 		if err != nil {
-			return nil, fmt.Errorf("update card transaction status error: %w", err)
+			return nil, fmt.Errorf("update card creation meta transaction status error: %w", err)
+		}
+
+		_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
+			ID:     cardFundingtxmeta.ID,
+			Status: string(transaction.Failed),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update card funding meta transaction status error: %w", err)
 		}
 
 		_, err = qtx.UpdateCardBillingStatus(ctx, db.UpdateCardBillingStatusParams{

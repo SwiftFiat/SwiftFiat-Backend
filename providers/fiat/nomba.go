@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -388,8 +389,9 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 	// Read response body for error details
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
-	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("nomba: MakeTransfer non-200", resp.StatusCode, "body", string(bodyBytes))
+	// Accept both 200 (OK) and 202 (Accepted - processing) as valid responses
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		logging.NewLogger().Error("nomba: MakeTransfer non-success status", resp.StatusCode, "body", string(bodyBytes))
 		// Try to parse error response for more details
 		var errResult NombaResponse[interface{}]
 		if err := json.Unmarshal(bodyBytes, &errResult); err == nil {
@@ -402,14 +404,18 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, fmt.Errorf("nomba: decode MakeTransfer: %w", err)
 	}
-	// Nomba returns code "200" for success on transfer endpoint, not "00"
-	if result.Code != "00" && result.Code != "200" {
-		return nil, fmt.Errorf("nomba: MakeTransfer failed: %s", result.Description)
+	// Accept codes: "00" (legacy), "200" (success), "202" (processing/accepted)
+	if result.Code != "00" && result.Code != "200" && result.Code != "202" {
+		return nil, fmt.Errorf("nomba: MakeTransfer failed with code %s: %s", result.Code, result.Description)
 	}
 
 	d := result.Data
-	// Convert amount from decimal to int64 (assuming it's returned in kobo)
-	amountInt := int64(d.Amount * 100)
+	// Amount is returned as string from Nomba API, convert to int64
+	amountFloat, err := strconv.ParseFloat(d.Amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: invalid amount format: %w", err)
+	}
+	amountInt := int64(amountFloat)
 	return &NombaTransferResponse{
 		Amount:       amountInt,
 		Currency:     "NGN",

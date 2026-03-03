@@ -1101,6 +1101,12 @@ UPDATE crypto_transaction_metadata
 SET rate = $2, received_amount = $3
 WHERE transaction_id = $1;
 
+-- name: GetPendingBankTransferMetadataOlderThan5Mins :many
+SELECT * FROM bank_transfer_metadata
+WHERE status = 'pending'
+  AND date < NOW() - INTERVAL '5 minutes'
+ORDER BY date ASC;
+
 -- name: ListRapidRampTransactions :many
 SELECT *
 FROM transactions

@@ -514,43 +514,6 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return nil, nil, decimal.Zero, "", fmt.Errorf("creating crypto metadata: %w", err)
 	}
 
-	// Referral + conversion bonus (non-fatal, same as before).
-	if !user.HasCompletedFirstConversion.Bool {
-		referrerID, referralBonus, err := CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, user.ID, txx.ID)
-		if err != nil {
-			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to disburse referral bonus: %v", err))
-		}
-		if referrerID != nil && referralBonus != nil {
-			go func() {
-				bgCtx := context.Background()
-				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
-					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
-					"system", []int64{*referrerID})
-				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
-			}()
-		}
-	}
-
-	refererID, conversionBonus, err := CreditReferrerForConversion(ctx, s.store, dbTx, user.ID, usdAmount)
-	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
-	}
-	s.logger.Info(fmt.Sprintf("Conversion bonus process done. RefererID: %v, Bonus: %v", refererID, conversionBonus))
-	if refererID != nil && conversionBonus != nil {
-		go func() {
-			bgCtx := context.Background()
-			s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Bonus Credit",
-				fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
-				"system", []int64{*refererID})
-			s.push.ConversionBonusEarned(bgCtx, *refererID, conversionBonus.String())
-		}()
-	}
-
-	_ = s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
-		UserID:                user.ID,
-		TotalConversionVolume: usdAmount.String(),
-	})
-
 	err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, txx.Type)
 	if err != nil {
 		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to update streak: %v", err))
@@ -685,15 +648,20 @@ func (s *TransactionService) processRapidRampInflow(
 		return nil, fmt.Errorf("creating transfer recipient: %w", err)
 	}
 
-	amountInKobo := netAmount.Mul(decimal.NewFromInt(100)).IntPart()
+	amountInNGN := int64(netAmount.InexactFloat64())
 
 	transfer, err := fiatProvider.MakeTransfer(
 		recipient.RecipientCode,
 		utils.WatRequestID(),
 		"sent via Swiift",
-		amountInKobo,
+		amountInNGN,
 		bankAccount.AccountName,
 	)
+
+	user, err := s.store.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching user for rapid ramp error: %w", err)
+	}
 
 	// TODO: if transfer is successful, deduct wallet and created pending and failed states
 	// if failed, keep money in ngn wallet
@@ -724,6 +692,8 @@ func (s *TransactionService) processRapidRampInflow(
 	s.logger.Info(fmt.Sprintf("Rapid ramp transfer initiated: %s %s → %s NGN net (fees: %s, ref: %s)",
 		coinAmount.String(), coinSym, netAmount.String(), totalFees.String(), transfer.Reference))
 
+	amountUSd, _ := utils.ConvertToUSD(ctx, fiatAmount, "NGN")
+
 	// FIX [C4b]: Direct CreateTransaction with all fields.
 	idempotencyKey := utils.WatRequestID()
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
@@ -732,8 +702,8 @@ func (s *TransactionService) processRapidRampInflow(
 		Description:     sql.NullString{String: fmt.Sprintf("%s to NGN (Rapid Ramp)", coinSym), Valid: true},
 		TransactionFlow: string(Outflow),
 		Status:          string(Success),
-		Amount:          coinAmount.String(), // coin amount sent
-		AmountUsd:       fiatAmount.String(), // NGN equivalent stored as reference
+		Amount:          fiatAmount.String(),
+		AmountUsd:       amountUSd.String(),
 		Currency:        coinSym,
 		IdempotencyKey:  idempotencyKey,
 		Direction:       string(Credit),
@@ -744,26 +714,24 @@ func (s *TransactionService) processRapidRampInflow(
 		return nil, fmt.Errorf("creating rapid ramp transaction record: %w", err)
 	}
 
-	_, err = qtx.CreateCryptoMetadata(ctx, db.CreateCryptoMetadataParams{
-		DestinationWallet:    uuid.NullUUID{Valid: false}, // bank, not wallet
-		TransactionID:        txx.ID,
-		Coin:                 coinSym,
-		SourceHash:           sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
-		Rate:                 sql.NullString{String: cryptoToNGN.String(), Valid: true},
-		Fees:                 sql.NullString{String: totalFees.String(), Valid: true},
-		ReceivedAmount:       sql.NullString{String: netAmount.String(), Valid: true},
-		SentAmount:           sql.NullString{String: coinAmount.String(), Valid: true},
-		ServiceProvider:      "Cryptomus",
-		ServiceTransactionID: sql.NullString{String: tx.TransactionID.String(), Valid: true},
-		OrderID:              "", // no orderID in rapid-ramp context
+	_, err = qtx.CreateBankTransferMetadata(ctx, db.CreateBankTransferMetadataParams{
+		Amount: fiatAmount.String(),
+		ServiceCharge: totalFees.String(),
+		TransactionID: txx.ID,
+		AccountName: bankAccount.AccountName,
+		AccountNumber: bankAccount.AccountNumber,
+		ServiceProvider: sql.NullString{String: "Nomba", Valid: true},
+		Status: string(Pending),
+		AmountPaid: netAmount.String(),
+		Type: string(Credit),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("creating rapid ramp crypto metadata: %w", err)
+		return nil, fmt.Errorf("creating rapid ramp bank transfer metadata: %w", err)
 	}
 
 	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
 		TotalTransactionVolume: sql.NullString{String: netAmount.String(), Valid: true},
-		ID: userID,
+		ID:                     userID,
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
@@ -773,6 +741,43 @@ func (s *TransactionService) processRapidRampInflow(
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to update user streak: %v", err))
 	}
+
+	// Referral + conversion bonus (non-fatal, same as before).
+	if !user.HasCompletedFirstConversion.Bool {
+		referrerID, referralBonus, err := CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, user.ID, txx.ID)
+		if err != nil {
+			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to disburse referral bonus: %v", err))
+		}
+		if referrerID != nil && referralBonus != nil {
+			go func() {
+				bgCtx := context.Background()
+				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
+					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
+					"system", []int64{*referrerID})
+				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
+			}()
+		}
+	}
+
+	refererID, conversionBonus, err := CreditReferrerForConversion(ctx, s.store, dbTx, user.ID, fiatAmount)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
+	}
+	s.logger.Info(fmt.Sprintf("Conversion bonus process done. RefererID: %v, Bonus: %v", refererID, conversionBonus))
+	if refererID != nil && conversionBonus != nil {
+		go func() {
+			bgCtx := context.Background()
+			s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Bonus Credit",
+				fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
+				"system", []int64{*refererID})
+			s.push.ConversionBonusEarned(bgCtx, *refererID, conversionBonus.String())
+		}()
+	}
+
+	_ = s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
+		UserID:                user.ID,
+		TotalConversionVolume: fiatAmount.String(),
+	})
 
 	return &TransactionResponse[CryptoMetadataResponse]{
 		ID:              txx.ID,
@@ -785,6 +790,13 @@ func (s *TransactionService) processRapidRampInflow(
 		// bank details
 		// reference for transfer tx
 	}, nil
+}
+
+type RapidRampResponse struct {
+	Coin string `json:"coin"`
+	Rate string `json:"rate"`
+	CoinAmount string `json:"coin_amount"`
+	
 }
 
 // Helper function to get Cryptomus provider
@@ -1697,7 +1709,7 @@ func (s *TransactionService) postBillSuccess(
 
 	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
 		TotalTransactionVolume: sql.NullString{String: finalAmount.String(), Valid: true},
-		ID: user.ID,
+		ID:                     user.ID,
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
@@ -2480,6 +2492,16 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		}
 	}
 
+	// Get pending Bank Transfer transactions
+	bankTransfersPending, err := s.store.GetPendingBankTransferMetadataOlderThan5Mins(ctx)
+	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
+		s.logger.Error(fmt.Sprintf("reconciler: fetch pending bank transfers: %v", err))
+	} else if err == nil {
+		for i := range bankTransfersPending {
+			allPendingMetadata = append(allPendingMetadata, &BankTransferMetadataAdapter{meta: &bankTransfersPending[i]})
+		}
+	}
+
 	// Process all pending transactions
 	for _, meta := range allPendingMetadata {
 		requestID := meta.GetRequestID()
@@ -2618,6 +2640,42 @@ func (e *ElectricityMetadataAdapter) GetBillType() string {
 	return string(Electricity)
 }
 
+// BankTransferMetadataAdapter wraps db.BankTransferMetadata to implement BillMetadata.
+type BankTransferMetadataAdapter struct {
+	meta *db.BankTransferMetadatum
+}
+
+func (b *BankTransferMetadataAdapter) GetMetadataID() uuid.UUID {
+	return b.meta.ID
+}
+
+func (b *BankTransferMetadataAdapter) GetTransactionID() uuid.UUID {
+	return b.meta.TransactionID
+}
+
+func (b *BankTransferMetadataAdapter) GetStatus() string {
+	return b.meta.Status
+}
+
+func (b *BankTransferMetadataAdapter) GetRequestID() string {
+	// Bank transfers use ServiceTransactionID as the request ID
+	if b.meta.ServiceTransactionID.Valid {
+		return b.meta.ServiceTransactionID.String
+	}
+	return b.meta.TransactionID.String()
+}
+
+func (b *BankTransferMetadataAdapter) GetAmountPaid() string {
+	if b.meta.AmountPaid == "" {
+		return "0"
+	}
+	return b.meta.AmountPaid
+}
+
+func (b *BankTransferMetadataAdapter) GetBillType() string {
+	return "BankTransfer"
+}
+
 // reconcileFinalizeBillSuccess updates transaction and metadata status to success after provider confirmation.
 func (s *TransactionService) reconcileFinalizeBillSuccess(ctx context.Context, meta BillMetadata) error {
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -2645,6 +2703,13 @@ func (s *TransactionService) reconcileFinalizeBillSuccess(ctx context.Context, m
 	case string(Electricity):
 		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
 			Status: string(Success), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	case "BankTransfer":
+		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: meta.GetMetadataID(),
+			Status:        string(Success),
 		}); err != nil {
 			return err
 		}
@@ -2708,6 +2773,13 @@ func (s *TransactionService) reconcileFinalizeBillFailure(ctx context.Context, m
 	case string(Electricity):
 		if _, err = s.store.WithTx(dbTx).UpdateElectricityPurchaseStatus(ctx, db.UpdateElectricityPurchaseStatusParams{
 			Status: string(Failed), ID: meta.GetMetadataID(),
+		}); err != nil {
+			return err
+		}
+	case "BankTransfer":
+		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: meta.GetMetadataID(),
+			Status:        string(Failed),
 		}); err != nil {
 			return err
 		}
@@ -3232,8 +3304,8 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		return nil, fmt.Errorf("failed to create transfer recipient: %v", err)
 	}
 
-	// Convert amount to kobo (smallest unit) for the transfer
-	amountInKobo := amount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
+	// Convert amount to int64 for the transfer (Nomba expects amount in NGN, not kobo)
+	amountInNGN := int64(amount.InexactFloat64())
 
 	debitTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          user.ID,
@@ -3283,12 +3355,12 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	}
 
 	// Log transfer details for debugging live vs test differences
-	s.logger.Infof("MakeTransfer details - recipientCode: %s, amount: %d kobo, accountName: %s, bankCode: %s",
-		recipientInfo.RecipientCode, amountInKobo, req.Name, req.BankCode)
+	s.logger.Infof("MakeTransfer details - recipientCode: %s, amount: %d NGN, accountName: %s, bankCode: %s",
+		recipientInfo.RecipientCode, amountInNGN, req.Name, req.BankCode)
 
-	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInKobo, req.Name)
+	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInNGN, req.Name)
 	if err != nil {
-		s.logger.Errorf("MakeTransfer failed: %v. Recipient: %s, Amount: %d kobo, Ref: %s", err, recipientInfo.RecipientCode, amountInKobo, transferReference)
+		s.logger.Errorf("MakeTransfer failed: %v. Recipient: %s, Amount: %d NGN, Ref: %s", err, recipientInfo.RecipientCode, amountInNGN, transferReference)
 		return nil, fmt.Errorf("failed to make transfer: %v", err)
 	}
 	s.logger.Infof("transfer response: %v", res)
@@ -3358,7 +3430,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Status:         "failed",
 			Reference:      req.IdempotencyKey,
 		}, nil
-	case "pending", "pending_billing":
+	case "pending", "pending_billing", "processing":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     debitTx.ID,
 			Status: "pending",

@@ -71,7 +71,7 @@ type NombaTransferMeta struct {
 }
 
 type NombaTransferData struct {
-	Amount      float64           `json:"amount"`
+	Amount      string            `json:"amount"`
 	Meta        NombaTransferMeta `json:"meta"`
 	Fee         string            `json:"fee"`
 	TimeCreated string            `json:"timeCreated"`
