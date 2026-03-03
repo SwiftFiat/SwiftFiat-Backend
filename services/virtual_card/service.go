@@ -590,6 +590,27 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
 	}
 
+	tx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
+		UserID: userID,
+		Type:   string(transaction.Card),
+		Description: sql.NullString{
+			String: fmt.Sprintf("Funding card %s", req.CardID),
+			Valid:  true,
+		},
+		Amount:          fundingAmount.String(),
+		Currency:        "USD",
+		AmountUsd:       fundingAmount.String(),
+		Status:          string(transaction.Pending),
+		TransactionFlow: string(transaction.Outflow),
+		IdempotencyKey:  req.TransactionReference,
+		TFrom:           string(transaction.Wallet),
+		TTo:             "card_provider",
+		Direction:       string(transaction.Debit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create funding transaction error: %w", err)
+	}
+
 	// Create funding record first
 	fundingRecord, err := s.store.CreateCardFunding(ctx, db.CreateCardFundingParams{
 		CardID:         card.ID,
@@ -601,18 +622,16 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		FundingType:    "manual",
 		InitiatedBy:    "user",
 		Status:         string(CardFundingStatusPending),
+		TransactionID:  tx.ID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create card funding record error: %w", err)
 	}
 
-	// Debit user and refund if card funding fails
-	newBalance := walletBalance.Sub(fundingAmount)
-
-	_, err = s.store.UpdateWalletBalance(ctx, db.UpdateWalletBalanceParams{
+	_, err = s.store.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
 		ID: wallet.ID,
-		Amount: sql.NullString{
-			String: newBalance.String(),
+		Balance: sql.NullString{
+			String: fundingAmount.String(),
 			Valid:  true,
 		},
 	})
@@ -622,8 +641,15 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 
 	bridgeResponse, err := s.bridgeCard.FundCard(ctx, req)
 	if err != nil {
+		_, updateErr := s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     tx.ID,
+			Status: string(transaction.Failed),
+		})
+		if updateErr != nil {
+			s.logger.Error(fmt.Sprintf("failed to update transaction status: %v", updateErr))
+		}
 		// Update funding status to failed if BridgeCard call fails
-		_, updateErr := s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		_, updateErr = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
 			ID:            fundingRecord.ID,
 			Status:        string(CardFundingStatusFailed),
 			FailureReason: sql.NullString{String: err.Error(), Valid: true},

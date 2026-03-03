@@ -499,7 +499,7 @@ func (s *QRCodeService) payoutQRTransaction(ctx context.Context, tx *db.QrTransa
 		return fmt.Errorf("paystack provider not available")
 	}
 
-	paystackProvider, ok := provider.(*fiat.PaystackProvider)
+	paystackProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
 		return fmt.Errorf("invalid paystack provider")
 	}

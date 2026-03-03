@@ -251,6 +251,11 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("VT_PASS_TEST_KEY")
 	_ = v.BindEnv("VT_PASS_TEST_PK")
 	_ = v.BindEnv("VT_PASS_TEST_SK")
+	_ = v.BindEnv("FIAT_PROVIDER_NAME")
+	_ = v.BindEnv("NOMBA_BASE_URL")
+	_ = v.BindEnv("NOMBA_CLIENT_ID")
+	_ = v.BindEnv("NOMBA_CLIENT_SECRET")
+	_ = v.BindEnv("NOMBA_ACCOUNT_ID")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)

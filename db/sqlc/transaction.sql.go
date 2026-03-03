@@ -2790,18 +2790,19 @@ func (q *Queries) UpdateAirtimeStatusIfPending(ctx context.Context, arg UpdateAi
 
 const updateBankTransferStatus = `-- name: UpdateBankTransferStatus :one
 UPDATE bank_transfer_metadata
-SET status = $2
+SET status = $2, service_transaction_id = $3
 WHERE transaction_id = $1
 RETURNING id, amount, service_charge, transaction_id, account_name, account_number, service_provider, type, service_transaction_id, status, date, amount_paid, points_earned
 `
 
 type UpdateBankTransferStatusParams struct {
-	TransactionID uuid.UUID `json:"transaction_id"`
-	Status        string    `json:"status"`
+	TransactionID        uuid.UUID      `json:"transaction_id"`
+	Status               string         `json:"status"`
+	ServiceTransactionID sql.NullString `json:"service_transaction_id"`
 }
 
 func (q *Queries) UpdateBankTransferStatus(ctx context.Context, arg UpdateBankTransferStatusParams) (BankTransferMetadatum, error) {
-	row := q.db.QueryRowContext(ctx, updateBankTransferStatus, arg.TransactionID, arg.Status)
+	row := q.db.QueryRowContext(ctx, updateBankTransferStatus, arg.TransactionID, arg.Status, arg.ServiceTransactionID)
 	var i BankTransferMetadatum
 	err := row.Scan(
 		&i.ID,

@@ -532,7 +532,6 @@ func (v *Virtualcard) FundCard(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
-	req.TransactionReference = utils.NewTxRef("fund-card")
 
 	card, err := v.server.queries.GetVirtualCardByBridgeCardID(c, req.CardID)
 	if err != nil {

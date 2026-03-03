@@ -45,13 +45,13 @@ func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64
 		return nil, fmt.Errorf("paystack provider not available")
 	}
 
-	paystackProvider, ok := provider.(*fiat.PaystackProvider)
+	fiatProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
 		return nil, fmt.Errorf("invalid paystack provider")
 	}
 
 	// Verify account with Paystack
-	accountInfo, err := paystackProvider.ResolveAccount(req.AccountNumber, req.BankCode)
+	accountInfo, err := fiatProvider.ResolveAccount(req.AccountNumber, req.BankCode)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to verify account: %v", err))
 		return nil, fmt.Errorf("failed to verify bank account: %w", err)

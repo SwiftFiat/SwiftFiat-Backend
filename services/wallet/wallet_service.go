@@ -163,21 +163,21 @@ func (w *WalletService) GetFiatBanks(prov *providers.ProviderService, query *str
 
 	w.logger.Info("retrieving banks from provider")
 
-	provider, exists := prov.GetProvider(providers.Paystack)
+	provider, exists := prov.GetProvider(providers.Nomba)
 	if !exists {
-		w.logger.Error("FIAT Provider does not exist - Paystack")
+		w.logger.Error("FIAT Provider does not exist - Nomba")
 		return nil, fmt.Errorf("FIAT Provider does not exist")
 	}
 
-	fiatProvider, ok := provider.(*fiat.PaystackProvider)
+	fiatProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
-		w.logger.Error("could not resolve to FIAT Provider - Paystack")
+		w.logger.Error("could not resolve to FIAT Provider - Nomba")
 		return nil, fmt.Errorf("could not resolve FIAT Provider")
 	}
 
 	banks, err := fiatProvider.GetBanks()
 	if err != nil {
-		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Paystack: %v", err))
+		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Nomba: %v", err))
 		return nil, fmt.Errorf("error connecting to FIAT Provider: %v", err)
 	}
 
@@ -209,21 +209,21 @@ func (w *WalletService) ResolveAccount(prov *providers.ProviderService, accountN
 
 	w.logger.Info("resolving account number")
 
-	provider, exists := prov.GetProvider(providers.Paystack)
+	provider, exists := prov.GetProvider(providers.Nomba)
 	if !exists {
-		w.logger.Error("FIAT Provider does not exist - Paystack")
+		w.logger.Error("FIAT Provider does not exist - Nomba")
 		return nil, fmt.Errorf("FIAT Provider does not exist")
 	}
 
-	fiatProvider, ok := provider.(*fiat.PaystackProvider)
+	fiatProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
-		w.logger.Error("could not resolve to FIAT Provider - Paystack")
+		w.logger.Error("could not resolve to FIAT Provider - Nomba")
 		return nil, fmt.Errorf("could not resolve FIAT Provider")
 	}
 
 	accountInfo, err := fiatProvider.ResolveAccount(*accountNumber, *bankCode)
 	if err != nil {
-		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Paystack: %v", err))
+		w.logger.Error(fmt.Sprintf("Error connecting to FIAT Provider - Nomba: %v", err))
 		return nil, fmt.Errorf("error connecting to FIAT Provider: %v", err)
 	}
 

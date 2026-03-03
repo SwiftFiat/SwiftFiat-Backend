@@ -101,7 +101,7 @@ RETURNING *;
 
 -- name: UpdateBankTransferStatus :one
 UPDATE bank_transfer_metadata
-SET status = $2
+SET status = $2, service_transaction_id = $3
 WHERE transaction_id = $1
 RETURNING *;
 

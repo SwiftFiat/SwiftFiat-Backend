@@ -42,7 +42,7 @@ type TransactionService struct {
 	rewardSvc      *rewards.RewardService
 	audit          *audit.Service
 	redis          *redis.RedisService
-	paystack       *fiat.PaystackProvider
+	fiat           *fiat.NombaProvider
 	rateManager    *ratemanager.Service
 }
 
@@ -59,7 +59,7 @@ func NewTransactionService(
 	rewardSvc *rewards.RewardService,
 	audit *audit.Service,
 	redis *redis.RedisService,
-	paystack *fiat.PaystackProvider,
+	fiat *fiat.NombaProvider,
 	rateManager *ratemanager.Service,
 ) *TransactionService {
 	return &TransactionService{
@@ -75,7 +75,7 @@ func NewTransactionService(
 		rewardSvc:      rewardSvc,
 		audit:          audit,
 		redis:          redis,
-		paystack:       paystack,
+		fiat:           fiat,
 		rateManager:    rateManager,
 	}
 }
@@ -419,7 +419,6 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching user: %w", err)
 	}
 
-
 	s.logger.Infof("======================amount in satoshis is %2.f", tx.AmountInSatoshis.InexactFloat64())
 
 	coinSym := strings.ToUpper(tx.Coin)
@@ -448,7 +447,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 			Message:  fmt.Sprintf("vip rates is failing with error: %v", err),
 			Source:   sql.NullString{String: "Crypto Coversion", Valid: true},
 		})
-	} 
+	}
 
 	rate, _ := utils.ToDecimal(vip_rate.AdjustedRate)
 
@@ -562,14 +561,14 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		CreatedAt:       txx.CreatedAt,
 		UpdatedAt:       txx.UpdatedAt,
 		Metadata: &CryptoMetadataResponse{
-			ID:                   cryptoMeta.ID,
-			DestinationWallet:    destWallet.Currency,
-			Coin:                 cryptoMeta.Coin,
-			Rate:                 rate.InexactFloat64(),
-			Fees:                 0.00,
-			ReceivedAmount:       cryptoMeta.ReceivedAmount.String,
-			SentAmount:           tx.SentAmount.InexactFloat64(),
-			OrderID:      cryptoMeta.OrderID,
+			ID:                cryptoMeta.ID,
+			DestinationWallet: destWallet.Currency,
+			Coin:              cryptoMeta.Coin,
+			Rate:              rate.InexactFloat64(),
+			Fees:              0.00,
+			ReceivedAmount:    cryptoMeta.ReceivedAmount.String,
+			SentAmount:        tx.SentAmount.InexactFloat64(),
+			OrderID:           cryptoMeta.OrderID,
 		},
 	}
 
@@ -657,7 +656,7 @@ func (s *TransactionService) processRapidRampInflow(
 	}
 
 	vipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, userID, "USD", "NGN", cryptoToUSD.String())
-	rate, err := utils.ToDecimal(vipRate.AdjustmentAmount) 
+	rate, err := utils.ToDecimal(vipRate.AdjustmentAmount)
 	if err != nil {
 		return nil, fmt.Errorf("to decimal error: %v", err)
 	}
@@ -667,7 +666,7 @@ func (s *TransactionService) processRapidRampInflow(
 	totalFees := decimal.Zero
 	netAmount := fiatAmount.Sub(totalFees)
 
-	paystackProvider, err := s.getPaystackProvider(prov)
+	paystackProvider, err := s.getFiatProvider(prov)
 	if err != nil {
 		return nil, fmt.Errorf("getting paystack provider: %w", err)
 	}
@@ -786,13 +785,13 @@ func (s *TransactionService) getCryptomusProvider(prov *providers.ProviderServic
 }
 
 // Helper function to get Paystack provider
-func (s *TransactionService) getPaystackProvider(prov *providers.ProviderService) (*fiat.PaystackProvider, error) {
+func (s *TransactionService) getFiatProvider(prov *providers.ProviderService) (*fiat.NombaProvider, error) {
 	provider, exists := prov.GetProvider(providers.Paystack)
 	if !exists {
 		return nil, fmt.Errorf("paystack provider not available")
 	}
 
-	paystackProvider, ok := provider.(*fiat.PaystackProvider)
+	paystackProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
 		return nil, fmt.Errorf("invalid paystack provider type")
 	}
@@ -1810,9 +1809,9 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		_ = dbTx.Commit()
 		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
-			Title: "Buy Airtime Failing",
-			Message: fmt.Sprintf("VTPASS buy airtime endpoint failed with error: %v", err.Error()),
-			Source: sql.NullString{String: "HandleAirtime", Valid: true},
+			Title:    "Buy Airtime Failing",
+			Message:  fmt.Sprintf("VTPASS buy airtime endpoint failed with error: %v", err.Error()),
+			Source:   sql.NullString{String: "HandleAirtime", Valid: true},
 		})
 		return nil, fmt.Errorf("airtime provider unreachable (pending reconciliation): %w", err)
 	}
@@ -2050,9 +2049,9 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		_ = dbTx.Commit()
 		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
-			Title: "Buy Data Failing",
-			Message: fmt.Sprintf("VTPASS buy data endpoint failed with error: %v", err),
-			Source: sql.NullString{String: "HandleData", Valid: true},
+			Title:    "Buy Data Failing",
+			Message:  fmt.Sprintf("VTPASS buy data endpoint failed with error: %v", err),
+			Source:   sql.NullString{String: "HandleData", Valid: true},
 		})
 		return nil, fmt.Errorf("data provider unreachable (pending reconciliation): %w", err)
 	}
@@ -2304,9 +2303,9 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		_ = dbTx.Commit()
 		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
-			Title: "Buy Tv Subscription Failing",
-			Message: fmt.Sprintf("VTPASS buy tv sub endpoint failed with error: %v", err.Error()),
-			Source: sql.NullString{String: "HandleAirtime", Valid: true},
+			Title:    "Buy Tv Subscription Failing",
+			Message:  fmt.Sprintf("VTPASS buy tv sub endpoint failed with error: %v", err.Error()),
+			Source:   sql.NullString{String: "HandleAirtime", Valid: true},
 		})
 		return nil, fmt.Errorf("TV provider unreachable (pending reconciliation): %w", err)
 	}
@@ -3152,7 +3151,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	}
 
 	amount := decimal.NewFromFloat(req.Amount)
-	fee := decimal.NewFromFloat(10.0)
+	fee := decimal.NewFromFloat(0.00)
 
 	totalAmount := amount.Add(fee)
 
@@ -3180,13 +3179,17 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 
 	amountUsd, _ := utils.ConvertToUSD(ctx, amount, string(NGN))
 
-	recipientInfo, err := s.paystack.CreateTransferRecipient(
+	recipientInfo, err := s.fiat.CreateTransferRecipient(
 		req.AccountNumber,
 		req.BankCode,
 		req.Name,
 	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create transfer recipient: %v", err)
+	}
 
-	AmountInPaystackFormat := amount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
+	// Convert amount to kobo (smallest unit) for the transfer
+	amountInKobo := amount.Mul(decimal.NewFromInt(100)).BigInt().Int64()
 
 	debitTx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          user.ID,
@@ -3207,13 +3210,13 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	}
 
 	transferReference := uuid.NewString()
-	debitMetadata, err := s.store.CreateBankTransferMetadata(ctx, db.CreateBankTransferMetadataParams{
+	_, err = s.store.CreateBankTransferMetadata(ctx, db.CreateBankTransferMetadataParams{
 		Amount:          amount.String(),
 		ServiceCharge:   fee.String(),
 		TransactionID:   debitTx.ID,
 		AccountName:     req.Name,
 		AccountNumber:   req.AccountNumber,
-		ServiceProvider: sql.NullString{String: "paystack", Valid: true},
+		ServiceProvider: sql.NullString{String: "nomba", Valid: true},
 		Status:          string(Pending),
 		Type:            string(Debit),
 		AmountPaid:      totalAmount.String(),
@@ -3235,11 +3238,11 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		remark = "Sent via Swiift"
 	}
 
-	res, err := s.paystack.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, AmountInPaystackFormat, req.Name)
+	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInKobo, req.Name)
 	if err != nil {
-		return nil, fmt.Errorf("failed to make transfer in paystack: %v", err)
+		return nil, fmt.Errorf("failed to make transfer: %v", err)
 	}
-	s.logger.Infof("res data from paystack==========================: %v: ", res)
+	s.logger.Infof("transfer response: %v", res)
 
 	if req.SaveBeneficiary {
 		_, err = s.store.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
@@ -3259,19 +3262,22 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	}
 	defer dbTx.Rollback()
 
-	switch res.Status {
+	// Normalize status to lowercase for comparison (Nomba returns uppercase)
+	normalizedStatus := strings.ToLower(res.Status)
+
+	switch normalizedStatus {
 	case "failed":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     debitTx.ID,
-			Status: string(Failed),
+			Status: "failed",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
 		}
 
 		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: debitMetadata.ID,
-			Status:        string(Failed),
+			TransactionID: debitTx.ID,
+			Status:        "failed",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update failed bank transfer metadata status: %v", err)
@@ -3301,19 +3307,20 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Type:           string(Transfer),
 			Date:           debitTx.UpdatedAt,
 			Status:         "failed",
+			Reference:      req.IdempotencyKey,
 		}, nil
-	case "pending":
+	case "pending", "pending_billing":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     debitTx.ID,
-			Status: string(Pending),
+			Status: "pending",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
 		}
 
 		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: debitMetadata.ID,
-			Status:        string(Pending),
+			TransactionID: debitTx.ID,
+			Status:        "pending",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
@@ -3335,19 +3342,21 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Type:           string(Transfer),
 			Date:           debitTx.UpdatedAt,
 			Status:         string(Success),
+			Reference:      req.IdempotencyKey,
 		}, nil
-	case "success":
+	case "success", "completed":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     debitTx.ID,
-			Status: string(Success),
+			Status: "successful",
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update debit tx record status: %v", err)
 		}
 
 		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: debitMetadata.ID,
-			Status:        string(Success),
+			TransactionID:        debitTx.ID,
+			Status:               "successful",
+			ServiceTransactionID: sql.NullString{String: res.Reference, Valid: true},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
@@ -3381,6 +3390,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Type:           string(Transfer),
 			Date:           debitTx.UpdatedAt,
 			Status:         string(Success),
+			Reference:      req.IdempotencyKey,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown bank transfer status: %s", res.Status)
