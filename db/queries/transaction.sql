@@ -529,7 +529,7 @@ ORDER BY t.created_at DESC;
 SELECT
     COUNT(*) AS total_transactions
 FROM transactions t
-WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'withdrawal', 'service', 'reward', 'vault', 'qr_code', 'card', 'airtime', 'data', 'tv_subscription', 'utility_payment', 'electricity');
+WHERE t.type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'electricity', 'qr_code', 'card', 'rewards', 'referral', 'rapid_ramp');
 
 
 -- name: GetCryptoTransactionCounts :one

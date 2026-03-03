@@ -820,11 +820,11 @@ type SendNotificationToAllUsersRequest struct {
 // @Security     BearerAuth
 // @Router       /api/v1/analytics/get-total-reward-paid [get]
 func (h *Analytics) GetTotalRewardPaid(c *gin.Context) {
-	// activeUser, err := utils.GetActiveUser(c)
-	// if err != nil || activeUser.Role == models.USER {
-	// 	c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
-	// 	return
-	// }
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
 
 	totalRewardPaid, err := h.server.queries.GetTotalRewardPaid(c)
 	if err != nil {

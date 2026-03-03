@@ -1,0 +1,26 @@
+meta {
+  name: Update passcode
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{BaseURl}}/auth/reset-passcode
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "passcode": "098765"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

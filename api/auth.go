@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"image/png"
 	"net/http"
@@ -1499,50 +1498,44 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("password reset successful", models.UserResponse{}.ToUserResponse(&user)))
 }
 
-// resetPassword godoc
+// resetPasscode godoc
 // @Summary Reset passcode
-// @Description Reset user's password using the provided OTP and new password
+// @Description Reset the authenticated user's passcode with a new 6-digit passcode
 // @Tags auth
 // @Accept json
 // @Produce json
-// @Param data body models.ResetPasswordParams true "reset password request"
-// @Success 200 {object} basemodels.SuccessResponse{data=models.UserResponse}
+// @Security BearerAuth
+// @Param data body models.UpdatePasscodeParams true "new passcode (6 digits)"
+// @Success 200 {object} basemodels.SuccessResponse
 // @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/auth/reset-passcode [post]
 func (a *Auth) resetPasscode(ctx *gin.Context) {
-	passcode := new(models.ResetPasscodeParams)
+	req := struct {
+		Passcode string `json:"passcode" binding:"required,len=6,numeric"`
+	}{}
 
-	err := ctx.ShouldBindJSON(&passcode)
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("passcode must be exactly 6 digits"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a value for 'passcode'"))
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
 		return
 	}
 
-	dbUser, err := a.server.queries.GetUserByEmail(context.Background(), passcode.Email)
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("email address does not exist"))
-		return
-	}
-
-	dbOTP, err := a.server.queries.GetOTPByUserID(context.Background(), int32(dbUser.ID))
-	if errors.Is(err, sql.ErrNoRows) {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-
-	ok := utils.CompareOTP(passcode.OTP, utils.OTPObject{
-		OTP:    dbOTP.Otp,
-		Expiry: dbOTP.ExpiresAt,
-	})
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
-		return
-	}
-
-	hashedPasscode, err := utils.GenerateHashValue(passcode.Code)
+	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	hashedPasscode, err := utils.GenerateHashValue(req.Passcode)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
@@ -1551,28 +1544,18 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 		ID:             dbUser.ID,
 	}
 
-	user, err := a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
+	_, err = a.server.queries.UpdateUserPasscodee(context.Background(), updateParams)
 	if err != nil {
-		errMsg := err.Error()
-
-		// Log audit
-		entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s changed passcode", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
-		a.audit.Log(entry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	userResponse := models.UserResponse{}.ToUserResponse(&user)
-
-	/// Delete user token from redis
-	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", dbUser.ID))
-
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s changed passcode", dbUser.Email), &user.ID, &user.Email, user.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventPasscodeChanged, fmt.Sprintf("User %s reset passcode", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successful", userResponse))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("passcode reset successfully", struct{}{}))
 }
 
 // createPasscode godoc

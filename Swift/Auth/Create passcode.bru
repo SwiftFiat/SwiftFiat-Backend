@@ -1,0 +1,26 @@
+meta {
+  name: Create passcode
+  type: http
+  seq: 14
+}
+
+post {
+  url: {{BaseURl}}/auth/create-passcode
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "passcode": "123456"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
