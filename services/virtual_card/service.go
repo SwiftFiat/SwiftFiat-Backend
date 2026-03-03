@@ -150,6 +150,9 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		}
 
 		// s.notifySvc
+		go s.pushSvc.SendKYCVerifiedPushNotification(ctx, int64(userID))
+		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc verified", "Your kyc is verified", "system", []int64{int64(userID)})
+
 
 		return response, nil
 	}
