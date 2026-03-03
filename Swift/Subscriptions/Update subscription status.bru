@@ -5,7 +5,7 @@ meta {
 }
 
 patch {
-  url: {{BaseURl}}/subscriptions/20b67809-9e64-4347-b79b-92175a0956ef/status
+  url: {{BaseURl}}/subscriptions/5ddddf1a-cdfa-4746-a84b-4add8085091e/status
   body: json
   auth: bearer
 }
@@ -16,7 +16,7 @@ auth:bearer {
 
 body:json {
   {
-    "status": "active"
+    "status": "paused" //oneof=active cancelled paused
   }
 }
 

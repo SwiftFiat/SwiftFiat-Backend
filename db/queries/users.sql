@@ -244,3 +244,8 @@ FROM users
 WHERE is_rapid_ramp_on = TRUE
   AND deleted_at IS NULL
 ORDER BY created_at DESC;
+
+-- name: UpdateUserTransactionVolume :exec
+UPDATE users
+SET total_transaction_volume = total_transaction_volume + $1, updated_at = NOW()
+WHERE id = $2;

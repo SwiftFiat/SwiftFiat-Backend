@@ -1770,6 +1770,22 @@ func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (U
 	return i, err
 }
 
+const updateUserTransactionVolume = `-- name: UpdateUserTransactionVolume :exec
+UPDATE users
+SET total_transaction_volume = total_transaction_volume + $1, updated_at = NOW()
+WHERE id = $2
+`
+
+type UpdateUserTransactionVolumeParams struct {
+	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
+	ID                     int64          `json:"id"`
+}
+
+func (q *Queries) UpdateUserTransactionVolume(ctx context.Context, arg UpdateUserTransactionVolumeParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserTransactionVolume, arg.TotalTransactionVolume, arg.ID)
+	return err
+}
+
 const updateUserVerification = `-- name: UpdateUserVerification :one
 UPDATE users SET verified = $1, updated_at = $2
 WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id

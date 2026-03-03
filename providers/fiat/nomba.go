@@ -385,13 +385,21 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 	}
 	defer resp.Body.Close()
 
+	// Read response body for error details
+	bodyBytes, _ := io.ReadAll(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		logging.NewLogger().Error("nomba: MakeTransfer non-200", resp.StatusCode)
-		return nil, fmt.Errorf("nomba: MakeTransfer unexpected status %d", resp.StatusCode)
+		logging.NewLogger().Error("nomba: MakeTransfer non-200", resp.StatusCode, "body", string(bodyBytes))
+		// Try to parse error response for more details
+		var errResult NombaResponse[interface{}]
+		if err := json.Unmarshal(bodyBytes, &errResult); err == nil {
+			return nil, fmt.Errorf("nomba: MakeTransfer status %d: %s", resp.StatusCode, errResult.Description)
+		}
+		return nil, fmt.Errorf("nomba: MakeTransfer unexpected status %d: %s", resp.StatusCode, string(bodyBytes))
 	}
 
 	var result NombaResponse[NombaTransferData]
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
 		return nil, fmt.Errorf("nomba: decode MakeTransfer: %w", err)
 	}
 	// Nomba returns code "200" for success on transfer endpoint, not "00"

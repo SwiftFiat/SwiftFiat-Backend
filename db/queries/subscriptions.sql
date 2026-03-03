@@ -528,7 +528,7 @@ LIMIT $2;
 SELECT 
     COUNT(*) FILTER (WHERE status = 'active') as active_count,
     COUNT(*) FILTER (WHERE status = 'failed') as failed_count,
-    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::string as total_monthly_spend,
+    COALESCE(SUM(amount) FILTER (WHERE status = 'active'), 0)::text as total_monthly_spend,
     MIN(next_estimated_charge_date) FILTER (WHERE status = 'active')::timestamptz as next_charge_date
 FROM user_subscriptions
 WHERE user_id = $1;

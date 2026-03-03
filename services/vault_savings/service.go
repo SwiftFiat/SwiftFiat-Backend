@@ -1267,7 +1267,16 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 
 	// Update user streak
 	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
-		return nil, err
+		s.logger.Error(fmt.Sprintf("Failed to update user streak: %v", err))
+	}
+	
+
+	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
+		ID: req.UserID,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
 	}
 
 	// Get user for notifications
@@ -1468,7 +1477,16 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 
 	// Update user streak
 	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
-		return nil, err
+		s.logger.Error(fmt.Sprintf("Failed to update user streak: %v", err))
+	}
+	
+
+	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
+		ID: req.UserID,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
 	}
 
 	// Get user for notifications

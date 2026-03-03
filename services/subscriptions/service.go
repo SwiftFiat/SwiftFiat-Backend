@@ -802,12 +802,17 @@ func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID int64) 
 		s.logger.Error(fmt.Sprintf("Failed to get category breakdown: %v", err))
 	}
 
+	var nextChargeDate *time.Time
+	if !summary.NextChargeDate.IsZero() {
+		nextChargeDate = &summary.NextChargeDate
+	}
+
 	return &SubscriptionSummary{
 		ActiveCount: int(summary.ActiveCount),
 		FailedCount: int(summary.FailedCount),
 		// SQL already returns total in dollars; keep as string but treat as dollars
 		TotalMonthlySpend: summary.TotalMonthlySpend,
-		NextChargeDate:    summary.NextChargeDate,
+		NextChargeDate:    nextChargeDate,
 		CategoryBreakdown: categoryBreakdown,
 	}, nil
 }
@@ -916,7 +921,7 @@ type SubscriptionSummary struct {
 	ActiveCount       int                                `json:"active_count"`
 	FailedCount       int                                `json:"failed_count"`
 	TotalMonthlySpend string                             `json:"total_monthly_spend"`
-	NextChargeDate    time.Time                          `json:"next_charge_date"`
+	NextChargeDate    *time.Time                         `json:"next_charge_date"`
 	CategoryBreakdown []db.GetSubscriptionsByCategoryRow `json:"category_breakdown"`
 }
 

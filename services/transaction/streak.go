@@ -22,7 +22,7 @@ func (s *TransactionService) SetStreakUpdater(updater StreakUpdater) {
 
 // updateStreakAfterTransaction updates user's streak after successful transaction
 // This is called internally after transaction commit
-func (s *TransactionService) updateStreakAfterTransaction(
+func (s *TransactionService) UpdateStreakAfterTransaction(
 	ctx context.Context,
 	userID int64,
 	transactionID uuid.UUID,

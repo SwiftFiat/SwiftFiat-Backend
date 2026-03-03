@@ -551,6 +551,11 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		TotalConversionVolume: usdAmount.String(),
 	})
 
+	err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, txx.Type)
+	if err != nil {
+		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to update streak: %v", err))
+	}
+
 	// FIX [C2c]: Response built AFTER metadata — Metadata field is now populated.
 	resp := &TransactionResponse[CryptoMetadataResponse]{
 		ID:              txx.ID,
@@ -666,12 +671,12 @@ func (s *TransactionService) processRapidRampInflow(
 	totalFees := decimal.Zero
 	netAmount := fiatAmount.Sub(totalFees)
 
-	paystackProvider, err := s.getFiatProvider(prov)
+	fiatProvider, err := s.getFiatProvider(prov)
 	if err != nil {
-		return nil, fmt.Errorf("getting paystack provider: %w", err)
+		return nil, fmt.Errorf("error getting fiat provider: %w", err)
 	}
 
-	recipient, err := paystackProvider.CreateTransferRecipient(
+	recipient, err := fiatProvider.CreateTransferRecipient(
 		bankAccount.AccountNumber,
 		bankAccount.BankCode,
 		bankAccount.AccountName,
@@ -682,9 +687,9 @@ func (s *TransactionService) processRapidRampInflow(
 
 	amountInKobo := netAmount.Mul(decimal.NewFromInt(100)).IntPart()
 
-	transfer, err := paystackProvider.MakeTransfer(
+	transfer, err := fiatProvider.MakeTransfer(
 		recipient.RecipientCode,
-		uuid.NewString(),
+		utils.WatRequestID(),
 		"sent via Swiift",
 		amountInKobo,
 		bankAccount.AccountName,
@@ -754,6 +759,19 @@ func (s *TransactionService) processRapidRampInflow(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating rapid ramp crypto metadata: %w", err)
+	}
+
+	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		TotalTransactionVolume: sql.NullString{String: netAmount.String(), Valid: true},
+		ID: userID,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+	}
+
+	err = s.streakUpdater.UpdateStreakOnTransaction(ctx, userID, txx.ID, txx.Type)
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update user streak: %v", err))
 	}
 
 	return &TransactionResponse[CryptoMetadataResponse]{
@@ -1675,6 +1693,14 @@ func (s *TransactionService) postBillSuccess(
 
 	if err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, txType); err != nil {
 		s.logger.Error("Failed to update streak:", err)
+	}
+
+	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		TotalTransactionVolume: sql.NullString{String: finalAmount.String(), Valid: true},
+		ID: user.ID,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
 	}
 
 	return
@@ -3129,6 +3155,19 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 		Reference:  wTx.Reference,
 	}
 
+	// update streaks asynchronously since it doesn't impact the critical path of the transfer and can be retried independently if it fails
+	if err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, t.ID, t.Type); err != nil {
+		s.logger.Error("Failed to update streak:", err)
+	}
+
+	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
+		ID:                     user.ID,
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+	}
+
 	bgCtx := context.WithoutCancel(ctx)
 	go func() {
 		message := fmt.Sprintf("A wallet debit transaction of %2.f %s has just been sent to %s. If this was not initiated by you, please contact SWIIFT immediately", amount.InexactFloat64(), req.Currency, recipientUser.UserTag.String)
@@ -3145,6 +3184,11 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 }
 
 func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.User, req *BankTransferRequest) (*BankTransferResponse, error) {
+	// Input validation
+	if req.AccountNumber == "" || req.BankCode == "" || req.Name == "" {
+		return nil, fmt.Errorf("invalid request: missing account number, bank code, or recipient name")
+	}
+
 	_, err := s.store.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
 	if err == nil {
 		return &BankTransferResponse{}, fmt.Errorf("Tx exists")
@@ -3238,8 +3282,13 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		remark = "Sent via Swiift"
 	}
 
+	// Log transfer details for debugging live vs test differences
+	s.logger.Infof("MakeTransfer details - recipientCode: %s, amount: %d kobo, accountName: %s, bankCode: %s",
+		recipientInfo.RecipientCode, amountInKobo, req.Name, req.BankCode)
+
 	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInKobo, req.Name)
 	if err != nil {
+		s.logger.Errorf("MakeTransfer failed: %v. Recipient: %s, Amount: %d kobo, Ref: %s", err, recipientInfo.RecipientCode, amountInKobo, transferReference)
 		return nil, fmt.Errorf("failed to make transfer: %v", err)
 	}
 	s.logger.Infof("transfer response: %v", res)
@@ -3375,6 +3424,19 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			"save_beneficiary": req.SaveBeneficiary,
 			"type":             debitTx.Type,
 			"status":           debitTx.Status,
+		}
+
+		err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+			TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
+			ID:                     user.ID,
+		})
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+		}
+
+		err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, debitTx.ID, debitTx.Type)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("failed to update user streak: %v", err))
 		}
 
 		go s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []int64{user.ID})
