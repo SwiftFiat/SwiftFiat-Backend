@@ -538,7 +538,7 @@ func (p *VTPassProvider) QueryAirtimeStatus(requestID string) (*Transaction, err
 	q.Set("request_id", requestID)
 	base.RawQuery = q.Encode()
 
-	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	resp, err := p.MakeRequest("POST", base.String(), nil, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -589,7 +589,7 @@ func (p *VTPassProvider) QueryDataStatus(requestID string) (*Transaction, error)
 	q.Set("request_id", requestID)
 	base.RawQuery = q.Encode()
 
-	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	resp, err := p.MakeRequest("POST", base.String(), nil, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -640,7 +640,7 @@ func (p *VTPassProvider) QueryTVStatus(requestID string) (*Transaction, error) {
 	q.Set("request_id", requestID)
 	base.RawQuery = q.Encode()
 
-	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	resp, err := p.MakeRequest("POST", base.String(), nil, headers)
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func (p *VTPassProvider) QueryElectricityStatus(requestID string) (*Transaction,
 	q.Set("request_id", requestID)
 	base.RawQuery = q.Encode()
 
-	resp, err := p.MakeRequest("GET", base.String(), nil, headers)
+	resp, err := p.MakeRequest("POST", base.String(), nil, headers)
 	if err != nil {
 		return nil, err
 	}
