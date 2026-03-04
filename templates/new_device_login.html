@@ -1,46 +1,87 @@
-<!DOCTYPE html>
 <html>
-  <body style="margin:0;padding:0;background-color:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f5f5f5;">
-      <tr>
-        <td align="center">
-          <table width="600" cellpadding="0" cellspacing="0" style="background-color:#fff;border-radius:12px;overflow:hidden;margin:30px 0;">
+        <head>
+          <meta charset="UTF-8">
+            <title>New Device Login Detected</title>
+        </head>
+        <body style="margin:0; padding:0; background-color:#f3f3f3; font-family:Arial, Helvetica, sans-serif;">
+
+          <table width="100%" cellpadding="0" cellspacing="0" border="0" style="padding:40px 0;">
             <tr>
-              <td style="background-color:#532181;color:#fff;padding:20px 30px;text-align:center;font-size:24px;font-weight:bold;">
-                SWIIFT Security Alert
-              </td>
-            </tr>
-            <tr>
-              <td style="padding:30px;color:#333;">
-                <p style="font-size:16px;">Hi <strong>{{.FirstName}}</strong>,</p>
-                <p style="font-size:15px;line-height:1.6;">
-                  We noticed a <strong>new login</strong> to your SwiftFiat account:
-                </p>
-                <table cellpadding="5" style="font-size:14px;color:#333;margin:15px 0;">
-                  <tr><td>🕒 <strong>Time:</strong></td><td>{{.LoginTime}}</td></tr>
-                  <tr><td>📍 <strong>Location:</strong></td><td>{{.Location}}</td></tr>
-                  <tr><td>💻 <strong>Device:</strong></td><td>{{.UserAgent}}</td></tr>
-                  <tr><td>🌐 <strong>IP Address:</strong></td><td>{{.IP}}</td></tr>
+              <td align="center">
+
+                ```
+                <table width="600" cellpadding="0" cellspacing="0" border="0"
+                  style="background:#ffffff; border-radius:8px; overflow:hidden; box-shadow:0 6px 18px rgba(0,0,0,0.06);">
+
+                  <!-- Header -->
+                  <tr>
+                    <td style="background-color:#000000; padding:24px 30px;">
+                      <h2 style="color:#ffffff; margin:0; font-size:20px; font-weight:600;">
+                        New Device Login Detected
+                      </h2>
+                    </td>
+                  </tr>
+
+                  <!-- Accent Line (Minimal Purple Use) -->
+                  <tr>
+                    <td style="height:4px; background-color:#542182;"></td>
+                  </tr>
+
+                  <!-- Body -->
+                  <tr>
+                    <td style="padding:35px 30px; color:#000000;">
+
+                      <p style="font-size:15px; margin-top:0;">
+                        Hello {{ .FirstName }},
+                      </p>
+
+                      <p style="font-size:14px; line-height:1.7; color:#333333;">
+                        We detected a login to your account from a <strong>new device</strong>.
+                        For your security, please review the details below:
+                      </p>
+
+                      <!-- Device Info Box -->
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                        style="margin:25px 0; background:#fafafa; border:1px solid #eaeaea; border-radius:6px;">
+                        <tr>
+                          <td style="padding:20px; font-size:14px; color:#333333; line-height:1.8;">
+                            <strong>Device:</strong> {{ .DeviceName }} <br>
+                              <strong>Browser:</strong> {{ .Browser }} <br>
+                                <strong>IP Address:</strong> {{ .IPAddress }} <br>
+                                  <strong>Location:</strong> {{ .Location }} <br>
+                                    <strong>Date & Time:</strong> {{ .DateTime }}
+                                  </td>
+                                </tr>
+                              </table>
+
+                              <p style="font-size:14px; line-height:1.7; color:#333333; margin-bottom:0;">
+                                If this was you, no action is required. If you do not recognize this login,
+                                we recommend securing your account immediately by enabling
+                                <strong>2FA authentication</strong> and contacting our customer support at
+                                <strong>support@swiftfiat.com</strong>.
+                              </p>
+
+                              <p style="font-size:14px; margin-top:25px;">
+                                — Swiift Security Team
+                              </p>
+
+                          </td>
+                        </tr>
+
+                        <!-- Footer -->
+                        <tr>
+                          <td style="background:#fafafa; padding:18px; text-align:center; font-size:12px; color:#888888;">
+                            © {{ .Year }} Swiift. All rights reserved.
+                          </td>
+                        </tr>
+
+                      </table>
+
+                    </td>
+                  </tr>
+                  ```
+
                 </table>
-                <p style="font-size:15px;line-height:1.6;">
-                  If this was you, no action is required.  
-                  If not, please <strong>secure your account immediately</strong>.
-                </p>
-                <div style="text-align:center;margin:25px 0;">
-                  <a href="https://swiftfiat.com/security"
-                    style="background-color:#532181;color:#fff;text-decoration:none;padding:12px 24px;border-radius:6px;font-weight:bold;">Secure My Account</a>
-                </div>
-                <p style="font-size:13px;color:#666;">Stay safe,<br>The SwiftFiat Security Team</p>
-              </td>
-            </tr>
-            <tr>
-              <td style="background-color:#f0f0f0;padding:15px;text-align:center;font-size:12px;color:#888;">
-                © {{.Year}} SwiftFiat. All rights reserved.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>
+
+              </body>
+            </html>

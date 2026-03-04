@@ -1271,13 +1271,13 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	}
 	
 
-	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
-		ID: req.UserID,
-	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
-	}
+	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+	// 	TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
+	// 	ID: req.UserID,
+	// })
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
+	// }
 
 	// Get user for notifications
 	user, err := s.store.GetUserByID(ctx, req.UserID)
@@ -1481,13 +1481,13 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	}
 	
 
-	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
-		ID: req.UserID,
-	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
-	}
+	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+	// 	TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
+	// 	ID: req.UserID,
+	// })
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("Failed to update user transaction volume: %v", err))
+	// }
 
 	// Get user for notifications
 	user, err := s.store.GetUserByID(ctx, req.UserID)

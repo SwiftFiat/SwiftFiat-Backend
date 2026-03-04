@@ -149,11 +149,23 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 			return nil, fmt.Errorf("commit transaction: %w", err)
 		}
 
+		err = s.email.KycVerified(ctx, req.FirstName, user.Email)
+		if err != nil {
+			s.logger.Errorf("failed to send kyc verified email: %v", err)
+		}
+
 		// s.notifySvc
 		go s.pushSvc.SendKYCVerifiedPushNotification(ctx, int64(userID))
 		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc verified", "Your kyc is verified", "system", []int64{int64(userID)})
 
 		return response, nil
+	} else {
+		err = s.email.KycFailed(ctx, req.FirstName, req.Email, response.Message)
+		if err != nil {
+			s.logger.Errorf("failed to send kyc failed email: %v", err)
+		}
+		go s.pushSvc.SendKYCRejectedPushNotification(ctx, int64(userID), response.Message)
+		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc failed", "Your kyc is failed", "system", []int64{int64(userID)})
 	}
 
 	return response, nil

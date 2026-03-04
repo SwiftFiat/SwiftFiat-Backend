@@ -780,13 +780,13 @@ func (s *TransactionService) processRapidRampInflow(
 		}
 	}
 
-	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: fiatAmount.String(), Valid: true},
-		ID:                     userID,
-	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
-	}
+	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+	// 	TotalTransactionVolume: sql.NullString{String: fiatAmount.String(), Valid: true},
+	// 	ID:                     userID,
+	// })
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+	// }
 
 	err = s.streakUpdater.UpdateStreakOnTransaction(ctx, userID, txx.ID, txx.Type)
 	if err != nil {
@@ -1742,13 +1742,13 @@ func (s *TransactionService) postBillSuccess(
 		s.logger.Error("Failed to update streak:", err)
 	}
 
-	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: finalAmount.String(), Valid: true},
-		ID:                     user.ID,
-	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
-	}
+	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+	// 	TotalTransactionVolume: sql.NullString{String: finalAmount.String(), Valid: true},
+	// 	ID:                     user.ID,
+	// })
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+	// }
 
 	return
 }
@@ -3291,13 +3291,13 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 		s.logger.Error("Failed to update streak:", err)
 	}
 
-	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
-		ID:                     user.ID,
-	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
-	}
+	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+	// 	TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
+	// 	ID:                     user.ID,
+	// })
+	// if err != nil {
+	// 	s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+	// }
 
 	bgCtx := context.WithoutCancel(ctx)
 	go func() {
@@ -3560,13 +3560,13 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			"status":           debitTx.Status,
 		}
 
-		err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-			TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
-			ID:                     user.ID,
-		})
-		if err != nil {
-			s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
-		}
+		// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
+		// 	TotalTransactionVolume: sql.NullString{String: amount.String(), Valid: true},
+		// 	ID:                     user.ID,
+		// })
+		// if err != nil {
+		// 	s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
+		// }
 
 		err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, debitTx.ID, debitTx.Type)
 		if err != nil {

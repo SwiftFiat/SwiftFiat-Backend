@@ -491,3 +491,82 @@ func (s *Plunk) SendYieldCredited(ctx context.Context, user *db.User, name, amou
 
 	return nil
 }
+
+func (s *Plunk) KycVerified(ctx context.Context, firstName, email string) error {
+	tplData := map[string]any{
+		"FirstName": firstName,
+		"DashboardLink": "",
+		"Year": time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/kyc_verified.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render kyc verified email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - KYC Verified"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		return fmt.Errorf("failed to send kyc verified email: %v", err)
+	}
+
+	return nil
+}
+
+func (s *Plunk) KycFailed(ctx context.Context, firstName, email, reason string) error {
+	tplData := map[string]any{
+		"FirstName": firstName,
+		"RetryLink": "",
+		"Reason": reason,
+		"Year": time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/kyc_failed.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render kyc failed email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - KYC Failed"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		return fmt.Errorf("failed to send kyc failed email: %v", err)
+	}
+
+	return nil
+}
+
+func (s *Plunk) Login(ctx context.Context, firstName, email, deviceName, ipAddress, location, dateTime string) error {
+	tplData := map[string]any{
+		"FirstName": firstName,
+		"DeviceName": deviceName,
+		"IPAddress": ipAddress,
+		"Location": location,
+		"DateTime": dateTime,
+		"Year": time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/login.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render login email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Login Notification"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		return fmt.Errorf("failed to send login email: %v", err)
+	}
+
+	return nil
+}

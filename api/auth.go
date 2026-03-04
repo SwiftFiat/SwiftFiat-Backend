@@ -377,6 +377,14 @@ func (a *Auth) login(ctx *gin.Context) {
 				a.server.logger.Error(fmt.Sprintf("failed to create wallets: %v", err))
 			}
 		}
+
+		// Send login notification
+		if err := a.server.emailService.Login(ctx, dbUser.FirstName.String, dbUser.Email, currentDevice.UserAgent, currentDevice.IP, utils.GetLocationFromIP(currentDevice.IP), time.Now().Format("2006-01-02 15:04:05")); err != nil {
+			a.server.logger.Error(fmt.Sprintf("failed to send login notification: %v", err))
+			a.logFailedNotification(bgCtx, "email", "transactional", u.ID,
+				u.Email, "New Device Login", fmt.Sprintf("Login from %s", device.IP), err.Error())
+		}
+
 	}(dbUser, currentDevice, isNewDevice)
 
 	// Audit log
@@ -1084,6 +1092,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 type ResendEmailRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
+
 
 // resendEmailVerification godoc
 // @Summary Resend email verification code
