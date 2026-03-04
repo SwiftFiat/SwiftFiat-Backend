@@ -20,9 +20,11 @@ type NombaTokenResponse = NombaResponse[NombaTokenData]
 
 // NombaResponse is Nomba's standard envelope: code "00" == success.
 type NombaResponse[T any] struct {
-	Code        string `json:"code"`
-	Description string `json:"description"`
-	Data        T      `json:"data"`
+	Code        string      `json:"code"`
+	Description string      `json:"description"`
+	Message     string      `json:"message"`
+	Status      interface{} `json:"status"`
+	Data        T           `json:"data"`
 }
 
 // ── Banks ─────────────────────────────────────────────────────────────────────
@@ -64,30 +66,63 @@ type NombaBankTransferRequest struct {
 }
 
 type NombaTransferMeta struct {
-	MerchantTxRef string `json:"merchantTxRef"`
-	APIClientID   string `json:"api_client_id"`
-	APIAccountID  string `json:"api_account_id"`
-	RRN           string `json:"rrn"`
+	APIRRN              string `json:"api_rrn"`
+	Narration           string `json:"narration"`
+	RecipientName       string `json:"recipientName"`
+	SenderName          string `json:"sender_name"`
+	MerchantTxRef       string `json:"merchantTxRef"`
+	APIClientID         string `json:"api_client_id"`
+	Currency            string `json:"currency"`
+	HooksEligible       string `json:"hooksEligible"`
+	BankingEntityID     string `json:"banking_entity_id"`
+	BankingEntityUserID string `json:"banking_entity_user_id"`
+	BankingEntityType   string `json:"banking_entity_type"`
+	SelfTransaction     string `json:"self_transaction"`
+	TransactionCategory string `json:"transactionCategory"`
+	AccountNumber       string `json:"accountNumber"`
+	BankName            string `json:"bankName"`
+	BankCode            string `json:"bankCode"`
+	SessionID           string `json:"sessionId"`
+	UserReferralCode    string `json:"user_referral_code"`
+	AmountCharged       string `json:"amount_charged"`
+	PaymentVendor       string `json:"paymentVendor"`
+	WalletBalance       string `json:"wallet_balance"`
+	WalletCurrency      string `json:"wallet_currency"`
+	VendorReference     string `json:"paymentVendorReference"`
+	AgentCommission     string `json:"agent_commission"`
+	UseV2Fulfilment     string `json:"useV2Fulfilment"`
 }
 
 type NombaTransferData struct {
-	Amount      string            `json:"amount"`
-	Meta        NombaTransferMeta `json:"meta"`
-	Fee         string            `json:"fee"`
-	TimeCreated string            `json:"timeCreated"`
-	ID          string            `json:"id"`
-	Type        string            `json:"type"`
-	Status      string            `json:"status"`
+	Amount           interface{}       `json:"amount"` // Can be string or float64
+	Meta             NombaTransferMeta `json:"meta"`
+	Fee              interface{}       `json:"fee"` // Can be string or float64
+	TimeCreated      string            `json:"timeCreated"`
+	ID               string            `json:"id"`
+	Type             string            `json:"type"`
+	Status           string            `json:"status"`
+	Source           string            `json:"source"`
+	SourceUserID     string            `json:"sourceUserId"`
+	CustomerBillerID string            `json:"customerBillerId"`
+	ProductID        string            `json:"productId"`
 }
 
 // NombaTransferResponse represents the response from a successful transfer
 type NombaTransferResponse struct {
-	Amount       int64
-	Currency     string
-	Reference    string
-	Reason       string
-	Status       string
-	TransferCode string
+	Amount        int64
+	Currency      string
+	Reference     string
+	Reason        string
+	Status        string
+	TransferCode  string
+	SessionID     string
+	Fee           int64
+	RecipientName string
+	BankName      string
+	BankCode      string
+	AccountNumber string
+	RRN           string
+	RawData       *NombaTransferData
 }
 
 // NombaRecipientToken is an opaque string "accountNumber|bankCode|accountName"

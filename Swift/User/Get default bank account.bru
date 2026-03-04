@@ -7,7 +7,11 @@ meta {
 get {
   url: {{BaseURl}}/user/bank-accounts/default
   body: none
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 settings {

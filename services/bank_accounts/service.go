@@ -40,14 +40,14 @@ func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64
 	s.logger.Info(fmt.Sprintf("Creating bank account for user %d", userID))
 
 	// Get Paystack provider
-	provider, exists := s.providerService.GetProvider(providers.Paystack)
+	provider, exists := s.providerService.GetProvider(providers.Nomba)
 	if !exists {
-		return nil, fmt.Errorf("paystack provider not available")
+		return nil, fmt.Errorf("nomba provider not available")
 	}
 
 	fiatProvider, ok := provider.(*fiat.NombaProvider)
 	if !ok {
-		return nil, fmt.Errorf("invalid paystack provider")
+		return nil, fmt.Errorf("invalid nomba provider")
 	}
 
 	// Verify account with Paystack
@@ -78,7 +78,7 @@ func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64
 	// Mark as verified since we successfully resolved it
 	bankAccount, err = s.store.VerifyBankAccount(ctx, db.VerifyBankAccountParams{
 		ID:                    bankAccount.ID,
-		VerificationMethod:    sql.NullString{String: "Paystack", Valid: true},
+		VerificationMethod:    sql.NullString{String: "Nomba", Valid: true},
 		VerificationReference: sql.NullString{String: fmt.Sprintf("%d", accountInfo.BankID), Valid: true},
 	})
 

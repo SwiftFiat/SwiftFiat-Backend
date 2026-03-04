@@ -3,6 +3,7 @@ package transaction
 import (
 	"time"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/providers/fiat"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
@@ -291,7 +292,7 @@ type LedgerEntries struct {
 	TransactionID   uuid.UUID
 	Debit           Entry
 	Credit          Entry
-	idempotency_key string
+	Idempotency_key string
 	Platform        TransactionPlatform
 	SourceType      LedgerSourceDestination
 	DestinationType LedgerSourceDestination
@@ -464,15 +465,16 @@ type BankTransferRequest struct {
 }
 
 type BankTransferResponse struct {
-	Sender         string    `json:"sender"`
-	Recipient      string    `json:"recipient"`
-	Account_number string    `json:"account_number"`
-	BankCode       string    `json:"bank_code"`
-	Amount         float64   `json:"amount"`
-	AmountPaid     float64   `json:"amount_paid"`
-	Remark         string    `json:"remark"`
-	Type           string    `json:"transaction_type"`
-	Date           time.Time `json:"date"`
-	Status         string    `json:"status"`
-	Reference      string    `json:"reference"`
+	Sender         string                  `json:"sender"`
+	Recipient      string                  `json:"recipient"`
+	Account_number string                  `json:"account_number"`
+	BankCode       string                  `json:"bank_code"`
+	Amount         float64                 `json:"amount"`
+	AmountPaid     float64                 `json:"amount_paid"`
+	Remark         string                  `json:"remark"`
+	Type           string                  `json:"transaction_type"`
+	Date           time.Time               `json:"date"`
+	Status         string                  `json:"status"`
+	Reference      string                  `json:"reference"`
+	NombaData      *fiat.NombaTransferData `json:"nomba_data,omitempty"`
 }

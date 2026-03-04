@@ -1041,15 +1041,15 @@ func (q *Queries) GetDailyTransactionSummary(ctx context.Context) ([]GetDailyTra
 	return items, nil
 }
 
-const getPendingBankTransferMetadataOlderThan5Mins = `-- name: GetPendingBankTransferMetadataOlderThan5Mins :many
+const getPendingBankTransferMetadataOlderThan20Seconds = `-- name: GetPendingBankTransferMetadataOlderThan20Seconds :many
 SELECT id, amount, service_charge, transaction_id, account_name, account_number, service_provider, type, service_transaction_id, status, date, amount_paid, points_earned FROM bank_transfer_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC
 `
 
-func (q *Queries) GetPendingBankTransferMetadataOlderThan5Mins(ctx context.Context) ([]BankTransferMetadatum, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingBankTransferMetadataOlderThan5Mins)
+func (q *Queries) GetPendingBankTransferMetadataOlderThan20Seconds(ctx context.Context) ([]BankTransferMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingBankTransferMetadataOlderThan20Seconds)
 	if err != nil {
 		return nil, err
 	}
@@ -1208,16 +1208,16 @@ func (q *Queries) GetPendingCryptoTransactionByTransactionID(ctx context.Context
 	return i, err
 }
 
-const getPendingDataAirtimePurchaseMetadataOlderThan5Mins = `-- name: GetPendingDataAirtimePurchaseMetadataOlderThan5Mins :many
+const getPendingDataAirtimePurchaseMetadataOlderThan20Seconds = `-- name: GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds :many
 SELECT id, transaction_id, amount, points_used, type, amount_paid, points_earned, phone_number, plan, reference, request_id, service_charge, status, date
 FROM data_airtime_purchase_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC
 `
 
-func (q *Queries) GetPendingDataAirtimePurchaseMetadataOlderThan5Mins(ctx context.Context) ([]DataAirtimePurchaseMetadatum, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingDataAirtimePurchaseMetadataOlderThan5Mins)
+func (q *Queries) GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds(ctx context.Context) ([]DataAirtimePurchaseMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingDataAirtimePurchaseMetadataOlderThan20Seconds)
 	if err != nil {
 		return nil, err
 	}
@@ -1254,15 +1254,15 @@ func (q *Queries) GetPendingDataAirtimePurchaseMetadataOlderThan5Mins(ctx contex
 	return items, nil
 }
 
-const getPendingElectricityPurchaseMetadataOlderThan5Mins = `-- name: GetPendingElectricityPurchaseMetadataOlderThan5Mins :many
+const getPendingElectricityPurchaseMetadataOlderThan20Seconds = `-- name: GetPendingElectricityPurchaseMetadataOlderThan20Seconds :many
 SELECT id, transaction_id, amount, points_used, amount_paid, token, customer_name, customer_address, units, meter_number, tax, debt, points_earned, phone_number, reference, request_id, service_charge, status, date FROM electricity_purchase_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC
 `
 
-func (q *Queries) GetPendingElectricityPurchaseMetadataOlderThan5Mins(ctx context.Context) ([]ElectricityPurchaseMetadatum, error) {
-	rows, err := q.db.QueryContext(ctx, getPendingElectricityPurchaseMetadataOlderThan5Mins)
+func (q *Queries) GetPendingElectricityPurchaseMetadataOlderThan20Seconds(ctx context.Context) ([]ElectricityPurchaseMetadatum, error) {
+	rows, err := q.db.QueryContext(ctx, getPendingElectricityPurchaseMetadataOlderThan20Seconds)
 	if err != nil {
 		return nil, err
 	}
@@ -2015,71 +2015,21 @@ SELECT
                 )
                 WHEN t.type IN ('card') THEN (
                     SELECT jsonb_build_object(
-                        'card_transaction', COALESCE(
-                            (
-                                SELECT jsonb_build_object(
-                                    'card_id', cm.card_id,
-                                    'user_id', cm.user_id,
-                                    'transaction_id', cm.transaction_id,
-                                    'transaction_type', cm.transaction_type,
-                                    'merchant_category_code', cm.merchant_category_code,
-                                    'amount', cm.amount,
-                                    'fee', cm.fee,
-                                    'currency', cm.currency,
-                                    'status', cm.status,
-                                    'balance_after', cm.balance_after,
-                                    'mode', cm.mode,
-                                    'transaction_timestamp', cm.transaction_timestamp
-                                )::jsonb
-                                FROM public.card_transactions cm
-                                WHERE cm.transaction_id = t.id
-                                LIMIT 1
-                            ),
-                            NULL::jsonb
-                        ),
-                        'card_billing', COALESCE(
-                            (
-                                SELECT jsonb_build_object(
-                                    'id', cb.id,
-                                    'card_id', cb.card_id,
-                                    'card_plan_id', cb.card_plan_id,
-                                    'billing_type', cb.billing_type,
-                                    'amount', cb.amount,
-                                    'currency', cb.currency,
-                                    'billing_period_start', cb.billing_period_start,
-                                    'billing_period_end', cb.billing_period_end,
-                                    'source_wallet_id', cb.source_wallet_id,
-                                    'status', cb.status,
-                                    'failure_reason', cb.failure_reason,
-                                    'processed_at', cb.processed_at
-                                )::jsonb
-                                FROM public.card_billing_history cb
-                                WHERE cb.transaction_id = t.id
-                                LIMIT 1
-                            ),
-                            NULL::jsonb
-                        ),
-                        'card_funding', COALESCE(
-                            (
-                                SELECT jsonb_build_object(
-                                    'id', cf.id,
-                                    'card_id', cf.card_id,
-                                    'source_wallet_id', cf.source_wallet_id,
-                                    'amount', cf.amount,
-                                    'currency', cf.currency,
-                                    'source_currency', cf.source_currency,
-                                    'funding_type', cf.funding_type,
-                                    'initiated_by', cf.initiated_by,
-                                    'status', cf.status,
-                                    'completed_at', cf.completed_at
-                                )::jsonb
-                                FROM public.card_funding_history cf
-                                WHERE cf.transaction_id = t.id
-                                LIMIT 1
-                            ),
-                            NULL::jsonb
-                        )
+                        'card_id', cm.card_id,
+                        'user_id', cm.user_id,
+                        'transaction_id', cm.transaction_id,
+                        'transaction_type', cm.transaction_type,
+                        'merchant_category_code', cm.merchant_category_code,
+                        'amount', cm.amount,
+                        'fee', cm.fee,
+                        'currency', cm.currency,
+                        'status', cm.status,
+                        'balance_after', cm.balance_after,
+                        'mode', cm.mode,
+                        'transaction_timestamp', cm.transaction_timestamp
                     )::jsonb
+                    FROM public.card_transactions cm
+                    WHERE cm.transaction_id = t.id
                 )
                 WHEN t.type IN ('swap') THEN (
                     SELECT jsonb_build_object(

@@ -613,33 +613,41 @@ func (s *TransactionService) processRapidRampInflow(
 		return nil, fmt.Errorf("getting cryptomus provider: %w", err)
 	}
 
-	usdRateStr, err := cryptomusProvider.GetUSDRate(coinSym)
+	coinToUSD, err := cryptomusProvider.GetUSDRate(coinSym)
 	if err != nil {
 		return nil, fmt.Errorf("getting USD rate: %w", err)
 	}
 
-	cryptoToUSD, err := decimal.NewFromString(usdRateStr)
+	s.logger.Infof("Rapid Ramp: coin=%s, amount=%s, coinToUSD=%s", coinSym, coinAmount.String(), coinToUSD)
+
+	coinToUSDDecimal, err := decimal.NewFromString(coinToUSD)
 	if err != nil {
 		return nil, fmt.Errorf("parsing USD rate: %w", err)
 	}
 
-	vipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, userID, "USD", "NGN", cryptoToUSD.String())
-	rate, err := utils.ToDecimal(vipRate.AdjustmentAmount)
+	vipRate, err := s.rateManager.GetAdjustedRateForUser(ctx, userID, "USD", "NGN", coinToUSDDecimal.String())
 	if err != nil {
 		return nil, fmt.Errorf("to decimal error: %v", err)
 	}
-	cryptoToNGN := cryptoToUSD.Mul(rate)
-	fiatAmount := coinAmount.Mul(cryptoToNGN)
+	rate, err := utils.ToDecimal(vipRate.AdjustedRate)
+	if err != nil {
+		return nil, fmt.Errorf("to decimal error: %v", err)
+	}
+	fiatAmount := coinToUSDDecimal.Mul(rate)
 
+	s.logger.Infof("Rapid Ramp: coinToUSD=%s, vipRate=%s, final rate=%s, fiatAmount=%s",
+		coinToUSDDecimal.String(), vipRate.AdjustmentAmount, rate.String(), fiatAmount.String())
+
+	user, err := s.store.GetUserByID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("fetching user for rapid ramp error: %w", err)
+	}
+
+	// Direct bank transfer for rapid ramp (no wallet debit needed - crypto funded)
 	totalFees := decimal.Zero
 	netAmount := fiatAmount.Sub(totalFees)
 
-	fiatProvider, err := s.getFiatProvider(prov)
-	if err != nil {
-		return nil, fmt.Errorf("error getting fiat provider: %w", err)
-	}
-
-	recipient, err := fiatProvider.CreateTransferRecipient(
+	recipient, err := s.fiat.CreateTransferRecipient(
 		bankAccount.AccountNumber,
 		bankAccount.BankCode,
 		bankAccount.AccountName,
@@ -649,59 +657,16 @@ func (s *TransactionService) processRapidRampInflow(
 	}
 
 	amountInNGN := int64(netAmount.InexactFloat64())
-
-	transfer, err := fiatProvider.MakeTransfer(
-		recipient.RecipientCode,
-		utils.WatRequestID(),
-		"sent via Swiift",
-		amountInNGN,
-		bankAccount.AccountName,
-	)
-
-	user, err := s.store.GetUserByID(ctx, userID)
-	if err != nil {
-		return nil, fmt.Errorf("fetching user for rapid ramp error: %w", err)
-	}
-
-	// TODO: if transfer is successful, deduct wallet and created pending and failed states
-	// if failed, keep money in ngn wallet
-	// Create CreateCryptoMetadata and transfer metadata also
-	if err != nil {
-		// FIX [C4a]: Paystack failure → credit user's NGN wallet as fallback.
-		// Old code used s.store.UpdateWalletBalance (no dbTx, SetBalance not Add).
-		// Fixed to use IncrementWalletBalance inside the TX.
-		ngnWallet, walletErr := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-			CustomerID: userID,
-			Currency:   "NGN",
-		})
-		if walletErr != nil {
-			return nil, fmt.Errorf("paystack transfer failed AND failed to get NGN wallet for fallback: %w (paystack: %v)", walletErr, err)
-		}
-
-		if _, incrementErr := qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
-			ID:      ngnWallet.ID,
-			Balance: sql.NullString{String: fiatAmount.String(), Valid: true},
-		}); incrementErr != nil {
-			return nil, fmt.Errorf("paystack transfer failed AND fallback wallet credit failed: %w (paystack: %v)", incrementErr, err)
-		}
-
-		s.logger.Warnf("Paystack transfer failed for rapid ramp; credited NGN wallet as fallback. Paystack error: %v", err)
-		return nil, fmt.Errorf("paystack transfer failed (NGN wallet credited as fallback): %w", err)
-	}
-
-	s.logger.Info(fmt.Sprintf("Rapid ramp transfer initiated: %s %s → %s NGN net (fees: %s, ref: %s)",
-		coinAmount.String(), coinSym, netAmount.String(), totalFees.String(), transfer.Reference))
+	transferRef := utils.WatRequestID()
 
 	amountUSd, _ := utils.ConvertToUSD(ctx, fiatAmount, "NGN")
-
-	// FIX [C4b]: Direct CreateTransaction with all fields.
 	idempotencyKey := utils.WatRequestID()
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          userID,
 		Type:            string(RapidRamp),
 		Description:     sql.NullString{String: fmt.Sprintf("%s to NGN (Rapid Ramp)", coinSym), Valid: true},
 		TransactionFlow: string(Outflow),
-		Status:          string(Success),
+		Status:          string(Pending),
 		Amount:          fiatAmount.String(),
 		AmountUsd:       amountUSd.String(),
 		Currency:        coinSym,
@@ -715,22 +680,108 @@ func (s *TransactionService) processRapidRampInflow(
 	}
 
 	_, err = qtx.CreateBankTransferMetadata(ctx, db.CreateBankTransferMetadataParams{
-		Amount: fiatAmount.String(),
-		ServiceCharge: totalFees.String(),
-		TransactionID: txx.ID,
-		AccountName: bankAccount.AccountName,
-		AccountNumber: bankAccount.AccountNumber,
+		Amount:          fiatAmount.String(),
+		ServiceCharge:   totalFees.String(),
+		TransactionID:   txx.ID,
+		AccountName:     bankAccount.AccountName,
+		AccountNumber:   bankAccount.AccountNumber,
 		ServiceProvider: sql.NullString{String: "Nomba", Valid: true},
-		Status: string(Pending),
-		AmountPaid: netAmount.String(),
-		Type: string(Credit),
+		Status:          string(Pending),
+		AmountPaid:      netAmount.String(),
+		Type:            string(Credit),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("creating rapid ramp bank transfer metadata: %w", err)
 	}
 
+	transfer, err := s.fiat.MakeTransfer(
+		recipient.RecipientCode,
+		transferRef,
+		"sent via Swiift",
+		amountInNGN,
+		bankAccount.AccountName,
+	)
+
+	// Handle different transfer states like HandleBankTransfer does
+	if err != nil {
+		// Transfer failed - update status to failed
+		_, dbErr := qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: "failed",
+		})
+		if dbErr != nil {
+			s.logger.Errorf("failed to update transaction status to failed: %v", dbErr)
+		}
+
+		_, dbErr = qtx.UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID: txx.ID,
+			Status:        "failed",
+		})
+		if dbErr != nil {
+			s.logger.Errorf("failed to update bank transfer metadata status to failed: %v", dbErr)
+		}
+
+		s.logger.Warnf("Rapid ramp bank transfer failed: %v", err)
+		return nil, fmt.Errorf("bank transfer failed: %w", err)
+	}
+
+	// Normalize status to lowercase for comparison (Nomba returns uppercase)
+	normalizedStatus := strings.ToLower(transfer.Status)
+
+	s.logger.Info(fmt.Sprintf("Rapid ramp transfer initiated: %s %s → %s NGN net (fees: %s, ref: %s, status: %s)",
+		coinAmount.String(), coinSym, netAmount.String(), totalFees.String(), transfer.Reference, normalizedStatus))
+
+	switch normalizedStatus {
+	case "pending", "pending_billing", "processing":
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: "pending",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		}
+
+		_, err = qtx.UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID:        txx.ID,
+			Status:               "pending",
+			ServiceTransactionID: sql.NullString{String: transfer.RawData.Meta.MerchantTxRef, Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
+		}
+
+	case "success", "completed":
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: "successful",
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update transaction status: %v", err)
+		}
+
+		_, err = qtx.UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
+			TransactionID:        txx.ID,
+			Status:               "successful",
+			ServiceTransactionID: sql.NullString{String: transfer.SessionID, Valid: true},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
+		}
+
+	default:
+		s.logger.Warnf("Unknown bank transfer status for rapid ramp: %s", normalizedStatus)
+		// Keep as pending for reconciliation
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: "pending",
+		})
+		if err != nil {
+			s.logger.Errorf("failed to update transaction status: %v", err)
+		}
+	}
+
 	err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-		TotalTransactionVolume: sql.NullString{String: netAmount.String(), Valid: true},
+		TotalTransactionVolume: sql.NullString{String: fiatAmount.String(), Valid: true},
 		ID:                     userID,
 	})
 	if err != nil {
@@ -793,10 +844,9 @@ func (s *TransactionService) processRapidRampInflow(
 }
 
 type RapidRampResponse struct {
-	Coin string `json:"coin"`
-	Rate string `json:"rate"`
+	Coin       string `json:"coin"`
+	Rate       string `json:"rate"`
 	CoinAmount string `json:"coin_amount"`
-	
 }
 
 // Helper function to get Cryptomus provider
@@ -812,21 +862,6 @@ func (s *TransactionService) getCryptomusProvider(prov *providers.ProviderServic
 	}
 
 	return cryptomusProvider, nil
-}
-
-// Helper function to get Paystack provider
-func (s *TransactionService) getFiatProvider(prov *providers.ProviderService) (*fiat.NombaProvider, error) {
-	provider, exists := prov.GetProvider(providers.Paystack)
-	if !exists {
-		return nil, fmt.Errorf("paystack provider not available")
-	}
-
-	paystackProvider, ok := provider.(*fiat.NombaProvider)
-	if !ok {
-		return nil, fmt.Errorf("invalid paystack provider type")
-	}
-
-	return paystackProvider, nil
 }
 
 // / May return an arbitrary error or an error defined in [transaction_strings]
@@ -2473,7 +2508,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	var allPendingMetadata []BillMetadata
 
 	// Get pending Airtime/Data/TV transactions (single table with type discriminator)
-	airtimeDataTVPending, err := s.store.GetPendingDataAirtimePurchaseMetadataOlderThan5Mins(ctx)
+	airtimeDataTVPending, err := s.store.GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending airtime/data/tv: %v", err))
 	} else {
@@ -2483,7 +2518,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	}
 
 	// Get pending Electricity transactions
-	electricityPending, err := s.store.GetPendingElectricityPurchaseMetadataOlderThan5Mins(ctx)
+	electricityPending, err := s.store.GetPendingElectricityPurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending electricity: %v", err))
 	} else if err == nil {
@@ -2493,7 +2528,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	}
 
 	// Get pending Bank Transfer transactions
-	bankTransfersPending, err := s.store.GetPendingBankTransferMetadataOlderThan5Mins(ctx)
+	bankTransfersPending, err := s.store.GetPendingBankTransferMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending bank transfers: %v", err))
 	} else if err == nil {
@@ -2539,6 +2574,28 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 				continue
 			}
 			providerStatus = res.Status
+
+		case "BankTransfer":
+			// Bank transfers are processed through the fiat provider (e.g. Nomba).
+			// Use the ServiceTransactionID (sessionID) when present; otherwise fall
+			// back to the local transaction ID.
+			merchantTxRef := requestID
+			res, err := s.fiat.GetTransactionByMerchantRef(merchantTxRef)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: query bank transfer %s: %v", requestID, err))
+				continue
+			}
+			switch strings.ToLower(res.Status) {
+			case "success", "successful", "completed":
+				providerStatus = "delivered"
+			case "failed", "reversed":
+				providerStatus = "failed"
+			case "processing", "pending", "pending_billing":
+				providerStatus = "pending"
+			default:
+				s.logger.Warnf("reconciler: unrecognised Nomba status %q for ref=%s", res.Status, merchantTxRef)
+				providerStatus = "pending" // hold, re-check next cycle
+			}
 
 		default:
 			s.logger.Warn(fmt.Sprintf("reconciler: unknown bill type %s for requestID=%s", meta.GetBillType(), requestID))
@@ -2708,8 +2765,9 @@ func (s *TransactionService) reconcileFinalizeBillSuccess(ctx context.Context, m
 		}
 	case "BankTransfer":
 		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: meta.GetMetadataID(),
+			TransactionID: meta.GetTransactionID(),
 			Status:        string(Success),
+			ServiceTransactionID: sql.NullString{String: meta.GetRequestID(), Valid: true},
 		}); err != nil {
 			return err
 		}
@@ -2778,8 +2836,9 @@ func (s *TransactionService) reconcileFinalizeBillFailure(ctx context.Context, m
 		}
 	case "BankTransfer":
 		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: meta.GetMetadataID(),
+			TransactionID: meta.GetTransactionID(),
 			Status:        string(Failed),
+			ServiceTransactionID: sql.NullString{String: meta.GetRequestID(), Valid: true},
 		}); err != nil {
 			return err
 		}
@@ -3060,7 +3119,7 @@ func (s *TransactionService) buildElectricityResponse(
 func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.User, req WalletTransferRequest) (*WalletTransferResponse, error) {
 	_, err := s.store.Queries.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
 	if err == nil {
-		return nil, fmt.Errorf("Tx exists") //TODO: finish for tx status
+		return nil, fmt.Errorf("tx exists") //TODO: finish for tx status
 	}
 
 	recipientUser, err := s.store.Queries.GetUserByTag(ctx, sql.NullString{String: req.DestinationUserTag, Valid: true})
@@ -3104,7 +3163,7 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 	}
 	defer dbTx.Rollback()
 
-	amountUsd, err := utils.ConvertToUSD(ctx, amount, req.Currency)
+	amountUsd, _ := utils.ConvertToUSD(ctx, amount, req.Currency)
 
 	tx, err := s.store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          user.ID,
@@ -3263,7 +3322,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 
 	_, err := s.store.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
 	if err == nil {
-		return &BankTransferResponse{}, fmt.Errorf("Tx exists")
+		return &BankTransferResponse{}, fmt.Errorf("tx exists")
 	}
 
 	amount := decimal.NewFromFloat(req.Amount)
@@ -3363,7 +3422,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		s.logger.Errorf("MakeTransfer failed: %v. Recipient: %s, Amount: %d NGN, Ref: %s", err, recipientInfo.RecipientCode, amountInNGN, transferReference)
 		return nil, fmt.Errorf("failed to make transfer: %v", err)
 	}
-	s.logger.Infof("transfer response: %v", res)
+	s.logger.Infof("transfer response: %+v", res.RawData)
 
 	if req.SaveBeneficiary {
 		_, err = s.store.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
@@ -3429,6 +3488,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Date:           debitTx.UpdatedAt,
 			Status:         "failed",
 			Reference:      req.IdempotencyKey,
+			NombaData:      res.RawData,
 		}, nil
 	case "pending", "pending_billing", "processing":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
@@ -3440,8 +3500,9 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		}
 
 		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: debitTx.ID,
-			Status:        "pending",
+			TransactionID:        debitTx.ID,
+			Status:               "pending",
+			ServiceTransactionID: sql.NullString{String: res.RawData.Meta.MerchantTxRef, Valid: true},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
@@ -3464,6 +3525,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Date:           debitTx.UpdatedAt,
 			Status:         string(Success),
 			Reference:      req.IdempotencyKey,
+			NombaData:      res.RawData,
 		}, nil
 	case "success", "completed":
 		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
@@ -3477,7 +3539,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		_, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
 			TransactionID:        debitTx.ID,
 			Status:               "successful",
-			ServiceTransactionID: sql.NullString{String: res.Reference, Valid: true},
+			ServiceTransactionID: sql.NullString{String: res.RawData.Meta.MerchantTxRef, Valid: true},
 		})
 		if err != nil {
 			return nil, fmt.Errorf("failed to update bank transfer metadata status: %v", err)
@@ -3525,6 +3587,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			Date:           debitTx.UpdatedAt,
 			Status:         string(Success),
 			Reference:      req.IdempotencyKey,
+			NombaData:      res.RawData,
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown bank transfer status: %s", res.Status)

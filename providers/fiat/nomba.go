@@ -245,6 +245,25 @@ func (p *NombaProvider) nombaCall(method, endpoint string, body interface{}) (*h
 	return resp, nil
 }
 
+func parseNombaAmount(v interface{}) (int64, error) {
+	switch val := v.(type) {
+	case string:
+		f, err := strconv.ParseFloat(val, 64)
+		if err != nil {
+			return 0, err
+		}
+		return int64(f), nil
+	case float64:
+		return int64(val), nil
+	case int:
+		return int64(val), nil
+	case int64:
+		return val, nil
+	default:
+		return 0, fmt.Errorf("unexpected type %T for amount", v)
+	}
+}
+
 // ── API methods ───────────────────────────────────────────────────────────────
 
 // GetBanks fetches all supported banks from Nomba.
@@ -410,18 +429,190 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 	}
 
 	d := result.Data
-	// Amount is returned as string from Nomba API, convert to int64
-	amountFloat, err := strconv.ParseFloat(d.Amount, 64)
+	// Amount can be string or number from Nomba API
+	amountInt, err := parseNombaAmount(d.Amount)
 	if err != nil {
 		return nil, fmt.Errorf("nomba: invalid amount format: %w", err)
 	}
-	amountInt := int64(amountFloat)
+
+	feeInt, _ := parseNombaAmount(d.Fee)
+
+	sessionID := d.Meta.SessionID
+	if sessionID == "" {
+		sessionID = d.ID
+	}
+
 	return &NombaTransferResponse{
-		Amount:       amountInt,
-		Currency:     "NGN",
-		Reference:    merchantTxRef,
-		Reason:       narration,
-		Status:       d.Status,
-		TransferCode: d.ID,
+		Amount:        amountInt,
+		Currency:      "NGN",
+		Reference:     merchantTxRef,
+		Reason:        narration,
+		Status:        d.Status,
+		TransferCode:  d.ID,
+		SessionID:     sessionID,
+		Fee:           feeInt,
+		RecipientName: d.Meta.RecipientName,
+		BankName:      d.Meta.BankName,
+		BankCode:      d.Meta.BankCode,
+		AccountNumber: d.Meta.AccountNumber,
+		RRN:           d.Meta.APIRRN,
+		RawData:       &d,
+	}, nil
+}
+
+// QueryTransferStatus polls Nomba for the status of a previously-initiated transfer.
+// It uses the merchantTxRef we originally sent as MerchantTxRef when creating the transfer.
+// NOTE: This assumes Nomba exposes a GET /v1/transfers/bank/{merchantTxRef} endpoint
+//
+//	that returns a NombaResponse[NombaTransferData]-shaped payload.
+func (p *NombaProvider) QueryTransferStatus(sessionID string) (*NombaTransferResponse, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: parse base URL: %w", err)
+	}
+
+	// Correct Nomba requery endpoint
+	base.Path += "v1/transactions/requery/" + sessionID
+
+	resp, err := p.nombaCall("GET", base.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: read requery response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		logging.NewLogger().Error(
+			"nomba: QueryTransferStatus non-success status",
+			resp.StatusCode,
+			"body",
+			string(bodyBytes),
+		)
+
+		var errResult NombaResponse[interface{}]
+		if err := json.Unmarshal(bodyBytes, &errResult); err == nil && errResult.Description != "" {
+			return nil, fmt.Errorf("nomba: QueryTransferStatus status %d: %s",
+				resp.StatusCode, errResult.Description)
+		}
+
+		return nil, fmt.Errorf("nomba: QueryTransferStatus unexpected status %d: %s",
+			resp.StatusCode, string(bodyBytes))
+	}
+
+	var result NombaResponse[NombaTransferData]
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("nomba: decode requery response: %w", err)
+	}
+
+	if result.Code != "00" && result.Code != "200" && result.Code != "202" {
+		return nil, fmt.Errorf("nomba: QueryTransferStatus failed with code %s: %s",
+			result.Code, result.Description)
+	}
+
+	d := result.Data
+
+	amountInt, err := parseNombaAmount(d.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: invalid amount format in status response: %w", err)
+	}
+
+	feeInt, _ := parseNombaAmount(d.Fee)
+
+	sessionID = d.Meta.SessionID
+	if sessionID == "" {
+		sessionID = d.ID
+	}
+
+	return &NombaTransferResponse{
+		Amount:        amountInt,
+		Reference:     d.Meta.MerchantTxRef,
+		Status:        d.Status,
+		TransferCode:  d.ID,
+		SessionID:     sessionID,
+		Fee:           feeInt,
+		RecipientName: d.Meta.RecipientName,
+		BankName:      d.Meta.BankName,
+		BankCode:      d.Meta.BankCode,
+		AccountNumber: d.Meta.AccountNumber,
+		RRN:           d.Meta.APIRRN,
+		RawData:       &d,
+	}, nil
+}
+
+// GetTransactionByMerchantRef fetches a single transaction by the merchantTxRef
+// we generated. This is the correct reconciliation path when sessionId is empty.
+// Maps to: GET /v1/transactions?merchantTxRef={ref}
+func (p *NombaProvider) GetTransactionByMerchantRef(merchantTxRef string) (*NombaTransferResponse, error) {
+	base, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: parse base URL: %w", err)
+	}
+
+	base.Path += "v1/transactions/accounts/single"
+	q := base.Query()
+	q.Set("merchantTxRef", merchantTxRef)
+	base.RawQuery = q.Encode()
+
+	resp, err := p.nombaCall("GET", base.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: read single tx response: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		var errResult NombaResponse[interface{}]
+		if err := json.Unmarshal(bodyBytes, &errResult); err == nil && errResult.Description != "" {
+			return nil, fmt.Errorf("nomba: GetTransactionByMerchantRef status %d: %s",
+				resp.StatusCode, errResult.Description)
+		}
+		return nil, fmt.Errorf("nomba: GetTransactionByMerchantRef unexpected status %d: %s",
+			resp.StatusCode, string(bodyBytes))
+	}
+
+	// /accounts/single returns a flat NombaTransferData object, NOT a paginated list.
+	var result NombaResponse[NombaTransferData]
+	if err := json.Unmarshal(bodyBytes, &result); err != nil {
+		return nil, fmt.Errorf("nomba: decode single tx response: %w", err)
+	}
+	if result.Code != "00" && result.Code != "200" {
+		return nil, fmt.Errorf("nomba: GetTransactionByMerchantRef failed code=%s: %s",
+			result.Code, result.Description)
+	}
+
+	d := result.Data
+	amountInt, err := parseNombaAmount(d.Amount)
+	if err != nil {
+		return nil, fmt.Errorf("nomba: invalid amount in single tx response: %w", err)
+	}
+	feeInt, _ := parseNombaAmount(d.Fee)
+
+	sessionID := d.Meta.SessionID
+	if sessionID == "" {
+		sessionID = d.ID
+	}
+
+	return &NombaTransferResponse{
+		Amount:        amountInt,
+		Currency:      "NGN",
+		Reference:     merchantTxRef,
+		Status:        d.Status,
+		TransferCode:  d.ID,
+		SessionID:     sessionID,
+		Fee:           feeInt,
+		RecipientName: d.Meta.RecipientName,
+		BankName:      d.Meta.BankName,
+		BankCode:      d.Meta.BankCode,
+		AccountNumber: d.Meta.AccountNumber,
+		RRN:           d.Meta.APIRRN,
+		RawData:       &d,
 	}, nil
 }

@@ -440,7 +440,7 @@ func (s *Server) Start() error {
 	// Start bill transaction reconciler
 	// Fixes the crash-between-debit-and-commit window for airtime, data, TV, and electricity purchases
 	go func() {
-		ticker := time.NewTicker(60 * time.Second)
+		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 		for range ticker.C {
 			if err := s.transactionService.ReconcilePendingBillTransactions(context.Background()); err != nil {

@@ -1080,17 +1080,17 @@ UPDATE wallet_transfer_metadata
 SET status = $2
 WHERE id = $1;
 
--- name: GetPendingDataAirtimePurchaseMetadataOlderThan5Mins :many
+-- name: GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds :many
 SELECT *
 FROM data_airtime_purchase_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC;
 
--- name: GetPendingElectricityPurchaseMetadataOlderThan5Mins :many
+-- name: GetPendingElectricityPurchaseMetadataOlderThan20Seconds :many
 SELECT * FROM electricity_purchase_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC;
 
 -- name: UpdateTransactionAmountUSD :exec
@@ -1101,10 +1101,10 @@ UPDATE crypto_transaction_metadata
 SET rate = $2, received_amount = $3
 WHERE transaction_id = $1;
 
--- name: GetPendingBankTransferMetadataOlderThan5Mins :many
+-- name: GetPendingBankTransferMetadataOlderThan20Seconds :many
 SELECT * FROM bank_transfer_metadata
 WHERE status = 'pending'
-  AND date < NOW() - INTERVAL '5 minutes'
+  AND date < NOW() - INTERVAL '20 seconds'
 ORDER BY date ASC;
 
 -- name: ListRapidRampTransactions :many
