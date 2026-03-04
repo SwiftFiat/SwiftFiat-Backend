@@ -2015,18 +2015,16 @@ SELECT
                 )
                 WHEN t.type IN ('transfer') AND t.t_to = 'bank' OR t.type = 'rapid_ramp' THEN (
                     SELECT jsonb_build_object(
-                        'currency', btm.currency,
+                        'account_name', btm.account_name,
                         'type', btm.type,
-                        'recipient', btm.recipient,
-                        'sender', btm.sender,
+                        'account_number', btm.account_number,
+                        'reference', btm.service_transaction_id,
                         'service_charge', btm.service_charge,
                         'amount', btm.amount,
                         'amount_paid', btm.amount_paid,
-                        'bonus_earned', btm.bonus_earned,
-                        'reference', btm.reference,
+                        'bonus_earned', btm.points_earned,
                         'status', btm.status,
-                        'date', btm.date,
-                        'description', btm.description
+                        'date', btm.date
                     )::jsonb 
                     FROM public.bank_transfer_metadata btm
                     WHERE btm.transaction_id = t.id

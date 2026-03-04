@@ -353,7 +353,7 @@ SELECT
                         'amount_paid', btm.amount_paid,
                         'bonus_earned', btm.points_earned,
                         'status', btm.status,
-                        'date', btm.date,
+                        'date', btm.date
                     )::jsonb 
                     FROM public.bank_transfer_metadata btm
                     WHERE btm.transaction_id = t.id
