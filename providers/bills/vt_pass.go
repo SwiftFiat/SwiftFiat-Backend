@@ -526,7 +526,7 @@ func (p *VTPassProvider) QueryAirtimeStatus(requestID string) (*Transaction, err
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
 	}
 
-	base.Path += "api/requery"
+	base.Path += "requery"
 	headers := map[string]string{
 		"public-key": p.config.VTPassPK,
 		"secret-key": p.config.VTPassSK,
@@ -578,7 +578,7 @@ func (p *VTPassProvider) QueryDataStatus(requestID string) (*Transaction, error)
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
 	}
 
-	base.Path += "api/requery"
+	base.Path += "requery"
 	headers := map[string]string{
 		"public-key": p.config.VTPassPK,
 		"secret-key": p.config.VTPassSK,
@@ -629,7 +629,7 @@ func (p *VTPassProvider) QueryTVStatus(requestID string) (*Transaction, error) {
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
 	}
 
-	base.Path += "api/requery"
+	base.Path += "requery"
 	headers := map[string]string{
 		"public-key": p.config.VTPassPK,
 		"secret-key": p.config.VTPassSK,
@@ -680,7 +680,7 @@ func (p *VTPassProvider) QueryElectricityStatus(requestID string) (*Transaction,
 		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
 	}
 
-	base.Path += "api/requery"
+	base.Path += "requery"
 	headers := map[string]string{
 		"public-key": p.config.VTPassPK,
 		"secret-key": p.config.VTPassSK,
