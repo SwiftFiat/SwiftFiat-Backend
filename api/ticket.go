@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -92,22 +93,108 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 	}
 
 	// Check if user has an open ticket
-	openTicketCount, err := c.server.queries.CountUserOpenTickets(ctx, activeUser.UserID)
+	tickets, err := c.server.queries.ListTicketsByUser(ctx, db.ListTicketsByUserParams{
+		UserID: activeUser.UserID,
+		Limit:  1,
+		Offset: 0,
+	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to check open tickets"+err.Error()))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to check tickets: "+err.Error()))
 		return
 	}
 
 	var ticketID int64
 	var aiResponse *chatsupport.AIQueryResponse
+	var existingTicket *db.Ticket
 	escalated := false
 
-	// If no open ticket, start with AI
-	if openTicketCount == 0 {
-		// Query AI first
-		conversationContext := []chatsupport.ConversationMessage{}
+	if len(tickets) > 0 {
+		t := tickets[0]
+		// Check if the latest ticket is still active
+		if t.Status == "open" || t.Status == "assigned" || t.Status == "in_progress" {
+			existingTicket = &t
+			ticketID = t.ID
+		}
+	}
 
+	// AI should respond if there's no ticket yet, or if the existing ticket isn't assigned to a human
+	shouldCallAI := existingTicket == nil || !existingTicket.AssignedTo.Valid
+
+	// Step 0.5: If there is no existing ticket yet, and the user sends a short
+	// affirmative like "yes", "yeah", "ya", treat it as explicit confirmation
+	// to talk to a human and create a ticket directly (no AI needed).
+	if existingTicket == nil {
+		lower := strings.ToLower(strings.TrimSpace(messageText))
+		affirmatives := map[string]bool{
+			"yes":        true,
+			"yeah":       true,
+			"ya":         true,
+			"yup":        true,
+			"yep":        true,
+			"sure":       true,
+			"ok":         true,
+			"okay":       true,
+			"yes please": true,
+		}
+
+		if affirmatives[lower] {
+			ticket, err := c.ticketService.CreateTicket(ctx, &chatsupport.CreateTicketParams{
+				UserID:           activeUser.UserID,
+				EscalationReason: "",
+				Priority:         "medium",
+				Category:         "general",
+			})
+			if err != nil {
+				c.server.logger.Error(err.Error())
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create ticket: "+err.Error()))
+				return
+			}
+			ticketID = ticket.ID
+
+			aiResponse = &chatsupport.AIQueryResponse{
+				Answer:           "Okay, I’ve connected you to a human support agent. A member of our team will join this chat shortly.",
+				ConfidenceScore:  1.0,
+				HumanRequired:    true,
+				EscalationReason: "user_confirmation",
+				Metadata: map[string]interface{}{
+					"model":               "internal_confirmation_handler",
+					"confirmation_source": "user_affirmative",
+				},
+			}
+
+			// We already know we want a human; no need to call the AI model.
+			shouldCallAI = false
+		}
+	}
+
+	if shouldCallAI {
+		// Get conversation context for the AI
+		var conversationContext []chatsupport.ConversationMessage
+		if existingTicket != nil {
+			history, err := c.chatService.GetConversationHistory(ctx, ticketID)
+			if err == nil {
+				// Map history to conversation context (limit to last few messages)
+				for _, msg := range history {
+					var role string
+					switch msg.SenderType {
+					case "user":
+						role = "user"
+					case "ai", "admin":
+						role = "assistant"
+					default:
+						// Skip system or unknown messages for AI context
+						continue
+					}
+					conversationContext = append(conversationContext, chatsupport.ConversationMessage{
+						Role:    role,
+						Content: msg.MessageText,
+					})
+				}
+			}
+		}
+
+		// Query AI
 		aiResponse, err = c.aiService.QueryAI(ctx, &chatsupport.AIQueryRequest{
 			Message:             messageText,
 			ConversationContext: conversationContext,
@@ -115,28 +202,67 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 		})
 		if err != nil {
 			c.server.logger.Error(fmt.Sprintf("AI query failed: %v", err))
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("AI service temporarily unavailable"))
-			return
+			// If AI fails, we still want to proceed with human support if it's a new ticket
+			if existingTicket == nil {
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("AI service temporarily unavailable"))
+				return
+			}
 		}
 
-		// Create ticket
-		ticket, err := c.ticketService.CreateTicket(ctx, &chatsupport.CreateTicketParams{
-			UserID:           activeUser.UserID,
-			EscalationReason: aiResponse.EscalationReason,
-			Priority:         "medium",
-			Category:         "general",
-		})
-		if err != nil {
-			c.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create ticket"+err.Error()))
-			return
+		// Decide whether we should create a new ticket for this AI interaction.
+		// For pure greetings or small-talk (e.g. "hi", "hello", "how are you"), we
+		// don't want to create a support ticket or log a conversation yet.
+		// Also, when the AI thinks a human is required, we first ask the user for
+		// confirmation instead of auto-creating a ticket.
+		shouldCreateTicket := existingTicket == nil && aiResponse != nil
+		if shouldCreateTicket && aiResponse.Metadata != nil {
+			if isGreeting, ok := aiResponse.Metadata["is_greeting"].(bool); ok && isGreeting {
+				shouldCreateTicket = false
+			}
+			if isSmallTalk, ok := aiResponse.Metadata["is_smalltalk"].(bool); ok && isSmallTalk {
+				shouldCreateTicket = false
+			}
 		}
-		ticketID = ticket.ID
+		if shouldCreateTicket && aiResponse != nil && aiResponse.HumanRequired {
+			shouldCreateTicket = false
 
-		// Store user message
-		form, _ := ctx.MultipartForm()
-		files := form.File["attachment"]
+			// Soften the AI response to explicitly ask the user if they want a human.
+			prompt := "This might be better handled by a human support agent. " +
+				"If you'd like me to connect you to one, please reply with 'yes'."
+			aiResponse.Answer = prompt
+			aiResponse.HumanRequired = false
+			aiResponse.EscalationReason = "awaiting_user_confirmation"
 
+			if aiResponse.Metadata == nil {
+				aiResponse.Metadata = map[string]interface{}{}
+			}
+			aiResponse.Metadata["awaiting_human_confirmation"] = true
+		}
+
+		// If no existing ticket and this is not just greeting/small-talk (and not
+		// awaiting confirmation), create one now.
+		if shouldCreateTicket {
+			ticket, err := c.ticketService.CreateTicket(ctx, &chatsupport.CreateTicketParams{
+				UserID:           activeUser.UserID,
+				EscalationReason: aiResponse.EscalationReason,
+				Priority:         "medium",
+				Category:         "general",
+			})
+			if err != nil {
+				c.server.logger.Error(err.Error())
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to create ticket: "+err.Error()))
+				return
+			}
+			ticketID = ticket.ID
+		}
+	}
+
+	// Store user message
+	form, _ := ctx.MultipartForm()
+	files := form.File["attachment"]
+
+	// Only store messages in history if we actually have a ticket.
+	if ticketID != 0 {
 		_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
 			TicketID:    ticketID,
 			SenderID:    activeUser.UserID,
@@ -146,9 +272,16 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 		})
 		if err != nil {
 			c.server.logger.Error(err.Error())
+			// If it's an existing ticket and message fails, return error
+			if existingTicket != nil {
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message: "+err.Error()))
+				return
+			}
 		}
+	}
 
-		// If escalation needed, assign to agent
+	// Handle AI response and escalation
+	if aiResponse != nil && ticketID != 0 {
 		if aiResponse.HumanRequired {
 			escalated = true
 			_, err = c.ticketService.AutoAssignTicket(ctx, ticketID)
@@ -156,7 +289,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 				c.server.logger.Error(fmt.Sprintf("auto-assignment failed: %v", err))
 			}
 		} else {
-			// Store AI response
+			// Store AI response in chat history
 			_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
 				TicketID:    ticketID,
 				SenderID:    0, // AI has no user ID
@@ -166,35 +299,6 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 			if err != nil {
 				c.server.logger.Error(err.Error())
 			}
-		}
-	} else {
-		// Get existing open ticket
-		tickets, err := c.server.queries.ListTicketsByUser(ctx, db.ListTicketsByUserParams{
-			UserID: activeUser.UserID,
-			Limit:  1,
-			Offset: 0,
-		})
-		if err != nil || len(tickets) == 0 {
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to retrieve ticket"+err.Error()))
-			return
-		}
-		ticketID = tickets[0].ID
-
-		// Send message to existing ticket
-		form, _ := ctx.MultipartForm()
-		files := form.File["attachment"]
-
-		_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
-			TicketID:    ticketID,
-			SenderID:    activeUser.UserID,
-			SenderType:  "user",
-			MessageText: messageText,
-			Attachments: files,
-		})
-		if err != nil {
-			c.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send message"+err.Error()))
-			return
 		}
 	}
 

@@ -4,12 +4,19 @@ meta {
   seq: 15
 }
 
-get {
-  url: 
-  body: none
+post {
+  url: {{BaseURl}}/auth/resend-email
+  body: json
   auth: inherit
+}
+
+body:json {
+  {
+    "email": ""
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

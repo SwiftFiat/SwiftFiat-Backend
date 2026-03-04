@@ -53,6 +53,135 @@ func NewAIService(
 
 // QueryAI processes a user query with AI and RAG
 func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryResponse, error) {
+	// Step 0: Handle simple greetings directly for better UX
+	// Clean the message: lowercase, trim space, and remove common punctuation
+	cleanMessage := strings.TrimSpace(strings.ToLower(req.Message))
+	// Remove common leading/trailing punctuation so variants like "hello!" or "hi," are still detected
+	cleanMessage = strings.Trim(cleanMessage, " !?.',\"")
+
+	greetings := map[string]bool{
+		"hi": true, "hello": true, "hey": true, "hi there": true,
+		"hello there": true, "hey there": true, "good morning": true,
+		"good afternoon": true, "good evening": true, "yo": true,
+		"greetings": true, "hi swiftfiat": true, "hello swiftfiat": true,
+		"anybody there": true, "is anyone there": true,
+		// common informal/slang greetings
+		"holla": true, "hola": true, "wassup": true, "sup": true,
+	}
+
+	// Exact greeting match
+	if greetings[cleanMessage] {
+		return &AIQueryResponse{
+			Answer:          "Hello! How can I help you with SwiftFiat today?",
+			ConfidenceScore: 1.0,
+			HumanRequired:   false,
+			Metadata: map[string]interface{}{
+				"model":       "internal_greeting_handler",
+				"is_greeting": true,
+			},
+		}, nil
+	}
+
+	// Heuristic: treat very short, greeting-dominated messages as greetings,
+	// e.g. "hi 👋", "hello there!", "hey team", etc.
+	if len(cleanMessage) > 0 && len(cleanMessage) <= 25 {
+		for phrase := range greetings {
+			if strings.HasPrefix(cleanMessage, phrase) {
+				remainder := strings.TrimSpace(strings.TrimPrefix(cleanMessage, phrase))
+				// If there's no remainder or it's just 1–2 short words, consider it a greeting.
+				if remainder == "" || len(strings.Fields(remainder)) <= 2 {
+					return &AIQueryResponse{
+						Answer:          "Hello! How can I help you with SwiftFiat today?",
+						ConfidenceScore: 1.0,
+						HumanRequired:   false,
+						Metadata: map[string]interface{}{
+							"model":       "internal_greeting_handler",
+							"is_greeting": true,
+						},
+					}, nil
+				}
+			}
+		}
+	}
+
+	// Small-talk / conversational openers like "how are you today?"
+	smallTalkPhrases := []string{
+		// Classic "how are you" variants
+		"how are you",
+		"how r you",
+		"how are u",
+		"how are you doing",
+		"how you doing",
+		"how are you today",
+		"how are u today",
+		"how r you today",
+
+		// "how is it going" style
+		"how's it going",
+		"hows it going",
+		"how is it going",
+
+		// "how is your day" style
+		"how's your day",
+		"hows your day",
+		"how is your day",
+		"how's your day going",
+		"how is your day going",
+
+		// "how is everything" / "how have you been"
+		"how is everything",
+		"how's everything",
+		"hows everything",
+		"how have you been",
+		"howve you been",
+
+		// "are you ok/okay" style
+		"are you ok",
+		"are you okay",
+		"are you ok today",
+		"are you okay today",
+		"are you fine",
+
+		// "you ok?" style
+		"you ok",
+		"you okay",
+		"you good",
+		"you alright",
+		"you all right",
+
+		// Casual check-ins
+		"how are things",
+		"how's life",
+		"hows life",
+
+		// Other small-talk / ice-breakers
+		"what's up",
+		"whats up",
+		"wassup",
+		"sup",
+		"how do you do",
+		"hope you're well",
+		"hope you are well",
+		"hope you're doing well",
+		"hope you are doing well",
+	}
+
+	if len(cleanMessage) > 0 && len(cleanMessage) <= 60 {
+		for _, phrase := range smallTalkPhrases {
+			if strings.Contains(cleanMessage, phrase) {
+				return &AIQueryResponse{
+					Answer:          "I’m just a virtual assistant, but I’m doing great, thanks for asking! How can I help you with SwiftFiat today?",
+					ConfidenceScore: 1.0,
+					HumanRequired:   false,
+					Metadata: map[string]interface{}{
+						"model":        "internal_small_talk_handler",
+						"is_smalltalk": true,
+					},
+				}, nil
+			}
+		}
+	}
+
 	// Step 1: Retrieve relevant FAQ documents using RAG
 	faqSources, err := s.retrieveRelevantFAQs(ctx, req.Message)
 	if err != nil {
@@ -74,6 +203,35 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 		// If we have FAQ sources, use the FAQ content instead
 		if len(faqSources) > 0 {
 			aiResponse = fmt.Sprintf("Based on our FAQ '%s': %s", faqSources[0].Title, faqSources[0].Snippet)
+		}
+	}
+
+	// If there are no FAQ sources at all, avoid potentially made-up platform-specific answers.
+	// Instead, return a friendly greeting for greeting-like messages, or a safe generic response
+	// and let escalation logic decide if a human is needed.
+	if len(faqSources) == 0 {
+		// Re-check for greeting-like messages here as a safety net, based on the cleaned message.
+		isGreetingLike := false
+
+		if greetings[cleanMessage] {
+			isGreetingLike = true
+		} else if len(cleanMessage) > 0 && len(cleanMessage) <= 25 {
+			for phrase := range greetings {
+				if strings.HasPrefix(cleanMessage, phrase) {
+					remainder := strings.TrimSpace(strings.TrimPrefix(cleanMessage, phrase))
+					if remainder == "" || len(strings.Fields(remainder)) <= 2 {
+						isGreetingLike = true
+						break
+					}
+				}
+			}
+		}
+
+		if isGreetingLike {
+			aiResponse = "Hello! How can I help you with SwiftFiat today?"
+		} else {
+			aiResponse = "I don’t have enough SwiftFiat help-article information to safely answer this yet. " +
+				"I’ve flagged your message so a human support agent can review it and assist you directly."
 		}
 	}
 
@@ -104,34 +262,34 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 func (s *AIService) retrieveRelevantFAQs(ctx context.Context, query string) ([]FAQSource, error) {
 	// Keywords to match
 	keywords := []string{
-		"virtual", 
-		"card", 
-		"vault", 
-		"savings", 
-		"conversion", 
-		"ramp", 
-		"airtime", 
-		"bill", 
-		"payment", 
-		"transfer", 
-		"withdraw", 
-		"deposit", 
-		"account", 
-		"verification", 
-		"kyc", 
-		"limits", 
-		"fees", 
-		"security", 
-		"support", 
-		"app", 
-		"transaction", 
-		"balance", 
-		"gift", 
-		"subscription", 
-		"crypto", 
-		"fiat", 
-		"currency", 
-		"exchange", 
+		"virtual",
+		"card",
+		"vault",
+		"savings",
+		"conversion",
+		"ramp",
+		"airtime",
+		"bill",
+		"payment",
+		"transfer",
+		"withdraw",
+		"deposit",
+		"account",
+		"verification",
+		"kyc",
+		"limits",
+		"fees",
+		"security",
+		"support",
+		"app",
+		"transaction",
+		"balance",
+		"gift",
+		"subscription",
+		"crypto",
+		"fiat",
+		"currency",
+		"exchange",
 		"top-up",
 		"referrals",
 		"crypto",
@@ -228,12 +386,13 @@ func (s *AIService) buildSystemPrompt(faqSources []FAQSource) string {
 Your goal is to provide accurate, helpful, and friendly responses to customer inquiries.
 
 Guidelines:
-1. Be professional, friendly, and empathetic
-2. Provide clear and concise answers
-3. Use the FAQ knowledge base when available
-4. If you're unsure or the question is complex, acknowledge it
-5. For account-specific issues, payments, or verification, recommend contacting human support
-6. Never make up information - only use provided context
+1. Be professional, friendly, and empathetic.
+2. Provide clear and concise answers based ONLY on the provided FAQ context.
+3. If no relevant FAQ articles are provided, do NOT make up instructions or platform-specific details. Instead, politely ask the user for more information or suggest they speak with a human agent for complex queries.
+4. Use the FAQ knowledge base when available.
+5. If you're unsure or the question is complex, acknowledge it.
+6. For specific account issues (like "I can't log in"), complex payment failures, or manual verification requests, recommend contacting human support.
+7. Never make up information - only use provided context for platform-specific details.
 
 `)
 
@@ -287,7 +446,7 @@ func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessa
 	reqBody := OpenAIRequest{
 		Model:               OpenAIModel,
 		Messages:            messages,
-		Temperature:         1,
+		Temperature:         0.1,
 		MaxCompletionTokens: 500,
 	}
 
@@ -347,16 +506,27 @@ func (s *AIService) callOpenAI(ctx context.Context, messages []ConversationMessa
 
 // calculateConfidence determines confidence score based on various factors
 func (s *AIService) calculateConfidence(response string, faqSources []FAQSource, query string) float64 {
-	confidence := 0.5 // Base confidence
+	confidence := 0.6 // Base confidence
 
 	// Increase confidence if FAQ sources were found
 	if len(faqSources) > 0 {
-		confidence += 0.2
+		confidence += 0.25
+	} else {
+		// If no FAQs were found, base confidence should be significantly lower
+		// for any query that isn't a very short interaction.
+		if len(query) > 10 {
+			confidence -= 0.2
+		}
 	}
 
-	// Increase confidence if response is substantial
-	if len(response) > 100 {
+	// Increase confidence if response is substantial but only if we have FAQs
+	if len(response) > 100 && len(faqSources) > 0 {
 		confidence += 0.1
+	}
+
+	// Decrease confidence for very short responses that aren't greetings
+	if len(response) < 20 && len(query) > 20 {
+		confidence -= 0.2
 	}
 
 	// Decrease confidence if response contains uncertainty phrases
@@ -447,6 +617,11 @@ func (s *AIService) shouldEscalate(confidence float64, query string, faqSources 
 		if strings.Contains(queryLower, keyword) {
 			return true, "complex_query"
 		}
+	}
+
+	// If query is moderately long but no FAQs were found, it's likely too complex for AI
+	if len(query) > 40 && len(faqSources) == 0 {
+		return true, "complex_query_no_context"
 	}
 
 	return false, ""

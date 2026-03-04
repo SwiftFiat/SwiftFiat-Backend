@@ -5,13 +5,13 @@ meta {
 }
 
 post {
-  url: {{BaseURl}}/chat/message
+  url: {{BaseURl}}/chat/message?text=hello
   body: multipartForm
   auth: bearer
 }
 
 params:query {
-  : 
+  text: hello
 }
 
 auth:bearer {
@@ -19,7 +19,7 @@ auth:bearer {
 }
 
 body:multipart-form {
-  text: how to pay bill?
+  text: How are you today?
 }
 
 settings {
