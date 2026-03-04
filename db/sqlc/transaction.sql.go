@@ -1995,7 +1995,7 @@ SELECT
                     FROM public.data_airtime_purchase_metadata sm
                     WHERE sm.transaction_id = t.id
                 )
-                WHEN t.type IN ('transfer', 'rapid_ramp') THEN (
+                WHEN t.type IN ('transfer') AND t.t_to = 'wallet' THEN (
                     SELECT jsonb_build_object(
                         'currency', stm.currency,
                         'type', stm.type,
@@ -2012,6 +2012,24 @@ SELECT
                     )::jsonb 
                     FROM public.wallet_transfer_metadata stm
                     WHERE stm.transaction_id = t.id
+                )
+                WHEN t.type IN ('transfer') AND t.t_to = 'bank' OR t.type = 'rapid_ramp' THEN (
+                    SELECT jsonb_build_object(
+                        'currency', btm.currency,
+                        'type', btm.type,
+                        'recipient', btm.recipient,
+                        'sender', btm.sender,
+                        'service_charge', btm.service_charge,
+                        'amount', btm.amount,
+                        'amount_paid', btm.amount_paid,
+                        'bonus_earned', btm.bonus_earned,
+                        'reference', btm.reference,
+                        'status', btm.status,
+                        'date', btm.date,
+                        'description', btm.description
+                    )::jsonb 
+                    FROM public.bank_transfer_metadata btm
+                    WHERE btm.transaction_id = t.id
                 )
                 WHEN t.type IN ('card') THEN (
                     SELECT jsonb_build_object(
