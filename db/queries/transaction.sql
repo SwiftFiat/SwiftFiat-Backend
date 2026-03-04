@@ -324,7 +324,7 @@ SELECT
                     FROM public.data_airtime_purchase_metadata sm
                     WHERE sm.transaction_id = t.id
                 )
-                WHEN t.type IN ('transfer') THEN (
+                WHEN t.type IN ('transfer', 'rapid_ramp') THEN (
                     SELECT jsonb_build_object(
                         'currency', stm.currency,
                         'type', stm.type,
