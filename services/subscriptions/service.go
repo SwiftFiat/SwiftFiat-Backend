@@ -174,9 +174,9 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 	}
 
 	// validate amount (all amounts are in whole dollars)
-	if req.Amount < settings.MinSubscriptionAmount || req.Amount > settings.MaxSubscriptionAmount {
-		return nil, fmt.Errorf("amount must be between %d and %d dollars", settings.MinSubscriptionAmount, settings.MaxSubscriptionAmount)
-	}
+	// if req.Amount < settings.MinSubscriptionAmount || req.Amount > settings.MaxSubscriptionAmount {
+	// 	return nil, fmt.Errorf("amount must be between %d and %d dollars", settings.MinSubscriptionAmount, settings.MaxSubscriptionAmount)
+	// }
 
 	// Validate billing cycle
 	var billingIntervalDays int32

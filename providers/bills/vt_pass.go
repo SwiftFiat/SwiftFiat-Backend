@@ -22,10 +22,10 @@ type VTPassProvider struct {
 
 type BillConfig struct {
 	BillProviderName string `mapstructure:"BILL_PROVIDER_NAME"`
-	VTPassBaseUrl    string `mapstructure:"VT_PASS_SANDBOX_URL"`
-	VTPassKey        string `mapstructure:"VT_PASS_TEST_KEY"`
-	VTPassPK         string `mapstructure:"VT_PASS_TEST_PK"`
-	VTPassSK         string `mapstructure:"VT_PASS_TEST_SK"`
+	VTPassBaseUrl    string `mapstructure:"VT_BASE_URL"`
+	VTPassKey        string `mapstructure:"VT_PASS_KEY"`
+	VTPassPK         string `mapstructure:"VT_PASS_PK"`
+	VTPassSK         string `mapstructure:"VT_PASS_SK"`
 }
 
 func NewBillProvider() *VTPassProvider {
