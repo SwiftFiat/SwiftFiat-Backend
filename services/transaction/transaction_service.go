@@ -1548,7 +1548,7 @@ func (s *TransactionService) AwardRewardPoints(
 	// Award points
 	description := fmt.Sprintf("%s bonus", serviceType)
 
-	x, err := qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
+	_, err = qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
 		UserID:                int64(userID),
 		PointsAmount:          pointsEarned.String(),
 		TransactionID:         uuid.NullUUID{UUID: transactionID, Valid: true},
@@ -1566,7 +1566,7 @@ func (s *TransactionService) AwardRewardPoints(
 		return decimal.Zero, fmt.Errorf("failed to convert to USD: %w", err)
 	}
 
-	ttx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          int64(userID),
 		Amount:          pointsEarned.String(),
 		Currency:        "NGN",
@@ -1584,22 +1584,22 @@ func (s *TransactionService) AwardRewardPoints(
 		return decimal.Zero, fmt.Errorf("failed to create transaction: %w", err)
 	}
 
-	_, err = qtx.CreateRewardTransaction(ctx, db.CreateRewardTransactionParams{
-		UserID:                ttx.UserID,
-		PointsAmount:          pointsEarned.String(),
-		NairaValue:            pointsEarned.String(),
-		TransactionID:         uuid.NullUUID{UUID: ttx.ID, Valid: true},
-		SourceTransactionType: sql.NullString{String: string(Airtime), Valid: true},
-		TransactionAmount:     sql.NullString{String: paidAmount.String(), Valid: true},
-		RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
-		BalanceAfter:          x.BalanceAfter,
-		Status:                "completed",
-		TransactionType:       "earned",
-		Description:           sql.NullString{String: description, Valid: true},
-	})
-	if err != nil {
-		return decimal.Zero, fmt.Errorf("failed to create reward transaction: %w", err)
-	}
+	// _, err = qtx.CreateRewardTransaction(ctx, db.CreateRewardTransactionParams{
+	// 	UserID:                ttx.UserID,
+	// 	PointsAmount:          pointsEarned.String(),
+	// 	NairaValue:            pointsEarned.String(),
+	// 	TransactionID:         uuid.NullUUID{UUID: ttx.ID, Valid: true},
+	// 	SourceTransactionType: sql.NullString{String: string(Airtime), Valid: true},
+	// 	TransactionAmount:     sql.NullString{String: paidAmount.String(), Valid: true},
+	// 	RewardConfigID:        sql.NullInt64{Int64: config.ID, Valid: true},
+	// 	BalanceAfter:          x.BalanceAfter,
+	// 	Status:                "completed",
+	// 	TransactionType:       "earned",
+	// 	Description:           sql.NullString{String: description, Valid: true},
+	// })
+	// if err != nil {
+	// 	return decimal.Zero, fmt.Errorf("failed to create reward transaction: %w", err)
+	// }
 
 	s.logger.Info(fmt.Sprintf("Reward points awarded: User=%d, Points=₦%d, TX=%d, Rate=%s%%",
 		userID, pointsEarned, transactionID, config.RewardRate))

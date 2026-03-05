@@ -1633,7 +1633,7 @@ FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
@@ -1820,20 +1820,20 @@ SELECT
         )
         WHEN 'card' THEN jsonb_build_object(
             'type', 'card',
-            'data', to_jsonb(ct.*)
+            'data', to_jsonb(card_tx.*)
         )
     END as metadata
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
 LEFT JOIN giftcard_transaction_metadata gt ON t.id = gt.transaction_id
-LEFT JOIN bank_transfer_metadata fw ON t.id = bt.transaction_id
+LEFT JOIN bank_transfer_metadata fw ON t.id = fw.transaction_id
 LEFT JOIN services_metadata sm ON t.id = sm.transaction_id
 LEFT JOIN vault_transactions vt ON t.id = vt.transaction_id
 LEFT JOIN conversion_history ch ON t.id = ch.transaction_id
 LEFT JOIN qr_transactions qr ON t.id = qr.transaction_id
 LEFT JOIN reward_transactions rt ON t.id = rt.transaction_id
-LEFT JOIN card_transactions ct ON t.id = ct.transaction_id
+LEFT JOIN card_transactions card_tx ON t.id = card_tx.transaction_id
 WHERE t.id = $1 LIMIT 1
 `
 
