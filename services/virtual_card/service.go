@@ -714,7 +714,37 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		if updateErr != nil {
 			s.logger.Error(fmt.Sprintf("failed to update funding status: %v", updateErr))
 		}
+
+		// refund wallet
+		_, err = s.store.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			ID: wallet.ID,
+			Balance: sql.NullString{
+				String: fundingAmount.String(),
+				Valid:  true,
+			},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("update wallet balance error: %w", err)
+		}
 		return nil, fmt.Errorf("fund card via bridgecard error: %w", err)
+	}
+
+	// remove if not work
+	_, err = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		ID:            fundingRecord.ID,
+		Status:        string(transaction.Success),
+		FailureReason: sql.NullString{String: "", Valid: true},
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update funding status: %v", err))
+	}
+
+	_, err = s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		ID:     tx.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to update transaction status: %v", err))
 	}
 
 	return bridgeResponse, nil

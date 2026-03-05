@@ -1009,6 +1009,13 @@ func (a *Auth) register(ctx *gin.Context) {
 		defer func() { recover() }()
 		bgCtx := context.Background()
 
+		if err := a.server.emailService.Welcome(bgCtx, u.FirstName.String, u.Email); err != nil {
+			a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send welcome email: %v", err))
+			// Log to failed_notifications
+			a.logFailedNotification(bgCtx, "email", "critical", u.ID, u.Email,
+				"Welcome Email", "", err.Error())
+		}
+
 		title := "Welcome to SwiftFiat"
 		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", u.FirstName.String, tag)
 

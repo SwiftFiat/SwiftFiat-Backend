@@ -570,3 +570,27 @@ func (s *Plunk) Login(ctx context.Context, firstName, email, deviceName, ipAddre
 
 	return nil
 }
+
+func (s *Plunk) Welcome(ctx context.Context, firstName, email string) error {
+	tplData := map[string]any{
+		"FirstName": firstName,
+		"CurrentYear": time.Now().Year(),
+	}
+
+	body, err := utils.RenderEmailTemplate("templates/welcome_email.html", tplData)
+	if err != nil {
+		return fmt.Errorf("failed to render welcome email: %v", err)
+	}
+
+	emailService := Plunk{
+		Config:     s.Config,
+		HttpClient: &http.Client{Timeout: 10 * time.Second},
+	}
+
+	subject := "SwiftFiat - Welcome to Swiift"
+	if err := emailService.SendEmail(email, subject, body); err != nil {
+		return fmt.Errorf("failed to send welcome email: %v", err)
+	}
+
+	return nil
+}
