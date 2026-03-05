@@ -82,6 +82,7 @@ func (q *Queries) CreateReferralConfig(ctx context.Context, arg CreateReferralCo
 const createReferralEarnings = `-- name: CreateReferralEarnings :one
 INSERT INTO referral_earnings (user_id)
 VALUES ($1)
+ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
     RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at
 `
 

@@ -25,6 +25,7 @@ SELECT * FROM referral_earnings WHERE user_id = $1;
 -- name: CreateReferralEarnings :one
 INSERT INTO referral_earnings (user_id)
 VALUES ($1)
+ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
     RETURNING *;
 
 -- name: UpdateReferralEarnings :one
