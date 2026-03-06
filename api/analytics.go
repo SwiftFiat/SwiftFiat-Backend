@@ -56,7 +56,7 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/daily-transactions-summary", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetDailyTransactions)
 	serverGroupV1.POST("/create-notification", h.server.authMiddleware.AuthenticatedMiddleware(), h.createNotification)
 	serverGroupV1.GET("/list-admin-alerts", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAdminAlerts)
-	serverGroupV1.GET("/mark-alert-as-read", h.server.authMiddleware.AuthenticatedMiddleware(), h.MarkAlertAsRead)
+	serverGroupV1.GET("/mark-alert-as-read/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.MarkAlertAsRead)
 	serverGroupV1.GET("/list-unread-alerts", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListUnReadAlerts)
 	serverGroupV1.GET("/list-card-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllVirtualCardTransactions)
 	serverGroupV1.GET("/list-rapid-ramp-users", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRapidRampUsers)
@@ -1191,13 +1191,13 @@ func (h *Analytics) MarkAlertAsRead(c *gin.Context) {
 	}
 
 	alertIDStr := c.Param("id")
-	alertID, err := strconv.ParseInt(alertIDStr, 10, 64)
+	alertID, err := strconv.Atoi(alertIDStr)
 	if err != nil {
 		c.JSON(400, basemodels.NewError("invalid alert ID"))
 		return
 	}
 
-	err = h.notif.AcknowledgeAdminAlert(c, alertID)
+	err = h.notif.AcknowledgeAdminAlert(c, int64(alertID))
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
 		return

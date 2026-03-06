@@ -134,6 +134,11 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 		return
 	}
 
+	if request.ReferralCode == activeUser.UserTag {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("you cannot refer yourself"))
+		return
+	}
+
 	ref, err := r.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, refAmount)
 	if err != nil {
 		r.server.logger.Error("Failed to track referral", logrus.Fields{

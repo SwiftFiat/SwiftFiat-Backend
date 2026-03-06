@@ -43,6 +43,7 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		}
 		return nil, fmt.Errorf("an error occurred while fetching referral record: %w", err)
 	}
+
 	referrerID := int64(referralRecord.UserID)
 
 	// Step 2: Check if referee was already referred
@@ -62,13 +63,6 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		return nil, fmt.Errorf("an error occurred while creating referral: %w", err)
 	}
 
-	// // Create referral earning
-	// _, err = s.repo.queries.CreateReferralEarnings(ctx, int32(referrerID), referralAmount)
-	// if err != nil {
-	// 	s.logger.Error(err)
-	// 	return nil, fmt.Errorf("an error occurred while creating referral earning: %w", err)
-	// }
-
 	referedUser, err := s.repo.queries.GetUserByID(ctx, referral.RefereeID)
 	if err != nil {
 		s.logger.Errorf("failed to get user [TrackReferral]: %v", err)
@@ -82,32 +76,6 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		)
 		return nil, err
 	}
-
-	// Ensure referral earnings record exists for the referrer
-	// _, err = s.repo.GetReferralEarnings(ctx, referrerID)
-	// if err != nil {
-	// 	s.logger.Error(err)
-	// 	return nil, err
-	// }
-
-	// params := db.UpdateReferralEarningsParams{
-	// 	UserID:      int32(referrerID),
-	// 	TotalEarned: referralAmount.String(),
-	// }
-
-	// _, err = s.repo.queries.UpdateReferralEarnings(ctx, params)
-	// if err != nil {
-	// 	s.logger.Error(err)
-	// 	return nil, err
-	// }
-	// err = s.repo.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
-	// 	Status:    string(ReferralStatusActive),
-	// 	RefereeID: int32(refereeID),
-	// })
-	// if err != nil {
-	// 	s.logger.Error(err)
-	// 	return nil, fmt.Errorf("an error occurred : %v", err)
-	// }
 
 	s.push.NewReferral(ctx, refereeID, referedUser.UserTag.String)
 	s.notifyr.CreateWithRecipients(
