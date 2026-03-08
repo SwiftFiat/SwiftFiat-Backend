@@ -506,7 +506,8 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 
 	// Update user streak
 	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, params.userID, history.ID, "conversion"); err != nil {
-		return nil, err
+		s.logger.Error(fmt.Sprintf("Failed to update user streak: %v", err))
+		// Don't fail the conversion for this
 	}
 
 	// Increment user's conversion volume for VIP tracking

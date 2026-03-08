@@ -38,7 +38,6 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
 	serverGroupV1.POST("validate-bvn", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateNIN)
-	serverGroupV1.POST("update-address", k.server.authMiddleware.AuthenticatedMiddleware(), k.updateAddress)
 	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
 	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
 
@@ -502,78 +501,19 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN verified successfully", nil))
 }
 
-// Update Address Information
-func (k *KYC) updateAddress(ctx *gin.Context) {
-	request := struct {
-		State           string `json:"state" binding:"required"`
-		LGA             string `json:"lga" binding:"required"`
-		HouseNumber     string `json:"house_number" binding:"required"`
-		StreetName      string `json:"street_name" binding:"required"`
-		NearestLandmark string `json:"nearest_landmark"`
-	}{}
-
-	err := ctx.ShouldBindJSON(&request)
-	if err != nil {
-		k.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid address input"))
-		return
-	}
-
-	activeUser, err := utils.GetActiveUser(ctx)
-	if err != nil {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
-		return
-	}
-
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-	if err == sql.ErrNoRows {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
-		return
-	} else if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
-	}
-
-	args := db.UpdateKYCAddressParams{
-		ID: userKyc.ID,
-		State: sql.NullString{
-			String: request.State,
-			Valid:  true,
-		},
-		Lga: sql.NullString{
-			String: request.LGA,
-			Valid:  true,
-		},
-		HouseNumber: sql.NullString{
-			String: request.HouseNumber,
-			Valid:  true,
-		},
-		StreetName: sql.NullString{
-			String: request.StreetName,
-			Valid:  true,
-		},
-		NearestLandmark: sql.NullString{
-			String: request.NearestLandmark,
-			Valid:  request.NearestLandmark != "",
-		},
-	}
-
-	_, err = k.server.queries.UpdateKYCAddress(ctx, args)
-	if err != nil {
-		k.server.logger.Error(err)
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
-		return
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Address updated successfully", nil))
-}
-
 func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
+	// Address Information
+	state := ctx.PostForm("state")
+	lga := ctx.PostForm("lga")
+	houseNumber := ctx.PostForm("house_number")
+	streetName := ctx.PostForm("street_name")
+	nearestLandmark := ctx.PostForm("nearest_landmark")
+
+	if state == "" || lga == "" || houseNumber == "" || streetName == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("state, lga, house_number, and street_name are required"))
+		return
+	}
+
 	file, header, err := ctx.Request.FormFile("file")
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("file is required"))
@@ -642,6 +582,48 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		return
 	}
 
+	// Get KYC record
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Update Address Information
+	addressArgs := db.UpdateKYCAddressParams{
+		ID: userKyc.ID,
+		State: sql.NullString{
+			String: state,
+			Valid:  true,
+		},
+		Lga: sql.NullString{
+			String: lga,
+			Valid:  true,
+		},
+		HouseNumber: sql.NullString{
+			String: houseNumber,
+			Valid:  true,
+		},
+		StreetName: sql.NullString{
+			String: streetName,
+			Valid:  true,
+		},
+		NearestLandmark: sql.NullString{
+			String: nearestLandmark,
+			Valid:  nearestLandmark != "",
+		},
+	}
+
+	_, err = k.server.queries.UpdateKYCAddress(ctx, addressArgs)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
+		return
+	}
+
 	// Store proof document
 	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
 		UserID:    int32(activeUser.UserID),
@@ -655,13 +637,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	// Update KYC with proof information
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
-		return
-	}
-
-	args := db.UpdateKYCProofOfAddressParams{
+	proofArgs := db.UpdateKYCProofOfAddressParams{
 		ID: userKyc.ID,
 		ProofOfAddressType: sql.NullString{
 			String: normalizedProofType,
@@ -677,7 +653,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		},
 	}
 
-	kyc, err := k.server.queries.UpdateKYCProofOfAddress(ctx, args)
+	kyc, err := k.server.queries.UpdateKYCProofOfAddress(ctx, proofArgs)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to update KYC with proof information"))
@@ -723,7 +699,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your address verification (Tier 3) was successful.")
 	}()
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded and address updated successfully!", gin.H{
 		"id":           models.ID(proof.ID),
 		"user_id":      models.ID(proof.UserID),
 		"filename":     proof.Filename,
