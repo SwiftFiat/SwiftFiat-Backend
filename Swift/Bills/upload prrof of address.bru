@@ -1,0 +1,28 @@
+meta {
+  name: upload prrof of address
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{BaseURl}}/kyc/upload-address-proof
+  body: multipartForm
+  auth: inherit
+}
+
+params:query {
+  : 
+}
+
+body:multipart-form {
+  : 
+}
+
+body:file {
+  file: @file(/home/bontus/Documents/cpp/player.png) @contentType(image/png)
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

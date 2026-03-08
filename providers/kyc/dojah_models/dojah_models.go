@@ -1,5 +1,10 @@
 package dojahmodels
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 type BVNResponse struct {
 	Entity BVNEntity `json:"entity"`
 }
@@ -15,6 +20,26 @@ type EntityInfo struct {
 	ConfidenceValue int    `json:"confidence_value"`
 	Value           string `json:"value"`
 	Status          bool   `json:"status"`
+}
+
+func (e *EntityInfo) UnmarshalJSON(data []byte) error {
+	// Try to unmarshal as the full object first
+	type alias EntityInfo
+	var a alias
+	if err := json.Unmarshal(data, &a); err == nil {
+		*e = EntityInfo(a)
+		return nil
+	}
+
+	// If that fails, try to unmarshal as a simple string
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		e.Value = s
+		e.Status = s != ""
+		return nil
+	}
+
+	return fmt.Errorf("failed to unmarshal EntityInfo: %s", string(data))
 }
 
 type SelfieVerification struct {

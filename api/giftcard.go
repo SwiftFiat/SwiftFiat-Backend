@@ -39,6 +39,7 @@ func (g GiftCard) router(server *Server) {
 		server.logger,
 		server.redis,
 		server.config,
+		server.pushNotification,
 	)
 	g.transactionService = server.transactionService
 

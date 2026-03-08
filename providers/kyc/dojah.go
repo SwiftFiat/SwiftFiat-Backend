@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -43,11 +45,32 @@ func NewKYCProvider() *DOJAHProvider {
 			BaseURL: c.KYCProviderBaseUrl,
 			APIKey:  c.KYCProviderKey,
 			Client: &http.Client{
-				Timeout: time.Second * 30,
+				Timeout: time.Second * 60,
+				Transport: &http.Transport{
+					TLSHandshakeTimeout: 30 * time.Second,
+				},
 			},
 		},
 		config: &c,
 	}
+}
+
+func (p *DOJAHProvider) getFullURL(relativePath string) (*url.URL, error) {
+	u, err := url.Parse(p.BaseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Normalize base path: ensure it ends with api/v1 if not present
+	// and handle trailing slashes
+	u.Path = strings.TrimSuffix(u.Path, "/")
+	if !strings.Contains(u.Path, "api/v1") {
+		u.Path = path.Join(u.Path, "api/v1")
+	}
+
+	// Append relative path
+	u.Path = path.Join(u.Path, relativePath)
+	return u, nil
 }
 
 func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name string, dob *string) (*dojahmodels.BVNEntity, error) {
@@ -59,25 +82,22 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	requiredHeaders["AppId"] = p.config.KYCProviderID
 	requiredHeaders["Authorization"] = p.config.KYCProviderKey
 
-	base, err := url.Parse(p.BaseURL)
+	fullURL, err := p.getFullURL("kyc/bvn")
 	if err != nil {
-		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+		return nil, fmt.Errorf("failed to construct URL: %w", err)
 	}
-
-	// Path params
-	base.Path += "api/v1/kyc/bvn"
 
 	// Query params
 	params := url.Values{}
 	params.Add("bvn", bvn)
 	params.Add("first_name", first_name)
 	params.Add("last_name", last_name)
-	if dob != nil {
-		params.Add("dob", *dob)
-	}
-	base.RawQuery = params.Encode()
+	// if dob != nil {
+	// 	params.Add("dob", *dob)
+	// }
+	fullURL.RawQuery = params.Encode()
 
-	resp, err := p.MakeRequest("GET", base.String(), nil, requiredHeaders)
+	resp, err := p.MakeRequest("GET", fullURL.String(), nil, requiredHeaders)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +126,13 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s \nBody: %s", resp.StatusCode, resp.Request.URL, string(bodyBytes))
+	}
+
+	// Check if content type is JSON
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return nil, fmt.Errorf("expected application/json response but got %s. Body: %s", contentType, string(bodyBytes))
 	}
 
 	// Decode the response body
@@ -129,15 +155,12 @@ func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity
 	requiredHeaders["AppId"] = p.config.KYCProviderID
 	requiredHeaders["Authorization"] = p.config.KYCProviderKey
 
-	base, err := url.Parse(p.BaseURL)
+	fullURL, err := p.getFullURL("kyc/nin/verify")
 	if err != nil {
-		return nil, fmt.Errorf("unexpected status code: %v", err.Error())
+		return nil, fmt.Errorf("failed to construct URL: %w", err)
 	}
 
-	// Path params
-	base.Path += "api/v1/kyc/nin/verify"
-
-	resp, err := p.MakeRequest("POST", base.String(), request, requiredHeaders)
+	resp, err := p.MakeRequest("POST", fullURL.String(), request, requiredHeaders)
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +190,13 @@ func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity
 	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s", resp.StatusCode, resp.Request.URL)
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s \nBody: %s", resp.StatusCode, resp.Request.URL, string(bodyBytes))
+	}
+
+	// Check if content type is JSON
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return nil, fmt.Errorf("expected application/json response but got %s. Body: %s", contentType, string(bodyBytes))
 	}
 
 	// Decode the response body

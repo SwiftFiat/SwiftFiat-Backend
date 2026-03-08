@@ -220,6 +220,19 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, fmt.Errorf("failed to convert amount to decimal: %w", err)
 	}
 
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	// Get vip adjusted rate
 	rate, err := s.rateManagerService.GetAdjustedRateForUser(ctx, user.ID, req.SourceCurrency, req.TargetCurrency, req.Amount)
 	if err != nil {

@@ -1241,3 +1241,47 @@ func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Co
 	}
 	return nil
 }
+
+func (p *PushNotificationService) SendPushNotification(ctx context.Context, userID int64, title string, message string) error {
+	tokens, err := p.getUserPushTokens(ctx, userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info("No push tokens found for user")
+		return nil
+	}
+
+	Title := title
+	Message := message
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(ctx, &PushNotificationInfo{
+			Title:        Title,
+			Message:      Message,
+			Provider:     PushProviderFCM,
+			UserFCMToken: tokens.FCMToken,
+			Badge:        1,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(ctx, &PushNotificationInfo{
+			Title:         Title,
+			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
+		}
+	}
+	return nil
+}

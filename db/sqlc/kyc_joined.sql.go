@@ -20,7 +20,7 @@ SELECT
     u.first_name as first_name,
     u.last_name as last_name,
     u.email as user_email,
-    k.id, k.user_id, k.status, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
     json_agg(pai) as proof_of_address_images
 FROM kyc k
 LEFT JOIN users u ON k.user_id = u.id 
@@ -38,6 +38,7 @@ type GetUserAndKYCWithProofOfAddressRow struct {
 	ID                   int64                 `json:"id"`
 	UserID_2             int32                 `json:"user_id_2"`
 	Status               string                `json:"status"`
+	Tier                 string                `json:"tier"`
 	VerificationDate     sql.NullTime          `json:"verification_date"`
 	FullName             sql.NullString        `json:"full_name"`
 	PhoneNumber          sql.NullString        `json:"phone_number"`
@@ -76,6 +77,7 @@ func (q *Queries) GetUserAndKYCWithProofOfAddress(ctx context.Context, id int64)
 		&i.ID,
 		&i.UserID_2,
 		&i.Status,
+		&i.Tier,
 		&i.VerificationDate,
 		&i.FullName,
 		&i.PhoneNumber,

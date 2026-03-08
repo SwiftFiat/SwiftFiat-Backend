@@ -67,6 +67,19 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		"user_id": userID,
 	}
 
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.pushSvc.SendPushNotification(ctx, int64(userID), "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
 	if err != nil {
 		return nil, err
@@ -176,6 +189,18 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCardRequest) (*bridgecards.CreateCardResponse, error) {
 	s.logger.Infof("IdempotencyKey 1: '%s'", params.IdempotencyKey)
 	s.logger.Infof("IdempotencyKey 2: '%s'", params.IdempotencyKey2)
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(params.UserID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.pushSvc.SendPushNotification(ctx, params.UserID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {

@@ -29,16 +29,18 @@ type GiftcardService struct {
 	logger *logging.Logger
 	redis  *redis.RedisService
 	config *utils.Config
+	push *service.PushNotificationService
 	/// We may need to inject the provider service here
 	/// since it's getting used in all of the functions
 }
 
-func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService, config *utils.Config) *GiftcardService {
+func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis *redis.RedisService, config *utils.Config, push *service.PushNotificationService) *GiftcardService {
 	return &GiftcardService{
 		store:  store,
 		logger: logger,
 		redis:  redis,
 		config: config,
+		push: push,
 	}
 }
 
@@ -606,6 +608,19 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 
 	if potentialAmount.LessThan(decimal.NewFromInt(0)) {
 		return nil, fmt.Errorf("potential amount is less than 0")
+	}
+
+	kyc, err := g.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go g.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
 	// g.logger.Info("starting giftcard outflow transaction")

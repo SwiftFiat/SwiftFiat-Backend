@@ -951,8 +951,17 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		return nil, fmt.Errorf("account inactive")
 	}
 
-	if !user.IsKycVerified {
-		return nil, fmt.Errorf("you need to complete KYC verification to create a vault goal")
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.pushService.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
 	// Validate request

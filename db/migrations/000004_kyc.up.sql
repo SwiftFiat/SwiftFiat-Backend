@@ -1,33 +1,23 @@
 /**
- * Simplified KYC System - Single Verification Flow
+ * Tiered KYC System
  * 
- * This removes the tiered system and implements a simple binary verification:
- * - User completes KYC → is_kyc_verified = true in users table
- * - No limits, no tiers - just verified or not verified
- * 
- * Required Information:
- * - Full Name
- * - Phone Number
- * - Email
- * - BVN or NIN (at least one required)
- * - Gender
- * - Selfie (Liveness check)
- * - Physical ID (International Passport, Voters Card, Driver's License)
- * - Address (State, LGA, House Number, Street Name, Landmark)
- * - Proof of Address (Utility Bill, Bank Statement, Tenancy Agreement - not older than 3 months)
+ * - Tier 1: Created on email verification (pending)
+ * - Tier 2: BVN + NIN verified (verified)
+ * - Tier 3: Address + Proof of Address verified (verified)
  */
 
 CREATE TABLE IF NOT EXISTS "kyc" (
     "id" BIGSERIAL PRIMARY KEY,
     "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'verified', 'rejected')),
+    "tier" VARCHAR(20) NOT NULL DEFAULT 'tier_1' CHECK ("tier" IN ('tier_1', 'tier_2', 'tier_3')),
     "verification_date" TIMESTAMPTZ,
 
     -- Personal Information
     "full_name" VARCHAR(255),
     "phone_number" VARCHAR(20),
     "email" VARCHAR(255),
-    "gender" VARCHAR(10) CHECK ("gender" IN ('male', 'female', 'other')),
+    "gender" VARCHAR(20),
     "selfie_url" TEXT,
 
     -- Identity Verification
@@ -79,42 +69,38 @@ CREATE OR REPLACE TRIGGER update_kyc_updated_at
 
 /**
  * Auto-verification trigger
- * Automatically sets status to 'verified' when all required fields are complete
- * and updates the is_kyc_verified flag in the users table
+ * Automatically updates tier and status based on completed fields
  */
 CREATE OR REPLACE FUNCTION auto_verify_kyc()
 RETURNS TRIGGER AS $$
-DECLARE
-    all_requirements_met BOOLEAN;
 BEGIN
-    -- Check if all required fields are present
-    all_requirements_met := (
-        NEW.full_name IS NOT NULL AND
-        NEW.phone_number IS NOT NULL AND
-        NEW.email IS NOT NULL AND
-        (NEW.bvn IS NOT NULL OR NEW.nin IS NOT NULL) AND  -- At least one ID
-        NEW.gender IS NOT NULL AND
-        NEW.selfie_url IS NOT NULL AND
-        NEW.id_type IS NOT NULL AND
-        NEW.id_number IS NOT NULL AND
-        NEW.id_image_url IS NOT NULL AND
-        NEW.state IS NOT NULL AND
-        NEW.lga IS NOT NULL AND
-        NEW.house_number IS NOT NULL AND
-        NEW.street_name IS NOT NULL AND
-        NEW.proof_of_address_type IS NOT NULL AND
-        NEW.proof_of_address_url IS NOT NULL AND
-        NEW.proof_of_address_date IS NOT NULL AND
-        -- Ensure proof of address is recent (within 6 months)
-        NEW.proof_of_address_date >= (CURRENT_DATE - INTERVAL '6 months')
-    );
-
-    -- If all requirements are met, auto-verify
-    IF all_requirements_met AND NEW.status = 'pending' THEN
-        NEW.status := 'verified';
-        NEW.verification_date := CURRENT_TIMESTAMP;
+    -- Tier 2 Verification: Both BVN and NIN must be present
+    IF (NEW.bvn IS NOT NULL AND NEW.bvn != '') AND (NEW.nin IS NOT NULL AND NEW.nin != '') THEN
+        -- Upgrade to tier_2 if currently tier_1
+        IF NEW.tier = 'tier_1' THEN
+            NEW.tier := 'tier_2';
+        END IF;
         
-        -- Update the users table
+        -- Set status to verified if it was pending
+        IF NEW.status = 'pending' THEN
+            NEW.status := 'verified';
+            NEW.verification_date := COALESCE(NEW.verification_date, CURRENT_TIMESTAMP);
+        END IF;
+    END IF;
+
+    -- Tier 3 Verification: Address proof must be present
+    IF (NEW.proof_of_address_url IS NOT NULL AND NEW.proof_of_address_url != '') THEN
+        NEW.tier := 'tier_3';
+        
+        -- Ensure status is verified
+        IF NEW.status = 'pending' THEN
+            NEW.status := 'verified';
+            NEW.verification_date := COALESCE(NEW.verification_date, CURRENT_TIMESTAMP);
+        END IF;
+    END IF;
+
+    -- Sync with users table if status changed to verified
+    IF NEW.status = 'verified' AND (TG_OP = 'INSERT' OR OLD.status != 'verified') THEN
         UPDATE users 
         SET is_kyc_verified = true, 
             updated_at = CURRENT_TIMESTAMP

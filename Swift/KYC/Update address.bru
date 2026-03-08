@@ -1,0 +1,30 @@
+meta {
+  name: Update address
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{BaseURl}}/kyc/update-address
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "state": "abia",
+    "lga": "aba south",
+    "house_number": "4",
+    "street_name": "street",
+    "nearest_landmark": "landmark"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

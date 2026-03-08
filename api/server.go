@@ -216,7 +216,7 @@ func NewServer(envPath string) *Server {
 	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
 
 	// subscriptons service
-	ss := subscriptions.NewService(q, l, bridgecard)
+	ss := subscriptions.NewService(q, l, bridgecard, pn)
 
 	// streak
 	streak := streaks.NewStreakService(q, l)

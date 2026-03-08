@@ -10,6 +10,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/bridgecards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -19,13 +20,15 @@ type Service struct {
 	store      *db.Store
 	logger     *logging.Logger
 	bridgeCard *bridgecards.BridgeCardProvider
+	push *service.PushNotificationService
 }
 
-func NewService(store *db.Store, logger *logging.Logger, bridgeCard *bridgecards.BridgeCardProvider) *Service {
+func NewService(store *db.Store, logger *logging.Logger, bridgeCard *bridgecards.BridgeCardProvider, push *service.PushNotificationService) *Service {
 	return &Service{
 		store:      store,
 		logger:     logger,
 		bridgeCard: bridgeCard,
+		push: push,
 	}
 }
 
@@ -162,6 +165,19 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 	settings, err := s.LoadSystemSettings(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
 	// Valdate user has not exceeded imit

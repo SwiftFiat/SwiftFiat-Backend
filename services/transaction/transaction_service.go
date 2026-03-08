@@ -1770,6 +1770,13 @@ func (s *TransactionService) buildAirtimeResponse(
 	}
 }
 
+var (
+	tier1MaxAmountForAirtime     = decimal.NewFromInt(200)
+	tier1MaxAmountForData        = decimal.NewFromInt(200)
+	tier1MaxAmountForElectricity = decimal.NewFromInt(5000)
+	tier1MaxAmountForTV          = decimal.NewFromInt(20000)
+)
+
 // ── HandleAirtime ──────────────────────────────────────────────────────────────
 func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, req BuyAirtimeRequest) (*BuyAirtimeResponse, error) {
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
@@ -1799,6 +1806,24 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 	amount := decimal.NewFromInt(req.Amount)
 	if walletBalance.LessThan(amount) {
 		return nil, ErrInsufficientBalance
+	}
+
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier1" {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
+	}
+
+	if amount.GreaterThan(tier1MaxAmountForAirtime) {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_AIRTIME_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
 	// Reward redemption.
@@ -2039,6 +2064,24 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 	}
 	if walletBalance.LessThan(amount) {
 		return nil, ErrInsufficientBalance
+	}
+
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier1" {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
+	}
+
+	if amount.GreaterThan(tier1MaxAmountForData) {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_DATA_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
@@ -2296,6 +2339,24 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 	}
 	if walletBalance.LessThan(amount) {
 		return nil, ErrInsufficientBalance
+	}
+
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier1" {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
+	}
+
+	if amount.GreaterThan(tier1MaxAmountForTV) {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
@@ -2765,8 +2826,8 @@ func (s *TransactionService) reconcileFinalizeBillSuccess(ctx context.Context, m
 		}
 	case "BankTransfer":
 		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: meta.GetTransactionID(),
-			Status:        string(Success),
+			TransactionID:        meta.GetTransactionID(),
+			Status:               string(Success),
 			ServiceTransactionID: sql.NullString{String: meta.GetRequestID(), Valid: true},
 		}); err != nil {
 			return err
@@ -2836,8 +2897,8 @@ func (s *TransactionService) reconcileFinalizeBillFailure(ctx context.Context, m
 		}
 	case "BankTransfer":
 		if _, err = s.store.WithTx(dbTx).UpdateBankTransferStatus(ctx, db.UpdateBankTransferStatusParams{
-			TransactionID: meta.GetTransactionID(),
-			Status:        string(Failed),
+			TransactionID:        meta.GetTransactionID(),
+			Status:               string(Failed),
 			ServiceTransactionID: sql.NullString{String: meta.GetRequestID(), Valid: true},
 		}); err != nil {
 			return err
@@ -2913,6 +2974,24 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 	}
 	if walletBalance.LessThan(amount) {
 		return nil, ErrInsufficientBalance
+	}
+
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier1" {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
+	}
+
+	if amount.GreaterThan(tier1MaxAmountForTV) {
+		go s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		return nil, fmt.Errorf("Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
 	pointsToUseDecimal := decimal.NewFromFloat32(req.PointsToUse)
@@ -3122,6 +3201,19 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 		return nil, fmt.Errorf("tx exists") //TODO: finish for tx status
 	}
 
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	recipientUser, err := s.store.Queries.GetUserByTag(ctx, sql.NullString{String: req.DestinationUserTag, Valid: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to get recipient user: %v", err)
@@ -3320,7 +3412,20 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		return nil, fmt.Errorf("invalid request: missing account number, bank code, or recipient name")
 	}
 
-	_, err := s.store.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier != "tier2" {
+		go s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
+	_, err = s.store.GetTransactionByIdempotencyKey(ctx, req.IdempotencyKey)
 	if err == nil {
 		return &BankTransferResponse{}, fmt.Errorf("tx exists")
 	}

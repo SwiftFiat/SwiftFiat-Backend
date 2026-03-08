@@ -1,8 +1,8 @@
 package api
 
 import (
+	"context"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,18 +18,21 @@ import (
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
 
 type KYC struct {
 	server  *Server
 	notifyr *service.Notification
+	push    *service.PushNotificationService
+	email   *service.Plunk
 }
 
 func (k KYC) router(server *Server) {
 	k.server = server
 	k.notifyr = service.NewNotificationService(k.server.queries)
+	k.push = server.pushNotification
+	k.email = server.emailService
 
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
 	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
@@ -38,9 +41,17 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.POST("update-address", k.server.authMiddleware.AuthenticatedMiddleware(), k.updateAddress)
 	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
 	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
-	
+
 	// New endpoint to check verification progress
 	serverGroupV1.GET("verification-progress", k.server.authMiddleware.AuthenticatedMiddleware(), k.getVerificationProgress)
+
+	// Admin endpoints
+	adminGroup := server.router.Group("/api/v1/admin/kyc")
+	adminGroup.Use(k.server.authMiddleware.AuthenticatedMiddleware())
+	{
+		adminGroup.POST("/verify/:id", k.verifyKYC)
+		adminGroup.POST("/reject/:id", k.rejectKYC)
+	}
 }
 
 // getVerificationProgress returns which fields are completed and what's still needed
@@ -56,11 +67,11 @@ func (k *KYC) getVerificationProgress(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("No KYC record found", gin.H{
 			"completed_fields": []string{},
 			"pending_fields": []string{
-				"full_name", "phone_number", "email", "bvn_or_nin", 
+				"full_name", "phone_number", "email", "bvn_or_nin",
 				"gender", "selfie", "government_id", "address", "proof_of_address",
 			},
 			"progress_percentage": 0,
-			"is_verified": false,
+			"is_verified":         false,
 		}))
 		return
 	} else if err != nil {
@@ -254,58 +265,72 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	// Default gender to male unless specified
-	genderString := "male"
-	if request.Gender != "" {
-		genderString = request.Gender
-	}
-
 	// Update KYC with BVN information
-	args := db.UpdateKYCBasicInfoParams{
+	args := db.UpdateBVNParams{
 		ID: userKyc.ID,
-		FullName: sql.NullString{
-			String: dbUser.FirstName.String + " " + dbUser.LastName.String,
-			Valid:  dbUser.FirstName.Valid && dbUser.LastName.Valid,
-		},
-		PhoneNumber: sql.NullString{
-			String: dbUser.PhoneNumber,
-			Valid:  true,
-		},
-		Email: sql.NullString{
-			String: dbUser.Email,
-			Valid:  true,
-		},
 		Bvn: sql.NullString{
 			String: verificationData.BVN.Value,
 			Valid:  verificationData.BVN.Status,
 		},
-		SelfieUrl: sql.NullString{
-			String: "https://www.example.com",
-			Valid:  true,
-		},
-		Gender: sql.NullString{
-			String: genderString,
-			Valid:  true,
-		},
 	}
 
-	kyc, err := k.server.queries.UpdateKYCBasicInfo(ctx, args)
+	kyc, err := k.server.queries.UpdateBVN(ctx, args)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("KYC update failed at DB level"))
 		return
 	}
 
-	// Check if user is now fully verified (will be handled by trigger)
-	// But we can still check and provide feedback
-	if kyc.Status == "verified" {
-		k.onKYCCompletion(ctx, activeUser.UserID)
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
+	// Update to Tier 2 if both BVN and NIN are present
+	if kyc.Bvn.Valid && kyc.Bvn.String != "" && kyc.Nin.Valid && kyc.Nin.String != "" {
+		if kyc.Tier == "tier_1" {
+			_, err = k.server.queries.UpdateKYCToTierTwo(ctx, kyc.ID)
+			if err != nil {
+				k.server.logger.Errorf("failed to update kyc %d to tier 2: %v", kyc.ID, err)
+			}
+		}
+
+		_, err = k.server.queries.UpdateKYCStatus(ctx, db.UpdateKYCStatusParams{
+			ID:     kyc.ID,
+			Status: "verified",
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update kyc %d status to verified: %v", kyc.ID, err)
+		}
+
+		_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+			ID:            int64(kyc.UserID),
+			IsKycVerified: true,
+			UpdatedAt:     time.Now(),
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+		}
+
+		// Refresh kyc object
+		updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
+		if err == nil {
+			kyc = updatedKyc
+		}
+
+		// Send notifications
+		go func() {
+			bgCtx := context.Background()
+			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []int64{int64(kyc.UserID)})
+			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your identity verification (Tier 2) was successful.")
+			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
+		}()
 	} else {
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "BVN Verified", "Your BVN has been successfully verified. Please complete remaining KYC steps.")
+		// Only BVN verified
+		go func() {
+			bgCtx := context.Background()
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.", "system", []int64{int64(kyc.UserID)})
+			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.")
+		}()
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN verified successfully", models.ToUserKYCInformation(&kyc)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("BVN verified successfully", nil))
 }
 
 func (k *KYC) validateNIN(ctx *gin.Context) {
@@ -403,6 +428,14 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 			String: verificationData.Image,
 			Valid:  true,
 		},
+		PhoneNumber: sql.NullString{
+			String: verificationData.PhoneNumber,
+			Valid:  true,
+		},
+		FullName: sql.NullString{
+			String: verificationData.FirstName + " " + verificationData.LastName,
+			Valid:  true,
+		},
 	}
 
 	kyc, err := k.server.queries.UpdateKYCNINInfo(ctx, args)
@@ -412,23 +445,66 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	if kyc.Status == "verified" {
-		k.onKYCCompletion(ctx, activeUser.UserID)
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
+	// Update to Tier 2 if both BVN and NIN are present
+	if kyc.Bvn.Valid && kyc.Bvn.String != "" && kyc.Nin.Valid && kyc.Nin.String != "" {
+		if kyc.Tier == "tier_1" {
+			_, err = k.server.queries.UpdateKYCToTierTwo(ctx, kyc.ID)
+			if err != nil {
+				k.server.logger.Errorf("failed to update kyc %d to tier 2: %v", kyc.ID, err)
+			}
+		}
+
+		_, err = k.server.queries.UpdateKYCStatus(ctx, db.UpdateKYCStatusParams{
+			ID:     kyc.ID,
+			Status: "verified",
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update kyc %d status to verified: %v", kyc.ID, err)
+		}
+
+		_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+			ID:            int64(kyc.UserID),
+			IsKycVerified: true,
+			UpdatedAt:     time.Now(),
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+		}
+
+		// Refresh kyc object
+		updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
+		if err == nil {
+			kyc = updatedKyc
+		}
+
+		// Send notifications
+		go func() {
+			bgCtx := context.Background()
+			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []int64{int64(kyc.UserID)})
+			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your identity verification (Tier 2) was successful.")
+			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
+		}()
 	} else {
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "NIN Verified", "Your NIN has been successfully verified. Please complete remaining KYC steps.")
+		// Only NIN verified
+		go func() {
+			bgCtx := context.Background()
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.", "system", []int64{int64(kyc.UserID)})
+			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.")
+		}()
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN verified successfully", models.ToUserKYCInformation(&kyc)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("NIN verified successfully", nil))
 }
 
+// Update Address Information
 func (k *KYC) updateAddress(ctx *gin.Context) {
 	request := struct {
-		State            string `json:"state" binding:"required"`
-		LGA              string `json:"lga" binding:"required"`
-		HouseNumber      string `json:"house_number" binding:"required"`
-		StreetName       string `json:"street_name" binding:"required"`
-		NearestLandmark  string `json:"nearest_landmark"`
+		State           string `json:"state" binding:"required"`
+		LGA             string `json:"lga" binding:"required"`
+		HouseNumber     string `json:"house_number" binding:"required"`
+		StreetName      string `json:"street_name" binding:"required"`
+		NearestLandmark string `json:"nearest_landmark"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -482,21 +558,14 @@ func (k *KYC) updateAddress(ctx *gin.Context) {
 		},
 	}
 
-	kyc, err := k.server.queries.UpdateKYCAddress(ctx, args)
+	_, err = k.server.queries.UpdateKYCAddress(ctx, args)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
 		return
 	}
 
-	if kyc.Status == "verified" {
-		k.onKYCCompletion(ctx, activeUser.UserID)
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete.")
-	} else {
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "Address Updated", "Your address has been successfully updated.")
-	}
-
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Address updated successfully", models.ToUserKYCInformation(&kyc)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Address updated successfully", nil))
 }
 
 func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
@@ -610,21 +679,53 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		return
 	}
 
-	if kyc.Status == "verified" {
-		k.onKYCCompletion(ctx, activeUser.UserID)
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "KYC Complete", "Congratulations! Your KYC verification is complete and your account is now fully verified.")
-	} else {
-		// k.notifyr.Create(ctx, int32(activeUser.UserID), "Proof of Address Uploaded", "Your proof of address has been uploaded successfully.")
+	// Update to Tier 3
+	_, err = k.server.queries.UpdateKYCToTierThree(ctx, kyc.ID)
+	if err != nil {
+		k.server.logger.Errorf("failed to update kyc %d to tier 3: %v", kyc.ID, err)
 	}
 
+	// Ensure status is verified and user table is updated
+	_, err = k.server.queries.UpdateKYCStatus(ctx, db.UpdateKYCStatusParams{
+		ID:     kyc.ID,
+		Status: "verified",
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to update kyc %d status to verified: %v", kyc.ID, err)
+	}
+
+	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		ID:            int64(kyc.UserID),
+		IsKycVerified: true,
+		UpdatedAt:     time.Now(),
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+	}
+
+	// Refresh kyc object
+	updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
+	if err == nil {
+		kyc = updatedKyc
+	}
+
+	// Send notifications
+	go func() {
+		bgCtx := context.Background()
+		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		k.email.KycVerified(bgCtx, u.FirstName.String, u.Email)
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []int64{int64(kyc.UserID)})
+		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your address verification (Tier 3) was successful.")
+	}()
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded successfully!", gin.H{
-		"id":              models.ID(proof.ID),
-		"user_id":         models.ID(proof.UserID),
-		"filename":        proof.Filename,
-		"proof_type":      proof.ProofType,
-		"created_at":      proof.CreatedAt,
-		"kyc_status":      kyc.Status,
-		"kyc_verified":    kyc.Status == "verified",
+		"id":           models.ID(proof.ID),
+		"user_id":      models.ID(proof.UserID),
+		"filename":     proof.Filename,
+		"proof_type":   proof.ProofType,
+		"created_at":   proof.CreatedAt,
+		"kyc_status":   kyc.Status,
+		"kyc_verified": kyc.Status == "verified",
 	}))
 }
 
@@ -647,42 +748,107 @@ func (k *KYC) retrieveProofOfAddress(c *gin.Context) {
 	c.Data(http.StatusOK, "application/octet-stream", proof.ImageData)
 }
 
-func (k *KYC) onKYCCompletion(ctx *gin.Context, userID int64) {
-	referral, err := k.server.queries.GetReferralByRefereeID(ctx, int32(userID))
+func (k *KYC) verifyKYC(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return
-		}
-		k.server.logger.Error(err)
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	referrerID := int64(referral.ReferrerID)
-	referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
-	if err != nil {
-		k.server.logger.Error(err)
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
 		return
 	}
 
-	params := db.UpdateReferralEarningsParams{
-		UserID:      int32(referrerID),
-		TotalEarned: referralBonus.String(),
-	}
-	_, err = k.server.queries.UpdateReferralEarnings(ctx, params)
+	id := ctx.Param("id")
+	idObj, err := models.ParseIDFromString(id)
 	if err != nil {
-		k.server.logger.Error(err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid KYC ID"))
 		return
 	}
 
-	err = k.server.queries.UpdateReferralStatus(ctx, db.UpdateReferralStatusParams{
-		ID: referral.ID,
-		Status:    "active",
+	kyc, err := k.server.queries.ManuallyVerifyKYC(ctx, int64(idObj))
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to verify KYC"))
+		return
+	}
+
+	// Update user table
+	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		ID:            int64(kyc.UserID),
+		IsKycVerified: true,
+		UpdatedAt:     time.Now(),
 	})
 	if err != nil {
-		k.server.logger.Error(err)
+		k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+	}
+
+	// Send notifications
+	go func() {
+		bgCtx := context.Background()
+		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		k.email.KycVerified(bgCtx, u.FirstName.String, u.Email)
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your KYC has been manually verified by an administrator.", "system", []int64{int64(kyc.UserID)})
+		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your KYC has been manually verified by an administrator.")
+	}()
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("KYC verified successfully", models.ToUserKYCInformation(&kyc)))
+}
+
+func (k *KYC) rejectKYC(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
 
-	// k.notifyr.Create(ctx, int32(referrerID), "Referral Bonus", 
-		// fmt.Sprintf("You've earned %s for referring a user who completed KYC verification!", referralBonus.String()))
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	id := ctx.Param("id")
+	idObj, err := models.ParseIDFromString(id)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid KYC ID"))
+		return
+	}
+
+	var req struct {
+		Reason string `json:"reason" binding:"required"`
+	}
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Reason is required for rejection"))
+		return
+	}
+
+	kyc, err := k.server.queries.RejectKYC(ctx, db.RejectKYCParams{
+		ID:      int64(idObj),
+		Column2: req.Reason,
+	})
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to reject KYC"))
+		return
+	}
+
+	// Update user table
+	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		ID:            int64(kyc.UserID),
+		IsKycVerified: false,
+		UpdatedAt:     time.Now(),
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+	}
+
+	// Send notifications
+	go func() {
+		bgCtx := context.Background()
+		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		k.email.KycFailed(bgCtx, u.FirstName.String, u.Email, req.Reason)
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason), "system", []int64{int64(kyc.UserID)})
+		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason))
+	}()
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("KYC rejected successfully", models.ToUserKYCInformation(&kyc)))
 }

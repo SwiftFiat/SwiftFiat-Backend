@@ -37,6 +37,7 @@ type Auth struct {
 	refRepo         *referral.Repo
 	audit           *audit.Service
 	notifr          *service.Notification
+	push            *service.PushNotificationService
 }
 
 func (a Auth) router(server *Server) {
@@ -44,6 +45,7 @@ func (a Auth) router(server *Server) {
 	a.userService = a.server.userService
 	a.refRepo = referral.NewReferralRepository(server.queries)
 	a.notifr = a.server.inAppnotificationService
+	a.push = a.server.pushNotification
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr, a.server.pushNotification)
 	a.audit = a.server.auditService
 
@@ -1092,6 +1094,19 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 
 	a.server.redis.Delete(ctx, redisKey)
 
+	_, err = a.server.queries.CreateNewKYC(ctx, int32(user.ID))
+	if err != nil {
+		a.server.logger.Error(fmt.Sprintf("failed to update user %s tier to tier 1: %v", user.UserTag.String, err))
+	}
+
+	message := "Welcome! Your account is ready, Your account is currently on Tier 1 with basic access. Complete Tier 2 verification to unlock higher transaction limits and more features."
+
+	bgCtx := context.Background()
+	go func() {
+		a.notifr.CreateWithRecipients(bgCtx, nil, "Email Verified", message, "system", []int64{user.ID})
+		a.push.SendPushNotification(bgCtx, user.ID, "Email Verified", message)
+	}()
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", nil))
 }
 
@@ -1099,7 +1114,6 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 type ResendEmailRequest struct {
 	Email string `json:"email" binding:"required,email"`
 }
-
 
 // resendEmailVerification godoc
 // @Summary Resend email verification code

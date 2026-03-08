@@ -770,6 +770,7 @@ type Kyc struct {
 	ID                 int64                 `json:"id"`
 	UserID             int32                 `json:"user_id"`
 	Status             string                `json:"status"`
+	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
 	FullName           sql.NullString        `json:"full_name"`
 	PhoneNumber        sql.NullString        `json:"phone_number"`

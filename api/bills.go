@@ -61,6 +61,8 @@ func (b Bills) router(server *Server) {
 // Centralised here so all four handlers stay consistent.
 func mapBillError(ctx *gin.Context, err error) {
 	switch {
+	case err.Error() == "Err_AIRTIME_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_DATA_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_ELECTRICITY_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1":
+		ctx.JSON(http.StatusUnprocessableEntity, basemodels.NewError(err.Error()))
 	case errors.Is(err, transaction.ErrInsufficientBalance):
 		ctx.JSON(http.StatusUnprocessableEntity, basemodels.NewError(err.Error()))
 	case errors.Is(err, transaction.ErrTransactionPending):

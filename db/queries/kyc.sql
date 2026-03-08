@@ -1,25 +1,18 @@
 -- name: CreateNewKYC :one
 INSERT INTO kyc (
-    user_id
+    user_id, tier
 ) VALUES (
-    $1
+    $1, 'tier_1'
 ) RETURNING *;
 
 -- name: GetKYCByUserID :one
 SELECT * FROM kyc
 WHERE user_id = $1;
 
--- name: UpdateKYCBasicInfo :one
+-- name: UpdateBVN :one
 UPDATE kyc
 SET 
-    full_name = $2,
-    phone_number = $3,
-    email = $4,
-    bvn = $5,
-    gender = $6,
-    selfie_url = $7,
-    postal_code = $8,
-    country = $9,
+    bvn = $2,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -27,9 +20,12 @@ RETURNING *;
 -- name: UpdateKYCNINInfo :one
 UPDATE kyc
 SET 
-    nin = $2,
-    gender = $3,
-    selfie_url = $4,
+    full_name = $2,
+    nin = $3,
+    gender = $4,
+    selfie_url = $5,
+    -- dob = $6,
+    phone_number = $6,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
@@ -237,3 +233,27 @@ SET
 WHERE 
     status = 'verified'
     AND proof_of_address_date < (CURRENT_DATE - INTERVAL '6 months');
+
+-- name: UpdateKYCToTierOne :one
+UPDATE kyc
+SET 
+    tier = 'tier_1',
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateKYCToTierTwo :one
+UPDATE kyc
+SET 
+    tier = 'tier_2',
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
+
+-- name: UpdateKYCToTierThree :one
+UPDATE kyc
+SET 
+    tier = 'tier_3',
+    updated_at = now()
+WHERE id = $1
+RETURNING *;
