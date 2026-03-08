@@ -155,3 +155,12 @@ CREATE TRIGGER update_vault_savings_updated_at BEFORE UPDATE ON vault_savings
 
 CREATE TRIGGER update_vault_yield_configs_updated_at BEFORE UPDATE ON vault_yield_configs
     FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================================================
+-- Default values for yield configs
+-- ============================================================================
+INSERT INTO vault_yield_configs (currency, apy_rate, min_balance_for_yield, compound_frequency, is_active, effective_from, effective_until)
+VALUES ('NGN', 3.5, 0, 'daily', TRUE, NOW(), NULL);
+
+INSERT INTO vault_yield_configs (currency, apy_rate, min_balance_for_yield, compound_frequency, is_active, effective_from, effective_until)
+VALUES ('USD', 3.5, 0, 'daily', TRUE, NOW(), NULL);
