@@ -177,7 +177,12 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", models.ToUserKYCInformation(&userKyc)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", gin.H{
+		"status":  userKyc.Status,
+		"tier":    userKyc.Tier,
+		"date":    userKyc.VerificationDate.Time,
+		"user_id": userKyc.UserID,
+	}))
 }
 
 func (k *KYC) validateBVN(ctx *gin.Context) {

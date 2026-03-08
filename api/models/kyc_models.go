@@ -19,6 +19,7 @@ type UserKYCInformation struct {
 	VerificationDate      time.Time `json:"verification_date"`
 	FullName              string    `json:"full_name"`
 	PhoneNumber           string    `json:"phone_number"`
+	Tier                  string    `json:"tier"`
 	Email                 string    `json:"email"`
 	Bvn                   string    `json:"bvn"`
 	Nin                   string    `json:"nin"`

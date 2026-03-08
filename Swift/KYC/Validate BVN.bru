@@ -4,12 +4,23 @@ meta {
   seq: 3
 }
 
-get {
-  url: 
-  body: none
-  auth: inherit
+post {
+  url: {{BaseURl}}/kyc/validate-bvn
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "bvn": "22222222222"
+  }
 }
 
 settings {
   encodeUrl: true
+  timeout: 0
 }

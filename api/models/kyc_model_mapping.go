@@ -47,6 +47,7 @@ func ToUserKYCInformation(kyc *db.Kyc) *UserKYCInformation {
 		Email:              kyc.Email.String,
 		PostalCode:         kyc.PostalCode.String,
 		Bvn:                kyc.Bvn.String,
+		Tier:               kyc.Tier,
 		Nin:                kyc.Nin.String,
 		Gender:             kyc.Gender.String,
 		SelfieUrl:          kyc.SelfieUrl.String,
