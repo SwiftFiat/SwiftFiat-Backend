@@ -867,6 +867,7 @@ SET
     house_number = $4,
     street_name = $5,
     nearest_landmark = $6,
+    postal_code = $7,
     updated_at = now()
 WHERE id = $1
 RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
@@ -879,6 +880,7 @@ type UpdateKYCAddressParams struct {
 	HouseNumber     sql.NullString `json:"house_number"`
 	StreetName      sql.NullString `json:"street_name"`
 	NearestLandmark sql.NullString `json:"nearest_landmark"`
+	PostalCode      sql.NullString `json:"postal_code"`
 }
 
 func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressParams) (Kyc, error) {
@@ -889,6 +891,7 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 		arg.HouseNumber,
 		arg.StreetName,
 		arg.NearestLandmark,
+		arg.PostalCode,
 	)
 	var i Kyc
 	err := row.Scan(

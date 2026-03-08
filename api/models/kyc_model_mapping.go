@@ -16,6 +16,7 @@ func ToUserKYCInformationExtended(kyc *db.GetUserAndKYCWithProofOfAddressRow) *U
 			FullName:           kyc.FullName.String,
 			PhoneNumber:        kyc.PhoneNumber.String,
 			Email:              kyc.Email.String,
+			Tier:               kyc.Tier,
 			Bvn:                kyc.Bvn.String,
 			Nin:                kyc.Nin.String,
 			Gender:             kyc.Gender.String,

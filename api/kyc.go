@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
@@ -26,6 +28,7 @@ type KYC struct {
 	notifyr *service.Notification
 	push    *service.PushNotificationService
 	email   *service.Plunk
+	audit   *audit.Service
 }
 
 func (k KYC) router(server *Server) {
@@ -33,6 +36,7 @@ func (k KYC) router(server *Server) {
 	k.notifyr = service.NewNotificationService(k.server.queries)
 	k.push = server.pushNotification
 	k.email = server.emailService
+	k.audit = server.auditService
 
 	serverGroupV1 := server.router.Group("/api/v1/kyc")
 	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
@@ -45,12 +49,9 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.GET("verification-progress", k.server.authMiddleware.AuthenticatedMiddleware(), k.getVerificationProgress)
 
 	// Admin endpoints
-	adminGroup := server.router.Group("/api/v1/admin/kyc")
-	adminGroup.Use(k.server.authMiddleware.AuthenticatedMiddleware())
-	{
-		adminGroup.POST("/verify/:id", k.verifyKYC)
-		adminGroup.POST("/reject/:id", k.rejectKYC)
-	}
+	serverGroupV1.POST("/admin/verify/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyKYC)
+	serverGroupV1.POST("/admin/reject/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.rejectKYC)
+	serverGroupV1.GET("/admin/user/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.getAdminUserKyc)
 }
 
 // getVerificationProgress returns which fields are completed and what's still needed
@@ -176,12 +177,7 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", gin.H{
-		"status":  userKyc.Status,
-		"tier":    userKyc.Tier,
-		"date":    userKyc.VerificationDate.Time,
-		"user_id": userKyc.UserID,
-	}))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", models.ToUserKYCInformation(&userKyc)))
 }
 
 func (k *KYC) validateBVN(ctx *gin.Context) {
@@ -273,7 +269,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 	args := db.UpdateBVNParams{
 		ID: userKyc.ID,
 		Bvn: sql.NullString{
-			String: verificationData.BVN.Value,
+			String: utils.Encrypt(verificationData.BVN.Value, k.server.config.SigningKey),
 			Valid:  verificationData.BVN.Status,
 		},
 	}
@@ -421,23 +417,23 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 	args := db.UpdateKYCNINInfoParams{
 		ID: userKyc.ID,
 		Nin: sql.NullString{
-			String: verificationData.NIN,
+			String: utils.Encrypt(verificationData.NIN, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		Gender: sql.NullString{
-			String: strings.ToLower(verificationData.Gender),
+			String: utils.Encrypt(strings.ToLower(verificationData.Gender), k.server.config.SigningKey),
 			Valid:  true,
 		},
 		SelfieUrl: sql.NullString{
-			String: verificationData.Image,
+			String: utils.Encrypt(verificationData.Image, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		PhoneNumber: sql.NullString{
-			String: verificationData.PhoneNumber,
+			String: utils.Encrypt(verificationData.PhoneNumber, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		FullName: sql.NullString{
-			String: verificationData.FirstName + " " + verificationData.LastName,
+			String: utils.Encrypt(verificationData.FirstName+" "+verificationData.LastName, k.server.config.SigningKey),
 			Valid:  true,
 		},
 	}
@@ -508,9 +504,10 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	houseNumber := ctx.PostForm("house_number")
 	streetName := ctx.PostForm("street_name")
 	nearestLandmark := ctx.PostForm("nearest_landmark")
+	postalCode := ctx.PostForm("postal_code")
 
-	if state == "" || lga == "" || houseNumber == "" || streetName == "" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("state, lga, house_number, and street_name are required"))
+	if state == "" || lga == "" || houseNumber == "" || streetName == "" || postalCode == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("state, lga, house_number, street_name, and postal_code are required"))
 		return
 	}
 
@@ -596,24 +593,28 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	addressArgs := db.UpdateKYCAddressParams{
 		ID: userKyc.ID,
 		State: sql.NullString{
-			String: state,
+			String: utils.Encrypt(state, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		Lga: sql.NullString{
-			String: lga,
+			String: utils.Encrypt(lga, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		HouseNumber: sql.NullString{
-			String: houseNumber,
+			String: utils.Encrypt(houseNumber, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		StreetName: sql.NullString{
-			String: streetName,
+			String: utils.Encrypt(streetName, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		NearestLandmark: sql.NullString{
-			String: nearestLandmark,
+			String: utils.Encrypt(nearestLandmark, k.server.config.SigningKey),
 			Valid:  nearestLandmark != "",
+		},
+		PostalCode: sql.NullString{
+			String: utils.Encrypt(postalCode, k.server.config.SigningKey),
+			Valid:  postalCode != "",
 		},
 	}
 
@@ -640,11 +641,11 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	proofArgs := db.UpdateKYCProofOfAddressParams{
 		ID: userKyc.ID,
 		ProofOfAddressType: sql.NullString{
-			String: normalizedProofType,
+			String: utils.Encrypt(normalizedProofType, k.server.config.SigningKey),
 			Valid:  true,
 		},
 		ProofOfAddressUrl: sql.NullString{
-			String: fmt.Sprintf("/api/v1/kyc/retrieve-address-proof/%d", proof.ID),
+			String: utils.Encrypt(fmt.Sprintf("/api/v1/kyc/retrieve-address-proof/%d", proof.ID), k.server.config.SigningKey),
 			Valid:  true,
 		},
 		ProofOfAddressDate: sql.NullTime{
@@ -773,6 +774,9 @@ func (k *KYC) verifyKYC(ctx *gin.Context) {
 		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your KYC has been manually verified by an administrator.")
 	}()
 
+	// Decrypt KYC data
+	k.decryptKyc(&kyc)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("KYC verified successfully", models.ToUserKYCInformation(&kyc)))
 }
 
@@ -831,5 +835,197 @@ func (k *KYC) rejectKYC(ctx *gin.Context) {
 		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason))
 	}()
 
+	// Decrypt KYC data
+	k.decryptKyc(&kyc)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("KYC rejected successfully", models.ToUserKYCInformation(&kyc)))
+}
+
+func (k *KYC) getAdminUserKyc(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unauthorized"))
+		return
+	}
+
+	id, err := strconv.Atoi(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid User ID"))
+		return
+	}
+
+	// Get KYC by User ID
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(id))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("KYC record not found for this user"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Now get the extended info using the KYC ID
+	extendedKyc, err := k.server.queries.GetUserAndKYCWithProofOfAddress(ctx, userKyc.ID)
+	if err != nil {
+		// Decrypt basic info
+		k.decryptKyc(&userKyc)
+		// Fallback to basic info if extended info fails
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched", models.ToUserKYCInformation(&userKyc)))
+		return
+	}
+
+	// Decrypt extended info
+	k.decryptExtendedKyc(&extendedKyc)
+
+	entry := audit.NewLog(
+		ctx,
+		audit.CategoryKYC,
+		audit.EventGetKYC,
+		fmt.Sprintf("User ID: %d", id),
+		fmt.Sprintf("admin %s viewed kyc of user with id %d", activeUser.Email, id),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	k.audit.Log(entry)
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched", models.ToUserKYCInformationExtended(&extendedKyc)))
+}
+
+func (k *KYC) decryptField(field string) string {
+	if field == "" {
+		return ""
+	}
+	decrypted := utils.Decrypt(field, k.server.config.SigningKey)
+	if decrypted == "" {
+		// If decryption fails, it might be unencrypted data or a different error.
+		// We return the original field to maintain compatibility with existing data.
+		return field
+	}
+	return decrypted
+}
+
+func (k *KYC) decryptKyc(kyc *db.Kyc) {
+	if kyc.FullName.Valid {
+		kyc.FullName.String = k.decryptField(kyc.FullName.String)
+	}
+	if kyc.PhoneNumber.Valid {
+		kyc.PhoneNumber.String = k.decryptField(kyc.PhoneNumber.String)
+	}
+	if kyc.Email.Valid {
+		kyc.Email.String = k.decryptField(kyc.Email.String)
+	}
+	if kyc.Gender.Valid {
+		kyc.Gender.String = k.decryptField(kyc.Gender.String)
+	}
+	if kyc.SelfieUrl.Valid {
+		kyc.SelfieUrl.String = k.decryptField(kyc.SelfieUrl.String)
+	}
+	if kyc.Bvn.Valid {
+		kyc.Bvn.String = k.decryptField(kyc.Bvn.String)
+	}
+	if kyc.Nin.Valid {
+		kyc.Nin.String = k.decryptField(kyc.Nin.String)
+	}
+	if kyc.IDType.Valid {
+		kyc.IDType.String = k.decryptField(kyc.IDType.String)
+	}
+	if kyc.IDNumber.Valid {
+		kyc.IDNumber.String = k.decryptField(kyc.IDNumber.String)
+	}
+	if kyc.IDImageUrl.Valid {
+		kyc.IDImageUrl.String = k.decryptField(kyc.IDImageUrl.String)
+	}
+	if kyc.State.Valid {
+		kyc.State.String = k.decryptField(kyc.State.String)
+	}
+	if kyc.Lga.Valid {
+		kyc.Lga.String = k.decryptField(kyc.Lga.String)
+	}
+	if kyc.HouseNumber.Valid {
+		kyc.HouseNumber.String = k.decryptField(kyc.HouseNumber.String)
+	}
+	if kyc.StreetName.Valid {
+		kyc.StreetName.String = k.decryptField(kyc.StreetName.String)
+	}
+	if kyc.NearestLandmark.Valid {
+		kyc.NearestLandmark.String = k.decryptField(kyc.NearestLandmark.String)
+	}
+	if kyc.PostalCode.Valid {
+		kyc.PostalCode.String = k.decryptField(kyc.PostalCode.String)
+	}
+	if kyc.Country.Valid {
+		kyc.Country.String = k.decryptField(kyc.Country.String)
+	}
+	if kyc.ProofOfAddressType.Valid {
+		kyc.ProofOfAddressType.String = k.decryptField(kyc.ProofOfAddressType.String)
+	}
+	if kyc.ProofOfAddressUrl.Valid {
+		kyc.ProofOfAddressUrl.String = k.decryptField(kyc.ProofOfAddressUrl.String)
+	}
+}
+
+func (k *KYC) decryptExtendedKyc(kyc *db.GetUserAndKYCWithProofOfAddressRow) {
+	if kyc.FullName.Valid {
+		kyc.FullName.String = k.decryptField(kyc.FullName.String)
+	}
+	if kyc.PhoneNumber.Valid {
+		kyc.PhoneNumber.String = k.decryptField(kyc.PhoneNumber.String)
+	}
+	if kyc.Email.Valid {
+		kyc.Email.String = k.decryptField(kyc.Email.String)
+	}
+	if kyc.Gender.Valid {
+		kyc.Gender.String = k.decryptField(kyc.Gender.String)
+	}
+	if kyc.SelfieUrl.Valid {
+		kyc.SelfieUrl.String = k.decryptField(kyc.SelfieUrl.String)
+	}
+	if kyc.Bvn.Valid {
+		kyc.Bvn.String = k.decryptField(kyc.Bvn.String)
+	}
+	if kyc.Nin.Valid {
+		kyc.Nin.String = k.decryptField(kyc.Nin.String)
+	}
+	if kyc.IDType.Valid {
+		kyc.IDType.String = k.decryptField(kyc.IDType.String)
+	}
+	if kyc.IDNumber.Valid {
+		kyc.IDNumber.String = k.decryptField(kyc.IDNumber.String)
+	}
+	if kyc.IDImageUrl.Valid {
+		kyc.IDImageUrl.String = k.decryptField(kyc.IDImageUrl.String)
+	}
+	if kyc.State.Valid {
+		kyc.State.String = k.decryptField(kyc.State.String)
+	}
+	if kyc.Lga.Valid {
+		kyc.Lga.String = k.decryptField(kyc.Lga.String)
+	}
+	if kyc.HouseNumber.Valid {
+		kyc.HouseNumber.String = k.decryptField(kyc.HouseNumber.String)
+	}
+	if kyc.StreetName.Valid {
+		kyc.StreetName.String = k.decryptField(kyc.StreetName.String)
+	}
+	if kyc.NearestLandmark.Valid {
+		kyc.NearestLandmark.String = k.decryptField(kyc.NearestLandmark.String)
+	}
+	if kyc.PostalCode.Valid {
+		kyc.PostalCode.String = k.decryptField(kyc.PostalCode.String)
+	}
+	if kyc.Country.Valid {
+		kyc.Country.String = k.decryptField(kyc.Country.String)
+	}
+	if kyc.ProofOfAddressType.Valid {
+		kyc.ProofOfAddressType.String = k.decryptField(kyc.ProofOfAddressType.String)
+	}
+	if kyc.ProofOfAddressUrl.Valid {
+		kyc.ProofOfAddressUrl.String = k.decryptField(kyc.ProofOfAddressUrl.String)
+	}
 }

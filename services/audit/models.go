@@ -227,6 +227,8 @@ const (
 	EventPausePriceAlert    = "price.alert.paused"
 	EventResumePriceAlert   = "price.alert.resumed"
 	EventReferralWithdrawal = "referral.withdrawal"
+
+	EventGetKYC = "kyc.view"
 )
 
 // LogEntry represents the input for creating an audit log

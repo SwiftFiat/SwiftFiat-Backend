@@ -5,8 +5,8 @@ meta {
 }
 
 post {
-  url: {{BaseURl}}/kyc/update-address
-  body: json
+  url: {{BaseURl}}/kyc/upload-address-proof
+  body: multipartForm
   auth: bearer
 }
 
@@ -14,14 +14,15 @@ auth:bearer {
   token: {{token}}
 }
 
-body:json {
-  {
-    "state": "abia",
-    "lga": "aba south",
-    "house_number": "4",
-    "street_name": "street",
-    "nearest_landmark": "landmark"
-  }
+body:multipart-form {
+  proof_type: utility_bill
+  file: @file(/home/bontus/Documents/cpp/player.png)
+  state: Abia
+  lga: Bende
+  house_number: 2
+  street_name: Aada
+  nearest_landmark: landmark
+  postal_code: 123456
 }
 
 settings {

@@ -14,32 +14,32 @@ CREATE TABLE IF NOT EXISTS "kyc" (
     "verification_date" TIMESTAMPTZ,
 
     -- Personal Information
-    "full_name" VARCHAR(255),
-    "phone_number" VARCHAR(20),
+    "full_name" TEXT,
+    "phone_number" TEXT,
     "email" VARCHAR(255),
-    "gender" VARCHAR(20),
+    "gender" TEXT,
     "selfie_url" TEXT,
 
     -- Identity Verification
-    "bvn" VARCHAR(11),  -- BVN is typically 11 digits
-    "nin" VARCHAR(11),  -- NIN is typically 11 digits
+    "bvn" TEXT,
+    "nin" TEXT,
     
     -- Government ID
-    "id_type" VARCHAR(30) CHECK ("id_type" IN ('international_passport', 'voters_card', 'drivers_license')),
-    "id_number" VARCHAR(50),
+    "id_type" TEXT,
+    "id_number" TEXT,
     "id_image_url" TEXT,
 
     -- Address Information
-    "state" VARCHAR(100),
-    "lga" VARCHAR(100),
-    "house_number" VARCHAR(50),
-    "street_name" VARCHAR(255),
-    "nearest_landmark" VARCHAR(255),
-    "postal_code" VARCHAR(10),
-    "country" VARCHAR(20),
+    "state" TEXT,
+    "lga" TEXT,
+    "house_number" TEXT,
+    "street_name" TEXT,
+    "nearest_landmark" TEXT,
+    "postal_code" TEXT,
+    "country" TEXT,
 
     -- Proof of Address
-    "proof_of_address_type" VARCHAR(30) CHECK ("proof_of_address_type" IN ('utility_bill', 'bank_statement', 'tenancy_agreement')),
+    "proof_of_address_type" TEXT,
     "proof_of_address_url" TEXT,
     "proof_of_address_date" DATE,
 

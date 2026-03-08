@@ -48,6 +48,7 @@ SET
     house_number = $4,
     street_name = $5,
     nearest_landmark = $6,
+    postal_code = $7,
     updated_at = now()
 WHERE id = $1
 RETURNING *;
