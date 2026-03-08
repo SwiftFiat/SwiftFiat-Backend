@@ -228,7 +228,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier2" {
+	if kyc.Tier != "tier_2" {
 		go s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}

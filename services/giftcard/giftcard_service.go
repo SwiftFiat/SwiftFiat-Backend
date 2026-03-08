@@ -618,7 +618,7 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier2" {
+	if kyc.Tier != "tier_2" {
 		go g.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}

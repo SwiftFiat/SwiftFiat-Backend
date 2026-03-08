@@ -75,7 +75,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier2" {
+	if kyc.Tier != "tier_2" {
 		go s.pushSvc.SendPushNotification(ctx, int64(userID), "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
@@ -197,7 +197,7 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier2" {
+	if kyc.Tier != "tier_2" {
 		go s.pushSvc.SendPushNotification(ctx, params.UserID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
