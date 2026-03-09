@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -214,4 +215,21 @@ func WatRequestID() string {
 		loc = time.FixedZone("WAT", 3600) // safe fallback on stripped tzdata
 	}
 	return time.Now().In(loc).Format("20060102150405")
+}
+
+func SplitName(fullName string) (string, string) {
+	parts := strings.Fields(fullName)
+
+	if len(parts) == 0 {
+		return "", ""
+	}
+
+	firstName := parts[0]
+	lastName := ""
+
+	if len(parts) > 1 {
+		lastName = parts[len(parts)-1]
+	}
+
+	return firstName, lastName
 }

@@ -209,11 +209,6 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	if !dbUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
 	provider, exists := k.server.provider.GetProvider(providers.Dojah)
 	if !exists {
 		k.server.logger.Error("Dojah Provider not found")
@@ -361,11 +356,6 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	if !dbUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
 	provider, exists := k.server.provider.GetProvider(providers.Dojah)
 	if !exists {
 		k.server.logger.Error("Dojah Provider not found")
@@ -505,8 +495,9 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	streetName := ctx.PostForm("street_name")
 	nearestLandmark := ctx.PostForm("nearest_landmark")
 	postalCode := ctx.PostForm("postal_code")
+	city := ctx.PostForm("city")
 
-	if state == "" || lga == "" || houseNumber == "" || streetName == "" || postalCode == "" {
+	if state == "" || lga == "" || houseNumber == "" || streetName == "" || postalCode == "" || city == "" {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("state, lga, house_number, street_name, and postal_code are required"))
 		return
 	}
@@ -574,11 +565,6 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		return
 	}
 
-	if !activeUser.Verified {
-		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("you have not verified your account yet"))
-		return
-	}
-
 	// Get KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
@@ -615,6 +601,10 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		PostalCode: sql.NullString{
 			String: utils.Encrypt(postalCode, k.server.config.SigningKey),
 			Valid:  postalCode != "",
+		},
+		City: sql.NullString{
+			String: utils.Encrypt(city, k.server.config.SigningKey),
+			Valid:  city != "",
 		},
 	}
 

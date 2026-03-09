@@ -259,7 +259,7 @@ func NewServer(envPath string) *Server {
 	scsScheduler := smartconversion.NewScheduler(t, q, l, scs, 0)
 
 	// virtual card service
-	vcs := virtualcard.NewService(q, l, bridgecard, ws, streakScheduler, ns, email, pn, ss)
+	vcs := virtualcard.NewService(q, l, bridgecard, ws, streakScheduler, ns, email, pn, ss, c)
 
 	// subscription scheduler
 	ssScheduler := subscriptions.NewScheduler(t, ss, q, l, 1*time.Hour)

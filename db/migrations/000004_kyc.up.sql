@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS "kyc" (
     "nearest_landmark" TEXT,
     "postal_code" TEXT,
     "country" TEXT,
+    "city" TEXT,
 
     -- Proof of Address
     "proof_of_address_type" TEXT,

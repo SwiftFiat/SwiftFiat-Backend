@@ -432,14 +432,15 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
-
-	var req bridgecards.CreateCardHolderRequest
+	req := struct {
+		Phone string `json:"phone" binding:"required"`
+	}{}
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
 	}
 
-	response, err := v.virtualCardSvc.CreateCardHolder(c, int32(activeUser.UserID), &req)
+	response, err := v.virtualCardSvc.CreateCardHolder(c, int32(activeUser.UserID), req.Phone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return

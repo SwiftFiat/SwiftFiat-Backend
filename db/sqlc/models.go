@@ -789,6 +789,7 @@ type Kyc struct {
 	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
 	PostalCode         sql.NullString        `json:"postal_code"`
 	Country            sql.NullString        `json:"country"`
+	City               sql.NullString        `json:"city"`
 	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
 	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
 	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`

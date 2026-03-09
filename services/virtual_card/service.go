@@ -34,6 +34,7 @@ type Service struct {
 	email           *service.Plunk
 	pushSvc         *service.PushNotificationService
 	subscriptionSvc *subscriptions.Service
+	config          *utils.Config
 }
 
 func NewService(
@@ -46,6 +47,7 @@ func NewService(
 	email *service.Plunk,
 	pushSvc *service.PushNotificationService,
 	subscriptionSvc *subscriptions.Service,
+	config *utils.Config,
 ) *Service {
 	return &Service{
 		store:           store,
@@ -57,16 +59,48 @@ func NewService(
 		email:           email,
 		pushSvc:         pushSvc,
 		subscriptionSvc: subscriptionSvc,
+		config:          config,
+	}
+}
+
+// decryptKycField decrypts a single KYC string field using the service signing key.
+// Returns the original value if decryption fails (handles legacy unencrypted rows).
+func (s *Service) decryptKycField(value string) string {
+	if value == "" {
+		return ""
+	}
+	decrypted := utils.Decrypt(value, s.config.SigningKey)
+	if decrypted == "" {
+		return value // graceful fallback for unencrypted data
+	}
+	return decrypted
+}
+
+// toInternationalPhone normalises a Nigerian phone number to E.164 format (+234XXXXXXXXXX).
+// Handles the three common raw forms stored in KYC:
+//
+//	"08012345678"  → "+2348012345678"  (leading zero replaced with country code)
+//	"8012345678"   → "+2348012345678"  (bare 10-digit, prepend +234)
+//	"+2348012345678" → "+2348012345678" (already correct, pass-through)
+func toInternationalPhone(phone string) string {
+	phone = strings.TrimSpace(phone)
+	switch {
+	case strings.HasPrefix(phone, "+"):
+		return phone // already E.164
+	case strings.HasPrefix(phone, "234"):
+		return "+" + phone // "234XXXXXXXXXX" → "+234XXXXXXXXXX"
+	case strings.HasPrefix(phone, "0") && len(phone) == 11:
+		return "+234" + phone[1:] // "0XXXXXXXXXX" → "+234XXXXXXXXXX"
+	case len(phone) == 10:
+		return "+234" + phone // "XXXXXXXXXX" → "+234XXXXXXXXXX"
+	default:
+		return phone // unrecognised format — return as-is, let provider reject it
 	}
 }
 
 // this is now used for app kyc, Todo: deprecate dojah
 // i am setting aside async registration because i dont see a way to update user data from webhook
-func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridgecards.CreateCardHolderRequest) (*bridgecards.CreateCardHolderResponse, error) {
-	req.Metadata = map[string]any{
-		"user_id": userID,
-	}
-
+func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone string) (*bridgecards.CreateCardHolderResponse, error) {
 	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -75,12 +109,49 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier_2" {
+	if kyc.Tier != "tier_3" {
 		go s.pushSvc.SendPushNotification(ctx, int64(userID), "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
-		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_3")
 	}
 
-	response, err := s.bridgeCard.CreateCardHolder(ctx, req)
+	user, err := s.store.GetUserByID(ctx, int64(userID))
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch user: %w", err)
+	}
+
+	// Decrypt encrypted KYC fields before use
+	fullName := s.decryptKycField(kyc.FullName.String)
+	// phoneNumber := toInternationalPhone(s.decryptKycField(kyc.PhoneNumber.String))
+	bvn := s.decryptKycField(kyc.Bvn.String)
+	houseNumber := s.decryptKycField(kyc.HouseNumber.String)
+	streetName := s.decryptKycField(kyc.StreetName.String)
+	city := s.decryptKycField(kyc.City.String)
+	state := s.decryptKycField(kyc.State.String)
+	postalCode := s.decryptKycField(kyc.PostalCode.String)
+	selfieImage := s.decryptKycField(kyc.SelfieUrl.String)
+
+	firstName, lastName := utils.SplitName(fullName)
+	params := &bridgecards.CreateCardHolderRequest{
+		FirstName: firstName,
+		LastName:  lastName,
+		Email:     user.Email,
+		Phone:     phone,
+		Address: bridgecards.Address{
+			Address:     fmt.Sprintf("%s %s", houseNumber, streetName),
+			City:        city,
+			PostalCode:  postalCode,
+			State:       state,
+			Country:     "Nigeria",
+			HouseNumber: houseNumber,
+		},
+		Identity: bridgecards.Identity{
+			IDType:      "NIGERIAN_BVN_VERIFICATION",
+			SelfieImage: selfieImage,
+			BVN:         bvn,
+		},
+	}
+
+	response, err := s.bridgeCard.CreateCardHolder(ctx, params)
 	if err != nil {
 		return nil, err
 	}
@@ -97,13 +168,6 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 	s.logger.Infof("response status is: %s", response.Status)
 
 	if response.Status == "success" {
-		// TODO: use redis
-		user, err := qtx.GetUserByID(ctx, int64(userID))
-		if err != nil {
-			s.logger.Errorf("error getting user [CreateCardHolder]: %v", err)
-			return nil, err
-		}
-
 		// Always set the cardholder ID regardless of name match
 		if setErr := qtx.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
 			BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
@@ -112,39 +176,6 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		}); setErr != nil {
 			s.logger.Error(fmt.Sprintf("Failed to persist cardholder mapping: %v", setErr))
 			return nil, setErr
-		}
-
-		// Update names if they differ
-		if user.FirstName.String != req.FirstName || user.LastName.String != req.LastName {
-			_, err = qtx.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
-				FirstName: sql.NullString{String: req.FirstName, Valid: true},
-				UpdatedAt: time.Now(),
-				ID:        user.ID,
-			})
-			if err != nil {
-				s.logger.Errorf("error updating firstname from kyc: %v", err)
-				return nil, err
-			}
-
-			_, err = qtx.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
-				LastName:  sql.NullString{String: req.LastName, Valid: true},
-				ID:        user.ID,
-				UpdatedAt: time.Now(),
-			})
-			if err != nil {
-				s.logger.Errorf("error updating lastname from kyc: %v", err)
-				return nil, err
-			}
-		}
-
-		// update kyc
-		_, err = qtx.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-			IsKycVerified: true,
-			UpdatedAt:     time.Now(),
-			ID:            int64(userID),
-		})
-		if err != nil {
-			return nil, fmt.Errorf("update user kyc status error: %v", err)
 		}
 
 		// Update cardholder verification status
@@ -161,27 +192,10 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, req *bridg
 		if err := dbTx.Commit(); err != nil {
 			return nil, fmt.Errorf("commit transaction: %w", err)
 		}
-
-		err = s.email.KycVerified(ctx, req.FirstName, user.Email)
-		if err != nil {
-			s.logger.Errorf("failed to send kyc verified email: %v", err)
-		}
-
-		// s.notifySvc
-		go s.pushSvc.SendKYCVerifiedPushNotification(ctx, int64(userID))
-		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc verified", "Your kyc is verified", "system", []int64{int64(userID)})
-
 		return response, nil
 	} else {
-		err = s.email.KycFailed(ctx, req.FirstName, req.Email, response.Message)
-		if err != nil {
-			s.logger.Errorf("failed to send kyc failed email: %v", err)
-		}
-		go s.pushSvc.SendKYCRejectedPushNotification(ctx, int64(userID), response.Message)
-		go s.notifySvc.CreateWithRecipients(ctx, nil, "Kyc failed", "Your kyc is failed", "system", []int64{int64(userID)})
+		return nil, fmt.Errorf("failed to create cardholder: %s", response.Message)
 	}
-
-	return response, nil
 
 }
 
@@ -197,9 +211,9 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier_2" {
-		go s.pushSvc.SendPushNotification(ctx, params.UserID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
-		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	if kyc.Tier != "tier_3" {
+		go s.pushSvc.SendPushNotification(ctx, params.UserID, "Verification required.", "This feature requires Tier 3 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_3")
 	}
 	// Start transaction
 	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})

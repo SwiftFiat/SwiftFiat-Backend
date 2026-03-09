@@ -38,7 +38,7 @@ INSERT INTO kyc (
     user_id, tier
 ) VALUES (
     $1, 'tier_1'
-) RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+) RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 func (q *Queries) CreateNewKYC(ctx context.Context, userID int32) (Kyc, error) {
@@ -67,6 +67,7 @@ func (q *Queries) CreateNewKYC(ctx context.Context, userID int32) (Kyc, error) {
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -126,7 +127,7 @@ func (q *Queries) GetIncompleteKYCFields(ctx context.Context, id int64) (GetInco
 
 const getKYCByStatus = `-- name: GetKYCByStatus :many
 SELECT 
-    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.city, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
     u.email,
     u.first_name,
     u.last_name,
@@ -167,6 +168,7 @@ type GetKYCByStatusRow struct {
 	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
 	PostalCode         sql.NullString        `json:"postal_code"`
 	Country            sql.NullString        `json:"country"`
+	City               sql.NullString        `json:"city"`
 	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
 	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
 	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
@@ -211,6 +213,7 @@ func (q *Queries) GetKYCByStatus(ctx context.Context, arg GetKYCByStatusParams) 
 			&i.NearestLandmark,
 			&i.PostalCode,
 			&i.Country,
+			&i.City,
 			&i.ProofOfAddressType,
 			&i.ProofOfAddressUrl,
 			&i.ProofOfAddressDate,
@@ -236,7 +239,7 @@ func (q *Queries) GetKYCByStatus(ctx context.Context, arg GetKYCByStatusParams) 
 }
 
 const getKYCByUserID = `-- name: GetKYCByUserID :one
-SELECT id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc
+SELECT id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info FROM kyc
 WHERE user_id = $1
 `
 
@@ -266,6 +269,7 @@ func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error)
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -364,7 +368,7 @@ func (q *Queries) GetKYCStatistics(ctx context.Context) (GetKYCStatisticsRow, er
 
 const getKYCWithUserDetails = `-- name: GetKYCWithUserDetails :one
 SELECT 
-    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.city, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
     u.email,
     u.first_name,
     u.last_name,
@@ -400,6 +404,7 @@ type GetKYCWithUserDetailsRow struct {
 	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
 	PostalCode         sql.NullString        `json:"postal_code"`
 	Country            sql.NullString        `json:"country"`
+	City               sql.NullString        `json:"city"`
 	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
 	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
 	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
@@ -441,6 +446,7 @@ func (q *Queries) GetKYCWithUserDetails(ctx context.Context, id int64) (GetKYCWi
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -614,7 +620,7 @@ SET
     verification_date = COALESCE(verification_date, now()),
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 func (q *Queries) ManuallyVerifyKYC(ctx context.Context, id int64) (Kyc, error) {
@@ -643,6 +649,7 @@ func (q *Queries) ManuallyVerifyKYC(ctx context.Context, id int64) (Kyc, error) 
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -664,7 +671,7 @@ SET
     ),
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type RejectKYCParams struct {
@@ -698,6 +705,7 @@ func (q *Queries) RejectKYC(ctx context.Context, arg RejectKYCParams) (Kyc, erro
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -710,7 +718,7 @@ func (q *Queries) RejectKYC(ctx context.Context, arg RejectKYCParams) (Kyc, erro
 
 const searchKYCByEmail = `-- name: SearchKYCByEmail :many
 SELECT 
-    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.city, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
     u.email,
     u.first_name,
     u.last_name
@@ -743,6 +751,7 @@ type SearchKYCByEmailRow struct {
 	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
 	PostalCode         sql.NullString        `json:"postal_code"`
 	Country            sql.NullString        `json:"country"`
+	City               sql.NullString        `json:"city"`
 	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
 	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
 	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
@@ -786,6 +795,7 @@ func (q *Queries) SearchKYCByEmail(ctx context.Context, email string) ([]SearchK
 			&i.NearestLandmark,
 			&i.PostalCode,
 			&i.Country,
+			&i.City,
 			&i.ProofOfAddressType,
 			&i.ProofOfAddressUrl,
 			&i.ProofOfAddressDate,
@@ -815,7 +825,7 @@ SET
     bvn = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateBVNParams struct {
@@ -849,6 +859,7 @@ func (q *Queries) UpdateBVN(ctx context.Context, arg UpdateBVNParams) (Kyc, erro
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -868,9 +879,10 @@ SET
     street_name = $5,
     nearest_landmark = $6,
     postal_code = $7,
+    city = $8,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCAddressParams struct {
@@ -881,6 +893,7 @@ type UpdateKYCAddressParams struct {
 	StreetName      sql.NullString `json:"street_name"`
 	NearestLandmark sql.NullString `json:"nearest_landmark"`
 	PostalCode      sql.NullString `json:"postal_code"`
+	City            sql.NullString `json:"city"`
 }
 
 func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressParams) (Kyc, error) {
@@ -892,6 +905,7 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 		arg.StreetName,
 		arg.NearestLandmark,
 		arg.PostalCode,
+		arg.City,
 	)
 	var i Kyc
 	err := row.Scan(
@@ -917,6 +931,7 @@ func (q *Queries) UpdateKYCAddress(ctx context.Context, arg UpdateKYCAddressPara
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -935,7 +950,7 @@ SET
     id_image_url = $4,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCGovernmentIDParams struct {
@@ -976,6 +991,7 @@ func (q *Queries) UpdateKYCGovernmentID(ctx context.Context, arg UpdateKYCGovern
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -997,7 +1013,7 @@ SET
     phone_number = $6,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCNINInfoParams struct {
@@ -1042,6 +1058,7 @@ func (q *Queries) UpdateKYCNINInfo(ctx context.Context, arg UpdateKYCNINInfoPara
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -1060,7 +1077,7 @@ SET
     proof_of_address_date = $4,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCProofOfAddressParams struct {
@@ -1101,6 +1118,7 @@ func (q *Queries) UpdateKYCProofOfAddress(ctx context.Context, arg UpdateKYCProo
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -1117,7 +1135,7 @@ SET
     status = $2,
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 type UpdateKYCStatusParams struct {
@@ -1151,6 +1169,7 @@ func (q *Queries) UpdateKYCStatus(ctx context.Context, arg UpdateKYCStatusParams
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -1167,7 +1186,7 @@ SET
     tier = 'tier_1',
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 func (q *Queries) UpdateKYCToTierOne(ctx context.Context, id int64) (Kyc, error) {
@@ -1196,6 +1215,7 @@ func (q *Queries) UpdateKYCToTierOne(ctx context.Context, id int64) (Kyc, error)
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -1212,7 +1232,7 @@ SET
     tier = 'tier_3',
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 func (q *Queries) UpdateKYCToTierThree(ctx context.Context, id int64) (Kyc, error) {
@@ -1241,6 +1261,7 @@ func (q *Queries) UpdateKYCToTierThree(ctx context.Context, id int64) (Kyc, erro
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
@@ -1257,7 +1278,7 @@ SET
     tier = 'tier_2',
     updated_at = now()
 WHERE id = $1
-RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
+RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
 func (q *Queries) UpdateKYCToTierTwo(ctx context.Context, id int64) (Kyc, error) {
@@ -1286,6 +1307,7 @@ func (q *Queries) UpdateKYCToTierTwo(ctx context.Context, id int64) (Kyc, error)
 		&i.NearestLandmark,
 		&i.PostalCode,
 		&i.Country,
+		&i.City,
 		&i.ProofOfAddressType,
 		&i.ProofOfAddressUrl,
 		&i.ProofOfAddressDate,
