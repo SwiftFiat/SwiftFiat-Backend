@@ -1,0 +1,26 @@
+meta {
+  name: Update user wallet balance
+  type: http
+  seq: 16
+}
+
+put {
+  url: {{BaseURl}}/wallets/add-to-wallet-balance
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "wallet_id": "",
+    "amount": "",
+    "currency": "",
+    "user_id": "",
+    "two_fa_code": ""
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

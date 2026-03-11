@@ -1423,16 +1423,16 @@ func (s *TransactionService) ProcessRewardRedemption(
 	// Validate: Points don't exceed bill amount
 	if pointsToRedeem.GreaterThan(originalAmount) {
 		return originalAmount, false, fmt.Errorf(
-			"cannot redeem more points (₦%d) than bill amount (₦%d)",
-			pointsToRedeem, originalAmount,
+			"cannot redeem more points ₦%.2f than bill amount ₦%.2f",
+			pointsToRedeem.InexactFloat64(), originalAmount.InexactFloat64(),
 		)
 	}
 
 	// calculate final amount after discount
 	finalAmount = originalAmount.Sub(pointsToRedeem)
 
-	s.logger.Info(fmt.Sprintf("Reward redemption validated: Original=₦%d, Points=₦%d, Final=₦%d",
-		originalAmount, pointsToRedeem, finalAmount))
+	s.logger.Info(fmt.Sprintf("Reward redemption validated: Original=₦%.2f, Points=₦%.2f, Final=₦%.2f",
+		originalAmount.InexactFloat64(), pointsToRedeem.InexactFloat64(), finalAmount.InexactFloat64()))
 
 	return finalAmount, true, nil
 }
