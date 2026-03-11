@@ -294,8 +294,28 @@ func (a *Auth) login(ctx *gin.Context) {
 			}(dbUser, currentDevice)
 		}
 
+		// NEW: If admin, also send Email OTP
+		if dbUser.Role != models.USER {
+			verificationCode := utils.GenerateOTP()
+			redisKey := fmt.Sprintf("admin_login_otp:%s", user.Email)
+
+			if err := a.server.redis.Set(ctx, redisKey, verificationCode, 10*time.Minute); err != nil {
+				a.server.logger.Error(fmt.Sprintf("redis set admin OTP error: %v", err))
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+				return
+			}
+
+			if err := a.server.emailService.SendAdminOTP(dbUser, user.Email, verificationCode); err != nil {
+				a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send admin OTP email: %v", err))
+				a.logFailedNotification(ctx, "email", "critical", dbUser.ID, user.Email,
+					"Admin Login OTP", fmt.Sprintf("OTP: %s", verificationCode), err.Error())
+				ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send OTP email"))
+				return
+			}
+		}
+
 		ctx.JSON(http.StatusOK, gin.H{
-			"message":        "2FA required",
+			"message":        "2FA and Email OTP required",
 			"twofa_required": true,
 			"temp_token":     tmpToken,
 		})
@@ -566,6 +586,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 type VerifyTwoFARequest struct {
 	Code      string `json:"code" binding:"required"`
 	TempToken string `json:"temp_token" binding:"required"`
+	EmailCode string `json:"email_code"`
 }
 
 // verifyTwoFA godoc
@@ -622,6 +643,23 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 	if !valid {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
+	}
+
+	// If user is admin, also validate Email OTP
+	if user.Role != models.USER {
+		if req.EmailCode == "" {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("Email OTP is required for admin login"))
+			return
+		}
+
+		redisKey := fmt.Sprintf("admin_login_otp:%s", user.Email)
+		storedCode, err := a.server.redis.Get(ctx, redisKey)
+		if err != nil || storedCode != req.EmailCode {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid or expired Email OTP"))
+			return
+		}
+		// Clean up Email OTP
+		a.server.redis.Delete(ctx, redisKey)
 	}
 
 	// Create main token

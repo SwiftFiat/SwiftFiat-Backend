@@ -3522,7 +3522,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	s.logger.Infof("MakeTransfer details - recipientCode: %s, amount: %d NGN, accountName: %s, bankCode: %s",
 		recipientInfo.RecipientCode, amountInNGN, req.Name, req.BankCode)
 
-	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInNGN, req.Name)
+	res, err := s.fiat.MakeTransfer(recipientInfo.RecipientCode, transferReference, remark, amountInNGN, "SWIIFT")
 	if err != nil {
 		s.logger.Errorf("MakeTransfer failed: %v. Recipient: %s, Amount: %d NGN, Ref: %s", err, recipientInfo.RecipientCode, amountInNGN, transferReference)
 		return nil, fmt.Errorf("failed to make transfer: %v", err)

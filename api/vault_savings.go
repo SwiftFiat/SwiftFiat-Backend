@@ -20,6 +20,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+	"github.com/pquerna/otp/totp"
 )
 
 // ============================================================================
@@ -833,6 +834,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 	var req struct {
 		Amount      string `json:"amount" binding:"required"`
 		Description string `json:"description"`
+		TwoFACode string  `json:"two_fa_code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -845,6 +847,23 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 	amount, err := decimal.NewFromString(req.Amount)
 	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	admin, err := v.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(req.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 
@@ -1109,6 +1128,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 	var req struct {
 		Amount      string `json:"amount" binding:"required"`
 		Description string `json:"description"`
+		TwoFACode string  `json:"two_fa_code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -1121,6 +1141,23 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 	amount, err := decimal.NewFromString(req.Amount)
 	if err != nil || amount.LessThanOrEqual(decimal.Zero) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid amount"))
+		return
+	}
+
+	admin, err := v.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(req.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 

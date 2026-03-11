@@ -27,6 +27,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 )
 
 type Wallet struct {
@@ -65,10 +66,11 @@ func (w Wallet) router(server *Server) {
 }
 
 type UpdateWalletBalanceRequest struct {
-	WalletID string  `json:"wallet_id" binding:"required"`
-	Amount   float64 `json:"amount" binding:"required"`
-	Currency string  `json:"currency" binding:"required"`
-	UserID   int64   `json:"user_id" binding:"required"`
+	WalletID  string  `json:"wallet_id" binding:"required"`
+	Amount    float64 `json:"amount" binding:"required"`
+	Currency  string  `json:"currency" binding:"required"`
+	UserID    int64   `json:"user_id" binding:"required"`
+	TwoFACode string  `json:"two_fa_code" binding:"required"`
 }
 
 // updateWalletBalance godoc
@@ -83,8 +85,8 @@ type UpdateWalletBalanceRequest struct {
 // @Failure      400            {object}  basemodels.ErrorResponse
 // @Failure      401            {object}  basemodels.ErrorResponse
 // @Failure      500            {object}  basemodels.ErrorResponse
-// @Router       /api/v1/wallets/add-to-wallet-balance [put]
 func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
+// @Router       /api/v1/wallets/add-to-wallet-balance [put]
 
 	var request UpdateWalletBalanceRequest
 	err := ctx.ShouldBindJSON(&request)
@@ -101,6 +103,23 @@ func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 
 	if activeUser.Role == models.USER {
 		ctx.JSON(401, basemodels.NewError(apistrings.UnauthorizedAccess))
+		return
+	}
+
+	admin, err := w.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(request.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 

@@ -16,6 +16,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 )
 
 type Analytics struct {
@@ -70,6 +71,7 @@ type UpdateSystemSettingsRequest struct {
 	RapidRampEnabled        *bool    `json:"rapid_ramp_enabled"`
 	CardDeclineFee          *float32 `json:"card_decline_fee"`
 	MaxCardFailedTxns       *int32   `json:"max_card_failed_txns"`
+	TwoFACode               string   `json:"two_fa_code" binding:"required"`
 }
 
 func toNullBool(b *bool) sql.NullBool {
@@ -167,6 +169,23 @@ func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 	var req UpdateSystemSettingsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	admin, err := h.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(req.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 
@@ -1156,7 +1175,7 @@ func (h *Analytics) createNotification(c *gin.Context) {
 		&activeUser.UserID,
 		req.Title,
 		req.Message,
-		activeUser.Role,
+		"admin",
 		req.Recipients,
 	)
 	if err != nil {
@@ -1169,7 +1188,7 @@ func (h *Analytics) createNotification(c *gin.Context) {
 
 func (h *Analytics) ListAdminAlerts(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.USER {
+	if err != nil || activeUser.Role == models.ADMIN {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}

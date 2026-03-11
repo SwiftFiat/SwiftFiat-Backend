@@ -46,9 +46,9 @@ CREATE TABLE admin_alerts (
 
     source TEXT, -- payments, auth, kyc, infra
 
-    acknowledged BOOLEAN NOT NULL DEFAULT FALSE,
+    acknowledged BOOLEAN DEFAULT FALSE,
     acknowledged_at TIMESTAMPTZ,
-    acknowledged_by BIGINT NOT NULL
+    acknowledged_by BIGINT
       REFERENCES users(id)
       ON DELETE SET NULL,
 
@@ -63,3 +63,16 @@ CREATE INDEX idx_notifications_created
 
 CREATE INDEX idx_admin_alerts_unacked
   ON admin_alerts (acknowledged, severity);
+
+-- sample admin alert
+INSERT INTO admin_alerts (
+    severity,
+    title,
+    message,
+    source
+) VALUES (
+    'warning',
+    'Sample Alert',
+    'This is a sample alert message.',
+    'payments'
+);

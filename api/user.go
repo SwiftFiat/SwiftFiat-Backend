@@ -21,6 +21,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/pquerna/otp/totp"
 )
 
 type User struct {
@@ -744,7 +745,6 @@ type KYCListResponse struct {
 	Count int                          `json:"count"`
 }
 
-
 type NotificationListResponse struct {
 	Notifications []*models.NotificationResponse `json:"notifications"`
 	Count         int                            `json:"count"`
@@ -904,6 +904,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 		PhoneNumber string `json:"phone_number" binding:"required"`
 		Email       string `json:"email" binding:"required"`
 		FirstName   string `json:"first_name" binding:"required"`
+		TwoFACode   string `json:"two_fa_code" binding:"required"`
 	}
 	err = c.ShouldBindJSON(&req)
 	if err != nil {
@@ -914,6 +915,23 @@ func (u *User) DeleteUser(c *gin.Context) {
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	admin, err := u.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(req.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 
@@ -1061,8 +1079,8 @@ func (u *User) GetUserByID(c *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/user/update-user-status/{id} [put]
 func (u *User) UpdateUserStatus(ctx *gin.Context) {
+	// @Router /api/v1/user/update-user-status/{id} [put]
 	id := ctx.Param("id")
 	userID, err := strconv.Atoi(id)
 	if err != nil {
@@ -1070,12 +1088,13 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid user ID"))
 	}
 	request := struct {
-		IsActive string `json:"is_active" binding:"required"`
+		IsActive  string `json:"is_active" binding:"required"`
+		TwoFACode string `json:"two_fa_code" binding:"required"`
 	}{}
 
 	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid is_active status"))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid request"))
 		return
 	}
 
@@ -1083,6 +1102,23 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	admin, err := u.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	if !admin.TwofaEnabled.Bool {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("2FA must be enabled to perform this action"))
+		return
+	}
+
+	valid := totp.Validate(request.TwoFACode, admin.TwofaSecret.String)
+	if !valid {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
 		return
 	}
 
@@ -1421,7 +1457,6 @@ func (u *User) GetTransactionDetails(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("", transaction))
 }
 
-
 func (u *User) ToggleRapidRamp(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
 	if err != nil {
@@ -1433,7 +1468,7 @@ func (u *User) ToggleRapidRamp(c *gin.Context) {
 	b, err := u.userService.ToggleRapidRamp(c, activeUser.UserID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-		return 
+		return
 	}
 
 	var status, msg string

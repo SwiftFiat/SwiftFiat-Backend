@@ -133,9 +133,9 @@ type AdminAlert struct {
 	Title          string         `json:"title"`
 	Message        string         `json:"message"`
 	Source         sql.NullString `json:"source"`
-	Acknowledged   bool           `json:"acknowledged"`
+	Acknowledged   sql.NullBool   `json:"acknowledged"`
 	AcknowledgedAt sql.NullTime   `json:"acknowledged_at"`
-	AcknowledgedBy int64          `json:"acknowledged_by"`
+	AcknowledgedBy sql.NullInt64  `json:"acknowledged_by"`
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
