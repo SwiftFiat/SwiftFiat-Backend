@@ -1159,7 +1159,7 @@ type CreateNotif struct {
 
 func (h *Analytics) createNotification(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
