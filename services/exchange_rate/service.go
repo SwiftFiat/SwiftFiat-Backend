@@ -32,7 +32,7 @@ func NewExchangeRateService(cryptomusProvider *cryptocurrency.CryptomusProvider,
 
 // GetExchangeRate fetches real-time exchange rate between two currencies
 func (s *ExchangeRateService) GetExchangeRate(ctx context.Context, from, to string) (*ExchangeRate, error) {
-	s.logger.Info(fmt.Sprintf("Fetching exchange rate: %s -> %s", from, to))
+	s.logger.Info(fmt.Sprintf("Fetching exchange rate: %s to %s", from, to))
 
 	// Handle direct currency pairs
 	rate, err := s.getDirectRate(ctx, from, to)
@@ -214,6 +214,12 @@ func (s *ExchangeRateService) isCrypto(currency string) bool {
 		"USDC": true,
 		"BTC":  true,
 		"ETH":  true,
+		"DOGE": true,
+		"LTC":  true,
+		"BNB":  true,
+		"TRX":  true,
+		"SOL":  true,
+		"TON":  true,
 	}
 	return cryptos[currency]
 }

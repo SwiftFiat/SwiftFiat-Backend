@@ -936,7 +936,7 @@ type UserVIPStatusResponse struct {
 
 // GetAdjustedRateForUser calculates the adjusted rate for a specific user
 func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from, to string, amount string) (*RateSimulationResponse, error) {
-	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %d: %s -> %s, amount: %s", userID, from, to, amount))
+	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %d: %s to %s, amount: %s", userID, from, to, amount))
 
 	// Get base rate from exchange rate service
 	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, from, to)
