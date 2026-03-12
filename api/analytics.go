@@ -1154,12 +1154,12 @@ func (h *Analytics) GetDailyTransactions(c *gin.Context) {
 type CreateNotif struct {
 	Title      string  `json:"title" binding:"required"`
 	Message    string  `json:"message" binding:"required"`
-	Recipients []int64 `json:"recipients" binding:"required"`
+	Recipients []int64 `json:"recipients"`
 }
 
 func (h *Analytics) createNotification(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.USER {
+	if err != nil || activeUser.Role == models.ADMIN {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1170,13 +1170,25 @@ func (h *Analytics) createNotification(c *gin.Context) {
 		return
 	}
 
+	recipients := req.Recipients
+	if len(recipients) == 0 {
+		users, err := h.server.queries.ListAllUsers(c)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch users"))
+			return
+		}
+		for _, u := range users {
+			recipients = append(recipients, u.ID)
+		}
+	}
+
 	_, err = h.notif.CreateWithRecipients(
 		c,
 		&activeUser.UserID,
 		req.Title,
 		req.Message,
 		"admin",
-		req.Recipients,
+		recipients,
 	)
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
@@ -1188,7 +1200,7 @@ func (h *Analytics) createNotification(c *gin.Context) {
 
 func (h *Analytics) ListAdminAlerts(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1243,7 +1255,7 @@ func (h *Analytics) ListUnReadAlerts(c *gin.Context) {
 
 func (h *Analytics) ListAllVirtualCardTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1265,7 +1277,7 @@ func (h *Analytics) ListAllVirtualCardTransactions(c *gin.Context) {
 
 func (h Analytics) GetRapidRampUsers(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
@@ -1285,7 +1297,7 @@ func (h Analytics) GetRapidRampUsers(c *gin.Context) {
 
 func (h Analytics) GetRapidRampTransactions(c *gin.Context) {
 	activeUser, err := utils.GetActiveUser(c)
-	if err != nil || activeUser.Role == models.ADMIN {
+	if err != nil || activeUser.Role == models.USER {
 		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
 		return
 	}
