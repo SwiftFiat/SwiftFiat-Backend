@@ -175,7 +175,7 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier_2" {
+	if kyc.Tier != "tier_1" {
 		go s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}

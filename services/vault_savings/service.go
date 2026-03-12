@@ -959,7 +959,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 
-	if kyc.Tier != "tier_2" {
+	if kyc.Tier != "tier_1" {
 		go s.pushService.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
