@@ -366,8 +366,8 @@ func (s *Server) Start() error {
 		baseURL := s.config.SwiftBaseUrl
 		for _, file := range files {
 			if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".svg") {
-				// Format: {"filename.svg": "https://baseurl/api/v1/icons/assets/filename.svg"}
-				icons[file.Name()] = fmt.Sprintf("%s/api/v1/icons/assets/%s", baseURL, file.Name())
+				// Format: {"filename.svg": "https://baseurl/icons/assets/filename.svg"}
+				icons[file.Name()] = fmt.Sprintf("%s/icons/assets/%s", baseURL, file.Name())
 			}
 		}
 
