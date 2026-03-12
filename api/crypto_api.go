@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -155,16 +154,35 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	request := struct {
-		Currency string `json:"currency" binding:"required"`
-		Network  string `json:"network" binding:"required"`
-	}{}
-
+	var request CreateStaticWalletRequest
 	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
 		return
 	}
+
+	// 1. Check if user already has an address for this currency and network
+	existingAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)
+	if err == nil && existingAddress != nil {
+		// Return existing address
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("Static Wallet already exists", cryptocurrency.StaticWalletResponse{
+			WalletUUID: existingAddress.WalletUuid,
+			UUID:       existingAddress.Uuid,
+			Address:    existingAddress.Address,
+			Currency:   existingAddress.Currency,
+			Network:    existingAddress.Network,
+			Url:        existingAddress.PaymentUrl.String,
+		}))
+		return
+	}
+
+	// 2. Generate Deterministic Order ID
+	// We remove the timestamp to ensure that if the same user requests the same currency/network,
+	// Cryptomus returns the same address even if our local DB record is missing.
+	orderID := fmt.Sprintf("wallet_%d_%s_%s", activeUser.UserID, request.Network, request.Currency)
+
+	// Sanitize orderID to ensure it only contains alphabetic characters, numbers, underscores, and dashes
+	orderID = strings.ReplaceAll(orderID, " ", "_")
 
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
@@ -179,9 +197,6 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
 		return
 	}
-
-	// Generate Order ID
-	orderID := fmt.Sprintf("wallet_%d_%s_%s_%d", activeUser.UserID, request.Network, request.Currency, time.Now().Unix())
 
 	c.server.logger.Info(fmt.Sprintf("Order ID: %s", orderID))
 
@@ -404,7 +419,6 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	} else if err != sql.ErrNoRows {
 		c.server.logger.Errorf("error retrieving crypto metadata: %v", err)
 	}
-	
 
 	switch payload.Status {
 	case "confirm_check", "process":

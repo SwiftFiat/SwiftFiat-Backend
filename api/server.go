@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -290,6 +292,7 @@ func NewServer(envPath string) *Server {
 	am := NewAuthMiddleware(r)
 
 	g.Static("/docs", "./docs/site") // serves docs at /docs
+	g.Static("/api/v1/icons/assets", "./icons")
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
 
@@ -349,6 +352,26 @@ func (s *Server) Start() error {
 
 	s.router.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, dr)
+	})
+
+	s.router.GET("/api/v1/icons", func(ctx *gin.Context) {
+		files, err := os.ReadDir("./icons")
+		if err != nil {
+			s.logger.Error("failed to read icons directory", "error", err)
+			ctx.JSON(http.StatusInternalServerError, gin.H{"error": "failed to read icons directory"})
+			return
+		}
+
+		icons := make(map[string]string)
+		baseURL := s.config.SwiftBaseUrl
+		for _, file := range files {
+			if !file.IsDir() && strings.HasSuffix(strings.ToLower(file.Name()), ".svg") {
+				// Format: {"filename.svg": "https://baseurl/api/v1/icons/assets/filename.svg"}
+				icons[file.Name()] = fmt.Sprintf("%s/api/v1/icons/assets/%s", baseURL, file.Name())
+			}
+		}
+
+		ctx.JSON(http.StatusOK, icons)
 	})
 
 	// Swagger documentation routes
