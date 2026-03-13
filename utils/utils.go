@@ -233,3 +233,17 @@ func SplitName(fullName string) (string, string) {
 
 	return firstName, lastName
 }
+
+func PtrToString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
+func PtrToTime(p *time.Time) time.Time {
+	if p == nil {
+		return time.Time{}
+	}
+	return *p
+}

@@ -2797,7 +2797,10 @@ const updateYieldConfig = `-- name: UpdateYieldConfig :exec
 UPDATE vault_yield_configs
 SET apy_rate = COALESCE($2, apy_rate),
     min_balance_for_yield = COALESCE($3, min_balance_for_yield),
-    is_active = COALESCE($4, is_active),
+    compound_frequency = COALESCE($4, compound_frequency),
+    is_active = COALESCE($5, is_active),
+    effective_until = COALESCE($6, effective_until),
+    notes = COALESCE($7, notes),
     updated_at = NOW()
 WHERE id = $1
 `
@@ -2806,7 +2809,10 @@ type UpdateYieldConfigParams struct {
 	ID                 uuid.UUID      `json:"id"`
 	ApyRate            sql.NullString `json:"apy_rate"`
 	MinBalanceForYield sql.NullString `json:"min_balance_for_yield"`
+	CompoundFrequency  sql.NullString `json:"compound_frequency"`
 	IsActive           sql.NullBool   `json:"is_active"`
+	EffectiveUntil     sql.NullTime   `json:"effective_until"`
+	Notes              sql.NullString `json:"notes"`
 }
 
 func (q *Queries) UpdateYieldConfig(ctx context.Context, arg UpdateYieldConfigParams) error {
@@ -2814,7 +2820,10 @@ func (q *Queries) UpdateYieldConfig(ctx context.Context, arg UpdateYieldConfigPa
 		arg.ID,
 		arg.ApyRate,
 		arg.MinBalanceForYield,
+		arg.CompoundFrequency,
 		arg.IsActive,
+		arg.EffectiveUntil,
+		arg.Notes,
 	)
 	return err
 }

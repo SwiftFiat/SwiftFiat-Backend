@@ -19,8 +19,8 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/pquerna/otp/totp"
+	"github.com/shopspring/decimal"
 )
 
 // ============================================================================
@@ -834,7 +834,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 	var req struct {
 		Amount      string `json:"amount" binding:"required"`
 		Description string `json:"description"`
-		TwoFACode string  `json:"two_fa_code" binding:"required"`
+		TwoFACode   string `json:"two_fa_code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -1128,7 +1128,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 	var req struct {
 		Amount      string `json:"amount" binding:"required"`
 		Description string `json:"description"`
-		TwoFACode string  `json:"two_fa_code" binding:"required"`
+		TwoFACode   string `json:"two_fa_code" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -2567,16 +2567,6 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 	ctx.JSON(http.StatusCreated, basemodels.NewSuccess("yield config created", *vaultsavings.MapVaultYieldConfigToResponse(config)))
 }
 
-type UpdateYieldConfigParams struct {
-	ID                 uuid.UUID `json:"id"`
-	ApyRate            string    `json:"apy_rate"`
-	MinBalanceForYield string    `json:"min_balance_for_yield"`
-	CompoundFrequency  string    `json:"compound_frequency"`
-	IsActive           bool      `json:"is_active"`
-	EffectiveUntil     time.Time `json:"effective_until"`
-	Notes              string    `json:"notes"`
-}
-
 // updateYieldConfig godoc
 // @Summary Update Yield Configuration (Admin)
 // @Description Update an existing yield configuration
@@ -2648,13 +2638,19 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 	auditLog.NewValues = map[string]any{
 		"apy_rate":              req.ApyRate,
 		"min_balance_for_yield": req.MinBalanceForYield,
+		"compound_frequency":    req.CompoundFrequency,
 		"is_active":             req.IsActive,
+		"effective_until":       req.EffectiveUntil,
+		"notes":                 req.Notes,
 	}
 
 	auditLog.OldValues = map[string]any{
 		"apy_rate":              existingConfig.ApyRate,
 		"min_balance_for_yield": existingConfig.MinBalanceForYield,
+		"compound_frequency":    existingConfig.CompoundFrequency,
 		"is_active":             existingConfig.IsActive,
+		"effective_until":       existingConfig.EffectiveUntil,
+		"notes":                 existingConfig.Notes,
 	}
 	v.audit.Log(auditLog)
 
