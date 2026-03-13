@@ -409,11 +409,11 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	}
 
 	// If orderid exist and transaction status is successful, do nothing.
-	t, err := c.server.queries.GetCryptoMetadataByOrderID(ctx, payload.OrderID)
+	t, err := c.server.queries.GetCryptoMetadatBySourceHash(ctx, sql.NullString{String: payload.Sign, Valid: true})
 	if err == nil {
 		tx, err := c.server.queries.GetTransactionByID(ctx, t.TransactionID)
 		if err == nil && transaction.TransactionStatus(tx.Status) == transaction.Success {
-			c.server.logger.Infof("transaction already successful for order_id: %s, skipping processing", payload.OrderID)
+			c.server.logger.Infof("transaction already successful for source_hash: %s, skipping processing", payload.Sign)
 			return
 		}
 	} else if err != sql.ErrNoRows {

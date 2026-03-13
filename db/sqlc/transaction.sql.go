@@ -665,6 +665,31 @@ func (q *Queries) CreateWalletTransferMetadata(ctx context.Context, arg CreateWa
 	return i, err
 }
 
+const getCryptoMetadatBySourceHash = `-- name: GetCryptoMetadatBySourceHash :one
+SELECT id, destination_wallet, transaction_id, coin, source_hash, rate, fees, received_amount, sent_amount, service_provider, order_id, service_transaction_id FROM crypto_transaction_metadata
+WHERE source_hash = $1 LIMIT 1
+`
+
+func (q *Queries) GetCryptoMetadatBySourceHash(ctx context.Context, sourceHash sql.NullString) (CryptoTransactionMetadatum, error) {
+	row := q.db.QueryRowContext(ctx, getCryptoMetadatBySourceHash, sourceHash)
+	var i CryptoTransactionMetadatum
+	err := row.Scan(
+		&i.ID,
+		&i.DestinationWallet,
+		&i.TransactionID,
+		&i.Coin,
+		&i.SourceHash,
+		&i.Rate,
+		&i.Fees,
+		&i.ReceivedAmount,
+		&i.SentAmount,
+		&i.ServiceProvider,
+		&i.OrderID,
+		&i.ServiceTransactionID,
+	)
+	return i, err
+}
+
 const getCryptoMetadataByOrderID = `-- name: GetCryptoMetadataByOrderID :one
 SELECT id, destination_wallet, transaction_id, coin, source_hash, rate, fees, received_amount, sent_amount, service_provider, order_id, service_transaction_id FROM crypto_transaction_metadata
 WHERE order_id = $1 LIMIT 1

@@ -699,7 +699,7 @@ func (s *TransactionService) processRapidRampInflow(
 		transferRef,
 		"sent via Swiift",
 		amountInNGN,
-		bankAccount.AccountName,
+		"SWIIFT",
 	)
 
 	// Handle different transfer states like HandleBankTransfer does

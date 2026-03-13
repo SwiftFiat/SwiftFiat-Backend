@@ -796,6 +796,10 @@ WHERE transaction_id = $1 LIMIT 1;
 SELECT * FROM crypto_transaction_metadata
 WHERE order_id = $1 LIMIT 1;
 
+-- name: GetCryptoMetadatBySourceHash :one
+SELECT * FROM crypto_transaction_metadata
+WHERE source_hash = $1 LIMIT 1;
+
 -- name: GetPendingCryptoTransactionByOrderID :one
 SELECT t.* 
 FROM transactions t
