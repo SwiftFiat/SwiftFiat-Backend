@@ -20,7 +20,7 @@ INSERT INTO vault_savings (
     category,
     next_yield_calculation
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW()
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW() + INTERVAL '1 day'
 ) RETURNING *;
 
 -- name: GetVaultGoalByID :one

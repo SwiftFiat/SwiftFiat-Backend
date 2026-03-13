@@ -89,12 +89,12 @@ type YieldCalculationRequest struct {
 
 // YieldCalculationResult contains the calculated yield details
 type YieldCalculationResult struct {
-	YieldAmount     string // Total yield earned
-	DailyRate       string // Daily interest rate used
-	DaysInPeriod    int    // Number of days in calculation period
-	StartBalance    string // Balance at start of period
-	EndBalance      string // Balance including yield
-	EffectiveAPY    string // Actual APY achieved (may differ due to compounding)
+	YieldAmount     string  // Total yield earned
+	DailyRate       string  // Daily interest rate used
+	DaysInPeriod    float64 // Number of days in calculation period
+	StartBalance    string  // Balance at start of period
+	EndBalance      string  // Balance including yield
+	EffectiveAPY    string  // Actual APY achieved (may differ due to compounding)
 	CalculatedAt    time.Time
 	CompoundingUsed bool
 	Reference       string
@@ -128,8 +128,8 @@ func (ys *YieldService) CalculateYield(ctx context.Context, req YieldCalculation
 		return nil, fmt.Errorf("APY cannot be negative")
 	}
 
-	// Calculate days in period
-	days := int(req.PeriodEnd.Sub(req.PeriodStart).Hours() / 24)
+	// Calculate days in period (as float for higher precision)
+	days := req.PeriodEnd.Sub(req.PeriodStart).Hours() / 24.0
 	if days < 0 {
 		return nil, fmt.Errorf("invalid period: end must be after start")
 	}
@@ -158,7 +158,7 @@ func (ys *YieldService) CalculateYield(ctx context.Context, req YieldCalculation
 		effectiveAPY = yearlyFactor.Sub(decimal.NewFromInt(1)).Mul(decimal.NewFromInt(100))
 	} else {
 		// Simple interest: Yield = Principal × APY × (days / 365)
-		daysFraction := decimal.NewFromInt(int64(days)).Div(decimal.NewFromInt(365))
+		daysFraction := decimal.NewFromFloat(days).Div(decimal.NewFromInt(365))
 		yieldAmount = balance.Mul(apyDecimal).Mul(daysFraction)
 		effectiveAPY = apy // Same as input for simple interest
 	}
@@ -182,11 +182,10 @@ func (ys *YieldService) CalculateYield(ctx context.Context, req YieldCalculation
 }
 
 // power calculates decimal^exponent using approximation
-// For financial calculations, we use a series approximation
-func (ys *YieldService) power(base decimal.Decimal, exponent int) decimal.Decimal {
+func (ys *YieldService) power(base decimal.Decimal, exponent float64) decimal.Decimal {
 	// Convert to float64 for calculation (acceptable for financial precision up to 8 decimals)
 	baseFloat, _ := base.Float64()
-	result := math.Pow(baseFloat, float64(exponent))
+	result := math.Pow(baseFloat, exponent)
 	return decimal.NewFromFloat(result)
 }
 
@@ -351,7 +350,7 @@ func (ys *YieldService) creditYieldToVault(
 		BalanceBefore:   balanceBefore.String,
 		BalanceAfter:    balanceAfter,
 		Reference:       nullString(transactionRef),
-		Description:     nullString((fmt.Sprintf("Yield earned: %s%% APY for %d days", config.ApyRate, result.DaysInPeriod))),
+		Description:     nullString((fmt.Sprintf("Yield earned: %s%% APY for %.2f days", config.ApyRate, result.DaysInPeriod))),
 		Status:          nullString(string(TransactionStatusSuccessful)),
 		Requires2fa:     nullBool(false),
 		TransactionID:   uuid.NullUUID{UUID: mainTx.ID, Valid: true},
