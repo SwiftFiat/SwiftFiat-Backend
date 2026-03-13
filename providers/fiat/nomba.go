@@ -456,6 +456,7 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 		BankCode:      d.Meta.BankCode,
 		AccountNumber: d.Meta.AccountNumber,
 		RRN:           d.Meta.APIRRN,
+		SenderName:    senderName,
 		RawData:       &d,
 	}, nil
 }

@@ -122,6 +122,7 @@ type NombaTransferResponse struct {
 	BankCode      string
 	AccountNumber string
 	RRN           string
+	SenderName    string
 	RawData       *NombaTransferData
 }
 
