@@ -14,9 +14,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/rewards"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	tx "github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/wallet"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -32,7 +30,6 @@ type Bills struct {
 	currencyService    *currency.CurrencyService
 	audit              *audit.Service
 	streakScheduler    *streaks.StreakScheduler
-	rewardSvc          *rewards.RewardService
 }
 
 func (b Bills) router(server *Server) {
@@ -63,13 +60,13 @@ func mapBillError(ctx *gin.Context, err error) {
 	switch {
 	case err.Error() == "Err_AIRTIME_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_DATA_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_ELECTRICITY_AMOUNT_EXCEEDED_FOR_TIER_1", err.Error() == "Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1":
 		ctx.JSON(http.StatusUnprocessableEntity, basemodels.NewError(err.Error()))
-	case errors.Is(err, transaction.ErrInsufficientBalance):
+	case errors.Is(err, tx.ErrInsufficientBalance):
 		ctx.JSON(http.StatusUnprocessableEntity, basemodels.NewError(err.Error()))
-	case errors.Is(err, transaction.ErrTransactionPending):
+	case errors.Is(err, tx.ErrTransactionPending):
 		ctx.JSON(http.StatusConflict, basemodels.NewError(err.Error()))
-	case errors.Is(err, transaction.ErrTransactionCompleted):
+	case errors.Is(err, tx.ErrTransactionCompleted):
 		ctx.JSON(http.StatusConflict, basemodels.NewError(err.Error()))
-	case errors.Is(err, transaction.ErrInvalidVariation):
+	case errors.Is(err, tx.ErrInvalidVariation):
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 	default:
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -222,7 +219,7 @@ func (b *Bills) getServiceVariations(ctx *gin.Context) {
 }
 
 func (b *Bills) buyAirtime(ctx *gin.Context) {
-	var request transaction.BuyAirtimeRequest
+	var request tx.BuyAirtimeRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
@@ -256,7 +253,7 @@ func (b *Bills) buyAirtime(ctx *gin.Context) {
 }
 
 func (b *Bills) buyData(ctx *gin.Context) {
-	var request transaction.BuyDataRequest
+	var request tx.BuyDataRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
@@ -324,7 +321,7 @@ func (b *Bills) getCustomerInfo(ctx *gin.Context) {
 }
 
 func (b *Bills) buyTVSubscription(ctx *gin.Context) {
-	var request transaction.TVSubRequest
+	var request tx.TVSubRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return
@@ -394,7 +391,7 @@ func (b *Bills) getCustomerMeterInfo(ctx *gin.Context) {
 }
 
 func (b *Bills) buyElectricity(ctx *gin.Context) {
-	var request transaction.ElectricityRequest
+	var request tx.ElectricityRequest
 	if err := ctx.ShouldBindJSON(&request); err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
 		return

@@ -177,6 +177,8 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 		return
 	}
 
+	k.decryptKyc(&userKyc)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("User KYC Information Fetched Successfully", models.ToUserKYCInformation(&userKyc)))
 }
 

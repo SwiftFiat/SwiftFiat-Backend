@@ -1,0 +1,22 @@
+meta {
+  name: Resend admin login otp
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{BaseURl}}/auth/resend-admin-otp
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "email": "swiftfiatdev@gmail.com"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
