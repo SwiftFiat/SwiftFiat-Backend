@@ -1771,10 +1771,10 @@ func (s *TransactionService) buildAirtimeResponse(
 }
 
 var (
-	tier1MaxAmountForAirtime     = decimal.NewFromInt(200)
-	tier1MaxAmountForData        = decimal.NewFromInt(200)
-	tier1MaxAmountForElectricity = decimal.NewFromInt(5000)
-	tier1MaxAmountForTV          = decimal.NewFromInt(20000)
+	tier1MaxAmountForAirtime     = decimal.NewFromInt(100000)
+	tier1MaxAmountForData        = decimal.NewFromInt(100000)
+	tier1MaxAmountForElectricity = decimal.NewFromInt(100000)
+	tier1MaxAmountForTV          = decimal.NewFromInt(100000)
 )
 
 // ── HandleAirtime ──────────────────────────────────────────────────────────────

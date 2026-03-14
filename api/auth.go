@@ -74,6 +74,7 @@ func (a Auth) router(server *Server) {
 	serverGroupV1.POST("verify-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyEmail)
 	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
 	serverGroupV1.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
+	serverGroupV1.POST("resend-admin-otp", a.ResendAdminLoginOTP)
 	serverGroupV1.POST("set-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.SetTwoFA)
 	serverGroupV1.POST("verify-2fa", a.verifyTwoFA)
 	serverGroupV1.POST("logout", a.server.authMiddleware.AuthenticatedMiddleware(), a.logout)
@@ -843,6 +844,60 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 
 	a.server.redis.Delete(ctx, redisKey)
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin logged in successfully", userWT))
+}
+
+// ResendAdminLoginOTP godoc
+// @Summary Resend admin login OTP [NEW]
+// @Description Resend OTP for admin login
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Param data body ResendEmailRequest true "resend admin OTP request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/resend-admin-otp [post]
+func (a *Auth) ResendAdminLoginOTP(ctx *gin.Context) {
+	var req ResendEmailRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid request"))
+		return
+	}
+
+	dbUser, err := a.userService.FetchUserByEmail(ctx, req.Email)
+	if err != nil {
+		a.server.logger.Error(logrus.ErrorLevel, err)
+		if err.Error() == user_service.ErrUserNotFound.Error() {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if dbUser.Role == models.USER {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError("Unauthorized access"))
+		return
+	}
+
+	verificationCode := utils.GenerateOTP()
+	redisKey := fmt.Sprintf("admin_login_otp:%s", req.Email)
+
+	if err := a.server.redis.Set(ctx, redisKey, verificationCode, 10*time.Minute); err != nil {
+		a.server.logger.Error(fmt.Sprintf("redis set admin OTP error: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if err := a.server.emailService.SendAdminOTP(dbUser, req.Email, verificationCode); err != nil {
+		a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send admin OTP email: %v", err))
+		a.logFailedNotification(ctx, "email", "critical", dbUser.ID, req.Email,
+			"Admin Login OTP", fmt.Sprintf("OTP: %s", verificationCode), err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send OTP email"))
+		return
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin OTP resent to email, please verify to continue", nil))
 }
 
 // loginWithPasscode godoc
