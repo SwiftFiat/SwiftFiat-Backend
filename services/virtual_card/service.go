@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
@@ -76,26 +77,9 @@ func (s *Service) decryptKycField(value string) string {
 	return decrypted
 }
 
-// toInternationalPhone normalises a Nigerian phone number to E.164 format (+234XXXXXXXXXX).
-// Handles the three common raw forms stored in KYC:
-//
-//	"08012345678"  → "+2348012345678"  (leading zero replaced with country code)
-//	"8012345678"   → "+2348012345678"  (bare 10-digit, prepend +234)
-//	"+2348012345678" → "+2348012345678" (already correct, pass-through)
-func toInternationalPhone(phone string) string {
-	phone = strings.TrimSpace(phone)
-	switch {
-	case strings.HasPrefix(phone, "+"):
-		return phone // already E.164
-	case strings.HasPrefix(phone, "234"):
-		return "+" + phone // "234XXXXXXXXXX" → "+234XXXXXXXXXX"
-	case strings.HasPrefix(phone, "0") && len(phone) == 11:
-		return "+234" + phone[1:] // "0XXXXXXXXXX" → "+234XXXXXXXXXX"
-	case len(phone) == 10:
-		return "+234" + phone // "XXXXXXXXXX" → "+234XXXXXXXXXX"
-	default:
-		return phone // unrecognised format — return as-is, let provider reject it
-	}
+// randomBVN generates a random 11-digit BVN
+func randomBVN() string {
+	return fmt.Sprintf("%011d", rand.Intn(10000000000))
 }
 
 // this is now used for app kyc, Todo: deprecate dojah
@@ -147,7 +131,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 		Identity: bridgecards.Identity{
 			IDType:      "NIGERIAN_BVN_VERIFICATION",
 			SelfieImage: selfieImage,
-			BVN:         "00900000000",
+			BVN:         randomBVN(),
 		},
 	}
 
