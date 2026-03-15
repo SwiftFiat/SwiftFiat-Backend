@@ -35,9 +35,9 @@ func (q *Queries) BulkRejectExpiredDocuments(ctx context.Context) error {
 
 const createNewKYC = `-- name: CreateNewKYC :one
 INSERT INTO kyc (
-    user_id, tier
+    user_id, tier, "status", verification_date
 ) VALUES (
-    $1, 'tier_1'
+    $1, 'tier_1', 'verified', now()
 ) RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 

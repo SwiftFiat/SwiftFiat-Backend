@@ -463,6 +463,28 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 			k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
 		}
 
+		_, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
+			ID:       int64(kyc.UserID),
+			FirstName: sql.NullString{
+				String: verificationData.FirstName,
+				Valid:  true,
+			},
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update user %d first name: %v", kyc.UserID, err)
+		}
+
+		_, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
+			ID:       int64(kyc.UserID),
+			LastName: sql.NullString{
+				String: verificationData.LastName,
+				Valid:  true,
+			},
+		})
+		if err != nil {
+			k.server.logger.Errorf("failed to update user %d last name: %v", kyc.UserID, err)
+		}
+
 		// Refresh kyc object
 		updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
 		if err == nil {

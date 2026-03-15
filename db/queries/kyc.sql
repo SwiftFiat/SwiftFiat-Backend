@@ -1,8 +1,8 @@
 -- name: CreateNewKYC :one
 INSERT INTO kyc (
-    user_id, tier
+    user_id, tier, status, verification_date
 ) VALUES (
-    $1, 'tier_1'
+    $1, 'tier_1', 'verified', now()
 ) RETURNING *;
 
 -- name: GetKYCByUserID :one

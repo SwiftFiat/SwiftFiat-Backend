@@ -1192,6 +1192,15 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 		a.server.logger.Error(fmt.Sprintf("failed to update user %s tier to tier 1: %v", user.UserTag.String, err))
 	}
 
+	_, err = a.server.queries.UpdateKYCNINInfo(ctx, db.UpdateKYCNINInfoParams{
+		FullName: sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
+		ID: user.ID,
+		PhoneNumber: sql.NullString{String: user.PhoneNumber, Valid: true},
+	})
+	if err != nil {
+		a.server.logger.Error(fmt.Sprintf("failed to update user %s tier to tier 1: %v", user.UserTag.String, err))
+	}
+
 	message := "Welcome! Your account is ready, Your account is currently on Tier 1 with basic access. Complete Tier 2 verification to unlock higher transaction limits and more features."
 
 	bgCtx := context.Background()
