@@ -35,7 +35,7 @@ func (q *Queries) BulkRejectExpiredDocuments(ctx context.Context) error {
 
 const createNewKYC = `-- name: CreateNewKYC :one
 INSERT INTO kyc (
-    user_id, tier, "status", verification_date
+    user_id, tier, status, verification_date
 ) VALUES (
     $1, 'tier_1', 'verified', now()
 ) RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
@@ -611,6 +611,117 @@ func (q *Queries) GetVerifiedKYCCount(ctx context.Context) (int64, error) {
 	var count int64
 	err := row.Scan(&count)
 	return count, err
+}
+
+const listAllKYC = `-- name: ListAllKYC :many
+SELECT 
+    k.id, k.user_id, k.status, k.tier, k.verification_date, k.full_name, k.phone_number, k.email, k.gender, k.selfie_url, k.bvn, k.nin, k.id_type, k.id_number, k.id_image_url, k.state, k.lga, k.house_number, k.street_name, k.nearest_landmark, k.postal_code, k.country, k.city, k.proof_of_address_type, k.proof_of_address_url, k.proof_of_address_date, k.created_at, k.updated_at, k.additional_info,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.phone_number as user_phone
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+ORDER BY k.created_at DESC
+LIMIT $1 OFFSET $2
+`
+
+type ListAllKYCParams struct {
+	Limit  int32 `json:"limit"`
+	Offset int32 `json:"offset"`
+}
+
+type ListAllKYCRow struct {
+	ID                 int64                 `json:"id"`
+	UserID             int32                 `json:"user_id"`
+	Status             string                `json:"status"`
+	Tier               string                `json:"tier"`
+	VerificationDate   sql.NullTime          `json:"verification_date"`
+	FullName           sql.NullString        `json:"full_name"`
+	PhoneNumber        sql.NullString        `json:"phone_number"`
+	Email              sql.NullString        `json:"email"`
+	Gender             sql.NullString        `json:"gender"`
+	SelfieUrl          sql.NullString        `json:"selfie_url"`
+	Bvn                sql.NullString        `json:"bvn"`
+	Nin                sql.NullString        `json:"nin"`
+	IDType             sql.NullString        `json:"id_type"`
+	IDNumber           sql.NullString        `json:"id_number"`
+	IDImageUrl         sql.NullString        `json:"id_image_url"`
+	State              sql.NullString        `json:"state"`
+	Lga                sql.NullString        `json:"lga"`
+	HouseNumber        sql.NullString        `json:"house_number"`
+	StreetName         sql.NullString        `json:"street_name"`
+	NearestLandmark    sql.NullString        `json:"nearest_landmark"`
+	PostalCode         sql.NullString        `json:"postal_code"`
+	Country            sql.NullString        `json:"country"`
+	City               sql.NullString        `json:"city"`
+	ProofOfAddressType sql.NullString        `json:"proof_of_address_type"`
+	ProofOfAddressUrl  sql.NullString        `json:"proof_of_address_url"`
+	ProofOfAddressDate sql.NullTime          `json:"proof_of_address_date"`
+	CreatedAt          time.Time             `json:"created_at"`
+	UpdatedAt          time.Time             `json:"updated_at"`
+	AdditionalInfo     pqtype.NullRawMessage `json:"additional_info"`
+	Email_2            string                `json:"email_2"`
+	FirstName          sql.NullString        `json:"first_name"`
+	LastName           sql.NullString        `json:"last_name"`
+	UserPhone          string                `json:"user_phone"`
+}
+
+func (q *Queries) ListAllKYC(ctx context.Context, arg ListAllKYCParams) ([]ListAllKYCRow, error) {
+	rows, err := q.db.QueryContext(ctx, listAllKYC, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListAllKYCRow{}
+	for rows.Next() {
+		var i ListAllKYCRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Status,
+			&i.Tier,
+			&i.VerificationDate,
+			&i.FullName,
+			&i.PhoneNumber,
+			&i.Email,
+			&i.Gender,
+			&i.SelfieUrl,
+			&i.Bvn,
+			&i.Nin,
+			&i.IDType,
+			&i.IDNumber,
+			&i.IDImageUrl,
+			&i.State,
+			&i.Lga,
+			&i.HouseNumber,
+			&i.StreetName,
+			&i.NearestLandmark,
+			&i.PostalCode,
+			&i.Country,
+			&i.City,
+			&i.ProofOfAddressType,
+			&i.ProofOfAddressUrl,
+			&i.ProofOfAddressDate,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.AdditionalInfo,
+			&i.Email_2,
+			&i.FirstName,
+			&i.LastName,
+			&i.UserPhone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const manuallyVerifyKYC = `-- name: ManuallyVerifyKYC :one

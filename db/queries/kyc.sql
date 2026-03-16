@@ -259,3 +259,15 @@ SET
     updated_at = now()
 WHERE id = $1
 RETURNING *;
+
+-- name: ListAllKYC :many
+SELECT 
+    k.*,
+    u.email,
+    u.first_name,
+    u.last_name,
+    u.phone_number as user_phone
+FROM kyc k
+JOIN users u ON u.id = k.user_id
+ORDER BY k.created_at DESC
+LIMIT $1 OFFSET $2;

@@ -92,9 +92,9 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	params.Add("bvn", bvn)
 	params.Add("first_name", first_name)
 	params.Add("last_name", last_name)
-	// if dob != nil {
-	// 	params.Add("dob", *dob)
-	// }
+	if dob != nil {
+		params.Add("dob", *dob)
+	}
 	fullURL.RawQuery = params.Encode()
 
 	resp, err := p.MakeRequest("GET", fullURL.String(), nil, requiredHeaders)

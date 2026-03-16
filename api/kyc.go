@@ -52,6 +52,7 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.POST("/admin/verify/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyKYC)
 	serverGroupV1.POST("/admin/reject/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.rejectKYC)
 	serverGroupV1.GET("/admin/user/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.getAdminUserKyc)
+	serverGroupV1.GET("/admin/all", k.server.authMiddleware.AuthenticatedMiddleware(), k.listAllUserKyc)
 }
 
 // getVerificationProgress returns which fields are completed and what's still needed
@@ -184,9 +185,10 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 
 func (k *KYC) validateBVN(ctx *gin.Context) {
 	request := struct {
-		BVN    string `json:"bvn" binding:"required"`
-		Gender string `json:"gender"`
-		DOB    string `json:"dob"`
+		BVN       string `json:"bvn" binding:"required"`
+		FirstName string `json:"first_name"`
+		LastName  string `json:"last_name"`
+		DOB       string `json:"dob"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -225,7 +227,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	verificationData, err := kycProvider.ValidateBVN(request.BVN, dbUser.FirstName.String, dbUser.LastName.String, &request.DOB)
+	verificationData, err := kycProvider.ValidateBVN(request.BVN, request.FirstName, request.LastName, &request.DOB)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure: %s", err)))
@@ -372,9 +374,9 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	ninRequest := map[string]interface{}{
-		"nin":    request.NIN,
-		"selfie": request.Selfie,
+	ninRequest := map[string]any{
+		"nin":          request.NIN,
+		"selfie_image": request.Selfie,
 	}
 
 	verificationData, err := kycProvider.ValidateNIN(ninRequest)
@@ -464,7 +466,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		}
 
 		_, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
-			ID:       int64(kyc.UserID),
+			ID: int64(kyc.UserID),
 			FirstName: sql.NullString{
 				String: verificationData.FirstName,
 				Valid:  true,
@@ -475,7 +477,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		}
 
 		_, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
-			ID:       int64(kyc.UserID),
+			ID: int64(kyc.UserID),
 			LastName: sql.NullString{
 				String: verificationData.LastName,
 				Valid:  true,
@@ -1042,4 +1044,94 @@ func (k *KYC) decryptExtendedKyc(kyc *db.GetUserAndKYCWithProofOfAddressRow) {
 	if kyc.ProofOfAddressUrl.Valid {
 		kyc.ProofOfAddressUrl.String = k.decryptField(kyc.ProofOfAddressUrl.String)
 	}
+}
+
+func (k *KYC) listAllUserKyc(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+	if activeUser.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unauthorized"))
+		return
+	}
+
+	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
+	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "20"))
+	offset := (page - 1) * limit
+
+	kycs, err := k.server.queries.ListAllKYC(ctx, db.ListAllKYCParams{
+		Limit:  int32(limit),
+		Offset: int32(offset),
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to list all kyc: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	stats, err := k.server.queries.GetKYCStatistics(ctx)
+	if err != nil {
+		k.server.logger.Errorf("failed to get kyc statistics: %v", err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	var response []models.UserKYCInformation
+	for _, kycRow := range kycs {
+		// Create a temporary Kyc object for decryption
+		tempKyc := db.Kyc{
+			FullName:           kycRow.FullName,
+			PhoneNumber:        kycRow.PhoneNumber,
+			Email:              kycRow.Email,
+			Gender:             kycRow.Gender,
+			SelfieUrl:          kycRow.SelfieUrl,
+			Bvn:                kycRow.Bvn,
+			Nin:                kycRow.Nin,
+			IDType:             kycRow.IDType,
+			IDNumber:           kycRow.IDNumber,
+			IDImageUrl:         kycRow.IDImageUrl,
+			State:              kycRow.State,
+			Lga:                kycRow.Lga,
+			HouseNumber:        kycRow.HouseNumber,
+			StreetName:         kycRow.StreetName,
+			NearestLandmark:    kycRow.NearestLandmark,
+			PostalCode:         kycRow.PostalCode,
+			Country:            kycRow.Country,
+			ProofOfAddressType: kycRow.ProofOfAddressType,
+			ProofOfAddressUrl:  kycRow.ProofOfAddressUrl,
+		}
+		k.decryptKyc(&tempKyc)
+
+		// Update kycRow with decrypted values
+		kycRow.FullName = tempKyc.FullName
+		kycRow.PhoneNumber = tempKyc.PhoneNumber
+		kycRow.Email = tempKyc.Email
+		kycRow.Gender = tempKyc.Gender
+		kycRow.SelfieUrl = tempKyc.SelfieUrl
+		kycRow.Bvn = tempKyc.Bvn
+		kycRow.Nin = tempKyc.Nin
+		kycRow.IDType = tempKyc.IDType
+		kycRow.IDNumber = tempKyc.IDNumber
+		kycRow.IDImageUrl = tempKyc.IDImageUrl
+		kycRow.State = tempKyc.State
+		kycRow.Lga = tempKyc.Lga
+		kycRow.HouseNumber = tempKyc.HouseNumber
+		kycRow.StreetName = tempKyc.StreetName
+		kycRow.NearestLandmark = tempKyc.NearestLandmark
+		kycRow.PostalCode = tempKyc.PostalCode
+		kycRow.Country = tempKyc.Country
+		kycRow.ProofOfAddressType = tempKyc.ProofOfAddressType
+		kycRow.ProofOfAddressUrl = tempKyc.ProofOfAddressUrl
+
+		response = append(response, *models.ToListAllKYCInformation(&kycRow))
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("All User KYC Information Fetched", gin.H{
+		"kycs":        response,
+		"total_count": stats.TotalCount,
+		"page":        page,
+		"limit":       limit,
+	}))
 }
