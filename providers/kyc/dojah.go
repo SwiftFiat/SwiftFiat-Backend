@@ -73,7 +73,7 @@ func (p *DOJAHProvider) getFullURL(relativePath string) (*url.URL, error) {
 	return u, nil
 }
 
-func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name string, dob *string) (*dojahmodels.BVNEntity, error) {
+func (p *DOJAHProvider) ValidateBVN(bvn string) (*dojahmodels.BVNEntity, error) {
 	// Implementation for BVN verification
 	// This would use the BaseProvider's fields to make the actual HTTP request
 	// ...
@@ -90,11 +90,11 @@ func (p *DOJAHProvider) ValidateBVN(bvn string, first_name string, last_name str
 	// Query params
 	params := url.Values{}
 	params.Add("bvn", bvn)
-	params.Add("first_name", first_name)
-	params.Add("last_name", last_name)
-	if dob != nil {
-		params.Add("dob", *dob)
-	}
+	// params.Add("first_name", first_name)
+	// params.Add("last_name", last_name)
+	// if dob != nil {
+	// 	params.Add("dob", *dob)
+	// }
 	fullURL.RawQuery = params.Encode()
 
 	resp, err := p.MakeRequest("GET", fullURL.String(), nil, requiredHeaders)

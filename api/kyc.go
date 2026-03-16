@@ -186,9 +186,9 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 func (k *KYC) validateBVN(ctx *gin.Context) {
 	request := struct {
 		BVN       string `json:"bvn" binding:"required"`
-		FirstName string `json:"first_name"`
-		LastName  string `json:"last_name"`
-		DOB       string `json:"dob"`
+		// FirstName string `json:"first_name"`
+		// LastName  string `json:"last_name"`
+		// DOB       string `json:"dob"`
 	}{}
 
 	err := ctx.ShouldBindJSON(&request)
@@ -227,29 +227,29 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	verificationData, err := kycProvider.ValidateBVN(request.BVN, request.FirstName, request.LastName, &request.DOB)
+	verificationData, err := kycProvider.ValidateBVN(request.BVN)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure: %s", err)))
 		return
 	}
 
-	k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
+	// k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
 
-	if !verificationData.FirstName.Status {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
-		return
-	}
+	// if !verificationData.FirstName.Status {
+	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
+	// 	return
+	// }
 
-	if !verificationData.LastName.Status {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
-		return
-	}
+	// if !verificationData.LastName.Status {
+	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
+	// 	return
+	// }
 
-	if !verificationData.DOB.Status {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
-		return
-	}
+	// if !verificationData.DOB.Status {
+	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
+	// 	return
+	// }
 
 	// Get or create KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
