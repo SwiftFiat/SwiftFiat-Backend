@@ -676,7 +676,16 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		return nil, fmt.Errorf("get virtual card by bridgecard id error: %w", err)
 	}
 
-	tx, err := s.store.CreateTransaction(ctx, db.CreateTransactionParams{
+	// Start transaction
+	dbTx, err := s.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
+	if err != nil {
+		return nil, fmt.Errorf("begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	qtx := s.store.WithTx(dbTx)
+
+	tx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID: userID,
 		Type:   string(transaction.Card),
 		Description: sql.NullString{
@@ -698,7 +707,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 	}
 
 	// Create funding record first
-	fundingRecord, err := s.store.CreateCardFunding(ctx, db.CreateCardFundingParams{
+	fundingRecord, err := qtx.CreateCardFunding(ctx, db.CreateCardFundingParams{
 		CardID:         card.ID,
 		UserID:         userID,
 		SourceWalletID: wallet.ID,
@@ -714,7 +723,26 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		return nil, fmt.Errorf("create card funding record error: %w", err)
 	}
 
-	_, err = s.store.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
+	x, err := qtx.CreateCardTransaction(ctx, db.CreateCardTransactionParams{
+		CardID:                  card.ID,
+		UserID:                  userID,
+		Amount:                  fundingAmount.IntPart(),
+		Currency:                "USD",
+		Status:                  string(transaction.Pending),
+		TransactionType:         string(transaction.Credit),
+		TransactionDate:         time.Now(),
+		WebhookReceivedAt:       sql.NullTime{Time: time.Now(), Valid: true},
+		BalanceAfter:            sql.NullString{String: fundingAmount.String(), Valid: true},
+		Mode:                    true,
+		TransactionTimestamp:    time.Now(),
+		BridgecardTransactionID: "cf_" + uuid.New().String(),
+		TransactionID:           tx.ID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create card transaction error: %v", err)
+	}
+
+	_, err = qtx.DecrementWalletBalance(ctx, db.DecrementWalletBalanceParams{
 		ID: wallet.ID,
 		Balance: sql.NullString{
 			String: fundingAmount.String(),
@@ -727,7 +755,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 
 	bridgeResponse, err := s.bridgeCard.FundCard(ctx, req)
 	if err != nil {
-		_, updateErr := s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		_, updateErr := qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     tx.ID,
 			Status: string(transaction.Failed),
 		})
@@ -735,7 +763,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 			s.logger.Error(fmt.Sprintf("failed to update transaction status: %v", updateErr))
 		}
 		// Update funding status to failed if BridgeCard call fails
-		_, updateErr = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+		_, updateErr = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
 			ID:            fundingRecord.ID,
 			Status:        string(CardFundingStatusFailed),
 			FailureReason: sql.NullString{String: err.Error(), Valid: true},
@@ -745,7 +773,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		}
 
 		// refund wallet
-		_, err = s.store.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+		_, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
 			ID: wallet.ID,
 			Balance: sql.NullString{
 				String: fundingAmount.String(),
@@ -759,7 +787,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 	}
 
 	// remove if not work
-	_, err = s.store.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
+	_, err = qtx.UpdateCardFundingStatus(ctx, db.UpdateCardFundingStatusParams{
 		ID:            fundingRecord.ID,
 		Status:        string(transaction.Success),
 		FailureReason: sql.NullString{String: "", Valid: true},
@@ -768,12 +796,25 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		s.logger.Error(fmt.Sprintf("failed to update funding status: %v", err))
 	}
 
-	_, err = s.store.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+	_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 		ID:     tx.ID,
 		Status: string(transaction.Success),
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to update transaction status: %v", err))
+	}
+
+	_, err = qtx.UpdateCardTransactionStatus(ctx, db.UpdateCardTransactionStatusParams{
+		ID:     x.ID,
+		Status: string(transaction.Success),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("update card meta transaction status error: %w", err)
+	}
+
+	// Commit transaction
+	if err := dbTx.Commit(); err != nil {
+		return nil, fmt.Errorf("commit transaction error: %w", err)
 	}
 
 	// send notification
