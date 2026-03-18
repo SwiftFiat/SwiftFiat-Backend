@@ -110,7 +110,10 @@ func (u *User) testPush(ctx *gin.Context) {
 		provider = service.PushProviderExpo
 	}
 
+	activeUser, _ := utils.GetActiveUser(ctx)
+
 	err = u.server.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
+		UserID:         activeUser.UserID,
 		Title:          "Test Push",
 		Message:        "Current USER Testing Push Notifications",
 		Provider:       provider,

@@ -3,6 +3,7 @@ INSERT INTO user_tokens (user_id, token, provider, device_uuid)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (token) DO UPDATE 
 SET 
+    user_id = EXCLUDED.user_id,
     token = EXCLUDED.token,
     provider = EXCLUDED.provider,
     device_uuid = EXCLUDED.device_uuid,
@@ -10,7 +11,7 @@ SET
 RETURNING *;
 
 -- name: GetTokens :many
-SELECT * FROM user_tokens WHERE user_id = $1;
+SELECT * FROM user_tokens WHERE user_id = $1 ORDER BY updated_at DESC;
 
 -- name: UpdateToken :one
 UPDATE user_tokens SET token = $1 WHERE user_id = $2 AND device_uuid = $3 RETURNING *;

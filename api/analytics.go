@@ -1,8 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/base64"
 	"fmt"
+	"image/png"
 	"net/http"
 	"strconv"
 	"time"
@@ -62,6 +65,8 @@ func (h Analytics) router(server *Server) {
 	serverGroupV1.GET("/list-card-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllVirtualCardTransactions)
 	serverGroupV1.GET("/list-rapid-ramp-users", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRapidRampUsers)
 	serverGroupV1.GET("/list-rapid-ramp-transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.GetRapidRampTransactions)
+	serverGroupV1.PUT("/toggle-rapid-ramp/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.ToggleRapidRampForUser)
+	serverGroupV1.PUT("/toggle-2fa/:id", h.server.authMiddleware.AuthenticatedMiddleware(), h.Toggle2FAForUser)
 }
 
 type UpdateSystemSettingsRequest struct {
@@ -1313,4 +1318,156 @@ func (h Analytics) GetRapidRampTransactions(c *gin.Context) {
 		"transactions": transactions,
 		"count":        len(transactions),
 	}))
+}
+
+func (h Analytics) ToggleRapidRampForUser(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
+		return
+	}
+
+	b, err := h.server.queries.ToggleRapidRamp(c, int64(id))
+	if err != nil {
+		h.server.logger.Error(fmt.Sprintf("error toggling rapid ramp user: %v", err))
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to toggle rapid ramp user"))
+		return
+	}
+
+	var status, msg string
+
+	if !b {
+		status = "inactive"
+		msg = fmt.Sprintf("admin %s deactivated rapid ramp for user %s", activeUser.Email, idStr)
+	} else {
+		status = "active"
+		msg = fmt.Sprintf("admin %s activated rapid ramp for user %s", activeUser.Email, idStr)
+	}
+
+	logEntry := audit.NewUserLog(
+		c,
+		audit.EventRapidRampToggle,
+		"",
+		activeUser.Role,
+		msg,
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+	h.audit.Log(logEntry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("Rapid Ramp toggled for user", status))
+}
+
+func (h Analytics) Toggle2FAForUser(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil || activeUser.Role == models.USER {
+		c.JSON(http.StatusForbidden, basemodels.NewError("forbidden"))
+		return
+	}
+
+	idStr := c.Param("id")
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
+		return
+	}
+
+	user, err := h.server.queries.GetUserByID(c, int64(id))
+	if err != nil {
+		h.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred retrieving user"))
+		return
+	}
+
+	var status, msg string
+	var responseData any
+
+	if user.TwofaEnabled.Bool {
+		// Disable 2FA
+		_, err = h.server.queries.SetUserTwoFA(c, db.SetUserTwoFAParams{
+			ID:           int64(id),
+			TwofaSecret:  sql.NullString{Valid: false},
+			TwofaEnabled: sql.NullBool{Bool: false, Valid: true},
+			UpdatedAt:    time.Now(),
+		})
+		if err != nil {
+			h.server.logger.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to disable 2FA"))
+			return
+		}
+		status = "disabled"
+		msg = fmt.Sprintf("admin %s disabled 2FA for user %s", activeUser.Email, user.Email)
+		responseData = status
+	} else {
+		// Enable 2FA
+		key, err := totp.Generate(totp.GenerateOpts{
+			Issuer:      "SwiftFiat",
+			AccountName: user.Email,
+		})
+		if err != nil {
+			h.server.logger.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to generate 2FA secret"))
+			return
+		}
+
+		_, err = h.server.queries.SetUserTwoFA(c, db.SetUserTwoFAParams{
+			ID:           int64(id),
+			TwofaSecret:  sql.NullString{String: key.Secret(), Valid: true},
+			TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
+			UpdatedAt:    time.Now(),
+		})
+		if err != nil {
+			h.server.logger.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to enable 2FA"))
+			return
+		}
+
+		img, err := key.Image(200, 200)
+		if err != nil {
+			h.server.logger.Error(err.Error())
+			c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to generate QR code"))
+			return
+		}
+
+		var buf bytes.Buffer
+		png.Encode(&buf, img)
+		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+		status = "enabled"
+		msg = fmt.Sprintf("admin %s enabled 2FA for user %s", activeUser.Email, user.Email)
+		responseData = gin.H{
+			"status":       status,
+			"twofa_secret": key.Secret(),
+			"twofa_qr":     "data:image/png;base64," + encoded,
+			"twofa_url":    key.URL(),
+		}
+	}
+
+	// Log audit
+	logEntry := audit.NewUserLog(
+		c,
+		audit.Event2FAEnabled,
+		"",
+		activeUser.Role,
+		msg,
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+	if status == "disabled" {
+		logEntry.EventType = audit.Event2FADisabled
+	}
+	h.audit.Log(logEntry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess("2FA toggled for user", responseData))
 }

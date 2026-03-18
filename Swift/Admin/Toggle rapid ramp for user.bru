@@ -1,0 +1,20 @@
+meta {
+  name: Toggle rapid ramp for user
+  type: http
+  seq: 18
+}
+
+put {
+  url: {{BaseURl}}/analytics/toggle-rapid-ramp/7
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

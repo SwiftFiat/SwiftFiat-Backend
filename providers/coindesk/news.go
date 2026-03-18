@@ -247,7 +247,7 @@ func (s *MarketInsightsService) checkForNewArticles(ctx context.Context) {
 	// Only send notification for the most recent article to avoid spam
 	if len(newArticles) > 0 {
 		latestArticle := newArticles[0]
-		go s.notifyUsersOfArticle(ctx, latestArticle)
+		// go s.notifyUsersOfArticle(ctx, latestArticle)
 
 		// Mark this article as notified
 		s.notifiedMux.Lock()
@@ -344,6 +344,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, tokens
 
 	if fcmToken != "" {
 		err := s.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
+			UserID:         tokens[0].UserID,
 			Title:          title,
 			Message:        message,
 			Provider:       service.PushProviderFCM,
@@ -358,6 +359,7 @@ func (s *MarketInsightsService) sendNewsNotification(ctx context.Context, tokens
 
 	if expoToken != "" {
 		err := s.pushNotification.SendPush(ctx, &service.PushNotificationInfo{
+			UserID:        tokens[0].UserID,
 			Title:         title,
 			Message:       message,
 			Provider:      service.PushProviderExpo,

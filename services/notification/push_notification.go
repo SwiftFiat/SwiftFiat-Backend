@@ -5,6 +5,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
@@ -28,6 +29,7 @@ type Config struct {
 }
 
 type PushNotificationInfo struct {
+	UserID         int64        `json:"user_id"`
 	Title          string       `json:"title"`
 	Message        string       `json:"message"`
 	Provider       PushProvider `json:"provider"`
@@ -75,7 +77,7 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotificationInfo) error {
 
 	if info.Provider == PushProviderExpo {
-		err := p.SendPushExpo(info)
+		err := p.SendPushExpo(ctx, info)
 		return err
 	}
 
@@ -137,6 +139,7 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 
 	didSend, err := client.Send(ctx, &newMessage)
 	if err != nil {
+		p.handleTokenError(ctx, info.UserID, info.UserFCMToken, err)
 		return err
 	}
 
@@ -145,7 +148,7 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 	return nil
 }
 
-func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error {
+func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNotificationInfo) error {
 	response, err := p.client.Publish(
 		&expo.PushMessage{
 			To:       []expo.ExponentPushToken{expo.ExponentPushToken(info.UserExpoToken)},
@@ -159,16 +162,43 @@ func (p *PushNotificationService) SendPushExpo(info *PushNotificationInfo) error
 
 	// Check errors
 	if err != nil {
+		p.handleTokenError(ctx, info.UserID, info.UserExpoToken, err)
 		return err
 	}
 
 	// Validate responses
-	if response.ValidateResponse() != nil {
+	if err := response.ValidateResponse(); err != nil {
+		p.handleTokenError(ctx, info.UserID, info.UserExpoToken, err)
 		return fmt.Errorf("failed: %v", response.PushMessage.To)
 	}
 
 	return nil
 
+}
+
+func (p *PushNotificationService) handleTokenError(ctx context.Context, userID int64, token string, err error) {
+	if err == nil || userID == 0 || token == "" {
+		return
+	}
+
+	errMsg := err.Error()
+	// FCM specific errors
+	isInvalidFCM := messaging.IsRegistrationTokenNotRegistered(err) ||
+		messaging.IsInvalidArgument(err) ||
+		strings.Contains(errMsg, "registration token is not a valid FCM registration token") ||
+		strings.Contains(errMsg, "invalid-registration-token") ||
+		strings.Contains(errMsg, "not a valid FCM registration token")
+
+	// Expo specific errors
+	isInvalidExpo := strings.Contains(errMsg, "DeviceNotRegistered") ||
+		strings.Contains(errMsg, "InvalidToken")
+
+	if isInvalidFCM || isInvalidExpo {
+		p.logger.Warn(fmt.Sprintf("Removing invalid push token for user %d: %v", userID, err))
+		if p.userService != nil {
+			_ = p.userService.RemoveUserToken(ctx, userID, token)
+		}
+	}
 }
 
 // SetUserService wires the user service into the push notification service.
@@ -246,6 +276,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	if tokens.FCMToken != "" {
 		p.logger.Info(fmt.Sprintf("Sending FCM push to user %d", userID))
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -261,6 +292,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	if tokens.ExpoToken != "" {
 		p.logger.Info(fmt.Sprintf("Sending Expo push to user %d", userID))
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -291,6 +323,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -305,6 +338,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -335,6 +369,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -349,6 +384,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -379,6 +415,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -393,6 +430,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -423,6 +461,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -437,6 +476,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -467,6 +507,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -481,6 +522,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -511,6 +553,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -525,6 +568,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -555,6 +599,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -569,6 +614,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -599,6 +645,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -613,6 +660,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -643,6 +691,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -657,6 +706,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -687,6 +737,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -701,6 +752,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -731,6 +783,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -745,6 +798,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -775,6 +829,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -789,6 +844,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -819,6 +875,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -833,6 +890,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -863,6 +921,7 @@ func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, us
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -877,6 +936,7 @@ func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, us
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -907,6 +967,7 @@ func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID in
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -921,6 +982,7 @@ func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID in
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -951,6 +1013,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -965,6 +1028,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -995,6 +1059,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64,
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1009,6 +1074,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64,
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1039,6 +1105,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1049,10 +1116,11 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
 			return err
 		}
-	} 
+	}
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1083,6 +1151,7 @@ func (p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, 
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1097,6 +1166,7 @@ func (p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, 
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1127,6 +1197,7 @@ func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, use
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1141,6 +1212,7 @@ func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, use
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1171,6 +1243,7 @@ func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Co
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1185,6 +1258,7 @@ func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Co
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1215,6 +1289,7 @@ func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Co
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1229,6 +1304,7 @@ func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Co
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,
@@ -1259,6 +1335,7 @@ func (p *PushNotificationService) SendPushNotification(ctx context.Context, user
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:       userID,
 			Title:        Title,
 			Message:      Message,
 			Provider:     PushProviderFCM,
@@ -1273,6 +1350,7 @@ func (p *PushNotificationService) SendPushNotification(ctx context.Context, user
 
 	if tokens.ExpoToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
 			Provider:      PushProviderExpo,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -221,7 +222,7 @@ func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID int64, f
 }
 
 func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToken string, deviceUUID string) (*db.UserToken, error) {
-
+	fcmToken = strings.TrimSpace(fcmToken)
 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
 		Token:    fcmToken,
 		Provider: "FCM",
@@ -242,8 +243,15 @@ func (u *UserService) GetUserPushTokens(ctx context.Context, userID int64) (*[]d
 	return &tokens, err
 }
 
-func (u *UserService) AddUserExpoToken(ctx context.Context, userID int64, expoToken string, deviceUUID string) (*db.UserToken, error) {
+func (u *UserService) RemoveUserToken(ctx context.Context, userID int64, token string) error {
+	return u.store.RemoveToken(ctx, db.RemoveTokenParams{
+		UserID: userID,
+		Token:  token,
+	})
+}
 
+func (u *UserService) AddUserExpoToken(ctx context.Context, userID int64, expoToken string, deviceUUID string) (*db.UserToken, error) {
+	expoToken = strings.TrimSpace(expoToken)
 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
 		Token:    expoToken,
 		Provider: "EXPO",
@@ -472,7 +480,6 @@ func (u *UserService) ToggleRapidRamp(ctx context.Context, userID int64) (bool, 
 
 	return b, nil
 }
-
 
 func (u *UserService) CheckUserForTx(user *db.User) error {
 	if !user.Frozen.Bool {

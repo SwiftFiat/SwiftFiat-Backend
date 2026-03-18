@@ -1396,17 +1396,15 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
-	a.server.queries.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
+	if _, err = qtx.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
 		Verified:  true,
 		UpdatedAt: time.Now(),
 		ID:        newUser.ID,
-	})
-
-	a.server.queries.UpdateUserVerification(ctx, db.UpdateUserVerificationParams{
-		Verified:  true,
-		UpdatedAt: time.Now(),
-		ID:        newUser.ID,
-	})
+	}); err != nil {
+		a.server.logger.Error(fmt.Sprintf("failed to verify admin: %v", err))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
 
 	// Enable 2FA for admin user with TOTP secret
 	if _, err := qtx.SetUserTwoFA(ctx, db.SetUserTwoFAParams{

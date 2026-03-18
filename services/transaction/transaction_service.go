@@ -3679,6 +3679,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		}
 
 		go s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []int64{user.ID})
+		go s.push.SendPushNotification(ctx, user.ID, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()))
 
 		return &BankTransferResponse{
 			Sender:         fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),

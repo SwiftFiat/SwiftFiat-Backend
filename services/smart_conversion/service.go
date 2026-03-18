@@ -537,6 +537,16 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		}
 	}
 
+	// send notification
+	go func() {
+		bgCtx := context.Background()
+		s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Completed",
+			fmt.Sprintf("You have converted %s to %s", params.sourceAmount.String(), params.targetAmount.String()),
+			"system", []int64{params.userID})
+		s.push.SendPushNotification(bgCtx, params.userID, "Conversion Completed",
+			fmt.Sprintf("You have converted %s to %s", params.sourceAmount.String(), params.targetAmount.String()))
+	}()
+
 	return &ManualConversionResponse{
 		SourceAmount: params.sourceAmount.InexactFloat64(),
 		TargetAmount: params.targetAmount.InexactFloat64(),

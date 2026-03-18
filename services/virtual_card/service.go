@@ -598,9 +598,15 @@ func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCard
 
 	// TODO: Send notification to user about card creation
 	go func() {
+		bgCtx := context.Background()
 		if s.notifySvc != nil {
-			if _, err := s.notifySvc.CreateWithRecipients(ctx, nil, "Virtual card created", "Your virtual card has been created successfully", "system", []int64{params.UserID}); err != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card created", "Your virtual card has been created successfully", "system", []int64{params.UserID}); err != nil {
 				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, params.UserID, "Virtual card created", "Your virtual card has been created successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
 			}
 		}
 	}()
@@ -770,6 +776,21 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 		s.logger.Error(fmt.Sprintf("failed to update transaction status: %v", err))
 	}
 
+	// send notification
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card funded", "Your virtual card has been funded successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card funded", "Your virtual card has been funded successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
+
 	return bridgeResponse, nil
 }
 
@@ -795,6 +816,19 @@ func (s *Service) AdminFreezeCard(ctx context.Context, cardID string, userID int
 	}
 
 	// TODO: send notifications
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card frozen", "Your virtual card has been frozen successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card frozen", "Your virtual card has been frozen successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 
 	return cardDetails, nil
 }
@@ -824,7 +858,19 @@ func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (
 	}
 
 	// TODO: send notifications
-
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card frozen", "Your virtual card has been frozen successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card frozen", "Your virtual card has been frozen successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 	return cardDetails, nil
 }
 
@@ -850,7 +896,19 @@ func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID i
 	}
 
 	// TODO: send notifications
-
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card unfrozen", "Your virtual card has been unfrozen successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card unfrozen", "Your virtual card has been unfrozen successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 	return cardDetails, nil
 }
 
@@ -879,6 +937,19 @@ func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64)
 	}
 
 	// TODO: send notifications
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card unfrozen", "Your virtual card has been unfrozen successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card unfrozen", "Your virtual card has been unfrozen successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 
 	return cardDetails, nil
 }
@@ -893,6 +964,19 @@ func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardP
 		return nil, fmt.Errorf("card does not belong to user")
 	}
 	// TODO: send notifications
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual card pin updated", "Your virtual card pin has been updated successfully", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual card pin updated", "Your virtual card pin has been updated successfully"); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 	return s.bridgeCard.UpdateCardPin(ctx, req)
 }
 
@@ -966,6 +1050,19 @@ func (s *Service) DeleteCard(ctx context.Context, cardID uuid.UUID, userID int64
 	}
 
 	// TODO: send notifications
+	go func() {
+		bgCtx := context.Background()
+		if s.notifySvc != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual Card Terminated", "Your virtual card has been terminated by an administrator.", "system", []int64{userID}); err != nil {
+				s.logger.Errorf("failed to create notification: %v", err)
+			}
+		}
+		if s.pushSvc != nil {
+			if err := s.pushSvc.SendPushNotification(bgCtx, userID, "Virtual Card Terminated", "Your virtual card has been terminated by an administrator."); err != nil {
+				s.logger.Errorf("failed to send push notification: %v", err)
+			}
+		}
+	}()
 
 	return cardDetails, nil
 }
