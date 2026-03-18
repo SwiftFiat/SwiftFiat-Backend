@@ -117,8 +117,21 @@ func (s *Service) GetReferralConfig(ctx context.Context) (db.ReferralConfig, err
 func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID int64, key string) (*db.Transaction, error) {
 	var transx *db.Transaction
 
+	kyc, err := s.repo.queries.GetKYCByUserID(ctx, int32(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier_1" {
+		go s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	s.logger.Infof("Processing referral withdrawal for user %d, amount: %s", userID, amount.String())
-	err := s.repo.queries.ExecTx(ctx, func(q *db.Queries) (error) {
+	err = s.repo.queries.ExecTx(ctx, func(q *db.Queries) (error) {
 		t, err := q.GetTransactionByIdempotencyKey(ctx, key)
 		if err == nil {
 			transx = &t

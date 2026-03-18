@@ -1054,7 +1054,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64,
 		return nil
 	}
 
-	Title := "Referral Bonus Earned"
+	Title := "New Referral Alert"
 	Message := fmt.Sprintf("🎉 %s just signed up using your referral code.", userTag)
 
 	if tokens.FCMToken != "" {
