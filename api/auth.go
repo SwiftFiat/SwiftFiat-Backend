@@ -931,6 +931,17 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
+	if !dbUser.Verified {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
+
 	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPasscode.String); err != nil {
 
 		// Log audit
