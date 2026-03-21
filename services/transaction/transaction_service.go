@@ -712,6 +712,7 @@ func (s *TransactionService) processRapidRampInflow(
 
 	// Handle different transfer states like HandleBankTransfer does
 	if err != nil {
+		originalErr := err
 		// Transfer failed - update status to failed
 		_, dbErr := qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID:     txx.ID,
@@ -745,6 +746,7 @@ func (s *TransactionService) processRapidRampInflow(
 		})
 		if err != nil {
 			s.logger.Errorf("failed to create transaction for failed rapid ramp: %v", err)
+			return nil, fmt.Errorf("failed to create transaction for failed rapid ramp: %w", err)
 		}
 
 		walletTransferMetadata, err := qtx.CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
@@ -760,7 +762,8 @@ func (s *TransactionService) processRapidRampInflow(
 			Currency:      "NGN",
 		})
 		if err != nil {
-			s.logger.Errorf("failed to create bank transfer metadata for failed rapid ramp: %v", err)
+			s.logger.Errorf("failed to create wallet transfer metadata for failed rapid ramp: %v", err)
+			return nil, fmt.Errorf("failed to create wallet transfer metadata for failed rapid ramp: %w", err)
 		}
 
 		_, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
@@ -769,14 +772,15 @@ func (s *TransactionService) processRapidRampInflow(
 		})
 		if err != nil {
 			s.logger.Errorf("failed to increment wallet balance: %v", err)
+			return nil, fmt.Errorf("failed to increment wallet balance: %w", err)
 		}
 
 		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
-			ID:     txx.ID,
+			ID:     ytx.ID,
 			Status: string(Success),
 		})
 		if err != nil {
-			s.logger.Errorf("failed to update transaction status to failed: %v", err)
+			s.logger.Errorf("failed to update transaction status to success: %v", err)
 		}
 
 		err = qtx.UpdateWalletTransferMetadataStatus(ctx, db.UpdateWalletTransferMetadataStatusParams{
@@ -784,7 +788,7 @@ func (s *TransactionService) processRapidRampInflow(
 			Status: string(Success),
 		})
 		if err != nil {
-			s.logger.Errorf("failed to update bank transfer metadata status to failed: %v", err)
+			s.logger.Errorf("failed to update wallet transfer metadata status to success: %v", err)
 		}
 
 		go func() {
@@ -797,8 +801,16 @@ func (s *TransactionService) processRapidRampInflow(
 				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"))
 		}()
 
-		s.logger.Warnf("Rapid ramp bank transfer failed: %v", err)
-		return nil, fmt.Errorf("bank transfer failed: %w", err)
+		s.logger.Warnf("Rapid ramp bank transfer failed: %v. Credited wallet instead.", originalErr)
+		return &TransactionResponse[CryptoMetadataResponse]{
+			ID:              ytx.ID,
+			Type:            ytx.Type,
+			Description:     ytx.Description.String,
+			TransactionFlow: ytx.TransactionFlow,
+			Status:          string(Success),
+			CreatedAt:       ytx.CreatedAt,
+			UpdatedAt:       ytx.UpdatedAt,
+		}, nil
 	}
 
 	// Normalize status to lowercase for comparison (Nomba returns uppercase)
