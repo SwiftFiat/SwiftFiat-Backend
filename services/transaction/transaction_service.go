@@ -570,7 +570,7 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 	}
 
 	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
-		fmt.Sprintf("You have received %.2f %s on %s wallet", amount.InexactFloat64(), currency, currency),
+		fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()),
 		"system", []int64{user.ID})
 }
 
