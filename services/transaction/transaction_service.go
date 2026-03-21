@@ -608,6 +608,14 @@ func (s *TransactionService) processRapidRampInflow(
 		return nil, fmt.Errorf("bank account is not verified")
 	}
 
+	nairaWallet, err := qtx.GetWalletByCurrency(ctx, db.GetWalletByCurrencyParams{
+		CustomerID: userID,
+		Currency:   "NGN",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("fetching naira wallet: %w", err)
+	}
+
 	cryptomusProvider, err := s.getCryptomusProvider(prov)
 	if err != nil {
 		return nil, fmt.Errorf("getting cryptomus provider: %w", err)
@@ -720,6 +728,74 @@ func (s *TransactionService) processRapidRampInflow(
 		if dbErr != nil {
 			s.logger.Errorf("failed to update bank transfer metadata status to failed: %v", dbErr)
 		}
+
+		ytx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
+			UserID:          userID,
+			Type:            string(Transfer),
+			Description:     sql.NullString{String: fmt.Sprintf("Transfer of %.2f %s to naira wallet", netAmount.InexactFloat64(), "NGN"), Valid: true},
+			TransactionFlow: string(Inflow),
+			Status:          string(Pending),
+			Amount:          fiatAmount.String(),
+			AmountUsd:       amountUSd.String(),
+			Currency:        "NGN",
+			IdempotencyKey:  idempotencyKey,
+			Direction:       string(Credit),
+			TFrom:           "crypto_deposit",
+			TTo:             "wallet",
+		})
+		if err != nil {
+			s.logger.Errorf("failed to create transaction for failed rapid ramp: %v", err)
+		}
+
+		walletTransferMetadata, err := qtx.CreateWalletTransferMetadata(ctx, db.CreateWalletTransferMetadataParams{
+			Amount:        fiatAmount.String(),
+			ServiceCharge: sql.NullString{String: "0.00", Valid: true},
+			TransactionID: ytx.ID,
+			Sender:        "system",
+			Status:        string(Pending),
+			AmountPaid:    sql.NullString{String: netAmount.String(), Valid: true},
+			Type:          string(Credit),
+			Recipient:     "Naira Wallet",
+			Reference:     utils.WatRequestID(),
+			Currency:      "NGN",
+		})
+		if err != nil {
+			s.logger.Errorf("failed to create bank transfer metadata for failed rapid ramp: %v", err)
+		}
+
+		_, err = qtx.IncrementWalletBalance(ctx, db.IncrementWalletBalanceParams{
+			Balance: sql.NullString{String: netAmount.String(), Valid: true},
+			ID:      nairaWallet.ID,
+		})
+		if err != nil {
+			s.logger.Errorf("failed to increment wallet balance: %v", err)
+		}
+
+		_, err = qtx.UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+			ID:     txx.ID,
+			Status: string(Success),
+		})
+		if err != nil {
+			s.logger.Errorf("failed to update transaction status to failed: %v", err)
+		}
+
+		err = qtx.UpdateWalletTransferMetadataStatus(ctx, db.UpdateWalletTransferMetadataStatusParams{
+			ID:     walletTransferMetadata.ID,
+			Status: string(Success),
+		})
+		if err != nil {
+			s.logger.Errorf("failed to update bank transfer metadata status to failed: %v", err)
+		}
+
+		go func() {
+			bgctx := context.Background()
+			s.notifyr.CreateWithRecipients(bgctx, nil, "Wallet Credit Alert",
+				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"),
+				"system", []int64{user.ID})
+
+			s.push.SendPushNotification(bgctx, user.ID, "Wallet Credit Alert",
+				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"))
+		}()
 
 		s.logger.Warnf("Rapid ramp bank transfer failed: %v", err)
 		return nil, fmt.Errorf("bank transfer failed: %w", err)
