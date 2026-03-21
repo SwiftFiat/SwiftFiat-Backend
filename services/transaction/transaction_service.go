@@ -739,7 +739,7 @@ func (s *TransactionService) processRapidRampInflow(
 			Amount:          fiatAmount.String(),
 			AmountUsd:       amountUSd.String(),
 			Currency:        "NGN",
-			IdempotencyKey:  idempotencyKey,
+			IdempotencyKey:  utils.WatRequestID(),
 			Direction:       string(Credit),
 			TFrom:           "crypto_deposit",
 			TTo:             "wallet",
