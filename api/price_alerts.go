@@ -86,6 +86,18 @@ func (h *PriceAlertHandler) CreateAlert(c *gin.Context) {
 		return
 	}
 
+	user, err := h.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		h.logger.Errorf("failed to get user: %v", err)
+		c.JSON(500, basemodels.NewError("an error occured, try again"))
+		return
+	}
+
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 	// Additional validation
 	if req.SourceCurrency == req.TargetCurrency {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("source and target currencies must be different"))

@@ -499,6 +499,17 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !user.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
+	if !user.Verified {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UserNotVerified))
+		return
+	}
+
 	if req.Enable {
 		if user.TwofaEnabled.Bool && user.TwofaEnabled.Valid {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("2FA is already enabled"))
@@ -816,6 +827,12 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	if err != nil {
 		a.server.logger.Error(logrus.ErrorLevel, err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
 	}
 
@@ -1257,6 +1274,12 @@ func (a *Auth) resendEmailVerification(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !user.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 	verificationCode := utils.GenerateOTP()
 	redisKey := fmt.Sprintf("email_verification:%s", req.Email)
 	a.server.redis.Set(ctx, redisKey, verificationCode, time.Minute*10)
@@ -1524,6 +1547,12 @@ func (a *Auth) forgotPassword(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !user.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 	otp := utils.GenerateOTP()
 	redisKey := fmt.Sprintf("password_reset_otp:%s", req.Email)
 
@@ -1606,6 +1635,12 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 	hashedPassword, err := utils.GenerateHashValue(req.Password)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -1671,6 +1706,12 @@ func (a *Auth) resetPasscode(ctx *gin.Context) {
 	dbUser, err := a.server.queries.GetUserByID(context.Background(), activeUser.UserID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
 	}
 
@@ -1856,6 +1897,13 @@ func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
 		return
 	}
 
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
+
 	// Verify provided pin against stored hashed pin
 	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
@@ -1899,6 +1947,13 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+
+	// Account status checks
+	if !dbUser.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 
 	if err := utils.VerifyHashValue(pin.OldPin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(err.Error())

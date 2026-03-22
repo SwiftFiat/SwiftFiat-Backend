@@ -147,6 +147,19 @@ func (s *PriceAlertService) CreateAlert(ctx context.Context, userID int64, req *
 	// 	return nil, exchangerate.ErrInvalidCurrencyPair
 	// }
 
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier_1" {
+		go s.pushService.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	alerts, err := s.GetUserAlerts(ctx, userID, false)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user alerts: %w", err)

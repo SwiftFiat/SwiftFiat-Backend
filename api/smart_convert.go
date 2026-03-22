@@ -480,6 +480,11 @@ func (s *SmartConvertHandler) ExecuteManualConversion(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 
 	if err = utils.VerifyHashValue(req.Pin, user.HashedPin.String); err != nil {
 		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.InvalidTransactionPIN))

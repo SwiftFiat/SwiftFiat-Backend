@@ -89,6 +89,17 @@ func (b *Bills) validateBillRequest(ctx *gin.Context, pin *string) (db.User, boo
 		return db.User{}, false
 	}
 
+	// Account status checks
+	if !userInfo.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return db.User{}, false
+	}
+
+	if !userInfo.Verified {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.UserNotVerified))
+		return db.User{}, false
+	}
+
 	if err = utils.VerifyHashValue(*pin, userInfo.HashedPin.String); err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.InvalidTransactionPIN))
 		return db.User{}, false

@@ -129,6 +129,18 @@ func (v *Subscriptions) CreateCustomSubscription(c *gin.Context) {
 		return
 	}
 
+	user, err := v.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		v.server.logger.Errorf("failed to get user: %v", err)
+		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
+		return
+	}
+
+	if !user.IsActive {
+		c.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
 	// Verify card belongs to user
 	card, err := v.server.queries.GetVirtualCard(c, cardID)
 	if err != nil {
@@ -734,7 +746,7 @@ func (v *Subscriptions) AdminSetSubscriptionStatus(c *gin.Context) {
 	}
 
 	updated, err := v.server.queries.UpdateSubscriptionStatus(c, db.UpdateSubscriptionStatusParams{
-		ID:      subID,
+		ID:     subID,
 		Status: req.Status,
 	})
 	if err != nil {
@@ -1025,7 +1037,7 @@ func (v *Subscriptions) UpdateSubscriptionStatus(c *gin.Context) {
 	}
 
 	updated, err := v.server.queries.UpdateSubscriptionStatus(c, db.UpdateSubscriptionStatusParams{
-		ID:      subscriptionID,
+		ID:     subscriptionID,
 		Status: req.Status,
 	})
 

@@ -35,6 +35,7 @@ type CryptoAPI struct {
 	notifyr            *service.Notification
 	qrcode             *rapidramp.QRCodeService
 	audit              *audit.Service
+	push               *service.PushNotificationService
 }
 
 func (c CryptoAPI) router(server *Server) {
@@ -45,6 +46,7 @@ func (c CryptoAPI) router(server *Server) {
 	c.notifyr = c.server.inAppnotificationService
 	c.qrcode = c.server.qrcodeService
 	c.audit = server.auditService
+	c.push = server.pushNotification
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
@@ -158,6 +160,36 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	err = ctx.ShouldBindJSON(&request)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter currency and network"))
+		return
+	}
+
+	user, err := c.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, basemodels.NewError("user not found"))
+		return
+	}
+
+	// Account status checks
+	if !user.IsActive {
+		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
+		return
+	}
+
+	kyc, err := c.server.queries.GetKYCByUserID(ctx, int32(user.ID))
+	if err != nil {
+		if err == sql.ErrNoRows {
+			c.server.logger.Errorf("failed to get user kyc data: %v", err)
+			ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
+			return
+		}
+		c.server.logger.Errorf("failed to get user kyc data: %v", err)
+		ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
+		return
+	}
+
+	if kyc.Tier == "tier_1" {
+		go c.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		ctx.JSON(401, basemodels.NewError("KYC tier 2 needed"))
 		return
 	}
 
