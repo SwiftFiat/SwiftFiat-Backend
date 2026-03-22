@@ -106,7 +106,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 	// Decrypt encrypted KYC fields before use
 	fullName := s.decryptKycField(kyc.FullName.String)
 	// phoneNumber := toInternationalPhone(s.decryptKycField(kyc.PhoneNumber.String))
-	// bvn := s.decryptKycField(kyc.Bvn.String)
+	bvn := s.decryptKycField(kyc.Bvn.String)
 	houseNumber := s.decryptKycField(kyc.HouseNumber.String)
 	streetName := s.decryptKycField(kyc.StreetName.String)
 	city := s.decryptKycField(kyc.City.String)
@@ -131,7 +131,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 		Identity: bridgecards.Identity{
 			IDType:      "NIGERIAN_BVN_VERIFICATION",
 			SelfieImage: selfieImage,
-			BVN:         randomBVN(),
+			BVN:         bvn,
 		},
 	}
 
