@@ -810,7 +810,7 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 	}
 	// defer os.Remove(filePath)
 
-	publicURL := fmt.Sprintf("%s/assets/images/%s", k.server.config.SwiftBaseUrl, filename)
+	publicURL := fmt.Sprintf("https://swiftfiat-backend.swiftfiat.com/assets/images/%s", filename)
 
 	k.server.logger.Info("Public URL: ", publicURL)
 	// Call Dojah Utility Bill Analysis
