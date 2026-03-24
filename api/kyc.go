@@ -1,14 +1,13 @@
 package api
 
 import (
-	"slices"
 	"context"
 	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -809,10 +808,11 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to save uploaded file"))
 		return
 	}
-	defer os.Remove(filePath)
+	// defer os.Remove(filePath)
 
 	publicURL := fmt.Sprintf("%s/assets/images/%s", k.server.config.SwiftBaseUrl, filename)
 
+	k.server.logger.Info("Public URL: ", publicURL)
 	// Call Dojah Utility Bill Analysis
 	analysis, err := kycProvider.AnalyzeUtilityBill(publicURL, "url")
 	if err != nil {
