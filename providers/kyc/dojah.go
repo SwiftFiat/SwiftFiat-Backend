@@ -209,3 +209,68 @@ func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity
 
 	return &newModel.Entity, nil
 }
+
+func (p *DOJAHProvider) AnalyzeUtilityBill(inputValue string, inputType string) (*dojahmodels.UtilityBillEntity, error) {
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["AppId"] = p.config.KYCProviderID
+	requiredHeaders["Authorization"] = p.config.KYCProviderKey
+
+	fullURL, err := p.getFullURL("document/analysis/utility_bill")
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct URL: %w", err)
+	}
+
+	request := map[string]string{
+		"input_type":  inputType,
+		"input_value": inputValue,
+	}
+
+	resp, err := p.MakeRequest("POST", fullURL.String(), request, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read response body for logging
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error reading response body: %w", err)
+	}
+
+	// Log request and response details
+	logFields := logrus.Fields{
+		"status_code": resp.StatusCode,
+		"url":         resp.Request.URL,
+		"method":      resp.Request.Method,
+		"response":    string(bodyBytes),
+	}
+
+	if resp.StatusCode == http.StatusOK {
+		logging.NewLogger().WithFields(logFields).Info("Successful response from Dojah API")
+	} else {
+		logging.NewLogger().WithFields(logFields).Error("Unexpected response from Dojah API")
+	}
+
+	// Reset the response body for subsequent reads
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s \nBody: %s", resp.StatusCode, resp.Request.URL, string(bodyBytes))
+	}
+
+	// Check if content type is JSON
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return nil, fmt.Errorf("expected application/json response but got %s. Body: %s", contentType, string(bodyBytes))
+	}
+
+	// Decode the response body
+	var newModel dojahmodels.UtilityBillResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Entity, nil
+}

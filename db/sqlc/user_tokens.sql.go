@@ -11,7 +11,7 @@ import (
 )
 
 const getTokens = `-- name: GetTokens :many
-SELECT id, user_id, token, provider, device_uuid, created_at, updated_at FROM user_tokens WHERE user_id = $1
+SELECT id, user_id, token, provider, device_uuid, created_at, updated_at FROM user_tokens WHERE user_id = $1 ORDER BY updated_at DESC
 `
 
 func (q *Queries) GetTokens(ctx context.Context, userID int64) ([]UserToken, error) {
@@ -126,6 +126,7 @@ INSERT INTO user_tokens (user_id, token, provider, device_uuid)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (token) DO UPDATE 
 SET 
+    user_id = EXCLUDED.user_id,
     token = EXCLUDED.token,
     provider = EXCLUDED.provider,
     device_uuid = EXCLUDED.device_uuid,

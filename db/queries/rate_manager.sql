@@ -208,9 +208,9 @@ WHERE r.deleted_at IS NULL
   AND (r.max_conversion_amount IS NULL OR r.max_conversion_amount >= $3)
   AND (
     r.is_global_rule = TRUE 
-    OR r.vip_level_id IN (
-        SELECT vip_level_id FROM user_vip_assignments 
-        WHERE user_id = $4 AND is_active = TRUE
+    OR r.vip_level_id = (
+        SELECT current_vip_level_id FROM users 
+        WHERE users.id = sqlc.arg('user_id') AND users.deleted_at IS NULL
     )
   )
 ORDER BY r.priority DESC, v.level_rank DESC NULLS LAST
@@ -259,9 +259,7 @@ LIMIT 1;
 -- name: GetActiveRulesForUser :many
 SELECT rar.*
 FROM rate_adjustment_rules rar
-JOIN user_vip_assignments uva ON uva.vip_level_id = rar.vip_level_id
-WHERE uva.vip_level_id = $1
-    AND uva.is_active = TRUE
+WHERE rar.vip_level_id = $1
     AND rar.is_active = TRUE
     AND rar.deleted_at IS NULL
     AND (rar.valid_from IS NULL OR rar.valid_from <= NOW())
@@ -490,10 +488,10 @@ SELECT
     v.level_name,
     v.level_code,
     v.level_rank,
-    COUNT(uva.id) as user_count,
-    SUM(uva.total_conversion_volume) as total_volume
+    COUNT(u.id) as user_count,
+    SUM(COALESCE(u.total_conversion_volume, 0)) as total_volume
 FROM vip_levels v
-LEFT JOIN user_vip_assignments uva ON v.id = uva.vip_level_id AND uva.is_active = TRUE
+LEFT JOIN users u ON v.id = u.current_vip_level_id AND u.deleted_at IS NULL
 WHERE v.deleted_at IS NULL AND v.is_active = TRUE
 GROUP BY v.id, v.level_name, v.level_code, v.level_rank
 ORDER BY v.level_rank ASC;
@@ -555,15 +553,15 @@ WHERE uva.user_id = $1 AND uva.is_active = TRUE
 LIMIT 1;
 
 -- name: IncrementUserConversionVolume :exec
-UPDATE user_vip_assignments
-SET total_conversion_volume = (CAST(total_conversion_volume AS DECIMAL(20, 2)) + $2)::TEXT,
+UPDATE users
+SET total_conversion_volume = total_conversion_volume + sqlc.arg('amount')::DECIMAL,
     updated_at = NOW()
-WHERE user_id = $1 AND is_active = TRUE;
+WHERE id = sqlc.arg('user_id') AND deleted_at IS NULL;
 
 -- name: GetTotalConversionVolumeForUser :one
-SELECT CAST(COALESCE(SUM(CAST(total_conversion_volume AS DECIMAL(20, 2))), 0) AS INTEGER) AS total_volume
-FROM user_vip_assignments
-WHERE user_id = $1 AND is_active = TRUE;
+SELECT CAST(COALESCE(total_conversion_volume, 0) AS INTEGER) AS total_volume
+FROM users
+WHERE id = sqlc.arg('user_id') AND deleted_at IS NULL;
 
 -- name: GetUserWithVIPFields :one
 SELECT u.id, u.total_conversion_volume, u.total_transaction_volume, u.current_vip_level_id,

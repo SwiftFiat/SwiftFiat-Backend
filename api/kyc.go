@@ -43,6 +43,7 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.POST("validate-bvn", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateNIN)
 	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
+	serverGroupV1.POST("verify-utility-bill", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyUtilityBill)
 	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
 
 	// New endpoint to check verification progress
@@ -185,7 +186,7 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 
 func (k *KYC) validateBVN(ctx *gin.Context) {
 	request := struct {
-		BVN       string `json:"bvn" binding:"required"`
+		BVN string `json:"bvn" binding:"required"`
 		// FirstName string `json:"first_name"`
 		// LastName  string `json:"last_name"`
 		// DOB       string `json:"dob"`
@@ -633,8 +634,8 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 			Valid:  city != "",
 		},
 	}
-
 	_, err = k.server.queries.UpdateKYCAddress(ctx, addressArgs)
+
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
@@ -724,6 +725,229 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 		"created_at":   proof.CreatedAt,
 		"kyc_status":   kyc.Status,
 		"kyc_verified": kyc.Status == "verified",
+	}))
+}
+
+func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
+	var request struct {
+		InputType       string `json:"input_type"`
+		InputValue      string `json:"input_value" binding:"required"`
+		State           string `json:"state"`
+		Lga             string `json:"lga"`
+		HouseNumber     string `json:"house_number"`
+		StreetName      string `json:"street_name"`
+		NearestLandmark string `json:"nearest_landmark"`
+		PostalCode      string `json:"postal_code"`
+		City            string `json:"city"`
+	}
+
+	if err := ctx.ShouldBindJSON(&request); err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidRequestData))
+		return
+	}
+
+	if request.InputType == "" {
+		request.InputType = "url"
+	}
+
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	provider, exists := k.server.provider.GetProvider(providers.Dojah)
+	if !exists {
+		k.server.logger.Error("Dojah Provider not found")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	kycProvider, ok := provider.(*kyc.DOJAHProvider)
+	if !ok {
+		k.server.logger.Error("Cannot convert provider to DOJAHProvider")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Call Dojah Utility Bill Analysis
+	analysis, err := kycProvider.AnalyzeUtilityBill(request.InputValue, request.InputType)
+	if err != nil {
+		k.server.logger.Errorf("Dojah utility bill analysis failed: %v", err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Utility bill verification failed: %v", err)))
+		return
+	}
+
+	if analysis.Result.Status != "success" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Utility bill verification failed: %s", analysis.Result.Message)))
+		return
+	}
+
+	// Get KYC record
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	// Download the image to store it in our DB (as uploadProofOfAddress does)
+	var imageData []byte
+	if request.InputType == "url" {
+		resp, err := http.Get(request.InputValue)
+		if err == nil && resp.StatusCode == http.StatusOK {
+			imageData, _ = io.ReadAll(resp.Body)
+			resp.Body.Close()
+		}
+	}
+
+	// Use analysis data if request fields are empty
+	state := request.State
+	if state == "" {
+		state = analysis.AddressInfo.State
+	}
+	city := request.City
+	if city == "" {
+		city = analysis.AddressInfo.City
+	}
+	streetName := request.StreetName
+	if streetName == "" {
+		streetName = analysis.AddressInfo.Street
+	}
+
+	// Update Address Information
+	addressArgs := db.UpdateKYCAddressParams{
+		ID: userKyc.ID,
+		State: sql.NullString{
+			String: utils.Encrypt(state, k.server.config.SigningKey),
+			Valid:  state != "",
+		},
+		Lga: sql.NullString{
+			String: utils.Encrypt(request.Lga, k.server.config.SigningKey),
+			Valid:  request.Lga != "",
+		},
+		HouseNumber: sql.NullString{
+			String: utils.Encrypt(request.HouseNumber, k.server.config.SigningKey),
+			Valid:  request.HouseNumber != "",
+		},
+		StreetName: sql.NullString{
+			String: utils.Encrypt(streetName, k.server.config.SigningKey),
+			Valid:  streetName != "",
+		},
+		NearestLandmark: sql.NullString{
+			String: utils.Encrypt(request.NearestLandmark, k.server.config.SigningKey),
+			Valid:  request.NearestLandmark != "",
+		},
+		PostalCode: sql.NullString{
+			String: utils.Encrypt(request.PostalCode, k.server.config.SigningKey),
+			Valid:  request.PostalCode != "",
+		},
+		City: sql.NullString{
+			String: utils.Encrypt(city, k.server.config.SigningKey),
+			Valid:  city != "",
+		},
+	}
+	_, err = k.server.queries.UpdateKYCAddress(ctx, addressArgs)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Address update failed at DB level"))
+		return
+	}
+
+	// Store proof document if we have image data
+	var proofID int32
+	if len(imageData) > 0 {
+		filename := fmt.Sprintf("utility_bill_%v", time.Now().UTC().Format("20060102_150405"))
+		proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
+			UserID:    int32(activeUser.UserID),
+			Filename:  filename,
+			ProofType: "utility_bill",
+			ImageData: imageData,
+		})
+		if err == nil {
+			proofID = proof.ID
+		}
+	}
+
+	// Update KYC with proof information
+	proofUrl := request.InputValue
+	if proofID > 0 {
+		proofUrl = fmt.Sprintf("/api/v1/kyc/retrieve-address-proof/%d", proofID)
+	}
+
+	proofArgs := db.UpdateKYCProofOfAddressParams{
+		ID: userKyc.ID,
+		ProofOfAddressType: sql.NullString{
+			String: utils.Encrypt("utility_bill", k.server.config.SigningKey),
+			Valid:  true,
+		},
+		ProofOfAddressUrl: sql.NullString{
+			String: utils.Encrypt(proofUrl, k.server.config.SigningKey),
+			Valid:  proofUrl != "",
+		},
+		ProofOfAddressDate: sql.NullTime{
+			Time:  time.Now(),
+			Valid: true,
+		},
+	}
+
+	kyc, err := k.server.queries.UpdateKYCProofOfAddress(ctx, proofArgs)
+	if err != nil {
+		k.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to update KYC with proof information"))
+		return
+	}
+
+	// Update to Tier 3
+	_, err = k.server.queries.UpdateKYCToTierThree(ctx, kyc.ID)
+	if err != nil {
+		k.server.logger.Errorf("failed to update kyc %d to tier 3: %v", kyc.ID, err)
+	}
+
+	// Ensure status is verified and user table is updated
+	_, err = k.server.queries.UpdateKYCStatus(ctx, db.UpdateKYCStatusParams{
+		ID:     kyc.ID,
+		Status: "verified",
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to update kyc %d status to verified: %v", kyc.ID, err)
+	}
+
+	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
+		ID:            int64(kyc.UserID),
+		IsKycVerified: true,
+		UpdatedAt:     time.Now(),
+	})
+	if err != nil {
+		k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
+	}
+
+	// Refresh kyc object
+	updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
+	if err == nil {
+		kyc = updatedKyc
+	}
+
+	// Send notifications
+	go func() {
+		bgCtx := context.Background()
+		k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []int64{int64(kyc.UserID)})
+		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your address verification (Tier 3) was successful.")
+	}()
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Utility bill verified and address updated successfully!", gin.H{
+		"kyc_status":   kyc.Status,
+		"kyc_verified": kyc.Status == "verified",
+		"analysis":     analysis,
 	}))
 }
 

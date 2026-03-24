@@ -540,6 +540,8 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		},
 	}
 
+	go s.push.SendPushNotification(ctx, user.ID, "Incoming Crypto Alert", fmt.Sprintf("You have received %.4f %s", coinAmount.InexactFloat64(), cryptoMeta.Coin))
+
 	return resp, &user, usdAmount, "USD", nil
 }
 
@@ -914,8 +916,8 @@ func (s *TransactionService) processRapidRampInflow(
 	}
 
 	_ = s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
-		UserID:                user.ID,
-		TotalConversionVolume: fiatAmount.String(),
+		UserID: user.ID,
+		Amount: fiatAmount.String(),
 	})
 
 	return &TransactionResponse[CryptoMetadataResponse]{

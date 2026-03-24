@@ -63,3 +63,39 @@ type NINEntity struct {
 	NIN                string             `json:"nin"`
 	SelfieVerification SelfieVerification `json:"selfie_verification"`
 }
+
+type UtilityBillResponse struct {
+	Entity UtilityBillEntity `json:"entity"`
+}
+
+type UtilityBillEntity struct {
+	Result        UtilityBillResult   `json:"result"`
+	IdentityInfo  UtilityBillIdentity `json:"identity_info"`
+	AddressInfo   UtilityBillAddress  `json:"address_info"`
+	ProviderName  string              `json:"provider_name"`
+	BillIssueDate string              `json:"bill_issue_date"`
+	AmountPaid    string              `json:"amount_paid"`
+	Metadata      UtilityBillMetadata `json:"metadata"`
+}
+
+type UtilityBillResult struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+}
+
+type UtilityBillIdentity struct {
+	FullName    string `json:"full_name"`
+	MeterNumber string `json:"meter_number"`
+}
+
+type UtilityBillAddress struct {
+	Street  string `json:"street"`
+	City    string `json:"city"`
+	State   string `json:"state"`
+	Country string `json:"country"`
+}
+
+type UtilityBillMetadata struct {
+	ExtractionDate string `json:"extraction_date"`
+	IsRecent       bool   `json:"is_recent"`
+}

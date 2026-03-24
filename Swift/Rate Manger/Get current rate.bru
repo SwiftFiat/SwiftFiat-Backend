@@ -24,3 +24,59 @@ settings {
   encodeUrl: true
   timeout: 0
 }
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/rate-manager/current-rate?from=USD&to=NGN&amount=10
+    method: GET
+    mode: none
+    params:query: {
+      from: USD
+      to: NGN
+      amount: 10
+    }
+  }
+  
+  response: {
+    headers: {
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+      content-type: application/json; charset=utf-8
+      date: Tue, 24 Mar 2026 12:06:13 GMT
+      content-length: 370
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "successful",
+          "message": "",
+          "data": {
+            "base_rate": "1346.27",
+            "adjusted_rate": "1356.27",
+            "adjustment_amount": "10",
+            "source_amount": "10",
+            "target_amount": "13562.7",
+            "fees": "0",
+            "net_amount": "13562.7",
+            "rate_provider": "ExchangeRate-API",
+            "vip_level_applied": "Standard",
+            "rule_applied": "test rule",
+            "simulation_timestamp": "2026-03-24T13:06:13.58956846+01:00"
+          },
+          "version": "1.0.0"
+        }
+      '''
+    }
+  }
+}

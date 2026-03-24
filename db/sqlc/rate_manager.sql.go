@@ -689,16 +689,14 @@ func (q *Queries) GetActiveRuleForVIPLevel(ctx context.Context, arg GetActiveRul
 const getActiveRulesForUser = `-- name: GetActiveRulesForUser :many
 SELECT rar.id, rar.rule_name, rar.rule_description, rar.vip_level_id, rar.is_global_rule, rar.source_currency, rar.target_currency, rar.adjustment_type, rar.adjustment_value, rar.adjustment_direction, rar.priority, rar.min_conversion_amount, rar.max_conversion_amount, rar.valid_from, rar.valid_until, rar.is_active, rar.created_by, rar.updated_by, rar.created_at, rar.updated_at, rar.deleted_at
 FROM rate_adjustment_rules rar
-JOIN user_vip_assignments uva ON uva.vip_level_id = rar.vip_level_id
-WHERE uva.vip_level_id = $1
-    AND uva.is_active = TRUE
+WHERE rar.vip_level_id = $1
     AND rar.is_active = TRUE
     AND rar.deleted_at IS NULL
     AND (rar.valid_from IS NULL OR rar.valid_from <= NOW())
     AND (rar.valid_until IS NULL OR rar.valid_until >= NOW())
 `
 
-func (q *Queries) GetActiveRulesForUser(ctx context.Context, vipLevelID uuid.UUID) ([]RateAdjustmentRule, error) {
+func (q *Queries) GetActiveRulesForUser(ctx context.Context, vipLevelID uuid.NullUUID) ([]RateAdjustmentRule, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveRulesForUser, vipLevelID)
 	if err != nil {
 		return nil, err
@@ -787,9 +785,9 @@ WHERE r.deleted_at IS NULL
   AND (r.max_conversion_amount IS NULL OR r.max_conversion_amount >= $3)
   AND (
     r.is_global_rule = TRUE 
-    OR r.vip_level_id IN (
-        SELECT vip_level_id FROM user_vip_assignments 
-        WHERE user_id = $4 AND is_active = TRUE
+    OR r.vip_level_id = (
+        SELECT current_vip_level_id FROM users 
+        WHERE users.id = $4 AND users.deleted_at IS NULL
     )
   )
 ORDER BY r.priority DESC, v.level_rank DESC NULLS LAST
@@ -1280,9 +1278,9 @@ func (q *Queries) GetTopVIPUsers(ctx context.Context, limit int32) ([]GetTopVIPU
 }
 
 const getTotalConversionVolumeForUser = `-- name: GetTotalConversionVolumeForUser :one
-SELECT CAST(COALESCE(SUM(CAST(total_conversion_volume AS DECIMAL(20, 2))), 0) AS INTEGER) AS total_volume
-FROM user_vip_assignments
-WHERE user_id = $1 AND is_active = TRUE
+SELECT CAST(COALESCE(total_conversion_volume, 0) AS INTEGER) AS total_volume
+FROM users
+WHERE id = $1 AND deleted_at IS NULL
 `
 
 func (q *Queries) GetTotalConversionVolumeForUser(ctx context.Context, userID int64) (int32, error) {
@@ -1583,10 +1581,10 @@ SELECT
     v.level_name,
     v.level_code,
     v.level_rank,
-    COUNT(uva.id) as user_count,
-    SUM(uva.total_conversion_volume) as total_volume
+    COUNT(u.id) as user_count,
+    SUM(COALESCE(u.total_conversion_volume, 0)) as total_volume
 FROM vip_levels v
-LEFT JOIN user_vip_assignments uva ON v.id = uva.vip_level_id AND uva.is_active = TRUE
+LEFT JOIN users u ON v.id = u.current_vip_level_id AND u.deleted_at IS NULL
 WHERE v.deleted_at IS NULL AND v.is_active = TRUE
 GROUP BY v.id, v.level_name, v.level_code, v.level_rank
 ORDER BY v.level_rank ASC
@@ -1666,19 +1664,19 @@ func (q *Queries) GetVIPLevelForVolume(ctx context.Context, minConversionVolume 
 }
 
 const incrementUserConversionVolume = `-- name: IncrementUserConversionVolume :exec
-UPDATE user_vip_assignments
-SET total_conversion_volume = (CAST(total_conversion_volume AS DECIMAL(20, 2)) + $2)::TEXT,
+UPDATE users
+SET total_conversion_volume = total_conversion_volume + $1::DECIMAL,
     updated_at = NOW()
-WHERE user_id = $1 AND is_active = TRUE
+WHERE id = $2 AND deleted_at IS NULL
 `
 
 type IncrementUserConversionVolumeParams struct {
-	UserID                int64  `json:"user_id"`
-	TotalConversionVolume string `json:"total_conversion_volume"`
+	Amount string `json:"amount"`
+	UserID int64  `json:"user_id"`
 }
 
 func (q *Queries) IncrementUserConversionVolume(ctx context.Context, arg IncrementUserConversionVolumeParams) error {
-	_, err := q.db.ExecContext(ctx, incrementUserConversionVolume, arg.UserID, arg.TotalConversionVolume)
+	_, err := q.db.ExecContext(ctx, incrementUserConversionVolume, arg.Amount, arg.UserID)
 	return err
 }
 

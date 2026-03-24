@@ -18,7 +18,7 @@ body:json {
   {
     "source_currency": "USD",
     "target_currency":"NGN",
-    "amount": "500",
+    "amount": "1",
     "pin": "1234",
     "reference": "1234_38964926"
   }
@@ -27,4 +27,60 @@ body:json {
 settings {
   encodeUrl: true
   timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/smart-convert/execute
+    method: POST
+    mode: json
+    body:json: {
+      {
+        "source_currency": "USD",
+        "target_currency":"NGN",
+        "amount": "1",
+        "pin": "1234",
+        "reference": "1234_38964926"
+      }
+    }
+  }
+  
+  response: {
+    headers: {
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+      content-type: application/json; charset=utf-8
+      date: Tue, 24 Mar 2026 12:09:48 GMT
+      content-length: 233
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "successful",
+          "message": "Conversion executed successfully",
+          "data": {
+            "source_amount": 1,
+            "reference": "20260324130947",
+            "target_amount": 1356.27,
+            "rate": 1356.27,
+            "fees": 0,
+            "net_amount": 1356.27,
+            "status": "successful"
+          },
+          "version": "1.0.0"
+        }
+      '''
+    }
+  }
 }

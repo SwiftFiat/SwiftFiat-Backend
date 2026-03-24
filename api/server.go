@@ -238,7 +238,7 @@ func NewServer(envPath string) *Server {
 	scex := exchangerate.NewExchangeRateService(cryptomus, l)
 
 	// Rates manager
-	rm := ratemanager.NewService(q, scex, ads, l)
+	rm := ratemanager.NewService(q, scex, ads, l, pn)
 
 	// transaction service
 	txs := transaction.NewTransactionService(q, cs, ws, l, c, ns, pn, streakScheduler, bp, rs, ads, r, fp, rm)

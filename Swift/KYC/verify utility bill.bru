@@ -1,0 +1,31 @@
+meta {
+  name: verify utility bill
+  type: http
+  seq: 8
+}
+
+post {
+  url: {{BaseURl}}/kyc/verify-utility-bill
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "input_type": "url",
+    "input_value": "https://pbs.twimg.com/media/E3tCoP0XIAYfyOe.jpg"
+  }
+}
+
+body:multipart-form {
+  file: @file(/home/bontus/Documents/cpp/player.png)
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

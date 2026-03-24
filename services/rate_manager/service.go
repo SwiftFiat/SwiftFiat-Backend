@@ -21,7 +21,7 @@ type Service struct {
 	exchangeRateService *exchangerate.ExchangeRateService
 	auditService        *audit.Service
 	logger              *logging.Logger
-	push                service.PushNotificationService
+	push                *service.PushNotificationService
 }
 
 func NewService(
@@ -30,6 +30,7 @@ func NewService(
 	// notificationService *notifications.Service,
 	auditService *audit.Service,
 	logger *logging.Logger,
+	push *service.PushNotificationService,
 ) *Service {
 	return &Service{
 		store:               store,
@@ -37,6 +38,7 @@ func NewService(
 		// notificationService: notificationService,
 		auditService: auditService,
 		logger:       logger,
+		push:         push,
 	}
 }
 
@@ -862,7 +864,7 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 	}
 
 	// Get active rate rules for this user
-	activeRules, err := s.store.GetActiveRulesForUser(ctx, vipLevelID)
+	activeRules, err := s.store.GetActiveRulesForUser(ctx, uuid.NullUUID{UUID: vipLevelID, Valid: true})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to get active rules: %v", err))
 	}
@@ -1139,6 +1141,21 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		return nil, fmt.Errorf("failed to update user VIP fields: %w", err)
 	}
 
+	// Also update user_vip_assignments for history/audit
+	assignment, err := s.store.AssignUserToVIPLevel(ctx, db.AssignUserToVIPLevelParams{
+		UserID:                req.UserID,
+		VipLevelID:            req.VIPLevelID,
+		AssignedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
+		AssignmentType:        string(AssignmentTypeManual),
+		TotalConversionVolume: totalConversionVolume.String(),
+	})
+	if err != nil {
+		s.logger.Errorf("Failed to update user_vip_assignments: %v", err)
+		// We continue as the users table was successfully updated
+		// But we need a dummy assignment for the response if it failed
+		assignment = db.UserVipAssignment{ID: uuid.New()}
+	}
+
 	// Get user for notification
 	assigned_user, _ := s.store.GetUserByID(ctx, req.UserID)
 
@@ -1179,7 +1196,7 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 
 	// Create a mock assignment response since we're not using the assignments table anymore
 	return &UserVIPAssignmentResponse{
-		ID:                    uuid.New(), // Generate a new UUID for response
+		ID:                    assignment.ID,
 		UserID:                req.UserID,
 		VIPLevelID:            req.VIPLevelID,
 		VIPLevelName:          vipLevel.LevelName,
@@ -1225,6 +1242,18 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 		return fmt.Errorf("failed to auto-assign VIP level: %w", err)
 	}
 
+	// Also update user_vip_assignments for history/audit
+	_, err = s.store.AssignUserToVIPLevel(ctx, db.AssignUserToVIPLevelParams{
+		UserID:                userID,
+		VipLevelID:            vipLevel.ID,
+		AssignedBy:            sql.NullInt64{Valid: false},
+		AssignmentType:        string(AssignmentTypeAutomatic),
+		TotalConversionVolume: totalConversionVolume.String(),
+	})
+	if err != nil {
+		s.logger.Errorf("Failed to update user_vip_assignments during auto-assignment: %v", err)
+	}
+
 	s.logger.Info(fmt.Sprintf("Auto-assigned user %d to VIP level %s", userID, vipLevel.LevelName))
 	return nil
 }
@@ -1232,30 +1261,16 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 // sendVIPAssignmentEmail sends email notification for VIP assignment (placeholder)
 func (s *Service) sendVIPAssignmentEmail(ctx context.Context, user *db.User, vipLevel *db.VipLevel) {
 	//TODO: Implement email sending logic similar to plunk.go examples
+	s.push.SendPushNotification(ctx, user.ID, "VIP Level Assignment", fmt.Sprintf("You have been assigned to VIP level %s", vipLevel.LevelName))
 	s.logger.Info(fmt.Sprintf("Sending VIP assignment email to %s for level %s", user.Email, vipLevel.LevelName))
 }
 
 // IncrementUserConversionVolume increments the user's total conversion volume
 func (s *Service) IncrementUserConversionVolume(ctx context.Context, userID int64, amount decimal.Decimal) error {
-	// Get current user VIP data
-	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
-	if err != nil {
-		return fmt.Errorf("failed to get user VIP data: %w", err)
-	}
-
-	// Parse current volumes
-	currentConversionVolume, _ := decimal.NewFromString(userVIP.TotalConversionVolume.String)
-	currentTransactionVolume, _ := decimal.NewFromString(userVIP.TotalTransactionVolume.String)
-
-	// Increment conversion volume
-	newConversionVolume := currentConversionVolume.Add(amount)
-
-	// Update user VIP fields
-	err = s.store.UpdateUserVIPFields(ctx, db.UpdateUserVIPFieldsParams{
-		ID:                     userID,
-		TotalConversionVolume:  sql.NullString{String: newConversionVolume.String(), Valid: true},
-		TotalTransactionVolume: sql.NullString{String: currentTransactionVolume.String(), Valid: true},
-		CurrentVipLevelID:      userVIP.CurrentVipLevelID,
+	// Update user VIP fields atomically
+	err := s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
+		UserID: userID,
+		Amount: amount.String(),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to increment user conversion volume: %w", err)

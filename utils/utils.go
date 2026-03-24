@@ -2,6 +2,7 @@ package utils
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -246,4 +247,8 @@ func PtrToTime(p *time.Time) time.Time {
 		return time.Time{}
 	}
 	return *p
+}
+
+func ToBase64(data []byte) string {
+	return base64.StdEncoding.EncodeToString(data)
 }
