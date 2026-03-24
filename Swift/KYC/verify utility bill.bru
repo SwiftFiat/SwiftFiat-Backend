@@ -33,3 +33,85 @@ settings {
   encodeUrl: true
   timeout: 0
 }
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/kyc/verify-utility-bill
+    method: POST
+    mode: multipartForm
+    body:json: {
+      {
+        "input_type": "url",
+        "input_value": "https://pbs.twimg.com/media/E3tCoP0XIAYfyOe.jpg"
+      }
+    }
+  
+    body:multipart-form: {
+      file: @file(/home/bontus/Downloads/nepa.jpg)
+      lga: Aba south
+      house_number: 5
+      postal_code: 45011
+      nearest_landmark: Samek
+    }
+  }
+  
+  response: {
+    headers: {
+      server: nginx/1.24.0 (Ubuntu)
+      date: Tue, 24 Mar 2026 17:49:27 GMT
+      content-type: application/json; charset=utf-8
+      content-length: 670
+      connection: keep-alive
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "successful",
+          "message": "Utility bill verified and address updated successfully!",
+          "data": {
+            "analysis": {
+              "result": {
+                "status": "success",
+                "message": ""
+              },
+              "identity_info": {
+                "full_name": "SAM HART",
+                "meter_number": "None"
+              },
+              "address_info": {
+                "street": "98 OKIGWE RD",
+                "city": "UMUAHIA",
+                "state": "ABIA",
+                "country": "Nigeria"
+              },
+              "provider_name": "Enugu Electricity Distribution Company",
+              "bill_issue_date": "2021-06-01",
+              "amount_paid": "18000.00",
+              "metadata": {
+                "extraction_date": "2026-03-24T17:49:27.048Z",
+                "is_recent": false
+              }
+            },
+            "image_url": "https://swiftfiat-backend.swiftfiat.com/assets/images/utility_bill_1774374560775824283_1.jpg",
+            "kyc_status": "verified",
+            "kyc_verified": true
+          },
+          "version": "1.0.0"
+        }
+      '''
+    }
+  }
+}

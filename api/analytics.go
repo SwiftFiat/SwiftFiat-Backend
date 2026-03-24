@@ -282,8 +282,8 @@ func mapGetTransactionByIDRow(row db.GetTransactionByIDRow) GetTransactionByIDRo
 		SourceWallet:         &row.SourceWallet.UUID,
 		DestinationWallet:    &row.DestinationWallet.UUID,
 		Currency:             row.Currency,
-		Rate:                 &row.Rate.String,
-		Fees:                 &row.Fees.String,
+		Rate:                 &row.Rate,
+		Fees:                 &row.Fees,
 	}
 }
 

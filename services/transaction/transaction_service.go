@@ -2703,7 +2703,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			_, _ = s.redis.Expire(ctx, checkKey, 24*time.Hour)
 		}
 
-		if count > 3 {
+		if count > 1 {
 			s.logger.Warn(fmt.Sprintf("reconciler: requestID %s reached max check count (3), marking as failed", requestID))
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure (max checks) %s: %v", requestID, err))

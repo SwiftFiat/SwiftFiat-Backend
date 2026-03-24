@@ -1649,11 +1649,11 @@ SELECT
     t.id, t.user_id, t.type, t.description, t.transaction_flow, t.amount, t.idempotency_key, t.t_from, t.t_to, t.direction, t.currency, t.amount_usd, t.status, t.risk_score, t.fraud_status, t.flagged_at, t.created_at, t.updated_at, t.deleted_from_account_id, t.deleted_to_account_id,
     COALESCE(st.source_wallet, ct.destination_wallet, gt.source_wallet, sm.source_wallet) as source_wallet,
     COALESCE(st.destination_wallet, ct.destination_wallet) as destination_wallet,
-    COALESCE(st.currency, ct.coin) as currency,
-    COALESCE(st.rate, ct.rate, gt.rate, sm.rate) as rate,
-    COALESCE(st.fees, ct.fees, gt.fees, sm.fees) as fees,
-    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount) as received_amount,
-    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount) as sent_amount
+    COALESCE(st.currency, ct.coin, t.currency) as currency,
+    COALESCE(st.rate, ct.rate, gt.rate, sm.rate, '0') as rate,
+    COALESCE(st.fees, ct.fees, gt.fees, sm.fees, '0') as fees,
+    COALESCE(st.received_amount, ct.received_amount, gt.received_amount, fw.amount, sm.received_amount, '0') as received_amount,
+    COALESCE(st.sent_amount, ct.sent_amount, gt.sent_amount, fw.amount, sm.sent_amount, '0') as sent_amount
 FROM transactions t
 LEFT JOIN swap_transfer_metadata st ON t.id = st.transaction_id
 LEFT JOIN crypto_transaction_metadata ct ON t.id = ct.transaction_id
@@ -1692,8 +1692,8 @@ type GetTransactionByIDRow struct {
 	SourceWallet         uuid.NullUUID  `json:"source_wallet"`
 	DestinationWallet    uuid.NullUUID  `json:"destination_wallet"`
 	Currency_2           string         `json:"currency_2"`
-	Rate                 sql.NullString `json:"rate"`
-	Fees                 sql.NullString `json:"fees"`
+	Rate                 string         `json:"rate"`
+	Fees                 string         `json:"fees"`
 	ReceivedAmount       string         `json:"received_amount"`
 	SentAmount           string         `json:"sent_amount"`
 }

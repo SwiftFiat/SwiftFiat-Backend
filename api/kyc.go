@@ -44,8 +44,8 @@ func (k KYC) router(server *Server) {
 	serverGroupV1.GET("", k.server.authMiddleware.AuthenticatedMiddleware(), k.getUserKyc)
 	serverGroupV1.POST("validate-bvn", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateBVN)
 	serverGroupV1.POST("validate-nin", k.server.authMiddleware.AuthenticatedMiddleware(), k.validateNIN)
-	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.uploadProofOfAddress)
-	serverGroupV1.POST("verify-utility-bill", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyUtilityBill)
+	serverGroupV1.POST("upload-address-proof", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyUtilityBill)
+	// serverGroupV1.POST("verify-utility-bill", k.server.authMiddleware.AuthenticatedMiddleware(), k.verifyUtilityBill)
 	serverGroupV1.GET("retrieve-address-proof/:id", k.server.authMiddleware.AuthenticatedMiddleware(), k.retrieveProofOfAddress)
 
 	// New endpoint to check verification progress
