@@ -293,6 +293,7 @@ func NewServer(envPath string) *Server {
 
 	g.Static("/docs", "./docs/site") // serves docs at /docs
 	g.Static("/api/v1/icons/assets", "./icons")
+	g.Static("/assets/images", "./assets/images")
 	// Register an application services manager
 	// accessible via e.g ```server.services.WalletService```
 

@@ -6,7 +6,7 @@ meta {
 
 post {
   url: {{BaseURl}}/kyc/verify-utility-bill
-  body: json
+  body: multipartForm
   auth: bearer
 }
 
@@ -22,7 +22,11 @@ body:json {
 }
 
 body:multipart-form {
-  file: @file(/home/bontus/Documents/cpp/player.png)
+  file: @file(/home/bontus/Downloads/nepa.jpg)
+  lga: Aba south
+  house_number: 5
+  postal_code: 45011
+  nearest_landmark: Samek
 }
 
 settings {
