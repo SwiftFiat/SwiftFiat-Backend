@@ -2693,6 +2693,25 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		requestID := meta.GetRequestID()
 		var providerStatus string
 
+		// Track reconciliation check count to prevent infinite pending state
+		checkKey := fmt.Sprintf("reconcile_check_count:%s", requestID)
+		count, err := s.redis.Incr(ctx, checkKey)
+		if err != nil {
+			s.logger.Error(fmt.Sprintf("reconciler: redis incr %s: %v", checkKey, err))
+		} else {
+			// Set expiration to 24 hours just in case
+			_, _ = s.redis.Expire(ctx, checkKey, 24*time.Hour)
+		}
+
+		if count > 3 {
+			s.logger.Warn(fmt.Sprintf("reconciler: requestID %s reached max check count (3), marking as failed", requestID))
+			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
+				s.logger.Error(fmt.Sprintf("reconciler: finalize failure (max checks) %s: %v", requestID, err))
+			}
+			_ = s.redis.Delete(ctx, checkKey)
+			continue
+		}
+
 		switch meta.GetBillType() {
 		case string(Airtime):
 			res, err := s.billProvider.QueryAirtimeStatus(requestID)
@@ -2757,10 +2776,14 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		case "delivered":
 			if err = s.reconcileFinalizeBillSuccess(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize success %s: %v", requestID, err))
+			} else {
+				_ = s.redis.Delete(ctx, checkKey)
 			}
 		case "failed":
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure %s: %v", requestID, err))
+			} else {
+				_ = s.redis.Delete(ctx, checkKey)
 			}
 		case "pending":
 			// Still in-flight; re-check next cycle.
