@@ -162,6 +162,12 @@ func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 		true,
 		nil,
 	)
+	entry.Metadata = map[string]interface{}{
+		"wallet_id": wallet.ID,
+		"amount":    request.Amount,
+		"currency":  request.Currency,
+		"user_id":   request.UserID,
+	}
 	w.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Balance Updated Successfully", models.ToWalletResponse(&response)))

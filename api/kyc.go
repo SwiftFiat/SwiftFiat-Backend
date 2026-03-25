@@ -234,6 +234,8 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 	lookupData, err := kycProvider.LookupBVN(request.BVN)
 	if err != nil {
 		k.server.logger.Errorf("BVN Lookup failed (non-fatal): %v", err)
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Lookup Failure: %s", err)))
+		return
 	} else {
 		// Update user first name and last name with lookup data
 		if lookupData.FirstName != "" {
