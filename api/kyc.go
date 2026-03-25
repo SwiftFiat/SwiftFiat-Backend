@@ -230,29 +230,45 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
+	// Lookup BVN full details first
+	lookupData, err := kycProvider.LookupBVN(request.BVN)
+	if err != nil {
+		k.server.logger.Errorf("BVN Lookup failed (non-fatal): %v", err)
+	} else {
+		// Update user first name and last name with lookup data
+		if lookupData.FirstName != "" {
+			_, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
+				ID: dbUser.ID,
+				FirstName: sql.NullString{
+					String: lookupData.FirstName,
+					Valid:  true,
+				},
+			})
+			if err != nil {
+				k.server.logger.Errorf("failed to update user %d first name from BVN lookup: %v", dbUser.ID, err)
+			}
+		}
+
+		if lookupData.LastName != "" {
+			_, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
+				ID: dbUser.ID,
+				LastName: sql.NullString{
+					String: lookupData.LastName,
+					Valid:  true,
+				},
+			})
+			if err != nil {
+				k.server.logger.Errorf("failed to update user %d last name from BVN lookup: %v", dbUser.ID, err)
+			}
+		}
+	}
+
 	verificationData, err := kycProvider.ValidateBVN(request.BVN)
 	if err != nil {
 		k.server.logger.Error(err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("BVN Validation Failure: %s", err)))
 		return
 	}
-
-	// k.server.logger.Log(logrus.InfoLevel, "Verification Data: ", verificationData)
-
-	// if !verificationData.FirstName.Status {
-	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided FirstName does not match First Name on BVN"))
-	// 	return
-	// }
-
-	// if !verificationData.LastName.Status {
-	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided LastName does not match Last Name on BVN"))
-	// 	return
-	// }
-
-	// if !verificationData.DOB.Status {
-	// 	ctx.JSON(http.StatusBadRequest, basemodels.NewError("Provided DOB does not match DOB on BVN"))
-	// 	return
-	// }
 
 	// Get or create KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
@@ -397,6 +413,21 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
+	// Compare NIN names with user's stored names (from BVN lookup)
+	if dbUser.FirstName.Valid && dbUser.FirstName.String != "" {
+		if !strings.EqualFold(verificationData.FirstName, dbUser.FirstName.String) {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("First name from NIN (%s) does not match your registered first name on BVN (%s)", verificationData.FirstName, dbUser.FirstName.String)))
+			return
+		}
+	}
+
+	if dbUser.LastName.Valid && dbUser.LastName.String != "" {
+		if !strings.EqualFold(verificationData.LastName, dbUser.LastName.String) {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError(fmt.Sprintf("Last name from NIN (%s) does not match your registered last name on BVN (%s)", verificationData.LastName, dbUser.LastName.String)))
+			return
+		}
+	}
+
 	// Get or create KYC record
 	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
 	if err == sql.ErrNoRows {
@@ -468,27 +499,27 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 			k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
 		}
 
-		_, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
-			ID: int64(kyc.UserID),
-			FirstName: sql.NullString{
-				String: verificationData.FirstName,
-				Valid:  true,
-			},
-		})
-		if err != nil {
-			k.server.logger.Errorf("failed to update user %d first name: %v", kyc.UserID, err)
-		}
+		// _, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
+		// 	ID: int64(kyc.UserID),
+		// 	FirstName: sql.NullString{
+		// 		String: verificationData.FirstName,
+		// 		Valid:  true,
+		// 	},
+		// })
+		// if err != nil {
+		// 	k.server.logger.Errorf("failed to update user %d first name: %v", kyc.UserID, err)
+		// }
 
-		_, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
-			ID: int64(kyc.UserID),
-			LastName: sql.NullString{
-				String: verificationData.LastName,
-				Valid:  true,
-			},
-		})
-		if err != nil {
-			k.server.logger.Errorf("failed to update user %d last name: %v", kyc.UserID, err)
-		}
+		// _, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
+		// 	ID: int64(kyc.UserID),
+		// 	LastName: sql.NullString{
+		// 		String: verificationData.LastName,
+		// 		Valid:  true,
+		// 	},
+		// })
+		// if err != nil {
+		// 	k.server.logger.Errorf("failed to update user %d last name: %v", kyc.UserID, err)
+		// }
 
 		// Refresh kyc object
 		updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)

@@ -73,6 +73,70 @@ func (p *DOJAHProvider) getFullURL(relativePath string) (*url.URL, error) {
 	return u, nil
 }
 
+func (p *DOJAHProvider) LookupBVN(bvn string) (*dojahmodels.BVNFullLookupEntity, error) {
+	var requiredHeaders = make(map[string]string)
+	requiredHeaders["AppId"] = p.config.KYCProviderID
+	requiredHeaders["Authorization"] = p.config.KYCProviderKey
+
+	fullURL, err := p.getFullURL("kyc/bvn/full")
+	if err != nil {
+		return nil, fmt.Errorf("failed to construct URL: %w", err)
+	}
+
+	// Query params
+	params := url.Values{}
+	params.Add("bvn", bvn)
+	fullURL.RawQuery = params.Encode()
+
+	resp, err := p.MakeRequest("GET", fullURL.String(), nil, requiredHeaders)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	// Read and log the full response body for tracking
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		logging.NewLogger().Error("Failed to read response body", err)
+	} else {
+		logFields := logrus.Fields{
+			"status_code": resp.StatusCode,
+			"url":         resp.Request.URL,
+			"headers":     resp.Header,
+			"body":        string(bodyBytes),
+		}
+
+		if resp.StatusCode == http.StatusOK {
+			logging.NewLogger().WithFields(logFields).Info("Successful response from Dojah BVN Lookup API")
+		} else {
+			logging.NewLogger().WithFields(logFields).Error("Unexpected response from Dojah BVN Lookup API")
+		}
+	}
+
+	// Reset the response body for subsequent reads
+	resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d \nURL: %s \nBody: %s", resp.StatusCode, resp.Request.URL, string(bodyBytes))
+	}
+
+	// Check if content type is JSON
+	contentType := resp.Header.Get("Content-Type")
+	if !strings.Contains(contentType, "application/json") {
+		return nil, fmt.Errorf("expected application/json response but got %s. Body: %s", contentType, string(bodyBytes))
+	}
+
+	// Decode the response body
+	var newModel dojahmodels.BVNFullLookupResponse
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&newModel)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response body: %w", err)
+	}
+
+	return &newModel.Entity, nil
+}
+
 func (p *DOJAHProvider) ValidateBVN(bvn string) (*dojahmodels.BVNEntity, error) {
 	// Implementation for BVN verification
 	// This would use the BaseProvider's fields to make the actual HTTP request
