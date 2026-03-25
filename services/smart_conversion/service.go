@@ -521,6 +521,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		s.logger.Error("failed to get user")
 	}
 
+
 	if !user.HasCompletedFirstConversion.Bool {
 		referrerID, referralBonus, err := transaction.CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, params.userID, mainTx.ID)
 		if err != nil {
@@ -537,14 +538,29 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		}
 	}
 
+	referrerID, amountEarned, err := transaction.CreditReferrerForConversion(ctx, s.store, dbTx, params.userID, params.targetAmount)
+	if err != nil {
+		s.logger.Errorf("failed to credit referrer for conversion: %v", err)
+	} else {
+		go func() {
+			bgCtx := context.Background()
+			s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral conversion Bonus Earned",
+				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()),
+				"system", []int64{*referrerID})
+			s.push.SendPushNotification(bgCtx, *referrerID, "Referral conversion Bonus Earned",
+				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
+		}()
+	}
+
+
 	// send notification
 	go func() {
 		bgCtx := context.Background()
 		s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Completed",
-			fmt.Sprintf("You have converted %s to %s", params.sourceAmount.String(), params.targetAmount.String()),
+			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
 			"system", []int64{params.userID})
 		s.push.SendPushNotification(bgCtx, params.userID, "Conversion Completed",
-			fmt.Sprintf("You have converted %s to %s", params.sourceAmount.String(), params.targetAmount.String()))
+			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
 	}()
 
 	return &ManualConversionResponse{

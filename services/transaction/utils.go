@@ -166,22 +166,22 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 	referralBonus := conversionAmount.Mul(decimal.NewFromFloat(pecentageEarned)).Div(decimal.NewFromFloat(100))
 
 	// Validate the calculated bonus
-    if referralBonus.IsZero() {
-        return nil, nil, fmt.Errorf("calculated referral bonus is zero")
-    }
+    // if referralBonus.IsZero() {
+    //     return nil, nil, fmt.Errorf("calculated referral bonus is zero")
+    // }
 
-	rate, err := utils.GetNGNUSDRate(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get NGN to USD rate: %w", err)
-	}
+	// rate, err := utils.GetNGNUSDRate(ctx)
+	// if err != nil {
+	// 	return nil, nil, fmt.Errorf("failed to get NGN to USD rate: %w", err)
+	// }
 
-	amount := referralBonus.Mul(rate)
+	// amount := referralBonus.Mul(rate)
 
 	// Create a transaction for the referral bonus
 	txx, err := store.WithTx(dbTx).CreateTransaction(ctx, db.CreateTransactionParams{
 		UserID:          referrerID,
 		Amount:          referralBonus.String(),
-		AmountUsd:       referralBonus.String(),
+		AmountUsd:       "0",
 		Type:            string(Referral),
 		Description:     sql.NullString{String: "Referral bonus for referring a user who completed a conversion", Valid: true},
 		TransactionFlow: "inplatform",
@@ -203,7 +203,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 		TransactionID:   uuid.NullUUID{UUID: txx.ID, Valid: true},
 		TransactionType: "credit",
 		Status:          "pending",
-		Reference:       utils.NewTxRef("r_"),
+		Reference:       utils.WatRequestID(),
 	})
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create referral transaction: %w", err)
@@ -212,7 +212,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 	// Update the referrer's earnings
 	params := db.UpdateReferralEarningsParams{
 		UserID:      int32(referrerID),
-		TotalEarned: amount.String(),
+		TotalEarned: referralBonus.String(),
 	}
 
 	if _, err := store.WithTx(dbTx).UpdateReferralEarnings(ctx, params); err != nil {
