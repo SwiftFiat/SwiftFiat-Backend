@@ -151,6 +151,19 @@ func (w *Wallet) updateWalletBalance(ctx *gin.Context) {
 		return
 	}
 
+	entry := audit.NewLog(
+		ctx,
+		audit.CategoryAccount,
+		audit.EventWalletBalanceUpdated,
+		wallet.ID.String(),
+		fmt.Sprintf("Admin %s updated wallet balance to %f", admin.Email, request.Amount),
+		&activeUser.UserID,
+		activeUser.Role,
+		true,
+		nil,
+	)
+	w.audit.Log(entry)
+
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Wallet Balance Updated Successfully", models.ToWalletResponse(&response)))
 
 }

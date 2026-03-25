@@ -93,13 +93,14 @@ const (
 	Event2FAVerified            = "user.2fa.verified"
 
 	// Account events
-	EventAccountCreated     = "account.created"
-	EventAccountUpdated     = "account.updated"
-	EventAccountDeleted     = "account.deleted"
-	EventAccountSuspended   = "account.suspended"
-	EventAccountReactivated = "account.reactivated"
-	EventEmailVerified      = "account.email.verified"
-	EventPhoneVerified      = "account.phone.verified"
+	EventAccountCreated       = "account.created"
+	EventAccountUpdated       = "account.updated"
+	EventAccountDeleted       = "account.deleted"
+	EventAccountSuspended     = "account.suspended"
+	EventAccountReactivated   = "account.reactivated"
+	EventEmailVerified        = "account.email.verified"
+	EventPhoneVerified        = "account.phone.verified"
+	EventWalletBalanceUpdated = "wallet.balance.updated"
 
 	// Transaction events
 	EventTransactionCreated     = "transaction.created"

@@ -185,7 +185,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 		Type:            string(Referral),
 		Description:     sql.NullString{String: "Referral bonus for referring a user who completed a conversion", Valid: true},
 		TransactionFlow: "inplatform",
-		Currency:        "USD",
+		Currency:        "NGN",
 		IdempotencyKey:  uuid.New().String(),
 		TFrom:           "Platform",
 		TTo:             "Referral",
