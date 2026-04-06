@@ -516,16 +516,15 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		// Don't fail the conversion for this
 	}
 
-	user, err := s.store.GetUserByID(ctx, params.userID)
-	if err != nil {
+	user, userErr := s.store.GetUserByID(ctx, params.userID)
+	if userErr != nil {
 		s.logger.Error("failed to get user")
 	}
 
-
-	if !user.HasCompletedFirstConversion.Bool {
-		referrerID, referralBonus, err := transaction.CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, params.userID, mainTx.ID)
-		if err != nil {
-			s.logger.Errorf("Failed to disburse referral bonus: %v", err)
+	if userErr == nil && !user.HasCompletedFirstConversion.Bool {
+		referrerID, referralBonus, refErr := transaction.CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, params.userID, mainTx.ID)
+		if refErr != nil {
+			s.logger.Errorf("Failed to disburse referral bonus: %v", refErr)
 		}
 		if referrerID != nil && referralBonus != nil {
 			go func() {
@@ -538,9 +537,9 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		}
 	}
 
-	referrerID, amountEarned, err := transaction.CreditReferrerForConversion(ctx, s.store, dbTx, params.userID, params.targetAmount)
-	if err != nil {
-		s.logger.Errorf("failed to credit referrer for conversion: %v", err)
+	referrerID, amountEarned, creditErr := transaction.CreditReferrerForConversion(ctx, s.store, dbTx, params.userID, params.targetAmount)
+	if creditErr != nil {
+		s.logger.Errorf("failed to credit referrer for conversion: %v", creditErr)
 	} else {
 		go func() {
 			bgCtx := context.Background()
@@ -551,7 +550,6 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
 		}()
 	}
-
 
 	// send notification
 	go func() {
