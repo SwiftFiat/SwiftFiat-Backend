@@ -99,6 +99,7 @@ type Server struct {
 	marketInsightsService    *coindesk.MarketInsightsService
 	priceAlertSvc            *pricealert.PriceAlertService
 	priceAlertScheduler      *pricealert.AlertScheduler
+	sessionManager           *SessionManager // refresh-token + multi-device sessions
 }
 
 func NewServer(envPath string) *Server {
@@ -291,6 +292,12 @@ func NewServer(envPath string) *Server {
 
 	am := NewAuthMiddleware(r)
 
+	// Session manager (refresh tokens + multi-device tracking)
+	sm := NewSessionManager(r)
+ 
+	// Apply global rate limit to the entire engine
+	g.Use(GlobalRateLimit(r))
+
 	g.Static("/docs", "./docs/site") // serves docs at /docs
 	g.Static("/api/v1/icons/assets", "./icons")
 	g.Static("/assets/images", "./assets/images")
@@ -340,6 +347,7 @@ func NewServer(envPath string) *Server {
 		marketInsightsService:    insights,
 		priceAlertSvc:            pa,
 		priceAlertScheduler:      pas,
+		sessionManager:           sm,
 	}
 }
 

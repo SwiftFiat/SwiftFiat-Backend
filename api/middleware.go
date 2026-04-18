@@ -80,6 +80,13 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 		ctx.Set("user_tag", user.UserTag)
 		/// Accessible User Across the App
 		ctx.Set("user", user)
+
+		// Forward session_id so SessionBlockMiddleware can validate it.
+		// Old tokens (pre-session-manager) won't have this field; that's fine.
+		if user.SessionID != "" {
+			ctx.Set("session_id", user.SessionID)
+		}
+		
 		ctx.Next()
 	}
 }

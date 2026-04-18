@@ -22,6 +22,7 @@ type jwtClaim struct {
 	Verified bool   `json:"user_verified"`
 	Email    string `json:"email"`
 	UserTag  string `json:"user_tag"`
+	SessionID string `json:"session_id,omitempty"`
 	Exp      int64  `json:"exp"`
 }
 
@@ -31,6 +32,7 @@ type TokenObject struct {
 	Verified bool   `json:"user_verified"`
 	UserTag  string `json:"user_tag"`
 	Email    string `json:"email"`
+	SessionID string `json:"session_id,omitempty"`
 }
 
 func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
@@ -41,6 +43,7 @@ func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
 		Email:    user.Email,
 		UserTag:  user.UserTag,
 		Exp:      time.Now().Add(time.Hour * 24 * 30).Unix(),
+		SessionID: user.SessionID,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -84,5 +87,6 @@ func (j *JWTToken) VerifyToken(tokenString string) (TokenObject, error) {
 		Verified: claims.Verified,
 		UserTag:  claims.UserTag,
 		Email:    claims.Email,
+		SessionID: claims.SessionID,
 	}, nil
 }

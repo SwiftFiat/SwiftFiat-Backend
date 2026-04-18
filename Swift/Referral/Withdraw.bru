@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: {{BaseURl}}/referral/request-withdrawal
+  url: {{BaseURl}}/referral/withdraw
   body: json
   auth: bearer
 }
@@ -16,11 +16,92 @@ auth:bearer {
 
 body:json {
   {
-    "amount": "10000"
+    "amount": "1000",
+    "idempotency_key": "dohef8gh3rn"
   }
 }
 
 settings {
   encodeUrl: true
   timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/referral/withdraw
+    method: POST
+    mode: json
+    body:json: {
+      {
+        "amount": "1000",
+        "idempotency_key": "dohef8gh3rn"
+      }
+    }
+  }
+  
+  response: {
+    headers: {
+      server: nginx/1.24.0 (Ubuntu)
+      date: Fri, 17 Apr 2026 23:01:36 GMT
+      content-type: application/json; charset=utf-8
+      content-length: 698
+      connection: keep-alive
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "successful",
+          "message": "withdrawal completed successfully",
+          "data": {
+            "id": "ff1a7a39-a221-4ddc-be9d-8d201c34f76a",
+            "user_id": 8,
+            "type": "referral",
+            "description": {
+              "String": "",
+              "Valid": false
+            },
+            "transaction_flow": "inplatform",
+            "amount": "1000.00",
+            "idempotency_key": "dohef8gh3rn",
+            "t_from": "referral",
+            "t_to": "wallet",
+            "direction": "credit",
+            "currency": "NGN",
+            "amount_usd": "0.74",
+            "status": "pending",
+            "risk_score": {
+              "Int32": 0,
+              "Valid": true
+            },
+            "fraud_status": {
+              "String": "clear",
+              "Valid": true
+            },
+            "flagged_at": {
+              "Time": "0001-01-01T00:00:00Z",
+              "Valid": false
+            },
+            "created_at": "2026-04-17T23:01:36.233619Z",
+            "updated_at": "2026-04-17T23:01:36.233619Z",
+            "deleted_from_account_id": null,
+            "deleted_to_account_id": null
+          },
+          "version": "1.0.0"
+        }
+      '''
+    }
+  }
 }

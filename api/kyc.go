@@ -207,6 +207,20 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if userKYC.Tier != "tier_1" {
+		ctx.JSON(http.StatusConflict, basemodels.NewError("You have to be on tier 1 to start tier 2 verifications"))
+		return
+	}
+
 	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -372,6 +386,20 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if userKYC.Tier != "tier_1" {
+		ctx.JSON(http.StatusConflict, basemodels.NewError("You have to be on tier 1 to start tier 2 verifications"))
+		return
+	}
+
 	dbUser, err := k.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
@@ -500,28 +528,6 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		if err != nil {
 			k.server.logger.Errorf("failed to update user %d kyc verification status: %v", kyc.UserID, err)
 		}
-
-		// _, err = k.server.queries.UpdateUserFirstName(ctx, db.UpdateUserFirstNameParams{
-		// 	ID: int64(kyc.UserID),
-		// 	FirstName: sql.NullString{
-		// 		String: verificationData.FirstName,
-		// 		Valid:  true,
-		// 	},
-		// })
-		// if err != nil {
-		// 	k.server.logger.Errorf("failed to update user %d first name: %v", kyc.UserID, err)
-		// }
-
-		// _, err = k.server.queries.UpdateUserLastName(ctx, db.UpdateUserLastNameParams{
-		// 	ID: int64(kyc.UserID),
-		// 	LastName: sql.NullString{
-		// 		String: verificationData.LastName,
-		// 		Valid:  true,
-		// 	},
-		// })
-		// if err != nil {
-		// 	k.server.logger.Errorf("failed to update user %d last name: %v", kyc.UserID, err)
-		// }
 
 		// Refresh kyc object
 		updatedKyc, err := k.server.queries.GetKYCByUserID(ctx, kyc.UserID)
@@ -776,6 +782,20 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	if err == sql.ErrNoRows {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
+		return
+	} else if err != nil {
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	if userKYC.Tier != "tier_2" {
+		ctx.JSON(http.StatusConflict, basemodels.NewError("You have to be on tier 2 to start tier 3 verifications"))
 		return
 	}
 

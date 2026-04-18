@@ -191,13 +191,13 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 		}
 		// s.logger.Infof("Created transaction %d for referral withdrawal of user %d", tx.ID, userID)
 
-		reference := utils.NewTxRef(fmt.Sprintf("rw_%s", uuid.New().String()))
+		// reference := utils.NewTxRef(fmt.Sprintf("rw_%s", uuid.New().String()))
 		refTx, err := q.CreateReferralTransaction(ctx, db.CreateReferralTransactionParams{
 			UserID:          int32(userID),
 			TransactionID:   uuid.NullUUID{UUID: tx.ID, Valid: true},
 			TransactionType: string(transaction.Debit),
 			Status:          string(transaction.Pending),
-			Reference:       reference,
+			Reference:       key,
 			Amount:          tx.Amount,
 		})
 		if err != nil {

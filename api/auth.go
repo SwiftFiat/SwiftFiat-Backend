@@ -38,6 +38,7 @@ type Auth struct {
 	audit           *audit.Service
 	notifr          *service.Notification
 	push            *service.PushNotificationService
+	sm              *SessionManager
 }
 
 func (a Auth) router(server *Server) {
@@ -48,40 +49,56 @@ func (a Auth) router(server *Server) {
 	a.push = a.server.pushNotification
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr, a.server.pushNotification)
 	a.audit = a.server.auditService
+	sm := a.server.sessionManager
 
-	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/auth")
 	serverGroupV1.GET("test", a.testAuth)
-	serverGroupV1.POST("login", a.login)
-	serverGroupV1.POST("login-passcode", a.loginWithPasscode)
-	serverGroupV1.POST("register", a.register)
-	serverGroupV1.POST("register-admin", a.registerAdmin)
-	// serverGroupV1.GET("otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.sendOTP)
-	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyOTP)
-	serverGroupV1.POST("forgot-password", a.forgotPassword)
-	serverGroupV1.POST("reset-password", a.resetPassword)
-	// serverGroupV1.POST("forgot-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.forgotPasscode)
-	serverGroupV1.POST("reset-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.resetPasscode)
-	serverGroupV1.POST("create-passcode", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPasscode)
-	serverGroupV1.POST("create-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.createPin)
-	serverGroupV1.POST("verify-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyTransactionPin)
-	serverGroupV1.PUT("update-pin", a.server.authMiddleware.AuthenticatedMiddleware(), a.updateTransactionPin)
-	serverGroupV1.GET("profile", a.server.authMiddleware.AuthenticatedMiddleware(), a.profile)
-	serverGroupV1.GET("user", a.server.authMiddleware.AuthenticatedMiddleware(), a.getUserID)
-	serverGroupV1.DELETE("account", a.server.authMiddleware.AuthenticatedMiddleware(), a.deleteAccount)
-	serverGroupV1.POST("send-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.SendOTPWithTwilio)
-	// serverGroupV1.POST("verify-otp", a.server.authMiddleware.AuthenticatedMiddleware(), a.VerifyOTPWithTwilio)
-	serverGroupV1.POST("verify-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.verifyEmail)
-	serverGroupV1.POST("resend-email", a.server.authMiddleware.AuthenticatedMiddleware(), a.resendEmailVerification)
-	serverGroupV1.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
-	serverGroupV1.POST("resend-admin-otp", a.ResendAdminLoginOTP)
-	serverGroupV1.POST("set-2fa", a.server.authMiddleware.AuthenticatedMiddleware(), a.SetTwoFA)
-	serverGroupV1.POST("verify-2fa", a.verifyTwoFA)
-	serverGroupV1.POST("logout", a.server.authMiddleware.AuthenticatedMiddleware(), a.logout)
-	serverGroupV1.POST("logout-all", a.server.authMiddleware.AuthenticatedMiddleware(), a.logoutAll)
+
+	// ── Sensitive endpoints: strictest rate limit + brute force gate ──────
+	sensitive := serverGroupV1.Group("", SensitiveRateLimit(server.redis))
+	sensitive.POST("login", BruteForceMiddleware(server.redis), a.login)
+	sensitive.POST("login-passcode", BruteForceMiddleware(server.redis), a.loginWithPasscode)
+	sensitive.POST("forgot-password", a.forgotPassword)
+	sensitive.POST("reset-password", a.resetPassword)
+	sensitive.POST("verify-2fa", a.verifyTwoFA)
+	sensitive.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
+
+	// ── Auth-tier rate limit ──────────────────────────────────────────────
+	auth := serverGroupV1.Group("", AuthRateLimit(server.redis))
+	auth.POST("register", a.register)
+	auth.POST("register-admin", a.registerAdmin)
+	auth.POST("resend-admin-otp", a.ResendAdminLoginOTP)
+
+	// ── Refresh token (no auth required — client presents refresh token) ──
+	serverGroupV1.POST("refresh", sm.HandleRefreshToken(server))
+
+	// ── Authenticated routes ──────────────────────────────────────────────
+	authed := serverGroupV1.Group("",
+		a.server.authMiddleware.AuthenticatedMiddleware(),
+		SessionBlockMiddleware(sm),
+	)
+	authed.POST("reset-passcode", a.resetPasscode)
+	authed.POST("create-passcode", a.createPasscode)
+	authed.POST("create-pin", a.createPin)
+	authed.POST("verify-pin", a.verifyTransactionPin)
+	authed.PUT("update-pin", a.updateTransactionPin)
+	authed.GET("profile", a.profile)
+	authed.GET("user", a.getUserID)
+	authed.DELETE("account", a.deleteAccount)
+	authed.POST("send-otp", a.SendOTPWithTwilio)
+	authed.POST("verify-email", a.verifyEmail)
+	authed.POST("resend-email", a.resendEmailVerification)
+	authed.POST("set-2fa", a.SetTwoFA)
+	authed.POST("logout", a.logout)
+	authed.POST("logout-all", a.logoutAll)
+
+	// Session management (device list + single-device revoke)
+	authed.GET("sessions", sm.HandleListSessions(server))
+	authed.DELETE("sessions/:session_id", sm.HandleRevokeSession(server))
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
+
 }
 
 // / This is a test function for easy conversion from type ID -> dbID (i.e int64)
@@ -1221,8 +1238,8 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	}
 
 	_, err = a.server.queries.UpdateKYCNINInfo(ctx, db.UpdateKYCNINInfoParams{
-		FullName: sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
-		ID: user.ID,
+		FullName:    sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
+		ID:          user.ID,
 		PhoneNumber: sql.NullString{String: user.PhoneNumber, Valid: true},
 	})
 	if err != nil {
@@ -1903,7 +1920,6 @@ func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
 		return
 	}
 
-
 	// Verify provided pin against stored hashed pin
 	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
@@ -1953,7 +1969,6 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
 	}
-
 
 	if err := utils.VerifyHashValue(pin.OldPin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(err.Error())
