@@ -27,7 +27,7 @@ body:json {
 
 tests {
   const body = res.body;
-  bru.setEnvVar("token", body.data.token);
+  bru.setEnvVar("token", body.data.access_token);
   
 }
 

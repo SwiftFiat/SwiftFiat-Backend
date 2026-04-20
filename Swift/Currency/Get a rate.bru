@@ -1,0 +1,25 @@
+meta {
+  name: Get a rate
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{BaseURl}}/currency/get?base=USD&quote=NGN
+  body: none
+  auth: bearer
+}
+
+params:query {
+  base: USD
+  quote: NGN
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

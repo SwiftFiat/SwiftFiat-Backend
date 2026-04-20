@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS "otps" (
     -- References the user this OTP belongs to
     -- UNIQUE ensures only one active OTP per user
     -- ON DELETE CASCADE ensures cleanup if user is deleted
-    "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Stores the hashed OTP value
     -- 256 characters to accommodate various hash algorithms

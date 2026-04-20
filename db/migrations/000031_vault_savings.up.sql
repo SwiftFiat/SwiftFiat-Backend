@@ -79,7 +79,7 @@ CREATE TABLE IF NOT EXISTS "vault_transactions" (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_yields" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "yield_amount" DECIMAL(19, 4) NOT NULL,
     "yield_rate" DECIMAL(19, 4) NOT NULL, -- APY percentage applied

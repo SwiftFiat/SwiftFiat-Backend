@@ -36,6 +36,8 @@ import (
 	"github.com/google/uuid"
 )
 
+// ── Rate limit tier definitions ───────────────────────────────────────────────
+
 const (
 	// Brute force
 	BruteForceMaxAttempts = 5
@@ -67,6 +69,7 @@ var (
 //
 // Sliding-window algorithm backed by a Redis sorted set.
 // All four operations execute in a single pipeline (one network RTT).
+
 func IPRateLimitMiddleware(r *redis.RedisService, tier rateLimitTier) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ip := realIP(ctx)
@@ -131,6 +134,7 @@ func SensitiveRateLimit(r *redis.RedisService) gin.HandlerFunc {
 // Checks the account-lock key BEFORE the login handler runs, so we never hit
 // the DB when an account is in its 30-minute lockout window.
 // The body is read, peeked, then re-injected so the handler can read it again.
+
 func BruteForceMiddleware(r *redis.RedisService) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		// Read + restore body
@@ -174,7 +178,7 @@ func BruteForceMiddleware(r *redis.RedisService) gin.HandlerFunc {
 func RecordFailedLogin(ctx *gin.Context, r *redis.RedisService, email string) (locked bool, totalAttempts int) {
 	failKey := failedLoginKey(email)
 	lockKey := accountLockKey(email)
- 
+
 	attempts, err := r.Incr(ctx, failKey)
 	if err != nil {
 		return false, 0
@@ -182,7 +186,7 @@ func RecordFailedLogin(ctx *gin.Context, r *redis.RedisService, email string) (l
 	if attempts == 1 {
 		r.Expire(ctx, failKey, BruteForceWindowTTL)
 	}
- 
+
 	if attempts >= BruteForceMaxAttempts {
 		pipe := r.Pipeline()
 		pipe.Set(ctx, lockKey,
@@ -192,10 +196,10 @@ func RecordFailedLogin(ctx *gin.Context, r *redis.RedisService, email string) (l
 		pipe.Exec(ctx)
 		return true, int(attempts)
 	}
- 
+
 	return false, int(attempts)
 }
- 
+
 // ClearFailedLogins resets the attempt counter and removes any lock for email.
 // Call from the login handler after a successful authentication.
 func ClearFailedLogins(ctx *gin.Context, r *redis.RedisService, email string) {
@@ -204,7 +208,7 @@ func ClearFailedLogins(ctx *gin.Context, r *redis.RedisService, email string) {
 	pipe.Del(ctx, accountLockKey(email))
 	pipe.Exec(ctx)
 }
- 
+
 // IsAccountLocked returns (true, remainingTTL) when the account lock key exists.
 func IsAccountLocked(ctx *gin.Context, r *redis.RedisService, email string) (bool, time.Duration) {
 	locked, err := r.Get(ctx, accountLockKey(email))
@@ -214,13 +218,13 @@ func IsAccountLocked(ctx *gin.Context, r *redis.RedisService, email string) (boo
 	ttl, _ := r.TTL(ctx, accountLockKey(email))
 	return true, ttl
 }
- 
+
 // ── 3. Session Block Middleware ───────────────────────────────────────────────
 //
 // Applied AFTER AuthenticatedMiddleware. Reads session_id from gin context
 // (set by the auth middleware when the JWT contains one) and rejects requests
 // for force-blocked sessions.
- 
+
 func SessionBlockMiddleware(sm *SessionManager) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		sid, exists := ctx.Get("session_id")
@@ -229,45 +233,45 @@ func SessionBlockMiddleware(sm *SessionManager) gin.HandlerFunc {
 			ctx.Next()
 			return
 		}
- 
+
 		sessionID, ok := sid.(string)
 		if !ok || sessionID == "" {
 			ctx.Next()
 			return
 		}
- 
+
 		meta, err := sm.loadSession(ctx.Request.Context(), sessionID)
 		if err != nil {
 			ctx.AbortWithStatusJSON(http.StatusUnauthorized,
 				basemodels.NewError("session expired — please log in again"))
 			return
 		}
- 
+
 		if meta.Blocked {
 			ctx.AbortWithStatusJSON(http.StatusForbidden,
 				basemodels.NewError("session has been revoked"))
 			return
 		}
- 
+
 		// Non-blocking heartbeat
 		go sm.TouchSession(ctx.Request.Context(), sessionID)
- 
+
 		ctx.Next()
 	}
 }
- 
+
 // ── Key helpers (package-level, used by auth.go too) ─────────────────────────
- 
+
 func failedLoginKey(email string) string {
 	return fmt.Sprintf("failed_login:%s", email)
 }
- 
+
 func accountLockKey(email string) string {
 	return fmt.Sprintf("account_lock:%s", email)
 }
- 
+
 // ── Real-IP extraction ────────────────────────────────────────────────────────
- 
+
 // realIP resolves the true client IP behind Cloudflare / nginx reverse proxies.
 func realIP(ctx *gin.Context) string {
 	if xff := ctx.GetHeader("X-Forwarded-For"); xff != "" {
@@ -281,5 +285,3 @@ func realIP(ctx *gin.Context) string {
 	}
 	return ctx.ClientIP()
 }
- 
-

@@ -100,6 +100,7 @@ type Server struct {
 	priceAlertSvc            *pricealert.PriceAlertService
 	priceAlertScheduler      *pricealert.AlertScheduler
 	sessionManager           *SessionManager // refresh-token + multi-device sessions
+	anomalyDetector          *AnomalyDetector // real-time auth threat signals
 }
 
 func NewServer(envPath string) *Server {
@@ -292,11 +293,20 @@ func NewServer(envPath string) *Server {
 
 	am := NewAuthMiddleware(r)
 
+	// Anomaly detector (impossible travel, new country, IP burst, token theft)
+	ad := NewAnomalyDetector(r, l, email, pn, ns)
+
 	// Session manager (refresh tokens + multi-device tracking)
-	sm := NewSessionManager(r)
+	sm := NewSessionManager(r, ad)
+
+	// Startup Redis security validation — logs warnings, panics on unsafe eviction policy
+	if err := ValidateRedisSecurityConfig(context.Background(), r, l); err != nil {
+		log.Fatalf("Redis security check failed: %v", err)
+	}
  
 	// Apply global rate limit to the entire engine
 	g.Use(GlobalRateLimit(r))
+	g.Use(RedisHealthMiddleware(r))
 
 	g.Static("/docs", "./docs/site") // serves docs at /docs
 	g.Static("/api/v1/icons/assets", "./icons")
@@ -348,6 +358,7 @@ func NewServer(envPath string) *Server {
 		priceAlertSvc:            pa,
 		priceAlertScheduler:      pas,
 		sessionManager:           sm,
+		anomalyDetector:          ad,
 	}
 }
 

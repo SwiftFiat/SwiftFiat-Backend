@@ -1,7 +1,7 @@
 -- Base transactions table with common fields only
 CREATE TABLE IF NOT EXISTS "transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE SET NULL,
+    "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE SET NULL,
     "type" VARCHAR(20) NOT NULL CHECK (type IN ('swap', 'transfer', 'crypto', 'giftcard', 'vault', 'airtime', 'data', 'tv_subscription', 'electricity', 'qr_code', 'card', 'rewards', 'referral', 'rapid_ramp')), -- e.g. swap | transfer | crypto | giftcard | withdrawal | service (airtime | data | etc)
     "description" TEXT, -- e.g. User entered transaction description
     "transaction_flow" VARCHAR(50) CHECK (transaction_flow IN ('inflow', 'outflow', 'inplatform')) NOT NULL, -- e.g. inflow -> USD | outflow -> USD | inplatform

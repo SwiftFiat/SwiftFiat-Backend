@@ -8,7 +8,7 @@
 
 CREATE TABLE IF NOT EXISTS "kyc" (
     "id" BIGSERIAL PRIMARY KEY,
-    "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "status" VARCHAR(20) NOT NULL DEFAULT 'pending' CHECK ("status" IN ('pending', 'verified', 'rejected')),
     "tier" VARCHAR(20) NOT NULL DEFAULT 'tier_1' CHECK ("tier" IN ('tier_1', 'tier_2', 'tier_3')),
     "verification_date" TIMESTAMPTZ,

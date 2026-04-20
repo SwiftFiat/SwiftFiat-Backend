@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS "user_tokens" (
     "id" SERIAL PRIMARY KEY,
-    "user_id" BIGSERIAL NOT NULL,
+    "user_id" UUID NOT NULL,
     "token" TEXT UNIQUE NOT NULL,
     "provider" VARCHAR(10) NOT NULL,
     "device_uuid" TEXT,

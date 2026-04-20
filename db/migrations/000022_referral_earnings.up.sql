@@ -35,15 +35,15 @@
  */
 CREATE TABLE user_referrals (
                                 id SERIAL PRIMARY KEY,
-                                referrer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-                                referee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                referrer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                referee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
                                 earned_amount DECIMAL(10, 2) NOT NULL,
                                 created_at TIMESTAMP NOT NULL DEFAULT NOW(),
                                 UNIQUE (referee_id) -- Ensure a user can't be referred multiple times
 );
 CREATE TABLE referral_earnings ( 
                                    "id" BIGSERIAL PRIMARY KEY,
-                                   "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                                   "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 --     total_earned = available_balance + withdrawn_balance
                                    "total_earned" DECIMAL(10, 2) NOT NULL DEFAULT 0,
                                    "available_balance" DECIMAL(10, 2) NOT NULL DEFAULT 0,
@@ -67,7 +67,7 @@ CHECK (withdrawn_balance >= 0);
 
 CREATE TABLE referral_transactions (
   "id" BIGSERIAL PRIMARY KEY,
-  "user_id" INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   "amount" DECIMAL(10, 2) NOT NULL,
   "transaction_id" UUID REFERENCES transactions(id) ON DELETE SET NULL,
   "transaction_type" VARCHAR(20) NOT NULL CHECK (transaction_type IN ('credit', 'debit')),

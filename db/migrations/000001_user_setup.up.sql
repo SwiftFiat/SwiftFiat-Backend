@@ -15,7 +15,7 @@
  */
 CREATE TABLE IF NOT EXISTS "users" (
     -- Unique identifier for each user
-    "id" BIGSERIAL PRIMARY KEY,
+    "id" UUID PRIMARY KEY DEFAULT gen_random_uuid()
 
     -- User's avatar URL
     "avatar_url" TEXT,

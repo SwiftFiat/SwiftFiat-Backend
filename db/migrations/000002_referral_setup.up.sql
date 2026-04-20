@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS "referrals" (
     
     -- The user who owns this referral key
     -- UNIQUE ensures one referral key per user
-    "user_id" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- The actual referral key/code
     -- This should be a unique, hard-to-guess string

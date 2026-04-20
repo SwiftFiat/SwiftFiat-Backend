@@ -1,0 +1,28 @@
+meta {
+  name: Set currency
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{BaseURl}}/currency/set
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "base": "USD",
+    "quote": "NGN",
+    "rate": "1500"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

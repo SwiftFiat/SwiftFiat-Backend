@@ -3,6 +3,7 @@ package api
 import (
 	"net/http"
 
+	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/currency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
@@ -33,7 +34,7 @@ func (c *Currency) setPairRate(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
-	if user.Role != "admin" {
+	if user.Role == models.ADMIN {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}

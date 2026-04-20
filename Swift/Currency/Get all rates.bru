@@ -1,0 +1,20 @@
+meta {
+  name: Get all rates
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{BaseURl}}/currency/all
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

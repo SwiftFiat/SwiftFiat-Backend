@@ -11,6 +11,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// parseBearerCredential extracts the JWT from Authorization using strings.Fields
+// so "Bearer   <jwt>" and normal "Bearer <jwt>" both work. Returns an error when
+// the scheme is wrong, the credential is missing, or extra space-separated parts
+// exist (would yield a truncated/wrong token if we only took fields[1]).
+func parseBearerCredential(authHeader string) (string, error) {
+	fields := strings.Fields(strings.TrimSpace(authHeader))
+	if len(fields) < 2 {
+		return "", fmt.Errorf("invalid token, expects bearer token")
+	}
+	if strings.ToLower(fields[0]) != "bearer" {
+		return "", fmt.Errorf("invalid token, expects bearer token")
+	}
+	if len(fields) > 2 {
+		return "", fmt.Errorf("invalid token, JWT must be a single credential after Bearer")
+	}
+	t := strings.Trim(strings.TrimSpace(fields[1]), `"'`)
+	if t == "" {
+		return "", fmt.Errorf("invalid token, bearer credential is empty")
+	}
+	return t, nil
+}
+
+// credentialLooksLikeJWT is a cheap guard before jwt.Parse; refresh tokens in
+// this API are opaque hex strings and produce "invalid number of segments".
+func credentialLooksLikeJWT(s string) bool {
+	return strings.Count(s, ".") == 2 && s[0] != '.' && s[len(s)-1] != '.'
+}
+
 type AuthMiddleware struct {
 	redisClient *redis.RedisService
 }
@@ -26,20 +54,28 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 
 		if token == "" {
 			// Check query parameter for WebSocket support
-			tokenString = ctx.Query("token")
+			tokenString = strings.Trim(strings.TrimSpace(ctx.Query("token")), `"'`)
 			if tokenString == "" {
 				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Unauthorized Request, token is empty"))
 				ctx.Abort()
 				return
 			}
 		} else {
-			tokenSplit := strings.Split(token, " ")
-			if len(tokenSplit) != 2 || strings.ToLower(tokenSplit[0]) != "bearer" {
-				ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid token, expects bearer token"))
+			var err error
+			tokenString, err = parseBearerCredential(token)
+			if err != nil {
+				ctx.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
 				ctx.Abort()
 				return
 			}
-			tokenString = tokenSplit[1]
+		}
+
+		if !credentialLooksLikeJWT(tokenString) {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError(
+				"Invalid access token: expected a JWT (three dot-separated parts from login). "+
+					"Use data.access_token as Authorization: Bearer <access_token>; do not send refresh_token here."))
+			ctx.Abort()
+			return
 		}
 
 		user, err := TokenController.VerifyToken(tokenString)
@@ -69,10 +105,6 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		// TODO: Add Cache Layer Validation for Password Changes etc.
-		// https://stackoverflow.com/questions/21978658/invalidating-json-web-tokens
-		// e.g security.CacheInstance.Get(string(rune(user.UserID)))
-
 		ctx.Set("user_id", user.UserID)
 		ctx.Set("user_role", user.Role)
 		ctx.Set("user_verified", user.Verified)
@@ -86,7 +118,7 @@ func (a *AuthMiddleware) AuthenticatedMiddleware() gin.HandlerFunc {
 		if user.SessionID != "" {
 			ctx.Set("session_id", user.SessionID)
 		}
-		
+
 		ctx.Next()
 	}
 }

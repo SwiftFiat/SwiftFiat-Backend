@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS pgcrypto;
 -- Accounts table
 CREATE TABLE IF NOT EXISTS "swift_wallets" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "customer_id" BIGSERIAL NOT NULL REFERENCES users(id),
+    "customer_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "type" VARCHAR(50) NOT NULL,
     "currency" VARCHAR(3) NOT NULL,
     "balance" DECIMAL(19,4) DEFAULT 0,

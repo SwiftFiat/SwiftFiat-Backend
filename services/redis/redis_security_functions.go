@@ -77,3 +77,39 @@ func PipeZRemRangeByScore(pipe goredis.Pipeliner, ctx context.Context, key, min,
 func PipeZCard(pipe goredis.Pipeliner, ctx context.Context, key string) *goredis.IntCmd {
 	return pipe.ZCard(ctx, key)
 }
+
+// ── Config + health ───────────────────────────────────────────────────────────
+ 
+// ConfigGet retrieves a single Redis config value by name.
+// Returns ("", err) if the key doesn't exist or CONFIG GET is disallowed by ACL.
+func (r *RedisService) ConfigGet(ctx context.Context, param string) (string, error) {
+	result, err := r.client.ConfigGet(ctx, param).Result()
+	if err != nil {
+		return "", err
+	}
+	// go-redis v9 returns map[string]string
+	if val, ok := result[param]; ok {
+		return val, nil
+	}
+	return "", nil
+}
+ 
+// Ping checks Redis liveness. Returns nil on success.
+func (r *RedisService) Ping(ctx context.Context) error {
+	return r.client.Ping(ctx).Err()
+}
+ 
+// LPush prepends values to a list.
+func (r *RedisService) LPush(ctx context.Context, key string, values ...interface{}) error {
+	return r.client.LPush(ctx, key, values...).Err()
+}
+ 
+// LTrim trims a list to the specified range.
+func (r *RedisService) LTrim(ctx context.Context, key string, start, stop int64) error {
+	return r.client.LTrim(ctx, key, start, stop).Err()
+}
+ 
+// LRange returns a range of elements from a list.
+func (r *RedisService) LRange(ctx context.Context, key string, start, stop int64) ([]string, error) {
+	return r.client.LRange(ctx, key, start, stop).Result()
+}

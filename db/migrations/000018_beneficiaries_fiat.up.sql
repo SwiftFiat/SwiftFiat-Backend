@@ -5,7 +5,7 @@ BEGIN;
 -- Fiat Beneficiaries table
 CREATE TABLE IF NOT EXISTS "beneficiaries" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGSERIAL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID REFERENCES users(id) ON DELETE CASCADE,
     "bank_code" VARCHAR(20) NOT NULL,
     "account_number" VARCHAR(10) UNIQUE NOT NULL,
     "beneficiary_name" VARCHAR(100) NOT NULL,

@@ -7,6 +7,11 @@ import (
 	"github.com/golang-jwt/jwt"
 )
 
+// AccessTokenLifetime is the canonical TTL for all issued access tokens.
+// 15 minutes — short enough that a stolen token is worthless before the
+// attacker can use it in a meaningful attack window.
+const AccessTokenLifetime = 15 * time.Minute
+
 type JWTToken struct {
 	config *Config
 }
@@ -22,7 +27,8 @@ type jwtClaim struct {
 	Verified bool   `json:"user_verified"`
 	Email    string `json:"email"`
 	UserTag  string `json:"user_tag"`
-	SessionID string `json:"session_id,omitempty"`
+	SessionID string `json:"session_id,omitempty"`	
+	FamilyID  string `json:"family_id,omitempty"`  // refresh token family for reuse detection
 	Exp      int64  `json:"exp"`
 }
 
@@ -33,6 +39,7 @@ type TokenObject struct {
 	UserTag  string `json:"user_tag"`
 	Email    string `json:"email"`
 	SessionID string `json:"session_id,omitempty"`
+	FamilyID  string `json:"family_id,omitempty"`  // refresh token family for reuse detection
 }
 
 func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
@@ -42,8 +49,9 @@ func (j *JWTToken) CreateToken(user TokenObject) (string, error) {
 		Verified: user.Verified,
 		Email:    user.Email,
 		UserTag:  user.UserTag,
-		Exp:      time.Now().Add(time.Hour * 24 * 30).Unix(),
+		Exp:      time.Now().Add(AccessTokenLifetime).Unix(),
 		SessionID: user.SessionID,
+		FamilyID: user.FamilyID,
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -88,5 +96,6 @@ func (j *JWTToken) VerifyToken(tokenString string) (TokenObject, error) {
 		UserTag:  claims.UserTag,
 		Email:    claims.Email,
 		SessionID: claims.SessionID,
+		FamilyID: claims.FamilyID,
 	}, nil
 }

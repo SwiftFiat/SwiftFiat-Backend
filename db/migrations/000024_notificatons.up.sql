@@ -23,7 +23,7 @@ CREATE TABLE notification_recipients (
       REFERENCES notifications(id)
       ON DELETE CASCADE,
 
-    user_id BIGINT NOT NULL
+    user_id UUID NOT NULL
       REFERENCES users(id)
       ON DELETE CASCADE,
 

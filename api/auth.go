@@ -38,7 +38,6 @@ type Auth struct {
 	audit           *audit.Service
 	notifr          *service.Notification
 	push            *service.PushNotificationService
-	sm              *SessionManager
 }
 
 func (a Auth) router(server *Server) {
@@ -49,6 +48,7 @@ func (a Auth) router(server *Server) {
 	a.push = a.server.pushNotification
 	a.referralService = referral.NewReferralService(a.refRepo, a.server.logger, a.notifr, a.server.pushNotification)
 	a.audit = a.server.auditService
+
 	sm := a.server.sessionManager
 
 	serverGroupV1 := server.router.Group("/api/v1/auth")
@@ -98,7 +98,6 @@ func (a Auth) router(server *Server) {
 
 	serverGroupV2 := server.router.Group("/api/v2/auth")
 	serverGroupV2.GET("test", a.testAuth)
-
 }
 
 // / This is a test function for easy conversion from type ID -> dbID (i.e int64)
@@ -204,53 +203,58 @@ func (a *Auth) login(ctx *gin.Context) {
 		return
 	}
 
-	// Batch Redis reads
-	failedKey := fmt.Sprintf("failed_login:%s", user.Email)
+	// Batch Redis reads for device detection
 	lastDeviceKey := fmt.Sprintf("user_device:%d", dbUser.ID)
-	tokenKey := fmt.Sprintf("user:%d", dbUser.ID)
 
 	pipe := a.server.redis.Pipeline()
-	failedCountCmd := pipe.Get(ctx, failedKey)
 	lastDeviceCmd := pipe.Get(ctx, lastDeviceKey)
-	tokenDataCmd := pipe.Get(ctx, tokenKey)
 	_, _ = pipe.Exec(ctx)
 
-	failedCountStr, _ := failedCountCmd.Result()
-	failedCount := 0
-	if failedCountStr != "" {
-		failedCount, _ = strconv.Atoi(failedCountStr)
-	}
 	lastDeviceData, _ := lastDeviceCmd.Result()
-	tokenData, _ := tokenDataCmd.Result()
 
 	// Verify password
 	if err = utils.VerifyHashValue(user.Password, dbUser.HashedPassword.String); err != nil {
-		failedCount++
+		locked, attempts := RecordFailedLogin(ctx, a.server.redis, user.Email)
 
-		// Update Redis
-		pipe := a.server.redis.Pipeline()
-		pipe.Set(ctx, failedKey, failedCount, 15*time.Minute)
-		_, _ = pipe.Exec(ctx)
+		if locked {
+			// Audit the lockout event
+			errMsg := fmt.Sprintf("account locked after %d failed attempts", BruteForceMaxAttempts)
+			entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin,
+				fmt.Sprintf("User %s account locked", dbUser.Email),
+				&dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+			a.audit.Log(entry)
 
-		// FIX [L1]: Single call to SendFailedLoginAlert, async, non-blocking
-		if failedCount > 3 {
+			ctx.JSON(http.StatusTooManyRequests, basemodels.NewError(
+				"account locked for 30 minutes due to too many failed login attempts"))
+			return
+		}
+
+		// Alert after 3+ attempts (non-blocking)
+		if attempts > 3 {
 			go func(u *db.User, count int, ip string) {
 				defer func() { recover() }()
 				if err := a.server.emailService.SendFailedLoginAlert(u, count, ip); err != nil {
 					a.server.logger.Warn(fmt.Sprintf("failed to send failed login alert: %v", err))
-					// Non-critical: log to failed_notifications for admin review
 					a.logFailedNotification(context.Background(), "email", "transactional", u.ID,
-						u.Email, "Multiple Failed Login Attempts", fmt.Sprintf("%d failed attempts from %s", count, ip), err.Error())
+						u.Email, "Multiple Failed Login Attempts",
+						fmt.Sprintf("%d failed attempts from %s", count, ip), err.Error())
 				}
-			}(dbUser, failedCount, ctx.ClientIP())
+			}(dbUser, attempts, ctx.ClientIP())
 		}
 
-		// Audit log
 		errMsg := apistrings.IncorrectEmailPass
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s login failed", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin,
+			fmt.Sprintf("User %s login failed (attempt %d)", dbUser.Email, attempts),
+			&dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.IncorrectEmailPass))
+		remaining := BruteForceMaxAttempts - attempts
+		if remaining < 0 {
+			remaining = 0
+		}
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(
+			fmt.Sprintf("%s — %d attempt(s) remaining before 30-minute lockout",
+				apistrings.IncorrectEmailPass, remaining)))
 		return
 	}
 
@@ -275,11 +279,9 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 	currentDeviceStr := fmt.Sprintf("%s|%s", currentDevice.IP, currentDevice.UserAgent)
 	isNewDevice := (lastDeviceData != currentDeviceStr)
-	alreadyLoggedIn := (tokenData != "")
 
-	// 2FA determination
-	requiresTwoFA := (dbUser.TwofaEnabled.Bool && (isNewDevice || !alreadyLoggedIn)) ||
-		(dbUser.Role != models.USER)
+	// 2FA determination: required on new device or for non-USER roles
+	requiresTwoFA := (dbUser.TwofaEnabled.Bool && isNewDevice) || (dbUser.Role != models.USER)
 
 	// ── 2FA Flow ──────────────────────────────────────────────────────────
 	if dbUser.TwofaEnabled.Bool && requiresTwoFA {
@@ -298,7 +300,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		}
 
 		// Clear failed attempts
-		go a.server.redis.Delete(ctx, failedKey)
+		go a.server.redis.Delete(ctx, failedLoginKey(user.Email))
 
 		// FIX [L2] + [L4]: Single new device alert, async, non-blocking
 		if isNewDevice {
@@ -364,40 +366,41 @@ func (a *Auth) login(ctx *gin.Context) {
 		}
 
 		// Clear failed attempts
-		go a.server.redis.Delete(ctx, failedKey)
+		go a.server.redis.Delete(ctx, failedLoginKey(user.Email))
 
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("admin OTP sent to email, please verify to continue", nil))
 		return
 	}
 
 	// ── Regular Login Flow ────────────────────────────────────────────────
-	token, err := TokenController.CreateToken(utils.TokenObject{
+	// Clear brute-force counters on successful auth
+	ClearFailedLogins(ctx, a.server.redis, user.Email)
+
+	pair, err := a.server.sessionManager.CreateSession(ctx, utils.TokenObject{
 		UserID:   dbUser.ID,
 		Verified: dbUser.Verified,
 		Role:     dbUser.Role,
 		UserTag:  dbUser.UserTag.String,
 		Email:    dbUser.Email,
-	})
+	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
 		a.server.logger.Log(logrus.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	// Batch Redis writes
+	// Update device fingerprint in Redis
 	writePipe := a.server.redis.Pipeline()
-	writePipe.Del(ctx, failedKey)
 	writePipe.Set(ctx, lastDeviceKey, currentDeviceStr, 30*24*time.Hour)
-	writePipe.Set(ctx, tokenKey, token, 72*time.Hour)
-	if _, err := writePipe.Exec(ctx); err != nil {
-		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
-		// Continue in degraded mode
-	}
+	writePipe.Exec(ctx)
 
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
-		Token: token,
+		Token: pair.AccessToken,
 	}
+
+	// Anomaly detection (non-blocking)
+	a.server.anomalyDetector.OnSuccessfulLogin(ctx.Request.Context(), dbUser, ctx.ClientIP(), ctx.Request.UserAgent())
 
 	// FIX [L4] + [L5]: Async post-login tasks, error-logged
 	go func(u *db.User, device struct{ IP, UserAgent string }, newDevice bool) {
@@ -431,7 +434,13 @@ func (a *Auth) login(ctx *gin.Context) {
 	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", gin.H{
+		"user":          userWT.User,
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_at":    pair.ExpiresAt,
+		"session_id":    pair.SessionID,
+	}))
 }
 
 // ── Helper: Log failed notifications for admin review ────────────────────
@@ -682,47 +691,52 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 		}
 
 		redisKey := fmt.Sprintf("admin_login_otp:%s", user.Email)
-		storedCode, err := a.server.redis.Get(ctx, redisKey)
-		if err != nil || storedCode != req.EmailCode {
-			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid or expired Email OTP"))
+		storedCode, _ := a.server.redis.Get(ctx, redisKey)
+		valid2fa, status2fa, errMsg2fa := CheckOTPWithGuard(
+			ctx.Request.Context(), a.server.redis,
+			OTPScopeEmailCode2FA, user.Email,
+			redisKey, req.EmailCode, storedCode, 5*time.Minute,
+		)
+		if !valid2fa {
+			ctx.JSON(status2fa, basemodels.NewError(errMsg2fa))
 			return
 		}
-		// Clean up Email OTP
+		// OTP consumed by CheckOTPWithGuard — clean up attempt key
+		ClearOTPAttempts(ctx.Request.Context(), a.server.redis, OTPScopeEmailCode2FA, user.Email)
 		a.server.redis.Delete(ctx, redisKey)
 	}
 
-	// Create main token
-	token, err := TokenController.CreateToken(utils.TokenObject{
+	// Create main session via SessionManager (issues access + refresh token pair)
+	ClearFailedLogins(ctx, a.server.redis, user.Email)
+	a.server.anomalyDetector.OnSuccessfulLogin(ctx.Request.Context(), &user, ctx.ClientIP(), ctx.Request.UserAgent())
+
+	pair, err := a.server.sessionManager.CreateSession(ctx, utils.TokenObject{
 		UserID:   user.ID,
 		Verified: user.Verified,
 		Role:     user.Role,
 		UserTag:  user.UserTag.String,
 		Email:    user.Email,
-	})
+	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
 		a.server.logger.Log(logrus.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	// Clean up temp token and set main token
-	pipe := a.server.redis.Pipeline()
-	pipe.Del(ctx, fmt.Sprintf("temp_2fa:%s", req.TempToken))            // Delete temp token
-	pipe.Set(ctx, fmt.Sprintf("user:%d", user.ID), token, 72*time.Hour) // Store token for 72 hours
-	if _, err := pipe.Exec(ctx); err != nil {
-		a.server.logger.Error(fmt.Sprintf("redis pipeline error: %v", err))
-	}
-
-	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&user),
-		Token: token,
-	}
+	// Clean up temp 2FA token
+	a.server.redis.Delete(ctx, fmt.Sprintf("tmp2fa:%s", req.TempToken))
 
 	// Log audit
 	entry := audit.NewAuthenticationLog(ctx, audit.Event2FAVerified, fmt.Sprintf("User %s verified 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", gin.H{
+		"user":          models.UserResponse{}.ToUserResponse(&user),
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_at":    pair.ExpiresAt,
+		"session_id":    pair.SessionID,
+	}))
 }
 
 // logout godoc
@@ -743,22 +757,23 @@ func (a *Auth) logout(ctx *gin.Context) {
 		return
 	}
 
-	// Delete the token from Redis
-	tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
-	if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
-		a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
-
-		// Log audit
-		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, fmt.Sprintf("User %d logged out", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
-		a.audit.Log(entry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
-		return
+	// Revoke the specific session if session_id is available in context
+	sessionID, hasSID := ctx.Get("session_id")
+	if hasSID {
+		if sid, ok := sessionID.(string); ok && sid != "" {
+			_ = a.server.sessionManager.RevokeSession(ctx.Request.Context(), activeUser.UserID, sid)
+		}
+	} else {
+		// Fallback: delete legacy token key
+		tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
+		if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
+			a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
+		}
 	}
 
-	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout, fmt.Sprintf("User %s logged out", activeUser.UserTag), &activeUser.UserID, nil, activeUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout,
+		fmt.Sprintf("User %s logged out", activeUser.UserTag),
+		&activeUser.UserID, nil, activeUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged out successfully", nil))
@@ -782,29 +797,22 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 		return
 	}
 
-	// Keys to delete
-	tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
-	deviceKey := fmt.Sprintf("user_device:%d", activeUser.UserID)
+	if err := a.server.sessionManager.RevokeAllUserSessions(ctx.Request.Context(), activeUser.UserID); err != nil {
+		a.server.logger.Error(fmt.Sprintf("logoutAll error: %v", err))
 
-	// Use pipeline for atomic deletion
-	pipe := a.server.redis.Pipeline()
-	pipe.Del(ctx, tokenKey)
-	pipe.Del(ctx, deviceKey)
-
-	if _, err := pipe.Exec(ctx); err != nil {
-		a.server.logger.Error(fmt.Sprintf("redis pipeline error during logout all: %v", err))
-
-		// Log audit
 		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, fmt.Sprintf("User %d logged out from all devices", activeUser.UserID), &activeUser.UserID, nil, activeUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices,
+			fmt.Sprintf("User %d logout-all failed", activeUser.UserID),
+			&activeUser.UserID, nil, activeUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices, fmt.Sprintf("User %s logged out from all devices", activeUser.UserTag), &activeUser.UserID, nil, activeUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices,
+		fmt.Sprintf("User %s logged out from all devices", activeUser.UserTag),
+		&activeUser.UserID, nil, activeUser.Role, true, nil)
 	a.audit.Log(entry)
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("logged out from all devices successfully", nil))
@@ -834,9 +842,14 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	}
 
 	redisKey := fmt.Sprintf("admin_login_otp:%s", req.Email)
-	storedCode, err := a.server.redis.Get(ctx, redisKey)
-	if err != nil || storedCode != req.OTP {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid or expired OTP"))
+	storedCode, _ := a.server.redis.Get(ctx, redisKey)
+	valid, status, errMsg := CheckOTPWithGuard(
+		ctx.Request.Context(), a.server.redis,
+		OTPScopeAdminLogin, req.Email,
+		redisKey, req.OTP, storedCode, 10*time.Minute,
+	)
+	if !valid {
+		ctx.JSON(status, basemodels.NewError(errMsg))
 		return
 	}
 
@@ -977,41 +990,57 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 	}
 
 	if err = utils.VerifyHashValue(user.Passcode, dbUser.HashedPasscode.String); err != nil {
-
-		// Log audit
+		locked, attempts := RecordFailedLogin(ctx, a.server.redis, user.Email)
+		if locked {
+			ctx.JSON(http.StatusTooManyRequests, basemodels.NewError(
+				"account locked for 30 minutes due to too many failed passcode attempts"))
+			return
+		}
+		remaining := BruteForceMaxAttempts - attempts
+		if remaining < 0 {
+			remaining = 0
+		}
 		errMsg := "incorrect email or passcode"
-		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in failed", dbUser.UserTag.String), &dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
+		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin,
+			fmt.Sprintf("User %s passcode login failed (attempt %d)", dbUser.UserTag.String, attempts),
+			&dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
-
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(errMsg))
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError(
+			fmt.Sprintf("%s — %d attempt(s) remaining before 30-minute lockout", errMsg, remaining)))
 		return
 	}
 
-	token, err := TokenController.CreateToken(utils.TokenObject{
+	ClearFailedLogins(ctx, a.server.redis, user.Email)
+
+	pair, err := a.server.sessionManager.CreateSession(ctx, utils.TokenObject{
 		UserID:   dbUser.ID,
 		Verified: dbUser.Verified,
 		Role:     dbUser.Role,
 		UserTag:  dbUser.UserTag.String,
 		Email:    dbUser.Email,
-	})
+	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
 
-	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
-
-	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(dbUser),
-		Token: token,
-	}
+	// Anomaly detection (non-blocking)
+	a.server.anomalyDetector.OnSuccessfulLogin(ctx.Request.Context(), dbUser, ctx.ClientIP(), ctx.Request.UserAgent())
 
 	// Log audit
-	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin, fmt.Sprintf("User %s logged in", dbUser.UserTag.String), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
+	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogin,
+		fmt.Sprintf("User %s logged in via passcode", dbUser.UserTag.String),
+		&dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", userWT))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("user logged in successfully", gin.H{
+		"user":          models.UserResponse{}.ToUserResponse(dbUser),
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_at":    pair.ExpiresAt,
+		"session_id":    pair.SessionID,
+	}))
 }
 
 // register godoc
@@ -1198,9 +1227,14 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	}
 
 	redisKey := fmt.Sprintf("email_verification:%s", req.Email)
-	storedCode, err := a.server.redis.Get(ctx, redisKey)
-	if err != nil || storedCode != req.Code {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid or expired verification code"))
+	storedCode, _ := a.server.redis.Get(ctx, redisKey)
+	valid, status, errMsg := CheckOTPWithGuard(
+		ctx.Request.Context(), a.server.redis,
+		OTPScopeEmailVerify, req.Email,
+		redisKey, req.Code, storedCode, 10*time.Minute,
+	)
+	if !valid {
+		ctx.JSON(status, basemodels.NewError(errMsg))
 		return
 	}
 
@@ -1238,8 +1272,8 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	}
 
 	_, err = a.server.queries.UpdateKYCNINInfo(ctx, db.UpdateKYCNINInfoParams{
-		FullName:    sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
-		ID:          user.ID,
+		FullName: sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
+		ID: user.ID,
 		PhoneNumber: sql.NullString{String: user.PhoneNumber, Valid: true},
 	})
 	if err != nil {
@@ -1632,14 +1666,14 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	}
 
 	redisKey := fmt.Sprintf("password_reset_otp:%s", req.Email)
-	storedOTP, err := a.server.redis.Get(ctx, redisKey)
-	if err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidOTP))
-		return
-	}
-
-	if storedOTP != req.OTP {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidOTP))
+	storedOTP, _ := a.server.redis.Get(ctx, redisKey)
+	valid, status, errMsg := CheckOTPWithGuard(
+		ctx.Request.Context(), a.server.redis,
+		OTPScopePasswordReset, req.Email,
+		redisKey, req.OTP, storedOTP, 10*time.Minute,
+	)
+	if !valid {
+		ctx.JSON(status, basemodels.NewError(errMsg))
 		return
 	}
 
@@ -1920,6 +1954,7 @@ func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
 		return
 	}
 
+
 	// Verify provided pin against stored hashed pin
 	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
@@ -1969,6 +2004,7 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
 	}
+
 
 	if err := utils.VerifyHashValue(pin.OldPin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(err.Error())
