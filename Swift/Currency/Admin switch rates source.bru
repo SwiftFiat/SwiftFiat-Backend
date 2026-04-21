@@ -1,0 +1,27 @@
+meta {
+  name: Admin switch rates source
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{BaseURl}}/currency/rate-source/toggle
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "currency_pair": "USD/NGN",
+    "rate_source": "exchange_service" // manual
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

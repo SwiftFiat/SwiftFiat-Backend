@@ -187,11 +187,11 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	if kyc.Tier == "tier_1" {
-		go c.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
-		ctx.JSON(401, basemodels.NewError("KYC tier 2 needed"))
-		return
-	}
+	// if kyc.Tier != "tier_1" {
+	// 	go c.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+	// 	ctx.JSON(401, basemodels.NewError("KYC tier 2 needed"))
+	// 	return
+	// }
 
 	// 1. Check if user already has an address for this currency and network
 	existingAddress, err := c.userService.GetUserCryptomusAddress(ctx, activeUser.UserID, request.Currency, request.Network)

@@ -137,8 +137,8 @@ func (c *Currency) toggleRateSource(ctx *gin.Context) {
 	}
 
 	request := struct {
-		CurrencyPair string `json:"currency_pair" binding:"required"`
-		RateSource   string `json:"rate_source" binding:"required"`
+		CurrencyPair string `json:"currency_pair" binding:"required" example:"USD/NGN"`
+		RateSource   string `json:"rate_source" binding:"required" example:"manual"`
 	}{}
 
 	err = ctx.ShouldBindJSON(&request)
@@ -154,7 +154,7 @@ func (c *Currency) toggleRateSource(ctx *gin.Context) {
 	}
 
 	// Convert to proper type
-	var preference interface{} = request.RateSource
+	var preference any = request.RateSource
 	if request.RateSource == "manual" {
 		preference = "manual"
 	} else {
@@ -169,7 +169,7 @@ func (c *Currency) toggleRateSource(ctx *gin.Context) {
 		return
 	}
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"currency_pair": request.CurrencyPair,
 		"rate_source":   request.RateSource,
 		"message":       fmt.Sprintf("Rate source for %s switched to %s", request.CurrencyPair, request.RateSource),
