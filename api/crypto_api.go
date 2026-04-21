@@ -175,17 +175,17 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	kyc, err := c.server.queries.GetKYCByUserID(ctx, user.ID)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			c.server.logger.Errorf("failed to get user kyc data: %v", err)
-			ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
-			return
-		}
-		c.server.logger.Errorf("failed to get user kyc data: %v", err)
-		ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
-		return
-	}
+	// kyc, err := c.server.queries.GetKYCByUserID(ctx, user.ID)
+	// if err != nil {
+	// 	if err == sql.ErrNoRows {
+	// 		c.server.logger.Errorf("failed to get user kyc data: %v", err)
+	// 		ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
+	// 		return
+	// 	}
+	// 	c.server.logger.Errorf("failed to get user kyc data: %v", err)
+	// 	ctx.JSON(500, basemodels.NewError("an error occurred, try again"))
+	// 	return
+	// }
 
 	// if kyc.Tier != "tier_1" {
 	// 	go c.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
