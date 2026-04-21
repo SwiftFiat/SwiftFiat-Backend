@@ -1,0 +1,27 @@
+meta {
+  name: Update user biometric
+  type: http
+  seq: 10
+}
+
+put {
+  url: {{BaseURl}}/user/toggle-biometric
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enable": false,
+    "two_fa_code": ""
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

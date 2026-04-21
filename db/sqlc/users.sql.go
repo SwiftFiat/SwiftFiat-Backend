@@ -18,7 +18,7 @@ UPDATE "users"
 SET "is_active" = TRUE,
     "updated_at" = NOW()
 WHERE "id" = $1
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 func (q *Queries) ActivateUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -37,6 +37,7 @@ func (q *Queries) ActivateUser(ctx context.Context, id uuid.UUID) (User, error) 
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -76,7 +77,7 @@ SET
     role = COALESCE($6, role),
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type AdminUpdateUserParams struct {
@@ -111,6 +112,7 @@ func (q *Queries) AdminUpdateUser(ctx context.Context, arg AdminUpdateUserParams
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -176,7 +178,7 @@ INSERT INTO users (
     phone_number,
     hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type CreateUserParams struct {
@@ -211,6 +213,7 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -245,7 +248,7 @@ UPDATE "users"
 SET "is_active" = FALSE,
     "updated_at" = NOW()
 WHERE "id" = $1
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 func (q *Queries) DeactivateUser(ctx context.Context, id uuid.UUID) (User, error) {
@@ -264,6 +267,7 @@ func (q *Queries) DeactivateUser(ctx context.Context, id uuid.UUID) (User, error
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -309,7 +313,7 @@ SET phone_number = $1,
     first_name = $3,
     deleted_at = NOW()
 WHERE id = $4
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type DeleteUserParams struct {
@@ -340,6 +344,7 @@ func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (User, e
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -495,7 +500,7 @@ func (q *Queries) GetUserAvatar(ctx context.Context, avatarUrl sql.NullString) (
 }
 
 const getUserByBridgeCardCardholderID = `-- name: GetUserByBridgeCardCardholderID :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users 
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users 
 WHERE bridgecard_cardholder_id = $1
 LIMIT 1
 `
@@ -518,6 +523,7 @@ func (q *Queries) GetUserByBridgeCardCardholderID(ctx context.Context, bridgecar
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -548,7 +554,7 @@ func (q *Queries) GetUserByBridgeCardCardholderID(ctx context.Context, bridgecar
 }
 
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE email = $1 and deleted_at is null
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE email = $1 and deleted_at is null
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
@@ -567,6 +573,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -597,7 +604,7 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE id = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE id = $1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
@@ -616,6 +623,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -646,7 +654,7 @@ func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 }
 
 const getUserByPhone = `-- name: GetUserByPhone :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE phone_number = $1 and deleted_at is null
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE phone_number = $1 and deleted_at is null
 `
 
 func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {
@@ -665,6 +673,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -695,7 +704,7 @@ func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User,
 }
 
 const getUserByTag = `-- name: GetUserByTag :one
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE user_tag = $1
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE user_tag = $1
 `
 
 func (q *Queries) GetUserByTag(ctx context.Context, userTag sql.NullString) (User, error) {
@@ -714,6 +723,7 @@ func (q *Queries) GetUserByTag(ctx context.Context, userTag sql.NullString) (Use
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -758,7 +768,7 @@ func (q *Queries) GetUserHasCompletedFirstConversion(ctx context.Context, id uui
 }
 
 const listAdmins = `-- name: ListAdmins :many
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE role=$1 ORDER BY id
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE role=$1 ORDER BY id
 LIMIT $2 OFFSET $3
 `
 
@@ -790,6 +800,7 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 			&i.PhoneNumber,
 			&i.Role,
 			&i.Verified,
+			&i.Biometric,
 			&i.IsKycVerified,
 			&i.BridgecardVerificationStatus,
 			&i.BridgecardCardholderID,
@@ -830,7 +841,7 @@ func (q *Queries) ListAdmins(ctx context.Context, arg ListAdminsParams) ([]User,
 }
 
 const listAllUsers = `-- name: ListAllUsers :many
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users
 ORDER BY created_at DESC
 `
 
@@ -856,6 +867,7 @@ func (q *Queries) ListAllUsers(ctx context.Context) ([]User, error) {
 			&i.PhoneNumber,
 			&i.Role,
 			&i.Verified,
+			&i.Biometric,
 			&i.IsKycVerified,
 			&i.BridgecardVerificationStatus,
 			&i.BridgecardCardholderID,
@@ -896,7 +908,7 @@ func (q *Queries) ListAllUsers(ctx context.Context) ([]User, error) {
 }
 
 const listRapidRampUsers = `-- name: ListRapidRampUsers :many
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 FROM users
 WHERE is_rapid_ramp_on = TRUE
   AND deleted_at IS NULL
@@ -925,6 +937,7 @@ func (q *Queries) ListRapidRampUsers(ctx context.Context) ([]User, error) {
 			&i.PhoneNumber,
 			&i.Role,
 			&i.Verified,
+			&i.Biometric,
 			&i.IsKycVerified,
 			&i.BridgecardVerificationStatus,
 			&i.BridgecardCardholderID,
@@ -965,7 +978,7 @@ func (q *Queries) ListRapidRampUsers(ctx context.Context) ([]User, error) {
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE deleted_at IS NULL ORDER BY id
+SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE deleted_at IS NULL ORDER BY id
 LIMIT $1 OFFSET $2
 `
 
@@ -996,6 +1009,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 			&i.PhoneNumber,
 			&i.Role,
 			&i.Verified,
+			&i.Biometric,
 			&i.IsKycVerified,
 			&i.BridgecardVerificationStatus,
 			&i.BridgecardCardholderID,
@@ -1037,7 +1051,7 @@ func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, e
 
 const setBridgeCardCardholderID = `-- name: SetBridgeCardCardholderID :exec
 UPDATE users SET bridgecard_cardholder_id = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type SetBridgeCardCardholderIDParams struct {
@@ -1053,7 +1067,7 @@ func (q *Queries) SetBridgeCardCardholderID(ctx context.Context, arg SetBridgeCa
 
 const setUserTwoFA = `-- name: SetUserTwoFA :one
 UPDATE users SET twofa_secret = $1, twofa_enabled = $2, updated_at = $3
-WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type SetUserTwoFAParams struct {
@@ -1084,6 +1098,7 @@ func (q *Queries) SetUserTwoFA(ctx context.Context, arg SetUserTwoFAParams) (Use
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1148,7 +1163,7 @@ func (q *Queries) UpdateCardholderVerificationStatus(ctx context.Context, arg Up
 
 const updateUserAvatar = `-- name: UpdateUserAvatar :one
 UPDATE users SET avatar_url = $1, avatar_blob = $2, updated_at = $3
-WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserAvatarParams struct {
@@ -1179,6 +1194,7 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1206,6 +1222,27 @@ func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarPara
 		&i.CurrentVipLevelID,
 	)
 	return i, err
+}
+
+const updateUserBiometric = `-- name: UpdateUserBiometric :exec
+
+UPDATE users
+SET biometric = $1
+WHERE id = $2
+`
+
+type UpdateUserBiometricParams struct {
+	Biometric bool      `json:"biometric"`
+	ID        uuid.UUID `json:"id"`
+}
+
+// -- name: UpdateUserTransactionVolume :exec
+// UPDATE users
+// SET total_transaction_volume = total_transaction_volume + $1, updated_at = NOW()
+// WHERE id = $2;
+func (q *Queries) UpdateUserBiometric(ctx context.Context, arg UpdateUserBiometricParams) error {
+	_, err := q.db.ExecContext(ctx, updateUserBiometric, arg.Biometric, arg.ID)
+	return err
 }
 
 const updateUserFirstConversionAt = `-- name: UpdateUserFirstConversionAt :exec
@@ -1248,7 +1285,7 @@ func (q *Queries) UpdateUserFirstConversionID(ctx context.Context, arg UpdateUse
 
 const updateUserFirstName = `-- name: UpdateUserFirstName :one
 UPDATE users SET first_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserFirstNameParams struct {
@@ -1273,6 +1310,7 @@ func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNa
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1304,7 +1342,7 @@ func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNa
 
 const updateUserFreshChatID = `-- name: UpdateUserFreshChatID :one
 UPDATE users SET fresh_chat_id = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserFreshChatIDParams struct {
@@ -1329,6 +1367,7 @@ func (q *Queries) UpdateUserFreshChatID(ctx context.Context, arg UpdateUserFresh
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1374,7 +1413,7 @@ func (q *Queries) UpdateUserHasCompletedFirstConversion(ctx context.Context, id 
 
 const updateUserLastName = `-- name: UpdateUserLastName :one
 UPDATE users SET last_name = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserLastNameParams struct {
@@ -1399,6 +1438,7 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1430,7 +1470,7 @@ func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastName
 
 const updateUserNames = `-- name: UpdateUserNames :one
 UPDATE users SET first_name = $1, last_name = $2, updated_at = $3
-WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $4 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserNamesParams struct {
@@ -1461,6 +1501,7 @@ func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1492,7 +1533,7 @@ func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams
 
 const updateUserPasscodee = `-- name: UpdateUserPasscodee :one
 UPDATE users SET hashed_passcode = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserPasscodeeParams struct {
@@ -1517,6 +1558,7 @@ func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscod
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1548,7 +1590,7 @@ func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscod
 
 const updateUserPassword = `-- name: UpdateUserPassword :one
 UPDATE users SET hashed_password = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserPasswordParams struct {
@@ -1573,6 +1615,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1604,7 +1647,7 @@ func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPassword
 
 const updateUserPhone = `-- name: UpdateUserPhone :one
 UPDATE users SET phone_number = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserPhoneParams struct {
@@ -1629,6 +1672,7 @@ func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1660,7 +1704,7 @@ func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams
 
 const updateUserPin = `-- name: UpdateUserPin :one
 UPDATE users SET hashed_pin = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserPinParams struct {
@@ -1685,6 +1729,7 @@ func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (U
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1716,7 +1761,7 @@ func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (U
 
 const updateUserTag = `-- name: UpdateUserTag :one
 UPDATE users SET user_tag = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserTagParams struct {
@@ -1741,6 +1786,7 @@ func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (U
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1772,7 +1818,7 @@ func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (U
 
 const updateUserVerification = `-- name: UpdateUserVerification :one
 UPDATE users SET verified = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserVerificationParams struct {
@@ -1797,6 +1843,7 @@ func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVeri
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,
@@ -1829,7 +1876,7 @@ func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVeri
 const updateUserWalletStatus = `-- name: UpdateUserWalletStatus :one
 
 UPDATE users SET has_wallets = $1, updated_at = $2
-WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserWalletStatusParams struct {
@@ -1857,6 +1904,7 @@ func (q *Queries) UpdateUserWalletStatus(ctx context.Context, arg UpdateUserWall
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,

@@ -30,6 +30,7 @@ func (u UserResponse) ToUserResponse(user *db.User) *UserResponse {
 		TotalConversionVolume:  &user.TotalConversionVolume.String,
 		TotalTransactionVolume: &user.TotalTransactionVolume.String,
 		CurrentVipLevelID:      &user.CurrentVipLevelID.UUID,
+		Biometric:              user.Biometric,
 		CreatedAt:              user.CreatedAt,
 		UpdatedAt:              user.UpdatedAt,
 	}

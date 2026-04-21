@@ -49,6 +49,8 @@ CREATE TABLE IF NOT EXISTS "users" (
     -- Users might need to be verified before full access
     "verified" BOOLEAN NOT NULL DEFAULT FALSE,
 
+    "biometric" BOOLEAN NOT NULL DEFAULT FALSE,
+
     -- KYC verification status
     "is_kyc_verified" BOOLEAN NOT NULL DEFAULT FALSE,
 

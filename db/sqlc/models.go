@@ -1386,6 +1386,7 @@ type User struct {
 	PhoneNumber                  string         `json:"phone_number"`
 	Role                         string         `json:"role"`
 	Verified                     bool           `json:"verified"`
+	Biometric                    bool           `json:"biometric"`
 	IsKycVerified                bool           `json:"is_kyc_verified"`
 	BridgecardVerificationStatus sql.NullString `json:"bridgecard_verification_status"`
 	BridgecardCardholderID       sql.NullString `json:"bridgecard_cardholder_id"`

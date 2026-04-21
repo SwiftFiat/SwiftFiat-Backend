@@ -231,6 +231,8 @@ const (
 	EventReferralWithdrawal = "referral.withdrawal"
 
 	EventGetKYC = "kyc.view"
+
+	EventBiometricToggle = "user.biometric_toggle"
 )
 
 // LogEntry represents the input for creating an audit log

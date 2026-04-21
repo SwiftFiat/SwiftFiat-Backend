@@ -249,3 +249,8 @@ ORDER BY created_at DESC;
 -- UPDATE users
 -- SET total_transaction_volume = total_transaction_volume + $1, updated_at = NOW()
 -- WHERE id = $2;
+
+-- name: UpdateUserBiometric :exec
+UPDATE users
+SET biometric = $1
+WHERE id = $2;

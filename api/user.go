@@ -73,6 +73,7 @@ func (u User) router(server *Server) {
 	serverGroupV1.GET("/transactions", u.ListUserTransactions)
 	serverGroupV1.GET("/transactions/:transaction_id", u.GetTransactionDetails)
 	serverGroupV1.PUT("/toggle-rapid-ramp", u.ToggleRapidRamp)
+	serverGroupV1.PUT("/toggle-biometric", u.UpdateUserBiometric)
 	/// For test purposes only
 	serverGroupV1.POST("get-push", u.testPush)
 }
@@ -1499,4 +1500,71 @@ func (u *User) ToggleRapidRamp(c *gin.Context) {
 	u.audit.Log(logEntry)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("rapid ramp toggled", status))
+}
+
+type ToggleBiometricRequest struct {
+	Enable    bool   `json:"enable"`
+	TwoFACode string `json:"two_fa_code"`
+}
+
+func (u *User) UpdateUserBiometric(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	var req ToggleBiometricRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(err.Error()))
+		return
+	}
+
+	user, err := u.server.queries.GetUserByID(c, activeUser.UserID)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to fetch user details"))
+		return
+	}
+
+	if user.TwofaEnabled.Bool && req.TwoFACode == "" {
+		c.JSON(http.StatusForbidden, basemodels.NewError("2FA code is required to update biometric setting"))
+		return
+	}
+
+	if req.TwoFACode != "" {
+		valid := totp.Validate(req.TwoFACode, user.TwofaSecret.String)
+		if !valid {
+			c.JSON(http.StatusUnauthorized, basemodels.NewError("Invalid 2FA code"))
+			return
+		}
+	}
+	err = u.userService.ToggleUserBiometric(c, activeUser.UserID, req.Enable)
+	if err != nil {
+		u.server.logger.Error(err.Error())
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to update biometric setting"))
+		return
+	}
+
+	status := "disabled"
+	if req.Enable {
+		status = "enabled"
+	}
+
+	logEntry := audit.NewUserLog(
+		c,
+		audit.EventBiometricToggle,
+		"",
+		activeUser.Role,
+		fmt.Sprintf("User %d %s biometric authentication", activeUser.UserID, status),
+		&activeUser.UserID,
+		audit.SeverityInfo,
+		audit.ActionUpdate,
+		true,
+	)
+
+	u.audit.Log(logEntry)
+
+	c.JSON(http.StatusOK, basemodels.NewSuccess(fmt.Sprintf("biometric authentication %s", status), nil))
+
 }

@@ -42,11 +42,11 @@ var RoleKeys = map[string]string{
 }
 
 type UserResponse struct {
-	ID        uuid.UUID  `json:"id"`
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	AvatarURL string `json:"avatar_url"`
+	ID        uuid.UUID `json:"id"`
+	FirstName string    `json:"first_name"`
+	LastName  string    `json:"last_name"`
+	Email     string    `json:"email"`
+	AvatarURL string    `json:"avatar_url"`
 	// AvatarBlob  []byte    `json:"avatar_blob"`
 	Role                   string     `json:"role"`
 	UserTag                string     `json:"user_tag"`
@@ -67,6 +67,7 @@ type UserResponse struct {
 	TotalConversionVolume  *string    `json:"total_conversion_volume"`
 	TotalTransactionVolume *string    `json:"total_transaction_volume"`
 	CurrentVipLevelID      *uuid.UUID `json:"current_vip_level_id"`
+	Biometric              bool       `json:"biometric_enabled"`
 	CreatedAt              time.Time  `json:"created_at"`
 	UpdatedAt              time.Time  `json:"updated_at"`
 }

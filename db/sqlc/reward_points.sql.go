@@ -1903,7 +1903,7 @@ UPDATE users
 SET reward_balance = $2,
     updated_at = NOW()
 WHERE id = $1
-RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
+RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
 type UpdateUserRewardBalanceParams struct {
@@ -1928,6 +1928,7 @@ func (q *Queries) UpdateUserRewardBalance(ctx context.Context, arg UpdateUserRew
 		&i.PhoneNumber,
 		&i.Role,
 		&i.Verified,
+		&i.Biometric,
 		&i.IsKycVerified,
 		&i.BridgecardVerificationStatus,
 		&i.BridgecardCardholderID,

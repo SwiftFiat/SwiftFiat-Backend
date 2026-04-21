@@ -143,7 +143,7 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	/// is what gets returned by the webhook for transaction notification
 	_, err = u.store.WithTx(dbTx).AssignAddressToCustomer(ctx, db.AssignAddressToCustomerParams{
 		CustomerID: uuid.NullUUID{
-			UUID: userID,
+			UUID:  userID,
 			Valid: true,
 		},
 		AddressID: walletAddress,
@@ -173,7 +173,7 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID uuid.UUID, coin string) (*db.CryptoAddress, error) {
 	address, err := u.store.FetchActiveByCustomerIDAndCoin(ctx, db.FetchActiveByCustomerIDAndCoinParams{
 		CustomerID: uuid.NullUUID{
-			UUID: userID,
+			UUID:  userID,
 			Valid: true,
 		},
 		Coin: coin,
@@ -344,7 +344,7 @@ func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID uuid.U
 			Valid:  Currency != "",
 		},
 		CustomerID: uuid.NullUUID{
-			UUID: userID,
+			UUID:  userID,
 			Valid: true,
 		},
 	})
@@ -357,7 +357,7 @@ func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID uuid.U
 func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUUID string, UUID, orderID string, walletAddress string, userID uuid.UUID, walletCurrency string, walletNetwork string, paymentURL string, callbackURL string) error {
 	_, err := u.store.UpsertCryptomusAddress(ctx, db.UpsertCryptomusAddressParams{
 		CustomerID: uuid.NullUUID{
-			UUID: userID,
+			UUID:  userID,
 			Valid: true,
 		},
 		WalletUuid: walletUUID,
@@ -487,6 +487,23 @@ func (u *UserService) CheckUserForTx(user *db.User) error {
 	}
 	if !user.Verified {
 		return fmt.Errorf("verify your email to continue.")
+	}
+	return nil
+}
+
+func (u *UserService) ToggleUserBiometric(ctx context.Context, userID uuid.UUID, toggle bool) error {
+	user, err := u.store.GetUserByID(ctx, userID)
+	if err != nil {
+		u.logger.Errorf("get user failed [ToggleUserBiometric]: %v", err)
+		return err
+	}
+
+	err = u.store.UpdateUserBiometric(ctx, db.UpdateUserBiometricParams{
+		Biometric: toggle,
+		ID: user.ID,
+	})
+	if err != nil {
+		return err
 	}
 	return nil
 }
