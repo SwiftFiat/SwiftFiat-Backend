@@ -5,7 +5,7 @@ import db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 func ToWalletResponse(rhs *db.SwiftWallet) *WalletResponse {
 	return &WalletResponse{
 		ID:         rhs.ID,
-		CustomerID: ID(rhs.CustomerID),
+		CustomerID: rhs.CustomerID,
 		Type:       rhs.Type,
 		Currency:   rhs.Currency,
 		Balance:    rhs.Balance.String,

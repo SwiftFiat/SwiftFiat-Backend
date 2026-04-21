@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/google/uuid"
 	expo "github.com/oliveroneill/exponent-server-sdk-golang/sdk"
 	"google.golang.org/api/option"
 
@@ -29,7 +30,7 @@ type Config struct {
 }
 
 type PushNotificationInfo struct {
-	UserID         int64        `json:"user_id"`
+	UserID         uuid.UUID    `json:"user_id"`
 	Title          string       `json:"title"`
 	Message        string       `json:"message"`
 	Provider       PushProvider `json:"provider"`
@@ -111,8 +112,8 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		},
 		APNS: &messaging.APNSConfig{
 			Headers: map[string]string{
-				"apns-priority":  "10",    // High priority for immediate delivery.
-				"apns-push-type": "alert", // Ensures a visible alert is displayed.
+				"apns-priority":  "1uuid.Nil", // High priority for immediate delivery.
+				"apns-push-type": "alert",     // Ensures a visible alert is displayed.
 			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
@@ -176,8 +177,8 @@ func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNo
 
 }
 
-func (p *PushNotificationService) handleTokenError(ctx context.Context, userID int64, token string, err error) {
-	if err == nil || userID == 0 || token == "" {
+func (p *PushNotificationService) handleTokenError(ctx context.Context, userID uuid.UUID, token string, err error) {
+	if err == nil || token == "" {
 		return
 	}
 
@@ -206,7 +207,7 @@ func (p *PushNotificationService) SetUserService(us *user_service.UserService) {
 	p.userService = us
 }
 
-func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID int64) (*struct {
+func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID uuid.UUID) (*struct {
 	FCMToken  string
 	ExpoToken string
 }, error) {
@@ -229,7 +230,7 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 
 	var fcmToken, expoToken string
 	for _, token := range *tokens {
-		p.logger.Debug(fmt.Sprintf("Token for user %d: Provider=%s, Token=%s...", userID, token.Provider, token.Token[:20]))
+		// p.logger.Debug(fmt.Sprintf("Token for user %d: Provider=%s, Token=%s...", userID, token.Provider, token.Token[uuid.Nil]))
 		switch PushProvider(token.Provider) {
 		case PushProviderFCM:
 			if fcmToken == "" {
@@ -256,7 +257,7 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 // ======================================
 // Vault Savings
 // ======================================
-func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID int64, name string) error {
+func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID uuid.UUID, name string) error {
 	p.logger.Info(fmt.Sprintf("Attempting to send vault goal created push for user %d, goal name: %s", userID, name))
 
 	tokens, err := p.getUserPushTokens(ctx, userID)
@@ -265,7 +266,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info(fmt.Sprintf("No push tokens found for user %d", userID))
 		return nil
 	}
@@ -306,14 +307,14 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 	return nil
 }
 
-func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, userID int64, name string) error {
+func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, userID uuid.UUID, name string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -352,14 +353,14 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 	return nil
 }
 
-func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -398,14 +399,14 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 	return nil
 }
 
-func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -444,14 +445,14 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 	return nil
 }
 
-func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Context, userID int64, name, amount, currency string) error {
+func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -490,14 +491,14 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 	return nil
 }
 
-func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Context, userID int64, name, reason string) error {
+func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Context, userID uuid.UUID, name, reason string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -536,14 +537,14 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 	return nil
 }
 
-func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID int64, name, amount, currency string) error {
+func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -582,14 +583,14 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 	return nil
 }
 
-func (p *PushNotificationService) SendRewardNotification(ctx context.Context, userID int64, message, txType string, pointEarned int64) error {
+func (p *PushNotificationService) SendRewardNotification(ctx context.Context, userID uuid.UUID, message, txType string, pointEarned int64) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -628,14 +629,14 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 	return nil
 }
 
-func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, userID int64, amount float64) error {
+func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, userID uuid.UUID, amount float64) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -674,14 +675,14 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 	return nil
 }
 
-func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID int64, amount float64) error {
+func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID uuid.UUID, amount float64) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -720,14 +721,14 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 	return nil
 }
 
-func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Context, userID int64, name string) error {
+func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -766,14 +767,14 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 	return nil
 }
 
-func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Context, userID int64, name string) error {
+func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -812,14 +813,14 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 	return nil
 }
 
-func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Context, userID int64, name string) error {
+func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -858,14 +859,14 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 	return nil
 }
 
-func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context, userID, amount int64, phoneNumber string) error {
+func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context, userID uuid.UUID, amount int64, phoneNumber string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -904,14 +905,14 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 	return nil
 }
 
-func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, userID int64, plan string, phoneNumber string) error {
+func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, userID uuid.UUID, plan string, phoneNumber string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -950,14 +951,14 @@ func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, us
 	return nil
 }
 
-func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID int64, plan string) error {
+func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID uuid.UUID, plan string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -996,14 +997,14 @@ func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID in
 	return nil
 }
 
-func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userID int64, amount string) error {
+func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userID uuid.UUID, amount string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1042,14 +1043,14 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 	return nil
 }
 
-func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64, userTag string) error {
+func (p *PushNotificationService) NewReferral(ctx context.Context, userID uuid.UUID, userTag string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1088,14 +1089,14 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID int64,
 	return nil
 }
 
-func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64, amount float64, currency string) error {
+func (p *PushNotificationService) CreditAlert(ctx context.Context, userID uuid.UUID, amount float64, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1134,14 +1135,14 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID int64,
 	return nil
 }
 
-func (p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, amount float64, currency string) error {
+func (p *PushNotificationService) DebitAlert(ctx context.Context, userID uuid.UUID, amount float64, currency string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1180,14 +1181,14 @@ func (p *PushNotificationService) DebitAlert(ctx context.Context, userID int64, 
 	return nil
 }
 
-func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, userID int64, amount string) error {
+func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, userID uuid.UUID, amount string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1226,14 +1227,14 @@ func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, use
 	return nil
 }
 
-func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Context, userID int64) error {
+func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Context, userID uuid.UUID) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1272,14 +1273,14 @@ func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Co
 	return nil
 }
 
-func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Context, userID int64, reason string) error {
+func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Context, userID uuid.UUID, reason string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}
@@ -1318,14 +1319,14 @@ func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Co
 	return nil
 }
 
-func (p *PushNotificationService) SendPushNotification(ctx context.Context, userID int64, title string, message string) error {
+func (p *PushNotificationService) SendPushNotification(ctx context.Context, userID uuid.UUID, title string, message string) error {
 	tokens, err := p.getUserPushTokens(ctx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
 	}
 
-	if userID == 0 || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
 		p.logger.Info("No push tokens found for user")
 		return nil
 	}

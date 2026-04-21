@@ -8,6 +8,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // EventCategory represents high-level categorization of audit events
@@ -237,7 +238,7 @@ type LogEntry struct {
 	EventCategory EventCategory          `json:"event_category"`
 	EventType     string                 `json:"event_type"`
 	Severity      Severity               `json:"severity"`
-	ActorID       *int64                 `json:"actor_id,omitempty"`
+	ActorID       *uuid.UUID             `json:"actor_id,omitempty"`
 	ActorType     string                 `json:"actor_type"`
 	ActorEmail    *string                `json:"actor_email,omitempty"`
 	EntityType    string                 `json:"entity_type"`
@@ -275,7 +276,7 @@ type LogResponse struct {
 	EventCategory EventCategory  `json:"event_category"`
 	EventType     string         `json:"event_type"`
 	Severity      Severity       `json:"severity"`
-	ActorID       *int64         `json:"actor_id,omitempty"`
+	ActorID       *uuid.UUID         `json:"actor_id,omitempty"`
 	ActorType     string         `json:"actor_type"`
 	ActorEmail    *string        `json:"actor_email,omitempty"`
 	EntityType    string         `json:"entity_type"`
@@ -321,7 +322,7 @@ type SeverityCount struct {
 
 // SuspiciousActivity represents potentially malicious behavior
 type SuspiciousActivity struct {
-	ActorID    *int64    `json:"actor_id,omitempty"`
+	ActorID    *uuid.UUID    `json:"actor_id,omitempty"`
 	ActorEmail *string   `json:"actor_email,omitempty"`
 	IPAddress  *string   `json:"ip_address,omitempty"`
 	EventCount int64     `json:"event_count"`
@@ -348,7 +349,7 @@ type IPActivity struct {
 }
 
 // NewAuthenticationLog creates a log entry for authentication events
-func NewAuthenticationLog(c *gin.Context, eventType, description string, actorID *int64, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
+func NewAuthenticationLog(c *gin.Context, eventType, description string, actorID *uuid.UUID, email *string, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
 	severity := SeverityInfo
 	if !success {
 		severity = SeverityWarning
@@ -372,7 +373,7 @@ func NewAuthenticationLog(c *gin.Context, eventType, description string, actorID
 	}
 }
 
-func NewLog(c *gin.Context, category EventCategory, eventType, entityID, desc string, actorID *int64, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
+func NewLog(c *gin.Context, category EventCategory, eventType, entityID, desc string, actorID *uuid.UUID, ActorTypeUser string, success bool, errMsg *string) *LogEntry {
 	severity := SeverityInfo
 	if !success {
 		severity = SeverityWarning
@@ -395,7 +396,7 @@ func NewLog(c *gin.Context, category EventCategory, eventType, entityID, desc st
 }
 
 // NewTransactionLog creates a log entry for transaction events
-func NewTransactionLog(eventType, transactionID, userRole string, actorID int64, amount float64, currency string, success bool) *LogEntry {
+func NewTransactionLog(eventType, transactionID, userRole string, actorID uuid.UUID, amount float64, currency string, success bool) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategoryTransaction,
 		EventType:     eventType,
@@ -413,7 +414,7 @@ func NewTransactionLog(eventType, transactionID, userRole string, actorID int64,
 	}
 }
 
-func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *int64, severity Severity) *LogEntry {
+func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *uuid.UUID, severity Severity) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategoryVaultSavings,
 		EventType:     eventType,
@@ -429,7 +430,7 @@ func NewVaultLog(c *gin.Context, eventType, entityType, entityID, userRole strin
 	}
 }
 
-func NewUserLog(c *gin.Context, eventType, entityID, userRole, desc string, actorID *int64, severity Severity, action Action, success bool) *LogEntry {
+func NewUserLog(c *gin.Context, eventType, entityID, userRole, desc string, actorID *uuid.UUID, severity Severity, action Action, success bool) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategoryAccount,
 		EventType:     eventType,
@@ -447,7 +448,7 @@ func NewUserLog(c *gin.Context, eventType, entityID, userRole, desc string, acto
 }
 
 // NewSecurityLog creates a log entry for security events
-func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, actorID *int64, severity Severity) *LogEntry {
+func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, actorID *uuid.UUID, severity Severity) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategorySecurity,
 		EventType:     eventType,
@@ -463,7 +464,7 @@ func NewSecurityLog(c *gin.Context, eventType, entityType, entityID string, acto
 	}
 }
 
-func NewReferralLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *int64, severity Severity) *LogEntry {
+func NewReferralLog(c *gin.Context, eventType, entityType, entityID, userRole string, actorID *uuid.UUID, severity Severity) *LogEntry {
 	return &LogEntry{
 		EventCategory: CategoryAccount,
 		EventType:     eventType,
@@ -491,9 +492,9 @@ func WarningLog(
 }
 
 func ToLogResponse(log db.AuditLog) *LogResponse {
-	var actorID *int64
+	var actorID *uuid.UUID
 	if log.ActorID.Valid {
-		actorID = &log.ActorID.Int64
+		actorID = &log.ActorID.UUID
 	}
 
 	var actorEmail *string
@@ -586,7 +587,7 @@ func EnrichFromContext(ctx context.Context, entry *LogEntry) {
 		entry.RequestID = requestID
 	}
 
-	if userID, ok := ctx.Value(contextKeyUserID).(int64); ok {
+	if userID, ok := ctx.Value(contextKeyUserID).(uuid.UUID); ok {
 		entry.ActorID = &userID
 	}
 

@@ -25,7 +25,7 @@ type RewardConfigurationResponse struct {
 	IsActive                bool      `json:"is_active"`
 	ValidFrom               time.Time `json:"valid_from"`
 	ValidUntil              time.Time `json:"valid_until,omitempty"`
-	CreatedBy               int64     `json:"created_by,omitempty"`
+	CreatedBy               uuid.UUID     `json:"created_by,omitempty"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -41,7 +41,7 @@ func MapRewardConfigToResponse(r *db.RewardConfiguration) *RewardConfigurationRe
 		IsActive:                r.IsActive,
 		ValidFrom:               r.ValidFrom,
 		ValidUntil:              r.ValidUntil.Time,
-		CreatedBy:               int64(r.CreatedBy.Int32),
+		CreatedBy:               r.CreatedBy.UUID,
 		CreatedAt:               r.CreatedAt,
 		UpdatedAt:               r.UpdatedAt,
 	}
@@ -78,7 +78,7 @@ type UpdateRewardConfigRequest struct {
 // RewardTransaction represents a record of earned or redeemed points
 type RewardTransactionResponse struct {
 	ID                    int64          `json:"id"`
-	UserID                int32          `json:"user_id"`
+	UserID                uuid.UUID          `json:"user_id"`
 	TransactionID         uuid.UUID          `json:"transaction_id,omitempty"`
 	TransactionType       string         `json:"transaction_type"` // "earned" or "redeemed"
 	SourceTransactionType string         `json:"source_transaction_type,omitempty"`
@@ -97,7 +97,7 @@ type RewardTransactionResponse struct {
 func MapRewardTransactionToResponse(r *db.RewardTransaction) *RewardTransactionResponse {
 	return &RewardTransactionResponse{
 		ID:                    r.ID,
-		UserID:                int32(r.UserID),
+		UserID:                r.UserID,
 		TransactionID:         r.TransactionID.UUID,
 		TransactionType:       r.TransactionType,
 		SourceTransactionType: r.SourceTransactionType.String,
@@ -118,7 +118,7 @@ func MapRewardTransactionToResponse(r *db.RewardTransaction) *RewardTransactionR
 type RewardRedemptionResponse struct {
 	ID                       int64     `json:"id"`
 	RewardTransactionID      int64     `json:"reward_transaction_id"`
-	UserID                   int32     `json:"user_id"`
+	UserID                   uuid.UUID     `json:"user_id"`
 	BillPaymentTransactionID uuid.UUID `json:"bill_payment_transaction_id"`
 	PointsRedeemed           string    `json:"points_redeemed"`
 	DiscountAmount           string    `json:"discount_amount"`
@@ -167,7 +167,7 @@ type RewardBalanceResponse struct {
 
 // RewardSummaryResponse represents comprehensive reward summary
 type RewardSummaryResponse struct {
-	UserID                  int32     `json:"user_id"`
+	UserID                  uuid.UUID     `json:"user_id"`
 	CurrentBalance          string    `json:"current_balance"`
 	TotalEarned             string    `json:"total_earned"`
 	TotalRedeemed           string    `json:"total_redeemed"`

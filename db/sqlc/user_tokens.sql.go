@@ -8,13 +8,15 @@ package db
 import (
 	"context"
 	"database/sql"
+
+	"github.com/google/uuid"
 )
 
 const getTokens = `-- name: GetTokens :many
 SELECT id, user_id, token, provider, device_uuid, created_at, updated_at FROM user_tokens WHERE user_id = $1 ORDER BY updated_at DESC
 `
 
-func (q *Queries) GetTokens(ctx context.Context, userID int64) ([]UserToken, error) {
+func (q *Queries) GetTokens(ctx context.Context, userID uuid.UUID) ([]UserToken, error) {
 	rows, err := q.db.QueryContext(ctx, getTokens, userID)
 	if err != nil {
 		return nil, err
@@ -87,8 +89,8 @@ DELETE FROM user_tokens WHERE user_id = $1 AND token = $2
 `
 
 type RemoveTokenParams struct {
-	UserID int64  `json:"user_id"`
-	Token  string `json:"token"`
+	UserID uuid.UUID `json:"user_id"`
+	Token  string    `json:"token"`
 }
 
 func (q *Queries) RemoveToken(ctx context.Context, arg RemoveTokenParams) error {
@@ -102,7 +104,7 @@ UPDATE user_tokens SET token = $1 WHERE user_id = $2 AND device_uuid = $3 RETURN
 
 type UpdateTokenParams struct {
 	Token      string         `json:"token"`
-	UserID     int64          `json:"user_id"`
+	UserID     uuid.UUID      `json:"user_id"`
 	DeviceUuid sql.NullString `json:"device_uuid"`
 }
 
@@ -135,7 +137,7 @@ RETURNING id, user_id, token, provider, device_uuid, created_at, updated_at
 `
 
 type UpsertTokenParams struct {
-	UserID     int64          `json:"user_id"`
+	UserID     uuid.UUID      `json:"user_id"`
 	Token      string         `json:"token"`
 	Provider   string         `json:"provider"`
 	DeviceUuid sql.NullString `json:"device_uuid"`

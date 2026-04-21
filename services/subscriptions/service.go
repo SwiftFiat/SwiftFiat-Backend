@@ -160,14 +160,14 @@ func (s *Service) getSettingDecimal(ctx context.Context, key string) (decimal.De
 	return decimal.NewFromString(setting.SettingValue)
 }
 
-func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, req CreateCustomSubscriptionRequest) (*db.UserSubscription, error) {
+func (s *Service) CreateCustomSubscription(ctx context.Context, userID uuid.UUID, req CreateCustomSubscriptionRequest) (*db.UserSubscription, error) {
 	// load system settings
 	settings, err := s.LoadSystemSettings(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -257,7 +257,7 @@ func (s *Service) CreateCustomSubscription(ctx context.Context, userID int64, re
 }
 
 // UpdateCustomSubscription updates a user-defined subscription
-func (s *Service) UpdateCustomSubscription(ctx context.Context, userID int64, subscriptionID uuid.UUID, req *UpdateCustomSubscriptionRequest) (*db.UserSubscription, error) {
+func (s *Service) UpdateCustomSubscription(ctx context.Context, userID uuid.UUID, subscriptionID uuid.UUID, req *UpdateCustomSubscriptionRequest) (*db.UserSubscription, error) {
 	// Get existing subscription
 	existing, err := s.store.GetUserSubscription(ctx, subscriptionID)
 	if err != nil {
@@ -807,7 +807,7 @@ func (s *Service) checkAndTopUpCard(ctx context.Context, subscription db.GetSubs
 }
 
 // GetUserSubscriptionSummary returns subscription statistics for a user
-func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID int64) (*SubscriptionSummary, error) {
+func (s *Service) GetUserSubscriptionSummary(ctx context.Context, userID uuid.UUID) (*SubscriptionSummary, error) {
 	summary, err := s.store.GetUserSubscriptionSummary(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get subscription summary: %w", err)
@@ -958,7 +958,7 @@ type AutoTopupSuccessRate struct {
 }
 
 // GetSubscriptionStats returns detailed subscription statistics for a user
-func (s *Service) GetSubscriptionStats(ctx context.Context, userID int64) (*SubscriptionStats, error) {
+func (s *Service) GetSubscriptionStats(ctx context.Context, userID uuid.UUID) (*SubscriptionStats, error) {
 	stats, err := s.store.GetSubscriptionStats(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get subscription stats: %w", err)
@@ -975,7 +975,7 @@ func (s *Service) GetSubscriptionStats(ctx context.Context, userID int64) (*Subs
 }
 
 // GetAutoTopupSuccessRate returns auto topup success rate metrics for a user
-func (s *Service) GetAutoTopupSuccessRate(ctx context.Context, userID int64) (*AutoTopupSuccessRate, error) {
+func (s *Service) GetAutoTopupSuccessRate(ctx context.Context, userID uuid.UUID) (*AutoTopupSuccessRate, error) {
 	rate, err := s.store.GetAutoTopupSuccessRate(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("get auto topup success rate: %w", err)

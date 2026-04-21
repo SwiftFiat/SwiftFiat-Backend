@@ -13,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	user_service "github.com/SwiftFiat/SwiftFiat-Backend/services/user"
+	"github.com/google/uuid"
 )
 
 const (
@@ -285,7 +286,7 @@ func (s *MarketInsightsService) notifyUsersOfArticle(ctx context.Context, articl
 	}
 
 	// Group tokens by UserID
-	userTokensMap := make(map[int64][]db.UserToken)
+	userTokensMap := make(map[uuid.UUID][]db.UserToken)
 	for _, t := range tokens {
 		userTokensMap[t.UserID] = append(userTokensMap[t.UserID], t)
 	}

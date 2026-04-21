@@ -93,8 +93,8 @@ func (s *Service) CreateVIPLevel(ctx context.Context, req *CreateVIPLevelRequest
 		LevelRank:           req.LevelRank,
 		MinConversionVolume: req.MinConversionVolume,
 		IsActive:            isActive,
-		CreatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
-		UpdatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
 	}
 
 	if req.Description != nil {
@@ -249,7 +249,7 @@ func (s *Service) UpdateVIPLevel(ctx context.Context, id uuid.UUID, req *UpdateV
 	// Build update params
 	params := db.UpdateVIPLevelParams{
 		ID:        id,
-		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	}
 
 	oldValues := make(map[string]any)
@@ -342,7 +342,7 @@ func (s *Service) DeleteVIPLevel(ctx context.Context, id uuid.UUID, user *db.Use
 	// Delete
 	_, err = s.store.DeleteVIPLevel(ctx, db.DeleteVIPLevelParams{
 		ID:        id,
-		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to delete VIP level: %w", err)
@@ -429,8 +429,8 @@ func (s *Service) CreateRateAdjustmentRule(ctx context.Context, req *CreateRateA
 		AdjustmentDirection: string(req.AdjustmentDirection),
 		Priority:            priority,
 		IsActive:            isActive,
-		CreatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
-		UpdatedBy:           sql.NullInt64{Int64: user.ID, Valid: true},
+		CreatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
+		UpdatedBy:           uuid.NullUUID{UUID: user.ID, Valid: true},
 	}
 
 	if req.RuleDescription != nil {
@@ -521,7 +521,7 @@ func (s *Service) UpdateRateAdjustmentRule(ctx context.Context, id uuid.UUID, re
 	// Build update params
 	params := db.UpdateRateAdjustmentRuleParams{
 		ID:        id,
-		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	}
 
 	oldValues := make(map[string]any)
@@ -672,7 +672,7 @@ func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, en
 	_, err = s.store.ToggleRateAdjustmentRule(ctx, db.ToggleRateAdjustmentRuleParams{
 		ID:        id,
 		IsActive:  enabled,
-		UpdatedBy: sql.NullInt64{Int64: user.ID, Valid: true},
+		UpdatedBy: uuid.NullUUID{UUID: user.ID, Valid: true},
 	})
 	if err != nil {
 		return fmt.Errorf("failed to toggle rate adjustment rule: %w", err)
@@ -752,7 +752,7 @@ func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, en
 // 	// }, nil
 // }
 
-func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPStatusResponse, error) {
+func (s *Service) GetUserVIPStatus(ctx context.Context, userID uuid.UUID) (*UserVIPStatusResponse, error) {
 	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %d", userID))
 
 	// Get user with VIP fields
@@ -911,7 +911,7 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID int64) (*UserVIPS
 }
 
 type UserVIPStatusResponse struct {
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID          `json:"user_id"`
 	VIPLevelID            uuid.UUID      `json:"vip_level_id"`
 	VIPLevelName          string         `json:"vip_level_name"`
 	VIPLevelCode          string         `json:"vip_level_code"`
@@ -937,7 +937,7 @@ type UserVIPStatusResponse struct {
 // =====================================================
 
 // GetAdjustedRateForUser calculates the adjusted rate for a specific user
-func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID int64, from, to string, amount string) (*RateSimulationResponse, error) {
+func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, from, to string, amount string) (*RateSimulationResponse, error) {
 	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %d: %s to %s, amount: %s", userID, from, to, amount))
 
 	// Get base rate from exchange rate service
@@ -1022,7 +1022,7 @@ func (s *Service) applyRateAdjustment(baseRate decimal.Decimal, adjustmentType, 
 }
 
 // recordRateChange records a rate change in history
-func (s *Service) recordRateChange(ctx context.Context, baseRate *exchangerate.ExchangeRate, adjustedRate, adjustmentAmount decimal.Decimal, rule *db.GetApplicableRulesForUserRow, userID *int64, conversionID *uuid.UUID) {
+func (s *Service) recordRateChange(ctx context.Context, baseRate *exchangerate.ExchangeRate, adjustedRate, adjustmentAmount decimal.Decimal, rule *db.GetApplicableRulesForUserRow, userID *uuid.UUID, conversionID *uuid.UUID) {
 	params := db.RecordRateChangeParams{
 		SourceCurrency:   baseRate.From,
 		TargetCurrency:   baseRate.To,
@@ -1042,7 +1042,7 @@ func (s *Service) recordRateChange(ctx context.Context, baseRate *exchangerate.E
 	}
 
 	if userID != nil {
-		params.AppliedToUserID = sql.NullInt64{Int64: *userID, Valid: true}
+		params.AppliedToUserID = uuid.NullUUID{UUID: *userID, Valid: true}
 	}
 
 	if conversionID != nil {
@@ -1145,7 +1145,7 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 	assignment, err := s.store.AssignUserToVIPLevel(ctx, db.AssignUserToVIPLevelParams{
 		UserID:                req.UserID,
 		VipLevelID:            req.VIPLevelID,
-		AssignedBy:            sql.NullInt64{Int64: user.ID, Valid: true},
+		AssignedBy:            uuid.NullUUID{UUID: user.ID, Valid: true},
 		AssignmentType:        string(AssignmentTypeManual),
 		TotalConversionVolume: totalConversionVolume.String(),
 	})
@@ -1211,7 +1211,7 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 }
 
 // AutoAssignUserVIPLevel automatically assigns VIP level based on user metrics
-func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) error {
+func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID uuid.UUID) error {
 	// Get current user VIP data
 	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
 	if err != nil {
@@ -1246,7 +1246,7 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID int64) erro
 	_, err = s.store.AssignUserToVIPLevel(ctx, db.AssignUserToVIPLevelParams{
 		UserID:                userID,
 		VipLevelID:            vipLevel.ID,
-		AssignedBy:            sql.NullInt64{Valid: false},
+		AssignedBy:            uuid.NullUUID{UUID: uuid.Nil, Valid: true},
 		AssignmentType:        string(AssignmentTypeAutomatic),
 		TotalConversionVolume: totalConversionVolume.String(),
 	})
@@ -1266,7 +1266,7 @@ func (s *Service) sendVIPAssignmentEmail(ctx context.Context, user *db.User, vip
 }
 
 // IncrementUserConversionVolume increments the user's total conversion volume
-func (s *Service) IncrementUserConversionVolume(ctx context.Context, userID int64, amount decimal.Decimal) error {
+func (s *Service) IncrementUserConversionVolume(ctx context.Context, userID uuid.UUID, amount decimal.Decimal) error {
 	// Update user VIP fields atomically
 	err := s.store.IncrementUserConversionVolume(ctx, db.IncrementUserConversionVolumeParams{
 		UserID: userID,

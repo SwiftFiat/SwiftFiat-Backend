@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -23,7 +24,7 @@ WHERE event_type = $1
 
 type CheckRateLimitParams struct {
 	EventType string        `json:"event_type"`
-	ActorID   sql.NullInt64 `json:"actor_id"`
+	ActorID   uuid.NullUUID `json:"actor_id"`
 	Column3   int64         `json:"column_3"`
 }
 
@@ -42,7 +43,7 @@ WHERE actor_id = $1
 `
 
 type CountAuditLogsByActorParams struct {
-	ActorID     sql.NullInt64 `json:"actor_id"`
+	ActorID     uuid.NullUUID `json:"actor_id"`
 	CreatedAt   time.Time     `json:"created_at"`
 	CreatedAt_2 time.Time     `json:"created_at_2"`
 }
@@ -223,7 +224,7 @@ type CreateAuditLogParams struct {
 	EventCategory AuditEventCategory    `json:"event_category"`
 	EventType     string                `json:"event_type"`
 	Severity      AuditSeverity         `json:"severity"`
-	ActorID       sql.NullInt64         `json:"actor_id"`
+	ActorID       uuid.NullUUID         `json:"actor_id"`
 	ActorType     string                `json:"actor_type"`
 	ActorEmail    sql.NullString        `json:"actor_email"`
 	EntityType    string                `json:"entity_type"`
@@ -394,7 +395,7 @@ LIMIT $4 OFFSET $5
 `
 
 type GetAuditLogsByActorParams struct {
-	ActorID     sql.NullInt64 `json:"actor_id"`
+	ActorID     uuid.NullUUID `json:"actor_id"`
 	CreatedAt   time.Time     `json:"created_at"`
 	CreatedAt_2 time.Time     `json:"created_at_2"`
 	Limit       int32         `json:"limit"`
@@ -913,7 +914,7 @@ type GetEntityChangeHistoryRow struct {
 	ID          int64                 `json:"id"`
 	EventType   string                `json:"event_type"`
 	Action      string                `json:"action"`
-	ActorID     sql.NullInt64         `json:"actor_id"`
+	ActorID     uuid.NullUUID         `json:"actor_id"`
 	ActorEmail  sql.NullString        `json:"actor_email"`
 	OldValues   pqtype.NullRawMessage `json:"old_values"`
 	NewValues   pqtype.NullRawMessage `json:"new_values"`
@@ -1148,7 +1149,7 @@ type GetSuspiciousActivitiesParams struct {
 }
 
 type GetSuspiciousActivitiesRow struct {
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	IpAddress  pqtype.Inet    `json:"ip_address"`
 	EventCount int64          `json:"event_count"`
@@ -1210,7 +1211,7 @@ LIMIT $4 OFFSET $5
 `
 
 type GetUserActivityTimelineParams struct {
-	ActorID     sql.NullInt64 `json:"actor_id"`
+	ActorID     uuid.NullUUID `json:"actor_id"`
 	CreatedAt   time.Time     `json:"created_at"`
 	CreatedAt_2 time.Time     `json:"created_at_2"`
 	Limit       int32         `json:"limit"`
@@ -1222,7 +1223,7 @@ type GetUserActivityTimelineRow struct {
 	EventCategory AuditEventCategory    `json:"event_category"`
 	EventType     string                `json:"event_type"`
 	Severity      AuditSeverity         `json:"severity"`
-	ActorID       sql.NullInt64         `json:"actor_id"`
+	ActorID       uuid.NullUUID         `json:"actor_id"`
 	ActorEmail    sql.NullString        `json:"actor_email"`
 	EntityType    string                `json:"entity_type"`
 	EntityID      string                `json:"entity_id"`

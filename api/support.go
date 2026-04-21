@@ -15,6 +15,7 @@ import (
 	chatsupport "github.com/SwiftFiat/SwiftFiat-Backend/services/chat_support"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type SupportAdmin struct {
@@ -74,8 +75,8 @@ func (sa *SupportAdmin) createSupportAdmin(ctx *gin.Context) {
 	}
 
 	var req struct {
-		UserID               int64 `json:"user_id" binding:"required"`
-		MaxConcurrentTickets int32 `json:"max_concurrent_tickets"`
+		UserID               uuid.UUID `json:"user_id" binding:"required"`
+		MaxConcurrentTickets int32     `json:"max_concurrent_tickets"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -202,7 +203,7 @@ func (sa *SupportAdmin) getSupportAdmin(ctx *gin.Context) {
 	}
 
 	adminIDStr := ctx.Param("adminId")
-	adminID, err := strconv.ParseInt(adminIDStr, 10, 64)
+	adminID, err := uuid.Parse(adminIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid admin ID"))
 		return
@@ -251,7 +252,7 @@ func (sa *SupportAdmin) updateAdminStatus(ctx *gin.Context) {
 	}
 
 	adminIDStr := ctx.Param("adminId")
-	adminID, err := strconv.ParseInt(adminIDStr, 10, 64)
+	adminID, err := uuid.Parse(adminIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid admin ID"))
 		return
@@ -470,7 +471,7 @@ func (sa *SupportAdmin) updateMyStatus(ctx *gin.Context) {
 		ctx,
 		audit.CategorySupport,
 		audit.EventAdminStatusUpdated,
-		strconv.FormatInt(profile.ID, 10),
+		profile.ID.String(),
 		fmt.Sprintf("Agent %d updated status to %s", activeUser.UserID, req.Status),
 		&activeUser.UserID,
 		activeUser.Role,

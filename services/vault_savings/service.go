@@ -790,7 +790,7 @@ type CreateVaultGoalRequest struct {
 
 type VaultSavingResponse struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID          `json:"user_id"`
 	VaultName            string         `json:"vault_name"`
 	Description          string         `json:"description"`
 	GoalAmount           string         `json:"goal_amount"`
@@ -857,7 +857,7 @@ func MapGetVaultGoalProgressRowToReponse(a *db.GetVaultGoalProgressRow) *GetVaul
 }
 
 type DepositRequest struct {
-	UserID         int64     `json:"user_id"`
+	UserID         uuid.UUID     `json:"user_id"`
 	VaultID        uuid.UUID `json:"vault_id"`
 	FromWalletID   uuid.UUID `json:"from_wallet_id" binding:"required"`
 	Amount         string    `json:"amount" binding:"required"`
@@ -868,7 +868,7 @@ type DepositRequest struct {
 
 type DepositResponse struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID          `json:"user_id"`
 	VaultID               uuid.UUID      `json:"vault_id"`
 	TransactionType       string         `json:"transaction_type"`
 	Amount                string         `json:"amount"`
@@ -914,7 +914,7 @@ func MapVaultTxToDepositResponse(d *db.VaultTransaction) *DepositResponse {
 }
 
 type WithdrawRequest struct {
-	UserID      int64     `json:"user_id"`
+	UserID      uuid.UUID     `json:"user_id"`
 	VaultID     uuid.UUID `json:"vault_id"`
 	ToWalletID  uuid.UUID `json:"to_wallet_id" binding:"required"`
 	Amount      string    `json:"amount" binding:"required"`
@@ -936,7 +936,7 @@ type UpdateRecurringRuleRequest struct {
 // ============================================================================
 // CREATE VAULT GOAL
 // ============================================================================
-func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalRequest, userID int64, ip, ua string) (*VaultSavingResponse, error) {
+func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalRequest, userID uuid.UUID, ip, ua string) (*VaultSavingResponse, error) {
 	// Get user
 	user, err := s.store.GetUserByID(ctx, userID)
 	if err != nil {
@@ -951,7 +951,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		return nil, fmt.Errorf("account inactive")
 	}
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -1026,7 +1026,7 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 		bgCtx := context.Background()
 
 		if s.notifService != nil {
-			if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName), "system", []int64{userID}); err != nil {
+			if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName), "system", []uuid.UUID{userID}); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to create vault goal notification: %v", err))
 			}
 		}
@@ -1063,15 +1063,15 @@ func (s *VaultService) GetVaultByID(ctx context.Context, vaultID uuid.UUID) (*Va
 	return MapVaultSavingToResponse(&vault), nil
 }
 
-func (s *VaultService) GetUserVaults(ctx context.Context, userID int64) ([]db.VaultSaving, error) {
+func (s *VaultService) GetUserVaults(ctx context.Context, userID uuid.UUID) ([]db.VaultSaving, error) {
 	return s.store.GetVaultGoalsByUserID(ctx, userID)
 }
 
-func (s *VaultService) GetUserActiveVaults(ctx context.Context, userID int64) ([]db.VaultSaving, error) {
+func (s *VaultService) GetUserActiveVaults(ctx context.Context, userID uuid.UUID) ([]db.VaultSaving, error) {
 	return s.store.GetActiveVaultGoalsByUserID(ctx, userID)
 }
 
-func (s *VaultService) GetUserVaultSummary(ctx context.Context, userID int64) (*db.GetUserVaultsSummaryRow, error) {
+func (s *VaultService) GetUserVaultSummary(ctx context.Context, userID uuid.UUID) (*db.GetUserVaultsSummaryRow, error) {
 	summary, err := s.store.GetUserVaultsSummary(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -1306,7 +1306,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 					_ = s.pushService.SendGoalCompletedPush(bgCtx, req.UserID, vault.VaultName)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName), "system", []int64{req.UserID}); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create goal completed notification: %v", err))
 					}
 				}
@@ -1318,7 +1318,7 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []int64{req.UserID}); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create deposit notification: %v", err))
 					}
 				}
@@ -1517,7 +1517,7 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 					_ = s.pushService.SendWithdrawalSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
 				}
 				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []int64{req.UserID}); err != nil {
+					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
 						s.logger.Error(fmt.Sprintf("Failed to create withdrawal notification: %v", err))
 					}
 				}
@@ -1666,7 +1666,7 @@ func (s *VaultService) processRecurringDeposit(ctx context.Context, vault db.Vau
 			_ = s.pushService.SendRecurringDepositSuccessPush(ctx, vault.UserID, vault.VaultName, rule.Amount, vault.Currency)
 		}
 		if s.notifService != nil {
-			if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Recurring Deposit Successful", fmt.Sprintf("A recurring deposit of %s %s has been made to your vault: %s", rule.Amount, vault.Currency, vault.VaultName), "system", []int64{vault.UserID}); err != nil {
+			if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Recurring Deposit Successful", fmt.Sprintf("A recurring deposit of %s %s has been made to your vault: %s", rule.Amount, vault.Currency, vault.VaultName), "system", []uuid.UUID{vault.UserID}); err != nil {
 				s.logger.Error(fmt.Sprintf("Failed to create recurring deposit success notification: %v", err))
 			}
 		}

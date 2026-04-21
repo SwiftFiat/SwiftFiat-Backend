@@ -64,19 +64,19 @@ const (
 
 // SessionMeta is persisted as JSON under session:{sessionID}.
 type SessionMeta struct {
-	SessionID          string    `json:"session_id"`
-	FamilyID           string    `json:"family_id"`           // token family for theft detection
-	ClientFingerprint  string    `json:"client_fingerprint"`  // SHA-256(IP+UA) bound at login
-	UserID             int64     `json:"user_id"`
-	UserTag            string    `json:"user_tag"`
-	Email              string    `json:"email"`
-	Role               string    `json:"role"`
-	IPAddress          string    `json:"ip_address"`
-	UserAgent          string    `json:"user_agent"`
-	DeviceName         string    `json:"device_name"`
-	CreatedAt          time.Time `json:"created_at"`
-	LastActiveAt       time.Time `json:"last_active_at"`
-	Blocked            bool      `json:"blocked"`
+	SessionID         string    `json:"session_id"`
+	FamilyID          string    `json:"family_id"`          // token family for theft detection
+	ClientFingerprint string    `json:"client_fingerprint"` // SHA-256(IP+UA) bound at login
+	UserID            uuid.UUID     `json:"user_id"`
+	UserTag           string    `json:"user_tag"`
+	Email             string    `json:"email"`
+	Role              string    `json:"role"`
+	IPAddress         string    `json:"ip_address"`
+	UserAgent         string    `json:"user_agent"`
+	DeviceName        string    `json:"device_name"`
+	CreatedAt         time.Time `json:"created_at"`
+	LastActiveAt      time.Time `json:"last_active_at"`
+	Blocked           bool      `json:"blocked"`
 }
 
 // SessionTokenPair is returned to the client on login / refresh.
@@ -90,8 +90,8 @@ type SessionTokenPair struct {
 // ── SessionManager ────────────────────────────────────────────────────────────
 
 type SessionManager struct {
-	redis    *redis.RedisService
-	anomaly  *AnomalyDetector
+	redis   *redis.RedisService
+	anomaly *AnomalyDetector
 }
 
 func NewSessionManager(r *redis.RedisService, ad *AnomalyDetector) *SessionManager {
@@ -262,7 +262,7 @@ func (sm *SessionManager) RefreshSession(
 func (sm *SessionManager) DetectRefreshReuse(
 	ctx context.Context,
 	familyID string,
-	userID int64,
+	userID uuid.UUID,
 ) {
 	if familyID == "" {
 		return
@@ -271,7 +271,7 @@ func (sm *SessionManager) DetectRefreshReuse(
 }
 
 // RevokeSession kills a single session (one-device logout).
-func (sm *SessionManager) RevokeSession(ctx context.Context, userID int64, sessionID string) error {
+func (sm *SessionManager) RevokeSession(ctx context.Context, userID uuid.UUID, sessionID string) error {
 	meta, _ := sm.loadSession(ctx, sessionID)
 	pipe := sm.redis.Pipeline()
 	pipe.Del(ctx, smSessionKey(sessionID))
@@ -284,7 +284,7 @@ func (sm *SessionManager) RevokeSession(ctx context.Context, userID int64, sessi
 }
 
 // RevokeAllUserSessions kills every session for a user (logout-all).
-func (sm *SessionManager) RevokeAllUserSessions(ctx context.Context, userID int64) error {
+func (sm *SessionManager) RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error {
 	sessionIDs, err := sm.redis.SMembers(ctx, smUserSessionsKey(userID))
 	if err != nil {
 		return err
@@ -315,7 +315,7 @@ func (sm *SessionManager) BlockSession(ctx context.Context, sessionID string) er
 }
 
 // GetUserSessions returns all active sessions for a user (device list screen).
-func (sm *SessionManager) GetUserSessions(ctx context.Context, userID int64) ([]SessionMeta, error) {
+func (sm *SessionManager) GetUserSessions(ctx context.Context, userID uuid.UUID) ([]SessionMeta, error) {
 	sessionIDs, err := sm.redis.SMembers(ctx, smUserSessionsKey(userID))
 	if err != nil {
 		return nil, err
@@ -441,7 +441,7 @@ func (sm *SessionManager) loadSession(ctx context.Context, sessionID string) (*S
 	return &meta, nil
 }
 
-func (sm *SessionManager) enforceSessionLimit(ctx context.Context, userID int64) error {
+func (sm *SessionManager) enforceSessionLimit(ctx context.Context, userID uuid.UUID) error {
 	sessionIDs, err := sm.redis.SMembers(ctx, smUserSessionsKey(userID))
 	if err != nil || len(sessionIDs) < MaxSessions {
 		return nil
@@ -473,7 +473,7 @@ func (sm *SessionManager) enforceSessionLimit(ctx context.Context, userID int64)
 }
 
 // killFamily wipes all tokens in a refresh-token family (theft response).
-func (sm *SessionManager) killFamily(ctx context.Context, familyID string, userID int64, reason string) {
+func (sm *SessionManager) killFamily(ctx context.Context, familyID string, userID uuid.UUID, reason string) {
 	if familyID == "" {
 		return
 	}
@@ -497,10 +497,10 @@ func (sm *SessionManager) killFamily(ctx context.Context, familyID string, userI
 
 // ── Key helpers ───────────────────────────────────────────────────────────────
 
-func smSessionKey(id string) string       { return "session:" + id }
-func smUserSessionsKey(uid int64) string  { return fmt.Sprintf("user_sessions:%d", uid) }
-func smRefreshKey(hash string) string     { return "refresh:" + hash }
-func smFamilyKey(familyID string) string  { return "token_family:" + familyID }
+func smSessionKey(id string) string      { return "session:" + id }
+func smUserSessionsKey(uid uuid.UUID) string { return fmt.Sprintf("user_sessions:%d", uid) }
+func smRefreshKey(hash string) string    { return "refresh:" + hash }
+func smFamilyKey(familyID string) string { return "token_family:" + familyID }
 
 // ── Crypto + fingerprint ──────────────────────────────────────────────────────
 

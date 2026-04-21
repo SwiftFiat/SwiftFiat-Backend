@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -38,8 +39,8 @@ ON CONFLICT DO NOTHING
 `
 
 type AddNotificationRecipientParams struct {
-	NotificationID int64 `json:"notification_id"`
-	UserID         int64 `json:"user_id"`
+	NotificationID int64     `json:"notification_id"`
+	UserID         uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) AddNotificationRecipient(ctx context.Context, arg AddNotificationRecipientParams) error {
@@ -122,7 +123,7 @@ RETURNING id, sender_admin_id, source, title, message, metadata, created_at
 `
 
 type CreateNotificationParams struct {
-	SenderAdminID sql.NullInt64         `json:"sender_admin_id"`
+	SenderAdminID uuid.NullUUID         `json:"sender_admin_id"`
 	Source        string                `json:"source"`
 	Title         sql.NullString        `json:"title"`
 	Message       string                `json:"message"`
@@ -178,7 +179,7 @@ WHERE user_id = $1
   AND read = FALSE
 `
 
-func (q *Queries) GetUnreadNotificationCount(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) GetUnreadNotificationCount(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getUnreadNotificationCount, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -205,9 +206,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserNotificationsParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type GetUserNotificationsRow struct {
@@ -391,7 +392,7 @@ WHERE user_id = $1
   AND read = FALSE
 `
 
-func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID int64) error {
+func (q *Queries) MarkAllNotificationsRead(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, markAllNotificationsRead, userID)
 	return err
 }

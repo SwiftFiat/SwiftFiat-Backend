@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const createNewOTP = `-- name: CreateNewOTP :one
@@ -20,7 +22,7 @@ INSERT INTO otps (
 `
 
 type CreateNewOTPParams struct {
-	UserID    int32     `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	Otp       string    `json:"otp"`
 	Expired   bool      `json:"expired"`
 	ExpiresAt time.Time `json:"expires_at"`
@@ -76,7 +78,7 @@ WHERE id = $1
 
 type GetOTPByIDRow struct {
 	ID            int64       `json:"id"`
-	UserID        int32       `json:"user_id"`
+	UserID        uuid.UUID   `json:"user_id"`
 	Otp           string      `json:"otp"`
 	Expired       bool        `json:"expired"`
 	CreatedAt     time.Time   `json:"created_at"`
@@ -113,7 +115,7 @@ WHERE user_id = $1
 
 type GetOTPByUserIDRow struct {
 	ID            int64       `json:"id"`
-	UserID        int32       `json:"user_id"`
+	UserID        uuid.UUID   `json:"user_id"`
 	Otp           string      `json:"otp"`
 	Expired       bool        `json:"expired"`
 	CreatedAt     time.Time   `json:"created_at"`
@@ -122,7 +124,7 @@ type GetOTPByUserIDRow struct {
 	ActualExpired interface{} `json:"actual_expired"`
 }
 
-func (q *Queries) GetOTPByUserID(ctx context.Context, userID int32) (GetOTPByUserIDRow, error) {
+func (q *Queries) GetOTPByUserID(ctx context.Context, userID uuid.UUID) (GetOTPByUserIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getOTPByUserID, userID)
 	var i GetOTPByUserIDRow
 	err := row.Scan(
@@ -176,7 +178,7 @@ RETURNING id, user_id, otp, expired, created_at, expires_at, updated_at
 `
 
 type UpsertOTPParams struct {
-	UserID    int32     `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	Otp       string    `json:"otp"`
 	Expired   bool      `json:"expired"`
 	ExpiresAt time.Time `json:"expires_at"`

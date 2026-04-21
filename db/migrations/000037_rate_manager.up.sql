@@ -36,8 +36,8 @@
     "is_default" BOOLEAN NOT NULL DEFAULT FALSE, -- Only one default level allowed
     
     -- Audit
-    "created_by" BIGINT REFERENCES users(id),
-    "updated_by" BIGINT REFERENCES users(id),
+    "created_by" UUID REFERENCES users(id),
+    "updated_by" UUID REFERENCES users(id),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "deleted_at" TIMESTAMPTZ,
@@ -99,8 +99,8 @@ CREATE TABLE IF NOT EXISTS "rate_adjustment_rules" (
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
     
     -- Audit
-    "created_by" BIGINT REFERENCES users(id),
-    "updated_by" BIGINT REFERENCES users(id),
+    "created_by" UUID REFERENCES users(id),
+    "updated_by" UUID REFERENCES users(id),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "deleted_at" TIMESTAMPTZ,
@@ -142,12 +142,12 @@ CREATE TABLE IF NOT EXISTS "user_vip_assignments" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- User and VIP level
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "vip_level_id" UUID NOT NULL REFERENCES "vip_levels"("id") ON DELETE RESTRICT,
     
     -- Assignment details
     "assigned_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    "assigned_by" BIGINT REFERENCES users(id), -- NULL if auto-assigned
+    "assigned_by" UUID REFERENCES users(id), -- NULL if auto-assigned
     "assignment_type" VARCHAR(20) NOT NULL DEFAULT 'automatic', -- 'automatic' or 'manual'
     
     -- Metrics at time of assignment
@@ -204,12 +204,12 @@ CREATE TABLE IF NOT EXISTS "rate_change_history" (
     
     -- Context
     "rate_provider" VARCHAR(50), -- e.g., "Binance P2P", "ExchangeRate-API"
-    "applied_to_user_id" BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    "applied_to_user_id" UUID REFERENCES users(id) ON DELETE SET NULL,
     "conversion_id" UUID, -- Link to actual conversion if applied
     
     -- Metadata
     "change_reason" TEXT,
-    "changed_by" BIGINT REFERENCES users(id),
+    "changed_by" UUID REFERENCES users(id),
     
     -- Timestamp
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -249,7 +249,7 @@ CREATE TABLE IF NOT EXISTS "rate_admin_notifications" (
     -- Status
     "is_read" BOOLEAN NOT NULL DEFAULT FALSE,
     "read_at" TIMESTAMPTZ,
-    "read_by" BIGINT REFERENCES users(id),
+    "read_by" UUID REFERENCES users(id),
     
     -- Timestamp
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt"
+	"github.com/google/uuid"
 )
 
 // AccessTokenLifetime is the canonical TTL for all issued access tokens.
@@ -22,7 +23,7 @@ func NewJWTToken(config *Config) *JWTToken {
 
 type jwtClaim struct {
 	jwt.StandardClaims
-	UserID   int64  `json:"user_id"`
+	UserID   uuid.UUID  `json:"user_id"`
 	Role     string `json:"user_role"`
 	Verified bool   `json:"user_verified"`
 	Email    string `json:"email"`
@@ -33,7 +34,7 @@ type jwtClaim struct {
 }
 
 type TokenObject struct {
-	UserID   int64  `json:"user_id"`
+	UserID   uuid.UUID  `json:"user_id"`
 	Role     string `json:"user_role"`
 	Verified bool   `json:"user_verified"`
 	UserTag  string `json:"user_tag"`

@@ -9,6 +9,7 @@ import (
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type AuditHandler struct {
@@ -121,7 +122,7 @@ func (h *AuditHandler) GetAllAuditLogs(c *gin.Context) {
 // @Router       /api/v1/audit/user/{userID}/activity [get]
 func (h *AuditHandler) GetUserActivity(c *gin.Context) {
 	userIDStr := c.Param("userID")
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid user ID"))
 		return
@@ -142,7 +143,7 @@ func (h *AuditHandler) GetUserActivity(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
 	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
 
-	logs, err := h.service.GetUserActivity(c, int64(userID), startDate, endDate, int32(limit), int32(offset))
+	logs, err := h.service.GetUserActivity(c, userID, startDate, endDate, int32(limit), int32(offset))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to retrieve user activity"))
 		return
@@ -377,7 +378,7 @@ func (h *AuditHandler) GetCategoryBreakdown(c *gin.Context) {
 // @Router       /api/v1/audit/compliance/user-data/{userID} [get]
 func (h *AuditHandler) GetUserData(c *gin.Context) {
 	userIDStr := c.Param("userID")
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid user ID"))
 		return
@@ -387,7 +388,7 @@ func (h *AuditHandler) GetUserData(c *gin.Context) {
 	startDate := time.Date(2020, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Now()
 
-	logs, err := h.service.GetUserActivity(c, int64(userID), startDate, endDate, 10000, 0)
+	logs, err := h.service.GetUserActivity(c, userID, startDate, endDate, 10000, 0)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to retrieve user data"))
 		return
@@ -461,7 +462,6 @@ func (h *AuditHandler) exportCSV(c *gin.Context, logs []audit.LogResponse) {
 	w := c.Writer
 	w.Header().Set("Content-Type", "text/csv")
 	w.Header().Set("Content-Disposition", "attachment; filename=audit_logs.csv")
-	
 
 	// Write CSV header
 	w.Write([]byte("ID,Timestamp,Category,Event Type,Severity,Actor ID,Actor Email,Entity Type,Entity ID,Action,Description,Success,IP Address\n"))
@@ -469,10 +469,7 @@ func (h *AuditHandler) exportCSV(c *gin.Context, logs []audit.LogResponse) {
 	// Write data rows
 	for _, log := range logs {
 		actorID := ""
-		if log.ActorID != nil {
-			actorID = strconv.FormatInt(*log.ActorID, 10)
-		}
-
+		
 		actorEmail := ""
 		if log.ActorEmail != nil {
 			actorEmail = *log.ActorEmail

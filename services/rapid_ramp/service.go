@@ -64,7 +64,7 @@ const (
 // ============================================================
 
 // CreateQRCode generates a new QR code for receiving crypto payments
-func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *CreateQRCodeRequest) (*QRCodeResponse, error) {
+func (s *QRCodeService) CreateQRCode(ctx context.Context, userID uuid.UUID, req *CreateQRCodeRequest) (*QRCodeResponse, error) {
 	s.logger.Info(fmt.Sprintf("Creating QR code for user %d", userID))
 
 	// Get or create Cryptomus static wallet address
@@ -150,7 +150,7 @@ func (s *QRCodeService) CreateQRCode(ctx context.Context, userID int64, req *Cre
 }
 
 // GetQRCodes retrieves all QR codes for a user
-func (s *QRCodeService) GetQRCodes(ctx context.Context, userID int64) ([]*QRCodeResponse, error) {
+func (s *QRCodeService) GetQRCodes(ctx context.Context, userID uuid.UUID) ([]*QRCodeResponse, error) {
 	qrCodes, err := s.store.GetQRCodesByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch QR codes: %w", err)
@@ -205,7 +205,7 @@ func (s *QRCodeService) GetQRCodes(ctx context.Context, userID int64) ([]*QRCode
 }
 
 // DeleteQRCode soft deletes a QR code
-func (s *QRCodeService) DeleteQRCode(ctx context.Context, qrCodeID uuid.UUID, userID int64) error {
+func (s *QRCodeService) DeleteQRCode(ctx context.Context, qrCodeID uuid.UUID, userID uuid.UUID) error {
 	_, err := s.store.DeleteQRCode(ctx, db.DeleteQRCodeParams{
 		ID:     qrCodeID,
 		UserID: userID,
@@ -712,7 +712,7 @@ func (s *QRCodeService) findActiveQRCodeByAddress(ctx context.Context, addressID
 }
 
 // getOrCreateCryptomusAddress gets existing or creates new Cryptomus address
-func (s *QRCodeService) getOrCreateCryptomusAddress(ctx context.Context, userID int64, network, currency string) (*db.CryptomusAddress, error) {
+func (s *QRCodeService) getOrCreateCryptomusAddress(ctx context.Context, userID uuid.UUID, network, currency string) (*db.CryptomusAddress, error) {
 	// Try to find existing address
 	existingAddresses, err := s.store.ListCryptomusAddressesByCurrency(ctx, currency)
 
@@ -735,7 +735,7 @@ func (s *QRCodeService) getOrCreateCryptomusAddress(ctx context.Context, userID 
 	}
 
 	address, err := s.store.UpsertCryptomusAddress(ctx, db.UpsertCryptomusAddressParams{
-		CustomerID:  sql.NullInt64{Int64: userID, Valid: true},
+		CustomerID:  uuid.NullUUID{UUID: userID, Valid: true},
 		WalletUuid:  staticWallet.WalletUUID,
 		Uuid:        staticWallet.UUID,
 		Address:     staticWallet.Address,

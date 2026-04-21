@@ -80,7 +80,7 @@ INSERT INTO vault_savings (
 `
 
 type CreateVaultGoalParams struct {
-	UserID            int64                 `json:"user_id"`
+	UserID            uuid.UUID             `json:"user_id"`
 	VaultName         string                `json:"vault_name"`
 	Description       sql.NullString        `json:"description"`
 	GoalAmount        sql.NullString        `json:"goal_amount"`
@@ -167,7 +167,7 @@ INSERT INTO vault_transactions (
 `
 
 type CreateVaultTransactionParams struct {
-	UserID            int64                 `json:"user_id"`
+	UserID            uuid.UUID             `json:"user_id"`
 	VaultID           uuid.UUID             `json:"vault_id"`
 	TransactionType   string                `json:"transaction_type"`
 	Amount            string                `json:"amount"`
@@ -247,7 +247,7 @@ INSERT INTO vault_yields (
 `
 
 type CreateVaultYieldParams struct {
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	VaultID                uuid.UUID      `json:"vault_id"`
 	YieldAmount            string         `json:"yield_amount"`
 	YieldRate              string         `json:"yield_rate"`
@@ -433,8 +433,8 @@ ORDER BY created_at DESC
 `
 
 type FilterVaultsByStatusParams struct {
-	UserID  int64    `json:"user_id"`
-	Column2 []string `json:"column_2"`
+	UserID  uuid.UUID `json:"user_id"`
+	Column2 []string  `json:"column_2"`
 }
 
 func (q *Queries) FilterVaultsByStatus(ctx context.Context, arg FilterVaultsByStatusParams) ([]VaultSaving, error) {
@@ -488,7 +488,7 @@ WHERE user_id = $1 AND status = 'active'
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetActiveVaultGoalsByUserID(ctx context.Context, userID int64) ([]VaultSaving, error) {
+func (q *Queries) GetActiveVaultGoalsByUserID(ctx context.Context, userID uuid.UUID) ([]VaultSaving, error) {
 	rows, err := q.db.QueryContext(ctx, getActiveVaultGoalsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -824,8 +824,8 @@ LIMIT $2
 `
 
 type GetRecentVaultActivityParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
 }
 
 type GetRecentVaultActivityRow struct {
@@ -917,7 +917,7 @@ LIMIT $1
 `
 
 type GetTopSaversRow struct {
-	UserID           int64       `json:"user_id"`
+	UserID           uuid.UUID   `json:"user_id"`
 	TotalVaults      int64       `json:"total_vaults"`
 	TotalSaved       interface{} `json:"total_saved"`
 	TotalYieldEarned interface{} `json:"total_yield_earned"`
@@ -975,7 +975,7 @@ WHERE requires_2fa = TRUE
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetTransactionsRequiring2FA(ctx context.Context, userID int64) ([]VaultTransaction, error) {
+func (q *Queries) GetTransactionsRequiring2FA(ctx context.Context, userID uuid.UUID) ([]VaultTransaction, error) {
 	rows, err := q.db.QueryContext(ctx, getTransactionsRequiring2FA, userID)
 	if err != nil {
 		return nil, err
@@ -1106,7 +1106,7 @@ type GetUserVaultsSummaryRow struct {
 	TotalYieldEarned interface{} `json:"total_yield_earned"`
 }
 
-func (q *Queries) GetUserVaultsSummary(ctx context.Context, userID int64) (GetUserVaultsSummaryRow, error) {
+func (q *Queries) GetUserVaultsSummary(ctx context.Context, userID uuid.UUID) (GetUserVaultsSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserVaultsSummary, userID)
 	var i GetUserVaultsSummaryRow
 	err := row.Scan(
@@ -1252,7 +1252,7 @@ WHERE user_id = $1 AND status != 'cancelled'
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetVaultGoalsByUserID(ctx context.Context, userID int64) ([]VaultSaving, error) {
+func (q *Queries) GetVaultGoalsByUserID(ctx context.Context, userID uuid.UUID) ([]VaultSaving, error) {
 	rows, err := q.db.QueryContext(ctx, getVaultGoalsByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -1304,8 +1304,8 @@ ORDER BY created_at DESC
 `
 
 type GetVaultGoalsByUserIDAndCurrencyParams struct {
-	UserID   int64  `json:"user_id"`
-	Currency string `json:"currency"`
+	UserID   uuid.UUID `json:"user_id"`
+	Currency string    `json:"currency"`
 }
 
 func (q *Queries) GetVaultGoalsByUserIDAndCurrency(ctx context.Context, arg GetVaultGoalsByUserIDAndCurrencyParams) ([]VaultSaving, error) {
@@ -1381,7 +1381,7 @@ ORDER BY
 type GetVaultHealthCheckRow struct {
 	ID             uuid.UUID      `json:"id"`
 	VaultName      string         `json:"vault_name"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	CurrentBalance sql.NullString `json:"current_balance"`
 	GoalAmount     sql.NullString `json:"goal_amount"`
 	Status         string         `json:"status"`
@@ -1650,9 +1650,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetVaultTransactionsByUserIDParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetVaultTransactionsByUserID(ctx context.Context, arg GetVaultTransactionsByUserIDParams) ([]VaultTransaction, error) {
@@ -1817,14 +1817,14 @@ LIMIT $2 OFFSET $3
 `
 
 type GetVaultYieldsByUserIDParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type GetVaultYieldsByUserIDRow struct {
 	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	VaultID                uuid.UUID      `json:"vault_id"`
 	YieldAmount            string         `json:"yield_amount"`
 	YieldRate              string         `json:"yield_rate"`
@@ -2592,7 +2592,7 @@ ORDER BY created_at DESC
 `
 
 type SearchVaultsByNameParams struct {
-	UserID  int64          `json:"user_id"`
+	UserID  uuid.UUID      `json:"user_id"`
 	Column2 sql.NullString `json:"column_2"`
 }
 

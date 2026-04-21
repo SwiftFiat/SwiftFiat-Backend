@@ -128,7 +128,7 @@ func (r *Rewards) getUserRewardBalance(ctx *gin.Context) {
 		return
 	}
 
-	balance, err := r.rewardService.GetUserRewardBalance(ctx.Request.Context(), int32(activeUser.UserID))
+	balance, err := r.rewardService.GetUserRewardBalance(ctx.Request.Context(), activeUser.UserID)
 	if err != nil {
 		r.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -246,7 +246,7 @@ func (r *Rewards) getUserRewardHistory(ctx *gin.Context) {
 		return
 	}
 
-	history, err := r.rewardService.GetUserRewardHistory(ctx.Request.Context(), int32(activeUser.UserID), filter)
+	history, err := r.rewardService.GetUserRewardHistory(ctx.Request.Context(), activeUser.UserID, filter)
 	if err != nil {
 		r.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
@@ -294,7 +294,7 @@ func (r *Rewards) getRecentRewardActivity(ctx *gin.Context) {
 		}
 	}
 
-	activity, err := r.rewardService.GetRecentRewardActivity(ctx.Request.Context(), int32(activeUser.UserID), limit)
+	activity, err := r.rewardService.GetRecentRewardActivity(ctx.Request.Context(), activeUser.UserID, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -358,7 +358,7 @@ func (r *Rewards) createRewardConfiguration(ctx *gin.Context) {
 		return
 	}
 
-	config, err := r.rewardService.CreateRewardConfiguration(ctx.Request.Context(), req, int32(activeUser.UserID))
+	config, err := r.rewardService.CreateRewardConfiguration(ctx.Request.Context(), req, activeUser.UserID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return

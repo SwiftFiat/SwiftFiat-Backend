@@ -60,7 +60,7 @@ type PriceAlertService struct {
 // PriceAlert represents a user-configured price alert
 type PriceAlert struct {
 	ID               uuid.UUID
-	UserID           int64
+	UserID           uuid.UUID
 	SourceCurrency   string
 	TargetCurrency   string
 	AlertCondition   AlertCondition
@@ -139,7 +139,7 @@ func NewPriceAlertService(
 }
 
 // CreateAlert creates a new price alert with comprehensive validation
-func (s *PriceAlertService) CreateAlert(ctx context.Context, userID int64, req *CreateAlertRequest) (*PriceAlert, error) {
+func (s *PriceAlertService) CreateAlert(ctx context.Context, userID uuid.UUID, req *CreateAlertRequest) (*PriceAlert, error) {
 	s.logger.Info(fmt.Sprintf("Creating price alert for user %d: %s/%s", userID, req.SourceCurrency, req.TargetCurrency))
 
 	//TODO: Validate currency pair
@@ -147,7 +147,7 @@ func (s *PriceAlertService) CreateAlert(ctx context.Context, userID int64, req *
 	// 	return nil, exchangerate.ErrInvalidCurrencyPair
 	// }
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -632,7 +632,7 @@ func (s *PriceAlertService) handleAlertTrigger(ctx context.Context, alert *Price
 }
 
 // GetUserAlerts retrieves all alerts for a user
-func (s *PriceAlertService) GetUserAlerts(ctx context.Context, userID int64, activeOnly bool) ([]*PriceAlert, error) {
+func (s *PriceAlertService) GetUserAlerts(ctx context.Context, userID uuid.UUID, activeOnly bool) ([]*PriceAlert, error) {
 	var dbAlerts []db.PriceAlert
 	var err error
 
@@ -655,7 +655,7 @@ func (s *PriceAlertService) GetUserAlerts(ctx context.Context, userID int64, act
 }
 
 // GetAlert retrieves a specific alert
-func (s *PriceAlertService) GetAlert(ctx context.Context, alertID uuid.UUID, userID int64) (*PriceAlert, error) {
+func (s *PriceAlertService) GetAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID) (*PriceAlert, error) {
 	dbAlert, err := s.store.GetPriceAlert(ctx, alertID)
 	if err != nil {
 		return nil, err
@@ -669,7 +669,7 @@ func (s *PriceAlertService) GetAlert(ctx context.Context, alertID uuid.UUID, use
 }
 
 // UpdateAlert updates alert configuration
-func (s *PriceAlertService) UpdateAlert(ctx context.Context, alertID uuid.UUID, userID int64, req *CreateAlertRequest) (*PriceAlert, error) {
+func (s *PriceAlertService) UpdateAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID, req *CreateAlertRequest) (*PriceAlert, error) {
 	// Verify ownership
 	_, err := s.GetAlert(ctx, alertID, userID)
 	if err != nil {
@@ -700,7 +700,7 @@ func (s *PriceAlertService) UpdateAlert(ctx context.Context, alertID uuid.UUID, 
 }
 
 // PauseAlert temporarily disables an alert
-func (s *PriceAlertService) PauseAlert(ctx context.Context, alertID uuid.UUID, userID int64) error {
+func (s *PriceAlertService) PauseAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID) error {
 	alert, err := s.GetAlert(ctx, alertID, userID)
 	if err != nil {
 		return err
@@ -717,7 +717,7 @@ func (s *PriceAlertService) PauseAlert(ctx context.Context, alertID uuid.UUID, u
 }
 
 // ResumeAlert reactivates a paused alert
-func (s *PriceAlertService) ResumeAlert(ctx context.Context, alertID uuid.UUID, userID int64) error {
+func (s *PriceAlertService) ResumeAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID) error {
 	alert, err := s.GetAlert(ctx, alertID, userID)
 	if err != nil {
 		return err
@@ -749,7 +749,7 @@ func (s *PriceAlertService) ResumeAlert(ctx context.Context, alertID uuid.UUID, 
 }
 
 // DeactivateAlert permanently deactivates an alert
-func (s *PriceAlertService) DeactivateAlert(ctx context.Context, alertID uuid.UUID, userID int64) error {
+func (s *PriceAlertService) DeactivateAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID) error {
 	_, err := s.GetAlert(ctx, alertID, userID)
 	if err != nil {
 		return err
@@ -762,7 +762,7 @@ func (s *PriceAlertService) DeactivateAlert(ctx context.Context, alertID uuid.UU
 }
 
 // DeleteAlert soft-deletes an alert
-func (s *PriceAlertService) DeleteAlert(ctx context.Context, alertID uuid.UUID, userID int64) error {
+func (s *PriceAlertService) DeleteAlert(ctx context.Context, alertID uuid.UUID, userID uuid.UUID) error {
 	_, err := s.GetAlert(ctx, alertID, userID)
 	if err != nil {
 		return err
@@ -775,7 +775,7 @@ func (s *PriceAlertService) DeleteAlert(ctx context.Context, alertID uuid.UUID, 
 }
 
 // GetAlertStats returns statistics about user's alerts
-func (s *PriceAlertService) GetAlertStats(ctx context.Context, userID int64) (map[string]interface{}, error) {
+func (s *PriceAlertService) GetAlertStats(ctx context.Context, userID uuid.UUID) (map[string]interface{}, error) {
 	stats, err := s.store.GetUserAlertStats(ctx, userID)
 	if err != nil {
 		return nil, err

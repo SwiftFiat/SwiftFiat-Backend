@@ -213,7 +213,7 @@ func (g *GiftCard) purchaseGiftCard(ctx *gin.Context) {
 		return
 	}
 
-	g.notifr.CreateWithRecipients(ctx, nil, "GiftCard Purchase", "Your gifftcard transaction was successful, check your email for details", "source", []int64{activeUser.UserID})
+	g.notifr.CreateWithRecipients(ctx, nil, "GiftCard Purchase", "Your gifftcard transaction was successful, check your email for details", "source", []uuid.UUID{activeUser.UserID})
 	//TODO: if err != nil {
 	// 	entry := audit.WarningLog(ctx, "InApp Notification failed", err.Error())
 	// 	g.audit.Log(entry)

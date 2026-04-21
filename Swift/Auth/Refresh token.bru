@@ -1,0 +1,81 @@
+meta {
+  name: Refresh token
+  type: http
+  seq: 17
+}
+
+post {
+  url: {{BaseURl}}/auth/refresh
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "refresh_token": "67560caf4343e117840a6aef8b1b9d1c376da39519ac2724ed0eadfeec90b724"
+  }
+}
+
+tests {
+  const body = res.body;
+  bru.setEnvVar("token", body.data.access_token);
+  
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/auth/refresh
+    method: POST
+    mode: json
+    body:json: {
+      {
+        "refresh_token": "44e52c3675125aa36dce63a93cfc405983fb4f96b8fa0b7a991a4efdcfdd8ea5"
+      }
+    }
+  }
+  
+  response: {
+    headers: {
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+      content-type: application/json; charset=utf-8
+      x-ratelimit-limit: 200
+      x-ratelimit-remaining: 199
+      x-ratelimit-reset: 1776743073
+      x-ratelimit-window: 1m0s
+      date: Tue, 21 Apr 2026 03:43:33 GMT
+      content-length: 714
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "successful",
+          "message": "tokens refreshed",
+          "data": {
+            "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZDAyOWUxYzQtNzdhZS00NDc1LWE3NTctMTdiYWFhMTNiODEwIiwidXNlcl9yb2xlIjoidXNlciIsInVzZXJfdmVyaWZpZWQiOmZhbHNlLCJlbWFpbCI6Imlrd2VjaGVnaHVAZ21haWwuY29tIiwidXNlcl90YWciOiJib250dXMiLCJzZXNzaW9uX2lkIjoiZmZjMDQ0NDMtZTBlYS00NjYyLTllZjUtZjgzMTAwMDQ4NGI3IiwiZmFtaWx5X2lkIjoiODFjYTY1YmEtNjcyMy00MmRjLTg0NzgtMGNlMzQ0ZTQyMTBlIiwiZXhwIjoxNzc2NzQzOTEzfQ.BVHp8WVcD17IMVrQYAIzludeLm8qbnPKyLBfEg-RETo",
+            "refresh_token": "0444499bdab92bbeee74afdb37a8e78c6ca50966f05624b91109a7fe55efd1e5",
+            "expires_at": "2026-04-21T04:58:33.882716798+01:00",
+            "session_id": "ffc04443-e0ea-4662-9ef5-f831000484b7"
+          },
+          "version": "1.0.0"
+        }
+      '''
+    }
+  }
+}

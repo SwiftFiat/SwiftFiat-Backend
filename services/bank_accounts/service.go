@@ -36,7 +36,7 @@ func NewBankAccountService(
 // ============================================================
 
 // CreateBankAccount creates and verifies a new bank account
-func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64, req *CreateBankAccountRequest) (*BankAccountResponse, error) {
+func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID uuid.UUID, req *CreateBankAccountRequest) (*BankAccountResponse, error) {
 	s.logger.Info(fmt.Sprintf("Creating bank account for user %d", userID))
 
 	// Get Paystack provider
@@ -97,7 +97,7 @@ func (s *BankAccountService) CreateBankAccount(ctx context.Context, userID int64
 }
 
 // GetDefaultBankAccount retrieves user's default bank account
-func (s *BankAccountService) GetDefaultBankAccount(ctx context.Context, userID int64) (*BankAccountResponse, error) {
+func (s *BankAccountService) GetDefaultBankAccount(ctx context.Context, userID uuid.UUID) (*BankAccountResponse, error) {
 	account, err := s.store.GetDefaultBankAccount(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -110,7 +110,7 @@ func (s *BankAccountService) GetDefaultBankAccount(ctx context.Context, userID i
 }
 
 // SetDefaultBankAccount sets a bank account as the default
-func (s *BankAccountService) SetDefaultBankAccount(ctx context.Context, accountID uuid.UUID, userID int64) error {
+func (s *BankAccountService) SetDefaultBankAccount(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
 	// First, clear all default flags for this user
 	err := s.store.ClearDefaultBankAccounts(ctx, userID)
 	if err != nil {
@@ -134,7 +134,7 @@ func (s *BankAccountService) SetDefaultBankAccount(ctx context.Context, accountI
 }
 
 // DeleteBankAccount soft deletes a bank account
-func (s *BankAccountService) DeleteBankAccount(ctx context.Context, accountID uuid.UUID, userID int64) error {
+func (s *BankAccountService) DeleteBankAccount(ctx context.Context, accountID uuid.UUID, userID uuid.UUID) error {
 	// Check if account exists and belongs to user
 	account, err := s.store.GetBankAccount(ctx, accountID)
 	if err != nil {
@@ -231,7 +231,7 @@ func (s *BankAccountService) GetAllBankAccounts(ctx context.Context) ([]*BankAcc
 
 
 // GetBankAccounts retrieves all bank accounts for a user
-func (s *BankAccountService) GetBankAccounts(ctx context.Context, userID int64) ([]*BankAccountResponse, error) {
+func (s *BankAccountService) GetBankAccounts(ctx context.Context, userID uuid.UUID) ([]*BankAccountResponse, error) {
 	accounts, err := s.store.GetBankAccountsByUser(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch bank accounts: %w", err)

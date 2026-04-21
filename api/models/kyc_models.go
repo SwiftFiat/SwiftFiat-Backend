@@ -1,6 +1,10 @@
 package models
 
-import "time"
+import (
+	"time"
+
+	"github.com/google/uuid"
+)
 
 type KYCVerificationData struct {
 	BVN bool `json:"bvn,omitempty"`
@@ -14,7 +18,7 @@ type UserKYCInformationExtended struct {
 
 type UserKYCInformation struct {
 	ID                    ID        `json:"id"`
-	UserID                int64        `json:"user_id"`
+	UserID                uuid.UUID        `json:"user_id"`
 	Status                string    `json:"status"`
 	VerificationDate      time.Time `json:"verification_date"`
 	FullName              string    `json:"full_name"`

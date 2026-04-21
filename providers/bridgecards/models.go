@@ -46,7 +46,7 @@ type CreateCardRequest struct {
 	TransactionReference string         `json:"transaction_reference"`
 	Pin                  string         `json:"pin"`
 	MetaData             map[string]any `json:"metadata"`
-	UserID               int64          `json:"-"`
+	UserID               uuid.UUID          `json:"-"`
 	CardPlanID           int64          `json:"-"`
 	CardName             string         `json:"-"`
 	CardColor            string         `json:"-"`

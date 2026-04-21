@@ -42,7 +42,7 @@ var RoleKeys = map[string]string{
 }
 
 type UserResponse struct {
-	ID        int64  `json:"id"`
+	ID        uuid.UUID  `json:"id"`
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email"`

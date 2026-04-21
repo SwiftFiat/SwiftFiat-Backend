@@ -55,7 +55,7 @@ func NewRewardService(
 
 // AwardRewardPointsParams represents parameters for awarding reward points
 type AwardRewardPointsParams struct {
-	UserID            int64
+	UserID            uuid.UUID
 	TransactionID     uuid.UUID
 	TransactionAmount string
 	TransactionType   string // "bill_payment", "gift_card", etc.
@@ -198,7 +198,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 	})
 
 	// Clear user balance cache
-	s.clearUserRewardCache(int32(params.UserID))
+	s.clearUserRewardCache(params.UserID)
 
 	// Send notification asynchronously
 	go func() {
@@ -218,7 +218,7 @@ func (s *RewardService) AwardRewardPoints(ctx context.Context, params AwardRewar
 
 // RedeemRewardPointsParams represents parameters for redeeming reward points
 type RedeemRewardPointsParams struct {
-	UserID             int64
+	UserID             uuid.UUID
 	PointsToRedeem     string
 	BillTransactionID  uuid.UUID
 	OriginalBillAmount string
@@ -281,7 +281,7 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 	// Create detailed redemption record
 	redemption, err := qtx.CreateRewardRedemption(ctx, db.CreateRewardRedemptionParams{
 		RewardTransactionID:      rewardTx.ID,
-		UserID:                   int32(params.UserID),
+		UserID:                   params.UserID,
 		BillPaymentTransactionID: params.BillTransactionID,
 		PointsRedeemed:           params.PointsToRedeem,
 		DiscountAmount:           fmt.Sprintf("%.2f", discountAmount),
@@ -348,7 +348,7 @@ func (s *RewardService) RedeemRewardPoints(ctx context.Context, params RedeemRew
 	})
 
 	// Clear user balance cache
-	s.clearUserRewardCache(int32(params.UserID))
+	s.clearUserRewardCache(params.UserID)
 
 	pointsToRedeem, err := strconv.Atoi(params.PointsToRedeem)
 	if err != nil {
@@ -383,7 +383,7 @@ type WithdrawResponse struct {
 }
 
 // Withdraw Rewards
-func (s *RewardService) Withdraw(ctx context.Context, userId int64, req *WithdrawRequest) (*WithdrawResponse, error) {
+func (s *RewardService) Withdraw(ctx context.Context, userId uuid.UUID, req *WithdrawRequest) (*WithdrawResponse, error) {
 	amount := decimal.NewFromFloat(req.Amount)
 	if amount.LessThanOrEqual(decimal.Zero) {
 		return nil, fmt.Errorf("withdrawal amount must be greater than zero")
@@ -393,7 +393,7 @@ func (s *RewardService) Withdraw(ctx context.Context, userId int64, req *Withdra
 		return nil, fmt.Errorf("withdrawal amount must be at least 1000 points")
 	}
 
-	res, err := s.GetUserRewardBalance(ctx, int32(userId))
+	res, err := s.GetUserRewardBalance(ctx, userId)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reward point balance: %v", err)
 	}
@@ -500,7 +500,7 @@ func (s *RewardService) Withdraw(ctx context.Context, userId int64, req *Withdra
 }
 
 // GetUserRewardBalance returns user's current reward balance
-func (s *RewardService) GetUserRewardBalance(ctx context.Context, userID int32) (*RewardBalanceResponse, error) {
+func (s *RewardService) GetUserRewardBalance(ctx context.Context, userID uuid.UUID) (*RewardBalanceResponse, error) {
 	// Try cache first
 	cacheKey := fmt.Sprintf("reward:balance:%d", userID)
 	if cached, found := s.cache.Get(cacheKey); found {
@@ -509,7 +509,7 @@ func (s *RewardService) GetUserRewardBalance(ctx context.Context, userID int32) 
 		}
 	}
 
-	balance, err := s.store.GetUserRewardBalance(ctx, int64(userID))
+	balance, err := s.store.GetUserRewardBalance(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reward balance: %w", err)
 	}
@@ -528,14 +528,14 @@ func (s *RewardService) GetUserRewardBalance(ctx context.Context, userID int32) 
 }
 
 // GetUserRewardSummary returns comprehensive reward summary for user
-func (s *RewardService) GetUserRewardSummary(ctx context.Context, userID int64) (*RewardSummaryResponse, error) {
+func (s *RewardService) GetUserRewardSummary(ctx context.Context, userID uuid.UUID) (*RewardSummaryResponse, error) {
 	summary, err := s.store.GetUserRewardSummary(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reward summary: %w", err)
 	}
 
 	return &RewardSummaryResponse{
-		UserID:                  int32(summary.UserID),
+		UserID:                  summary.UserID,
 		CurrentBalance:          summary.CurrentBalance,
 		TotalEarned:             summary.TotalEarned,
 		TotalRedeemed:           summary.TotalRedeemed,
@@ -546,7 +546,7 @@ func (s *RewardService) GetUserRewardSummary(ctx context.Context, userID int64) 
 }
 
 // GetUserRewardHistory returns paginated reward transaction history
-func (s *RewardService) GetUserRewardHistory(ctx context.Context, userID int32, filter RewardHistoryFilter) (*RewardHistoryResponse, error) {
+func (s *RewardService) GetUserRewardHistory(ctx context.Context, userID uuid.UUID, filter RewardHistoryFilter) (*RewardHistoryResponse, error) {
 	// Set defaults
 	if filter.Page <= 0 {
 		filter.Page = 1
@@ -568,7 +568,7 @@ func (s *RewardService) GetUserRewardHistory(ctx context.Context, userID int32, 
 	if filter.Type != "" && filter.DateFrom != nil && filter.DateTo != nil {
 		transactions, err = s.store.ListUserRewardTransactionsByTypeAndDateRange(ctx,
 			db.ListUserRewardTransactionsByTypeAndDateRangeParams{
-				UserID:          int64(userID),
+				UserID:          userID,
 				TransactionType: filter.Type,
 				CreatedAt:       *filter.DateFrom,
 				CreatedAt_2:     *filter.DateTo,
@@ -577,40 +577,40 @@ func (s *RewardService) GetUserRewardHistory(ctx context.Context, userID int32, 
 			})
 		totalCount, _ = s.store.CountUserRewardTransactionsByType(ctx,
 			db.CountUserRewardTransactionsByTypeParams{
-				UserID:          int64(userID),
+				UserID:          userID,
 				TransactionType: filter.Type,
 			})
 	} else if filter.Type != "" {
 		transactions, err = s.store.ListUserRewardTransactionsByType(ctx,
 			db.ListUserRewardTransactionsByTypeParams{
-				UserID:          int64(userID),
+				UserID:          userID,
 				TransactionType: filter.Type,
 				Limit:           int32(filter.PageSize),
 				Offset:          int32(offset),
 			})
 		totalCount, _ = s.store.CountUserRewardTransactionsByType(ctx,
 			db.CountUserRewardTransactionsByTypeParams{
-				UserID:          int64(userID),
+				UserID:          userID,
 				TransactionType: filter.Type,
 			})
 	} else if filter.DateFrom != nil && filter.DateTo != nil {
 		transactions, err = s.store.ListUserRewardTransactionsByDateRange(ctx,
 			db.ListUserRewardTransactionsByDateRangeParams{
-				UserID:      int64(userID),
+				UserID:      userID,
 				CreatedAt:   *filter.DateFrom,
 				CreatedAt_2: *filter.DateTo,
 				Limit:       int32(filter.PageSize),
 				Offset:      int32(offset),
 			})
-		totalCount, _ = s.store.CountUserRewardTransactions(ctx, int64(userID))
+		totalCount, _ = s.store.CountUserRewardTransactions(ctx, userID)
 	} else {
 		transactions, err = s.store.ListUserRewardTransactions(ctx,
 			db.ListUserRewardTransactionsParams{
-				UserID: int64(userID),
+				UserID: userID,
 				Limit:  int32(filter.PageSize),
 				Offset: int32(offset),
 			})
-		totalCount, _ = s.store.CountUserRewardTransactions(ctx, int64(userID))
+		totalCount, _ = s.store.CountUserRewardTransactions(ctx, userID)
 	}
 
 	if err != nil {
@@ -651,13 +651,13 @@ func (s *RewardService) GetUserRewardHistory(ctx context.Context, userID int32, 
 }
 
 // GetRecentRewardActivity returns recent reward activity for dashboard
-func (s *RewardService) GetRecentRewardActivity(ctx context.Context, userID int32, limit int) ([]RewardTransactionItem, error) {
+func (s *RewardService) GetRecentRewardActivity(ctx context.Context, userID uuid.UUID, limit int) ([]RewardTransactionItem, error) {
 	if limit <= 0 {
 		limit = 10
 	}
 
 	transactions, err := s.store.GetRecentRewardActivity(ctx, db.GetRecentRewardActivityParams{
-		UserID: int64(userID),
+		UserID: userID,
 		Limit:  int32(limit),
 	})
 	if err != nil {
@@ -683,7 +683,7 @@ func (s *RewardService) GetRecentRewardActivity(ctx context.Context, userID int3
 // ============================================================================
 
 // CreateRewardConfiguration creates a new reward configuration (admin only)
-func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req CreateRewardConfigRequest, adminID int32) (*RewardConfigurationResponse, error) {
+func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req CreateRewardConfigRequest, adminID uuid.UUID) (*RewardConfigurationResponse, error) {
 	validFrom := time.Now()
 	if req.ValidFrom != nil {
 		validFrom = *req.ValidFrom
@@ -705,7 +705,7 @@ func (s *RewardService) CreateRewardConfiguration(ctx context.Context, req Creat
 		IsActive:                req.IsActive,
 		ValidFrom:               validFrom,
 		ValidUntil:              sql.NullTime{Time: req.ValidUntil, Valid: true},
-		CreatedBy:               sql.NullInt32{Int32: adminID, Valid: true},
+		CreatedBy:               uuid.NullUUID{UUID: adminID, Valid: true},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create reward configuration: %w", err)
@@ -811,7 +811,7 @@ func (s *RewardService) GetRewardStatistics(ctx context.Context) (*RewardStatist
 // ============================================================================
 
 // clearUserRewardCache clears cached reward data for a user
-func (s *RewardService) clearUserRewardCache(userID int32) {
+func (s *RewardService) clearUserRewardCache(userID uuid.UUID) {
 	cacheKeys := []string{
 		fmt.Sprintf("reward:balance:%d", userID),
 		fmt.Sprintf("reward:summary:%d", userID),
@@ -822,7 +822,7 @@ func (s *RewardService) clearUserRewardCache(userID int32) {
 }
 
 // VerifyUserRewardBalance verifies user's balance matches transaction history
-func (s *RewardService) VerifyUserRewardBalance(ctx context.Context, userID int64) (bool, error) {
+func (s *RewardService) VerifyUserRewardBalance(ctx context.Context, userID uuid.UUID) (bool, error) {
 	result, err := s.store.VerifyUserRewardBalance(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to verify reward balance: %w", err)
@@ -833,7 +833,7 @@ func (s *RewardService) VerifyUserRewardBalance(ctx context.Context, userID int6
 }
 
 type GetTopUsersByRewardsEarnedRow struct {
-	ID                  int64  `json:"id"`
+	ID                  uuid.UUID  `json:"id"`
 	FirstName           string `json:"first_name"`
 	LastName            string `json:"last_name"`
 	Email               string `json:"email"`

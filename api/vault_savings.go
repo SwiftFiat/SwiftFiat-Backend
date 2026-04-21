@@ -825,7 +825,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 		return
 	}
 
-	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	userID, err := uuid.Parse(ctx.Query("user_id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return
@@ -875,7 +875,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 	}
 
 	// get user
-	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), int64(userID))
+	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), userID)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, basemodels.NewError("user not found"))
 		return
@@ -1119,7 +1119,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 		return
 	}
 
-	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	userID, err := uuid.Parse(ctx.Query("user_id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return
@@ -1169,7 +1169,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 	}
 
 	// get user
-	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), int64(userID))
+	user, err := v.server.queries.GetUserByID(ctx.Request.Context(), userID)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, basemodels.NewError("user not found"))
 		return
@@ -1441,7 +1441,7 @@ func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
 		}
 	}
 
-	userID, err := strconv.Atoi(ctx.Query("user_id"))
+	userID, err := uuid.Parse(ctx.Query("user_id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return
@@ -1450,7 +1450,7 @@ func (v *Vault) adminGetVaultTxsByUser(ctx *gin.Context) {
 	param := db.GetVaultTransactionsByUserIDParams{
 		Limit:  limit,
 		Offset: offset,
-		UserID: int64(userID),
+		UserID: userID,
 	}
 
 	transactions, err := v.vaultService.GetUserTransactions(ctx.Request.Context(), param)

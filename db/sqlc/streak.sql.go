@@ -25,9 +25,9 @@ RETURNING id, user_id, badge_id, earned_at, streak_at_unlock
 `
 
 type AwardBadgeToUserParams struct {
-	UserID         int64 `json:"user_id"`
-	BadgeID        int64 `json:"badge_id"`
-	StreakAtUnlock int32 `json:"streak_at_unlock"`
+	UserID         uuid.UUID `json:"user_id"`
+	BadgeID        int64     `json:"badge_id"`
+	StreakAtUnlock int32     `json:"streak_at_unlock"`
 }
 
 // Manually award a badge to a user (called by trigger or admin)
@@ -67,8 +67,8 @@ SELECT EXISTS (
 `
 
 type CheckUserHasBadgeParams struct {
-	UserID  int64 `json:"user_id"`
-	BadgeID int64 `json:"badge_id"`
+	UserID  uuid.UUID `json:"user_id"`
+	BadgeID int64     `json:"badge_id"`
 }
 
 // Check if user has earned a specific badge
@@ -140,7 +140,7 @@ RETURNING id, user_id, transaction_id, previous_streak, new_streak, transaction_
 `
 
 type CreateStreakHistoryEntryParams struct {
-	UserID          int64                 `json:"user_id"`
+	UserID          uuid.UUID             `json:"user_id"`
 	TransactionID   uuid.NullUUID         `json:"transaction_id"`
 	PreviousStreak  int32                 `json:"previous_streak"`
 	NewStreak       int32                 `json:"new_streak"`
@@ -377,7 +377,7 @@ type GetBadgeLeaderboardParams struct {
 }
 
 type GetBadgeLeaderboardRow struct {
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	FirstName           sql.NullString `json:"first_name"`
 	LastName            sql.NullString `json:"last_name"`
 	AvatarUrl           sql.NullString `json:"avatar_url"`
@@ -450,8 +450,8 @@ LIMIT 1
 `
 
 type GetNextMilestoneParams struct {
-	RequiredStreakDays int32 `json:"required_streak_days"`
-	UserID             int64 `json:"user_id"`
+	RequiredStreakDays int32     `json:"required_streak_days"`
+	UserID             uuid.UUID `json:"user_id"`
 }
 
 // Get the next badge a user can unlock
@@ -488,7 +488,7 @@ RETURNING id, user_id, current_streak, best_streak, total_transaction_days, last
 `
 
 // Get existing streak or create new one if doesn't exist
-func (q *Queries) GetOrCreateUserStreak(ctx context.Context, userID int64) (TransactionStreak, error) {
+func (q *Queries) GetOrCreateUserStreak(ctx context.Context, userID uuid.UUID) (TransactionStreak, error) {
 	row := q.db.QueryRowContext(ctx, getOrCreateUserStreak, userID)
 	var i TransactionStreak
 	err := row.Scan(
@@ -531,7 +531,7 @@ type GetRecentBadgeUnlocksParams struct {
 
 type GetRecentBadgeUnlocksRow struct {
 	ID        int64          `json:"id"`
-	UserID    int64          `json:"user_id"`
+	UserID    uuid.UUID      `json:"user_id"`
 	EarnedAt  time.Time      `json:"earned_at"`
 	FirstName sql.NullString `json:"first_name"`
 	LastName  sql.NullString `json:"last_name"`
@@ -596,7 +596,7 @@ type GetStreakBreakEventsParams struct {
 }
 
 type GetStreakBreakEventsRow struct {
-	UserID     int64                 `json:"user_id"`
+	UserID     uuid.UUID             `json:"user_id"`
 	FirstName  sql.NullString        `json:"first_name"`
 	LastName   sql.NullString        `json:"last_name"`
 	StreakLost int32                 `json:"streak_lost"`
@@ -719,7 +719,7 @@ type GetStreakHistoryByDateRangeParams struct {
 
 type GetStreakHistoryByDateRangeRow struct {
 	ID              int64          `json:"id"`
-	UserID          int64          `json:"user_id"`
+	UserID          uuid.UUID      `json:"user_id"`
 	FirstName       sql.NullString `json:"first_name"`
 	LastName        sql.NullString `json:"last_name"`
 	PreviousStreak  int32          `json:"previous_streak"`
@@ -880,7 +880,7 @@ type GetTopStreakLeaderboardParams struct {
 }
 
 type GetTopStreakLeaderboardRow struct {
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	FirstName            sql.NullString `json:"first_name"`
 	LastName             sql.NullString `json:"last_name"`
 	AvatarUrl            sql.NullString `json:"avatar_url"`
@@ -955,7 +955,7 @@ type GetUserBadgesRow struct {
 // USER BADGES QUERIES
 // ===============================================
 // Get all badges earned by a user with badge details
-func (q *Queries) GetUserBadges(ctx context.Context, userID int64) ([]GetUserBadgesRow, error) {
+func (q *Queries) GetUserBadges(ctx context.Context, userID uuid.UUID) ([]GetUserBadgesRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserBadges, userID)
 	if err != nil {
 		return nil, err
@@ -1010,8 +1010,8 @@ ORDER BY b.tier_level ASC, b.display_order ASC
 `
 
 type GetUserBadgesWithLockStatusParams struct {
-	UserID             int64 `json:"user_id"`
-	RequiredStreakDays int32 `json:"required_streak_days"`
+	UserID             uuid.UUID `json:"user_id"`
+	RequiredStreakDays int32     `json:"required_streak_days"`
 }
 
 type GetUserBadgesWithLockStatusRow struct {
@@ -1125,7 +1125,7 @@ WHERE user_id = $1
 // TRANSACTION STREAKS QUERIES
 // ===============================================
 // Retrieves current streak information for a user
-func (q *Queries) GetUserStreak(ctx context.Context, userID int64) (TransactionStreak, error) {
+func (q *Queries) GetUserStreak(ctx context.Context, userID uuid.UUID) (TransactionStreak, error) {
 	row := q.db.QueryRowContext(ctx, getUserStreak, userID)
 	var i TransactionStreak
 	err := row.Scan(
@@ -1160,9 +1160,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserStreakHistoryParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type GetUserStreakHistoryRow struct {
@@ -1224,7 +1224,7 @@ GROUP BY ts.id
 
 type GetUserStreakWithBadgeCountRow struct {
 	ID                   int64        `json:"id"`
-	UserID               int64        `json:"user_id"`
+	UserID               uuid.UUID    `json:"user_id"`
 	CurrentStreak        int32        `json:"current_streak"`
 	BestStreak           int32        `json:"best_streak"`
 	TotalTransactionDays int32        `json:"total_transaction_days"`
@@ -1236,7 +1236,7 @@ type GetUserStreakWithBadgeCountRow struct {
 }
 
 // Get streak info along with count of earned badges
-func (q *Queries) GetUserStreakWithBadgeCount(ctx context.Context, userID int64) (GetUserStreakWithBadgeCountRow, error) {
+func (q *Queries) GetUserStreakWithBadgeCount(ctx context.Context, userID uuid.UUID) (GetUserStreakWithBadgeCountRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserStreakWithBadgeCount, userID)
 	var i GetUserStreakWithBadgeCountRow
 	err := row.Scan(
@@ -1278,7 +1278,7 @@ type GetUsersWithBrokenStreaksParams struct {
 }
 
 type GetUsersWithBrokenStreaksRow struct {
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Email               string         `json:"email"`
 	FirstName           sql.NullString `json:"first_name"`
 	LastName            sql.NullString `json:"last_name"`
@@ -1375,7 +1375,7 @@ RETURNING ts.id, ts.user_id, ts.current_streak, ts.best_streak, ts.total_transac
 // ADMIN/MAINTENANCE QUERIES
 // ===============================================
 // Recalculate streak from transaction history (recovery/fix tool)
-func (q *Queries) RecalculateUserStreak(ctx context.Context, userID int64) (TransactionStreak, error) {
+func (q *Queries) RecalculateUserStreak(ctx context.Context, userID uuid.UUID) (TransactionStreak, error) {
 	row := q.db.QueryRowContext(ctx, recalculateUserStreak, userID)
 	var i TransactionStreak
 	err := row.Scan(
@@ -1402,7 +1402,7 @@ RETURNING id, user_id, current_streak, best_streak, total_transaction_days, last
 `
 
 // Reset current streak to 0 while preserving best_streak and total_days
-func (q *Queries) ResetUserStreak(ctx context.Context, userID int64) (TransactionStreak, error) {
+func (q *Queries) ResetUserStreak(ctx context.Context, userID uuid.UUID) (TransactionStreak, error) {
 	row := q.db.QueryRowContext(ctx, resetUserStreak, userID)
 	var i TransactionStreak
 	err := row.Scan(
@@ -1425,8 +1425,8 @@ WHERE user_id = $1 AND badge_id = $2
 `
 
 type RevokeBadgeParams struct {
-	UserID  int64 `json:"user_id"`
-	BadgeID int64 `json:"badge_id"`
+	UserID  uuid.UUID `json:"user_id"`
+	BadgeID int64     `json:"badge_id"`
 }
 
 // Remove a badge from a user (admin function)
@@ -1496,7 +1496,7 @@ RETURNING id, user_id, current_streak, best_streak, total_transaction_days, last
 `
 
 type UpdateUserStreakParams struct {
-	UserID               int64        `json:"user_id"`
+	UserID               uuid.UUID    `json:"user_id"`
 	CurrentStreak        int32        `json:"current_streak"`
 	BestStreak           int32        `json:"best_streak"`
 	TotalTransactionDays int32        `json:"total_transaction_days"`

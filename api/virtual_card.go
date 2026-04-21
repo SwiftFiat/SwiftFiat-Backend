@@ -440,7 +440,7 @@ func (v *Virtualcard) RegisterCardHolder(c *gin.Context) {
 		return
 	}
 
-	response, err := v.virtualCardSvc.CreateCardHolder(c, int32(activeUser.UserID), req.Phone)
+	response, err := v.virtualCardSvc.CreateCardHolder(c, activeUser.UserID, req.Phone)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
@@ -1110,7 +1110,7 @@ func (v *Virtualcard) ListCardTransactionsByUser(c *gin.Context) {
 		return
 	}
 
-	user_id, err := strconv.Atoi(c.Query("user_id"))
+	user_id, err := uuid.Parse(c.Query("user_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("missing user_id query parameter"))
 		return
@@ -1129,7 +1129,7 @@ func (v *Virtualcard) ListCardTransactionsByUser(c *gin.Context) {
 	}
 
 	response, err := v.server.queries.GetCardTransactionsByUser(c, db.GetCardTransactionsByUserParams{
-		UserID: int64(user_id),
+		UserID: user_id,
 		Limit:  int32(limit),
 		Offset: int32(offset),
 	})
@@ -1706,7 +1706,7 @@ func (v *Virtualcard) GetUserCards(c *gin.Context) {
 
 type GetUserCardsRowResponse struct {
 	ID                      uuid.UUID  `json:"id"`
-	UserID                  int64      `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardPlanID              int64      `json:"card_plan_id"`
 	BridgecardCardID        string     `json:"bridgecard_card_id"`
 	CardName                string     `json:"card_name"`
@@ -1768,7 +1768,7 @@ func mapGetUserCardsRowToResponse(row db.GetUserCardsRow) GetUserCardsRowRespons
 
 type VirtualCardResponse struct {
 	ID                      uuid.UUID  `json:"id"`
-	UserID                  int64      `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardPlanID              int64      `json:"card_plan_id"`
 	BridgecardCardID        string     `json:"bridgecard_card_id"`
 	CardName                string     `json:"card_name"`

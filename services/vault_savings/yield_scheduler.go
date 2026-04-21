@@ -267,7 +267,7 @@ func (ys *YieldScheduler) SetCheckInterval(interval time.Duration) {
 
 // ProcessVaultsByUser processes yields for all vaults belonging to a specific user
 // Useful for VIP users or special cases
-func (ys *YieldScheduler) ProcessVaultsByUser(ctx context.Context, userID int64) (int, error) {
+func (ys *YieldScheduler) ProcessVaultsByUser(ctx context.Context, userID uuid.UUID) (int, error) {
 	ys.logger.Info(fmt.Sprintf("Processing yields for all vaults of user %d", userID))
 
 	// Get all active vaults for user

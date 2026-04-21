@@ -33,7 +33,7 @@ func NewReferralService(repo *Repo, logger *logging.Logger, notifyr *service.Not
 	}
 }
 
-func (s *Service) TrackReferral(ctx context.Context, referralCode string, refereeID int64, referralAmount decimal.Decimal) (*Referral, error) {
+func (s *Service) TrackReferral(ctx context.Context, referralCode string, refereeID uuid.UUID, referralAmount decimal.Decimal) (*Referral, error) {
 	// Get the record of the referrer
 	referralRecord, err := s.repo.queries.GetReferralByReferralKey(ctx, referralCode)
 	if err != nil {
@@ -44,10 +44,10 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		return nil, fmt.Errorf("an error occurred while fetching referral record: %w", err)
 	}
 
-	referrerID := int64(referralRecord.UserID)
+	referrerID := referralRecord.UserID
 
 	// Step 2: Check if referee was already referred
-	existing, err := s.repo.queries.GetReferralByRefereeID(ctx, int32(refereeID))
+	existing, err := s.repo.queries.GetReferralByRefereeID(ctx, refereeID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("an error occurred while checking existing referral: %w", err)
 	}
@@ -72,7 +72,7 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 			"SWIIFT Referral",
 			"A user registered using your referral code. You'll earn a referral bonus on their first conversion",
 			"system",
-			[]int64{referrerID},
+			[]uuid.UUID{referrerID},
 		)
 		return nil, err
 	}
@@ -84,13 +84,13 @@ func (s *Service) TrackReferral(ctx context.Context, referralCode string, refere
 		"SWIIFT Referral",
 		fmt.Sprintf("user %s registered using your referral code, You'll earn a referral bonus on their first conversion", referedUser.UserTag.String),
 		"system",
-		[]int64{referrerID},
+		[]uuid.UUID{referrerID},
 	)
 
 	return referral, nil
 }
 
-func (s *Service) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, error) {
+func (s *Service) GetUserReferrals(ctx context.Context, userID uuid.UUID) ([]Referral, error) {
 	return s.repo.GetUserReferrals(ctx, userID)
 }
 
@@ -98,7 +98,7 @@ func (s *Service) GetAllReferrals(ctx context.Context) ([]db.UserReferral, error
 	return s.repo.GetAllReferrals(ctx)
 }
 
-func (s *Service) GetReferralEarnings(ctx context.Context, userID int64) (*db.ReferralEarning, error) {
+func (s *Service) GetReferralEarnings(ctx context.Context, userID uuid.UUID) (*db.ReferralEarning, error) {
 	return s.repo.GetReferralEarnings(ctx, userID)
 }
 
@@ -114,10 +114,10 @@ func (s *Service) GetReferralConfig(ctx context.Context) (db.ReferralConfig, err
 	return s.repo.GetReferralConfig(ctx)
 }
 
-func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID int64, key string) (*db.Transaction, error) {
+func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID uuid.UUID, key string) (*db.Transaction, error) {
 	var transx *db.Transaction
 
-	kyc, err := s.repo.queries.GetKYCByUserID(ctx, int32(userID))
+	kyc, err := s.repo.queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -148,7 +148,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 			return fmt.Errorf("failed to get wallet: %w", err)
 		}
 		// Get referral earnings
-		earnings, err := q.GetReferralEarnings(ctx, int32(userID))
+		earnings, err := q.GetReferralEarnings(ctx, userID)
 		if err != nil {
 			return fmt.Errorf("failed to get referral earnings: %w", err)
 		}
@@ -193,7 +193,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 
 		// reference := utils.NewTxRef(fmt.Sprintf("rw_%s", uuid.New().String()))
 		refTx, err := q.CreateReferralTransaction(ctx, db.CreateReferralTransactionParams{
-			UserID:          int32(userID),
+			UserID:          userID,
 			TransactionID:   uuid.NullUUID{UUID: tx.ID, Valid: true},
 			TransactionType: string(transaction.Debit),
 			Status:          string(transaction.Pending),
@@ -206,7 +206,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 
 		// Deduct the amount from available balance
 		updateParams := db.UpdateAvailableBalanceAfterWithdrawalParams{
-			UserID:           int32(userID),
+			UserID:           userID,
 			AvailableBalance: amount.String(),
 		}
 		if _, err := q.UpdateAvailableBalanceAfterWithdrawal(ctx, updateParams); err != nil {
@@ -258,7 +258,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID i
 			"Referral Withdrawal",
 			fmt.Sprintf("Your referral withdrawal of %s NGN has been processed successfully.", amount.String()),
 			"system",
-			[]int64{userID},
+			[]uuid.UUID{userID},
 		)
 		s.push.CreditAlert(ctx, userID, amount.InexactFloat64(), "NGN")
 	}()

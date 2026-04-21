@@ -454,7 +454,7 @@ func (u *User) updatePhoneNumber(ctx *gin.Context) {
 		return
 	}
 
-	dbOTP, err := u.server.queries.GetOTPByUserID(ctx, int32(activeUser.UserID))
+	dbOTP, err := u.server.queries.GetOTPByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid or expired OTP"))
 		return
@@ -480,7 +480,7 @@ func (u *User) updatePhoneNumber(ctx *gin.Context) {
 	logentry := audit.NewUserLog(
 		ctx,
 		audit.EventUserPhoneNumberUpdated,
-		strconv.Itoa(int(userInfo.ID)),
+		userInfo.ID.String(),
 		activeUser.Role,
 		fmt.Sprintf("User %d updated their phone number", activeUser.UserID),
 		&activeUser.UserID,
@@ -535,7 +535,7 @@ func (u *User) updateName(ctx *gin.Context) {
 	logentry := audit.NewUserLog(
 		ctx,
 		audit.EventUserNameUpdated,
-		strconv.Itoa(int(userInfo.ID)),
+		userInfo.ID.String(),
 		activeUser.Role,
 		fmt.Sprintf("User %d updated their first and last name", activeUser.UserID),
 		&activeUser.UserID,
@@ -616,7 +616,7 @@ func (u *User) updateAvatar(ctx *gin.Context) {
 
 	// baseURL := "https://swiftfiat.s3.amazonaws.com/user"
 	baseURL := "api/v1/user"
-	encryptedUserID, err := models.EncryptID(models.ID(activeUser.UserID))
+	encryptedUserID, err := models.EncryptID(activeUser.UserID)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting avatar %v", err.Error())))
@@ -898,7 +898,7 @@ func (u *User) CountUnreadNotifications(c *gin.Context) {
 // @Router /api/v1/user/delete-user/{id} [delete]
 func (u *User) DeleteUser(c *gin.Context) {
 	iD := c.Param("id")
-	userID, err := strconv.Atoi(iD)
+	userID, err := uuid.Parse(iD)
 	if err != nil {
 		u.server.logger.Error("error deleting user", err)
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid param"))
@@ -947,7 +947,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 		PhoneNumber: req.PhoneNumber,
 		Email:       req.Email,
 		FirstName:   sql.NullString{String: req.FirstName, Valid: true},
-		ID:          int64(userID),
+		ID:          userID,
 	}
 
 	_, err = u.server.queries.DeleteUser(c, param)
@@ -961,7 +961,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 	logentry := audit.NewUserLog(
 		c,
 		audit.EventUserDeleted,
-		strconv.Itoa(userID),
+		userID.String(),
 		activeUser.Role,
 		fmt.Sprintf("User %d deleted user %d", activeUser.UserID, userID),
 		&activeUser.UserID,
@@ -995,7 +995,7 @@ type UserDetailResponse struct {
 // @Router /api/v1/user/get-user/{id} [get]
 func (u *User) GetUserByID(c *gin.Context) {
 	id := c.Param("id")
-	userID, err := strconv.Atoi(id)
+	userID, err := uuid.Parse(id)
 	if err != nil {
 		u.server.logger.Error("error getting user", err)
 		c.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid id"))
@@ -1013,14 +1013,14 @@ func (u *User) GetUserByID(c *gin.Context) {
 		return
 	}
 
-	user, err := u.server.queries.GetUserByID(c, int64(userID))
+	user, err := u.server.queries.GetUserByID(c, userID)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
 
-	ref, _ := u.server.queries.GetReferralByUserID(c, int32(activeUser.UserID))
+	ref, _ := u.server.queries.GetReferralByUserID(c, activeUser.UserID)
 	// if err != nil {
 	// 	if errors.Is(err, sql.ErrNoRows) {
 	// 		c.JSON(http.StatusBadRequest, basemodels.NewError("user referral not found"))
@@ -1031,14 +1031,14 @@ func (u *User) GetUserByID(c *gin.Context) {
 	// 	return
 	// }
 
-	earnings, err := u.server.queries.GetReferralEarnings(c, int32(user.ID))
+	earnings, err := u.server.queries.GetReferralEarnings(c, user.ID)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
 		return
 	}
 
-	refs, err := u.server.queries.GetUserReferrals(c, int32(user.ID))
+	refs, err := u.server.queries.GetUserReferrals(c, user.ID)
 	if err != nil {
 		u.server.logger.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
@@ -1085,7 +1085,7 @@ func (u *User) GetUserByID(c *gin.Context) {
 func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	// @Router /api/v1/user/update-user-status/{id} [put]
 	id := ctx.Param("id")
-	userID, err := strconv.Atoi(id)
+	userID, err := uuid.Parse(id)
 	if err != nil {
 		u.server.logger.Error("error updating user status", err)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid user ID"))
@@ -1132,9 +1132,9 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 
 	var updatedUser db.User
 	if request.IsActive == "true" {
-		updatedUser, err = u.server.queries.ActivateUser(ctx, int64(userID))
+		updatedUser, err = u.server.queries.ActivateUser(ctx, userID)
 	} else {
-		updatedUser, err = u.server.queries.DeactivateUser(ctx, int64(userID))
+		updatedUser, err = u.server.queries.DeactivateUser(ctx, userID)
 	}
 
 	if err != nil {
@@ -1152,7 +1152,7 @@ func (u *User) UpdateUserStatus(ctx *gin.Context) {
 	logentry := audit.NewUserLog(
 		ctx,
 		audit.EventUserStatusUpdated,
-		strconv.Itoa(userID),
+		userID.String(),
 		activeUser.Role,
 		fmt.Sprintf("User %d %s user %d", activeUser.UserID, status, userID),
 		&activeUser.UserID,

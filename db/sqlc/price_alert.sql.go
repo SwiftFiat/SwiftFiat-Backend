@@ -31,7 +31,7 @@ INSERT INTO alert_trigger_history (
 
 type CreateAlertTriggerHistoryParams struct {
 	AlertID               uuid.UUID      `json:"alert_id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	CurrentRate           string         `json:"current_rate"`
 	PreviousRate          sql.NullString `json:"previous_rate"`
 	ChangePercent         sql.NullString `json:"change_percent"`
@@ -100,7 +100,7 @@ INSERT INTO price_alerts (
 `
 
 type CreatePriceAlertParams struct {
-	UserID           int64          `json:"user_id"`
+	UserID           uuid.UUID      `json:"user_id"`
 	SourceCurrency   string         `json:"source_currency"`
 	TargetCurrency   string         `json:"target_currency"`
 	AlertCondition   string         `json:"alert_condition"`
@@ -202,7 +202,7 @@ WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 
 type DeletePriceAlertParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) DeletePriceAlert(ctx context.Context, arg DeletePriceAlertParams) error {
@@ -442,7 +442,7 @@ WHERE user_id = $1 AND is_active = true AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetUserActiveAlerts(ctx context.Context, userID int64) ([]PriceAlert, error) {
+func (q *Queries) GetUserActiveAlerts(ctx context.Context, userID uuid.UUID) ([]PriceAlert, error) {
 	rows, err := q.db.QueryContext(ctx, getUserActiveAlerts, userID)
 	if err != nil {
 		return nil, err
@@ -519,7 +519,7 @@ type GetUserAlertStatsRow struct {
 	AlertsByPriority json.RawMessage `json:"alerts_by_priority"`
 }
 
-func (q *Queries) GetUserAlertStats(ctx context.Context, userID int64) (GetUserAlertStatsRow, error) {
+func (q *Queries) GetUserAlertStats(ctx context.Context, userID uuid.UUID) (GetUserAlertStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserAlertStats, userID)
 	var i GetUserAlertStatsRow
 	err := row.Scan(
@@ -538,7 +538,7 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetUserAlerts(ctx context.Context, userID int64) ([]PriceAlert, error) {
+func (q *Queries) GetUserAlerts(ctx context.Context, userID uuid.UUID) ([]PriceAlert, error) {
 	rows, err := q.db.QueryContext(ctx, getUserAlerts, userID)
 	if err != nil {
 		return nil, err

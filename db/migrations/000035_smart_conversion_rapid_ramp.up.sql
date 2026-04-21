@@ -5,7 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS "bank_accounts" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     -- Bank account details
     "account_name" VARCHAR(100) NOT NULL,
@@ -56,7 +56,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS "idx_bank_accounts_one_default_per_user"
 -- Stores user-defined automated conversion rules
 CREATE TABLE IF NOT EXISTS "conversion_rules" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     -- Conversion configuration
     "source_currency" VARCHAR(10) NOT NULL CHECK(source_currency IN ('USD', 'NGN', 'USDT', 'USDC')),
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS "idx_conversion_rules_target_wallet" ON conversion_ru
 CREATE TABLE IF NOT EXISTS "conversion_history" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "conversion_rule_id" UUID REFERENCES conversion_rules(id) ON DELETE SET NULL,
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "transaction_id" UUID REFERENCES transactions(id) ON DELETE SET NULL,
 
     -- Conversion details
@@ -184,7 +184,7 @@ CREATE INDEX IF NOT EXISTS "idx_conversion_history_user_status" ON conversion_hi
 CREATE TABLE IF NOT EXISTS "qr_codes" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "token" UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 
     -- QR configuration
     "qr_type" VARCHAR(20) NOT NULL DEFAULT 'payment',
@@ -244,7 +244,7 @@ CREATE TABLE IF NOT EXISTS "qr_transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     "qr_code_id" UUID NOT NULL REFERENCES qr_codes(id) ON DELETE RESTRICT,
     "transaction_id" UUID REFERENCES transactions(id) ON DELETE SET NULL,
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Cryptomus webhook data
     "cryptomus_transaction_id" VARCHAR(100) UNIQUE,

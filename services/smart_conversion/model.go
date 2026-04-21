@@ -9,7 +9,7 @@ import (
 
 type ConversionRule struct {
 	ID                 uuid.UUID        `json:"id"`
-	UserID             int64            `json:"user_id"`
+	UserID             uuid.UUID            `json:"user_id"`
 	SourceCurrency     string           `json:"source_currency"`
 	TargetCurrency     string           `json:"target_currency"`
 	SourceWalletID     uuid.UUID        `json:"source_wallet_id"`

@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const createNewReferral = `-- name: CreateNewReferral :one
@@ -17,8 +19,8 @@ INSERT INTO referrals (
 `
 
 type CreateNewReferralParams struct {
-	UserID      int32  `json:"user_id"`
-	ReferralKey string `json:"referral_key"`
+	UserID      uuid.UUID `json:"user_id"`
+	ReferralKey string    `json:"referral_key"`
 }
 
 func (q *Queries) CreateNewReferral(ctx context.Context, arg CreateNewReferralParams) (Referral, error) {
@@ -90,7 +92,7 @@ const getReferralByUserID = `-- name: GetReferralByUserID :one
 SELECT id, user_id, referral_key, created_at, updated_at FROM referrals WHERE user_id = $1
 `
 
-func (q *Queries) GetReferralByUserID(ctx context.Context, userID int32) (Referral, error) {
+func (q *Queries) GetReferralByUserID(ctx context.Context, userID uuid.UUID) (Referral, error) {
 	row := q.db.QueryRowContext(ctx, getReferralByUserID, userID)
 	var i Referral
 	err := row.Scan(

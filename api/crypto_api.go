@@ -175,7 +175,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 		return
 	}
 
-	kyc, err := c.server.queries.GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := c.server.queries.GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			c.server.logger.Errorf("failed to get user kyc data: %v", err)
@@ -591,9 +591,9 @@ func (c *CryptoAPI) notifyPendingCryptoTransaction(ctx *gin.Context, payload cry
 	message := fmt.Sprintf("Crypto deposit of %s %s detected. Waiting for blockchain confirmation.",
 		amount.String(), strings.ToUpper(payload.Currency))
 
-	c.notifyr.CreateWithRecipients(ctx, nil, "Crypto Deposit Pending", message, "system", []int64{address.CustomerID.Int64})
+	c.notifyr.CreateWithRecipients(ctx, nil, "Crypto Deposit Pending", message, "system", []uuid.UUID{address.CustomerID.UUID})
 
-	c.server.logger.Info("Pending transaction notification sent", "user_id", address.CustomerID.Int64)
+	c.server.logger.Info("Pending transaction notification sent", "user_id", address.CustomerID.UUID)
 }
 
 // GetCoinPriceHistory godoc

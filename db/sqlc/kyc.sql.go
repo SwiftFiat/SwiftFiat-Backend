@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -41,7 +42,7 @@ INSERT INTO kyc (
 ) RETURNING id, user_id, status, tier, verification_date, full_name, phone_number, email, gender, selfie_url, bvn, nin, id_type, id_number, id_image_url, state, lga, house_number, street_name, nearest_landmark, postal_code, country, city, proof_of_address_type, proof_of_address_url, proof_of_address_date, created_at, updated_at, additional_info
 `
 
-func (q *Queries) CreateNewKYC(ctx context.Context, userID int32) (Kyc, error) {
+func (q *Queries) CreateNewKYC(ctx context.Context, userID uuid.UUID) (Kyc, error) {
 	row := q.db.QueryRowContext(ctx, createNewKYC, userID)
 	var i Kyc
 	err := row.Scan(
@@ -147,7 +148,7 @@ type GetKYCByStatusParams struct {
 
 type GetKYCByStatusRow struct {
 	ID                 int64                 `json:"id"`
-	UserID             int32                 `json:"user_id"`
+	UserID             uuid.UUID             `json:"user_id"`
 	Status             string                `json:"status"`
 	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
@@ -243,7 +244,7 @@ SELECT id, user_id, status, tier, verification_date, full_name, phone_number, em
 WHERE user_id = $1
 `
 
-func (q *Queries) GetKYCByUserID(ctx context.Context, userID int32) (Kyc, error) {
+func (q *Queries) GetKYCByUserID(ctx context.Context, userID uuid.UUID) (Kyc, error) {
 	row := q.db.QueryRowContext(ctx, getKYCByUserID, userID)
 	var i Kyc
 	err := row.Scan(
@@ -298,7 +299,7 @@ ORDER BY k.proof_of_address_date ASC
 
 type GetKYCDocumentExpirationsRow struct {
 	ID                 int64          `json:"id"`
-	UserID             int32          `json:"user_id"`
+	UserID             uuid.UUID      `json:"user_id"`
 	Email              string         `json:"email"`
 	ProofOfAddressDate sql.NullTime   `json:"proof_of_address_date"`
 	ProofOfAddressType sql.NullString `json:"proof_of_address_type"`
@@ -383,7 +384,7 @@ WHERE k.id = $1
 
 type GetKYCWithUserDetailsRow struct {
 	ID                 int64                 `json:"id"`
-	UserID             int32                 `json:"user_id"`
+	UserID             uuid.UUID             `json:"user_id"`
 	Status             string                `json:"status"`
 	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
@@ -493,7 +494,7 @@ ORDER BY k.verification_date DESC
 
 type GetRecentVerificationsRow struct {
 	ID               int64          `json:"id"`
-	UserID           int32          `json:"user_id"`
+	UserID           uuid.UUID      `json:"user_id"`
 	VerificationDate sql.NullTime   `json:"verification_date"`
 	Status           string         `json:"status"`
 	Email            string         `json:"email"`
@@ -563,7 +564,7 @@ ORDER BY k.created_at ASC
 `
 
 type GetUsersNeedingKYCReminderRow struct {
-	ID           int64          `json:"id"`
+	ID           uuid.UUID      `json:"id"`
 	Email        string         `json:"email"`
 	FirstName    sql.NullString `json:"first_name"`
 	LastName     sql.NullString `json:"last_name"`
@@ -633,7 +634,7 @@ type ListAllKYCParams struct {
 
 type ListAllKYCRow struct {
 	ID                 int64                 `json:"id"`
-	UserID             int32                 `json:"user_id"`
+	UserID             uuid.UUID             `json:"user_id"`
 	Status             string                `json:"status"`
 	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
@@ -841,7 +842,7 @@ ORDER BY k.created_at DESC
 
 type SearchKYCByEmailRow struct {
 	ID                 int64                 `json:"id"`
-	UserID             int32                 `json:"user_id"`
+	UserID             uuid.UUID             `json:"user_id"`
 	Status             string                `json:"status"`
 	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
@@ -1439,7 +1440,7 @@ RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_pass
 `
 
 type UpdateUserKYCVerificationStatusParams struct {
-	ID            int64     `json:"id"`
+	ID            uuid.UUID `json:"id"`
 	IsKycVerified bool      `json:"is_kyc_verified"`
 	UpdatedAt     time.Time `json:"updated_at"`
 }

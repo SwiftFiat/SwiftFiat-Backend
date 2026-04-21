@@ -4,6 +4,8 @@ import (
 	"errors"
 	"mime/multipart"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 var (
@@ -22,7 +24,7 @@ var (
 )
 
 type CreateTicketParams struct {
-	UserID           int64
+	UserID           uuid.UUID
 	EscalationReason string
 	Priority         string
 	Category         string
@@ -30,7 +32,7 @@ type CreateTicketParams struct {
 
 type SendMessageParams struct {
 	TicketID    int64
-	SenderID    int64
+	SenderID    uuid.UUID
 	SenderType  string // 'user', 'admin', 'ai', 'system'
 	MessageText string
 	Attachments []*multipart.FileHeader
@@ -39,7 +41,7 @@ type SendMessageParams struct {
 type ChatMessageResponse struct {
 	ID                int64                  `json:"id"`
 	TicketID          int64                  `json:"ticket_id"`
-	SenderID          int64                  `json:"sender_id"`
+	SenderID          uuid.UUID                  `json:"sender_id"`
 	SenderType        string                 `json:"sender_type"`
 	MessageText       string                 `json:"message_text"`
 	AIConfidenceScore *float64               `json:"ai_confidence_score,omitempty"`
@@ -64,7 +66,7 @@ type AttachmentResponse struct {
 type AIQueryRequest struct {
 	Message             string                `json:"message"`
 	ConversationContext []ConversationMessage `json:"conversation_context"`
-	UserID              int64                 `json:"user_id"`
+	UserID              uuid.UUID                 `json:"user_id"`
 }
 
 type ConversationMessage struct {
@@ -116,6 +118,6 @@ type OpenAIResponse struct {
 }
 
 type CreateSupportAdminParams struct {
-	UserID               int64
+	UserID               uuid.UUID
 	MaxConcurrentTickets int32
 }

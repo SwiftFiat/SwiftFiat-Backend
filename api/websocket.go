@@ -55,7 +55,7 @@ type WSMessage struct {
 
 type Client struct {
 	ID         string
-	UserID     int64
+	UserID     uuid.UUID
 	UserRole   string
 	TicketID   int64 // 0 means not subscribed to specific ticket
 	Connection *websocket.Conn
@@ -128,16 +128,16 @@ func (h *Hub) shouldSendToClient(client *Client, message WSMessage) bool {
 		return client.TicketID == message.TicketID || (client.UserRole != models.USER && message.TicketID > 0)
 	case "ticket:assigned":
 		// Send to the assigned admin and the ticket owner
-		if metadata, ok := message.Metadata["assigned_to"].(int64); ok {
+		if metadata, ok := message.Metadata["assigned_to"].(uuid.UUID); ok {
 			return client.UserID == metadata
 		}
-		if metadata, ok := message.Metadata["user_id"].(int64); ok {
+		if metadata, ok := message.Metadata["user_id"].(uuid.UUID); ok {
 			return client.UserID == metadata
 		}
 		return false
 	case "notification:new":
 		// send only to specific user
-		if metadata, ok := message.Metadata["user_id"].(int64); ok {
+		if metadata, ok := message.Metadata["user_id"].(uuid.UUID); ok {
 			return client.UserID == metadata
 		}
 		return false

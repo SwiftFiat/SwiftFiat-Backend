@@ -7,6 +7,7 @@ import (
 	"fmt"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
+	"github.com/google/uuid"
 	"github.com/speps/go-hashids/v2"
 )
 
@@ -98,8 +99,8 @@ func ParseIDFromString(s string) (ID, error) {
 	return ID(result[0]), nil
 }
 
-func EncryptID(id ID) (string, error) {
-	return dbHash.EncodeInt64([]int64{int64(id)})
+func EncryptID(id uuid.UUID) (string, error) {
+	return dbHash.EncodeHex(id.String())
 }
 
 func DecryptID(id string) (ID, error) {

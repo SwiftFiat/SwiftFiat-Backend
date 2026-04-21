@@ -2,7 +2,7 @@ CREATE TABLE notifications (
     id BIGSERIAL PRIMARY KEY,
 
     -- who created it (NULL = system)
-    sender_admin_id BIGINT REFERENCES users(id),
+    sender_admin_id UUID REFERENCES users(id),
 
     -- admin | system
     source VARCHAR(10) NOT NULL
@@ -48,7 +48,7 @@ CREATE TABLE admin_alerts (
 
     acknowledged BOOLEAN DEFAULT FALSE,
     acknowledged_at TIMESTAMPTZ,
-    acknowledged_by BIGINT
+    acknowledged_by UUID
       REFERENCES users(id)
       ON DELETE SET NULL,
 

@@ -237,7 +237,7 @@ type UserVIPAssignment struct {
 }
 
 type AssignVIPLevelRequest struct {
-	UserID     int64      `json:"user_id" binding:"required"`
+	UserID     uuid.UUID      `json:"user_id" binding:"required"`
 	VIPLevelID uuid.UUID  `json:"vip_level_id" binding:"required"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	Reason     *string    `json:"reason,omitempty"`
@@ -245,7 +245,7 @@ type AssignVIPLevelRequest struct {
 
 type UserVIPAssignmentResponse struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID          `json:"user_id"`
 	UserEmail             string         `json:"user_email"`
 	UserName              string         `json:"user_name"`
 	VIPLevelID            uuid.UUID      `json:"vip_level_id"`

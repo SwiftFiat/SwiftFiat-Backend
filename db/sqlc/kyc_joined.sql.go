@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -31,12 +32,12 @@ LIMIT 1
 `
 
 type GetUserAndKYCWithProofOfAddressRow struct {
-	UserID               sql.NullInt64         `json:"user_id"`
+	UserID               uuid.NullUUID         `json:"user_id"`
 	FirstName            sql.NullString        `json:"first_name"`
 	LastName             sql.NullString        `json:"last_name"`
 	UserEmail            sql.NullString        `json:"user_email"`
 	ID                   int64                 `json:"id"`
-	UserID_2             int32                 `json:"user_id_2"`
+	UserID_2             uuid.UUID             `json:"user_id_2"`
 	Status               string                `json:"status"`
 	Tier                 string                `json:"tier"`
 	VerificationDate     sql.NullTime          `json:"verification_date"`

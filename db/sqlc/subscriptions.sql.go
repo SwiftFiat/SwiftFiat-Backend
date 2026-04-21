@@ -27,7 +27,7 @@ RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, 
 
 type ActivateCardParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) ActivateCard(ctx context.Context, arg ActivateCardParams) (VirtualCard, error) {
@@ -181,7 +181,7 @@ INSERT INTO card_billing_history (
 
 type CreateCardBillingParams struct {
 	CardID             uuid.UUID `json:"card_id"`
-	UserID             int64     `json:"user_id"`
+	UserID             uuid.UUID `json:"user_id"`
 	CardPlanID         int64     `json:"card_plan_id"`
 	BillingType        string    `json:"billing_type"`
 	Amount             string    `json:"amount"`
@@ -243,7 +243,7 @@ INSERT INTO card_funding_history (
 
 type CreateCardFundingParams struct {
 	CardID         uuid.UUID      `json:"card_id"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	SourceWalletID uuid.UUID      `json:"source_wallet_id"`
 	Amount         string         `json:"amount"`
 	Currency       string         `json:"currency"`
@@ -365,7 +365,7 @@ INSERT INTO card_transactions (
 
 type CreateCardTransactionParams struct {
 	CardID                  uuid.UUID             `json:"card_id"`
-	UserID                  int64                 `json:"user_id"`
+	UserID                  uuid.UUID             `json:"user_id"`
 	BridgecardTransactionID string                `json:"bridgecard_transaction_id"`
 	TransactionType         string                `json:"transaction_type"`
 	MerchantName            sql.NullString        `json:"merchant_name"`
@@ -458,7 +458,7 @@ INSERT INTO user_subscriptions (
 `
 
 type CreateCustomSubscriptionParams struct {
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantName            string         `json:"merchant_name"`
 	DisplayName             string         `json:"display_name"`
@@ -628,7 +628,7 @@ INSERT INTO subscription_reminders (
 
 type CreateSubscriptionReminderParams struct {
 	SubscriptionID uuid.UUID      `json:"subscription_id"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	ReminderType   string         `json:"reminder_type"`
 	ScheduledFor   time.Time      `json:"scheduled_for"`
 	Title          string         `json:"title"`
@@ -684,7 +684,7 @@ INSERT INTO user_subscriptions (
 `
 
 type CreateUserSubscriptionParams struct {
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -773,7 +773,7 @@ INSERT INTO virtual_cards (
 `
 
 type CreateVirtualCardParams struct {
-	UserID           int64          `json:"user_id"`
+	UserID           uuid.UUID      `json:"user_id"`
 	CardPlanID       int64          `json:"card_plan_id"`
 	BridgecardCardID string         `json:"bridgecard_card_id"`
 	CardName         string         `json:"card_name"`
@@ -841,7 +841,7 @@ RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, 
 
 type DeactivateCardParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) DeactivateCard(ctx context.Context, arg DeactivateCardParams) (VirtualCard, error) {
@@ -897,7 +897,7 @@ LIMIT 1
 `
 
 type FindExistingSubscriptionParams struct {
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 	CardID uuid.UUID `json:"card_id"`
 	Lower  string    `json:"lower"`
 }
@@ -991,7 +991,7 @@ RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, 
 
 type FreezeCardParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) FreezeCard(ctx context.Context, arg FreezeCardParams) (VirtualCard, error) {
@@ -1099,7 +1099,7 @@ type GetAutoTopupSuccessRateRow struct {
 	SuccessRatePercentage int32 `json:"success_rate_percentage"`
 }
 
-func (q *Queries) GetAutoTopupSuccessRate(ctx context.Context, userID int64) (GetAutoTopupSuccessRateRow, error) {
+func (q *Queries) GetAutoTopupSuccessRate(ctx context.Context, userID uuid.UUID) (GetAutoTopupSuccessRateRow, error) {
 	row := q.db.QueryRowContext(ctx, getAutoTopupSuccessRate, userID)
 	var i GetAutoTopupSuccessRateRow
 	err := row.Scan(&i.TotalAutoTopups, &i.SuccessfulAutoTopups, &i.SuccessRatePercentage)
@@ -1486,9 +1486,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetCardTransactionsByUserParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetCardTransactionsByUser(ctx context.Context, arg GetCardTransactionsByUserParams) ([]CardTransaction, error) {
@@ -1551,7 +1551,7 @@ WHERE vc.status = 'active'
 
 type GetCardsForAutoTopupRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardPlanID              int64          `json:"card_plan_id"`
 	BridgecardCardID        string         `json:"bridgecard_card_id"`
 	CardName                string         `json:"card_name"`
@@ -1688,7 +1688,7 @@ SELECT COUNT(*) FROM user_subscriptions
 WHERE user_id = $1 AND is_custom = TRUE AND status = 'active'
 `
 
-func (q *Queries) GetCustomSubscriptionCount(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) GetCustomSubscriptionCount(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getCustomSubscriptionCount, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -1707,7 +1707,7 @@ LIMIT $1
 type GetPendingRemindersRow struct {
 	ID             uuid.UUID      `json:"id"`
 	SubscriptionID uuid.UUID      `json:"subscription_id"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	ReminderType   string         `json:"reminder_type"`
 	ScheduledFor   time.Time      `json:"scheduled_for"`
 	SentAt         sql.NullTime   `json:"sent_at"`
@@ -1903,7 +1903,7 @@ type GetSubscriptionStatsRow struct {
 // ============================================================================
 // SUBSCRIPTION ANALYTICS
 // ============================================================================
-func (q *Queries) GetSubscriptionStats(ctx context.Context, userID int64) (GetSubscriptionStatsRow, error) {
+func (q *Queries) GetSubscriptionStats(ctx context.Context, userID uuid.UUID) (GetSubscriptionStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getSubscriptionStats, userID)
 	var i GetSubscriptionStatsRow
 	err := row.Scan(
@@ -1932,7 +1932,7 @@ type GetSubscriptionsByCategoryRow struct {
 	TotalSpend        int64          `json:"total_spend"`
 }
 
-func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID int64) ([]GetSubscriptionsByCategoryRow, error) {
+func (q *Queries) GetSubscriptionsByCategory(ctx context.Context, userID uuid.UUID) ([]GetSubscriptionsByCategoryRow, error) {
 	rows, err := q.db.QueryContext(ctx, getSubscriptionsByCategory, userID)
 	if err != nil {
 		return nil, err
@@ -1980,7 +1980,7 @@ type GetSubscriptionsDueForReminderParams struct {
 
 type GetSubscriptionsDueForReminderRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -2110,8 +2110,8 @@ LIMIT $2
 `
 
 type GetTopMerchantsBySpendParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
 }
 
 type GetTopMerchantsBySpendRow struct {
@@ -2256,7 +2256,7 @@ SELECT COUNT(*) FROM virtual_cards
 WHERE user_id = $1 AND status = 'active' AND terminated_at IS NULL
 `
 
-func (q *Queries) GetUserActiveCardsCount(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) GetUserActiveCardsCount(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getUserActiveCardsCount, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -2274,16 +2274,16 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserBillingHistoryParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type GetUserBillingHistoryRow struct {
 	ID                 uuid.UUID      `json:"id"`
 	TransactionID      uuid.UUID      `json:"transaction_id"`
 	CardID             uuid.UUID      `json:"card_id"`
-	UserID             int64          `json:"user_id"`
+	UserID             uuid.UUID      `json:"user_id"`
 	CardPlanID         int64          `json:"card_plan_id"`
 	BillingType        string         `json:"billing_type"`
 	Amount             string         `json:"amount"`
@@ -2348,9 +2348,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserCardFundingHistoryParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetUserCardFundingHistory(ctx context.Context, arg GetUserCardFundingHistoryParams) ([]CardFundingHistory, error) {
@@ -2418,7 +2418,7 @@ type GetUserCardStatsRow struct {
 // ============================================================================
 // ANALYTICS
 // ============================================================================
-func (q *Queries) GetUserCardStats(ctx context.Context, userID int64) (GetUserCardStatsRow, error) {
+func (q *Queries) GetUserCardStats(ctx context.Context, userID uuid.UUID) (GetUserCardStatsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserCardStats, userID)
 	var i GetUserCardStatsRow
 	err := row.Scan(
@@ -2441,16 +2441,16 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserCardTransactionsParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type GetUserCardTransactionsRow struct {
 	ID                      uuid.UUID             `json:"id"`
 	TransactionID           uuid.UUID             `json:"transaction_id"`
 	CardID                  uuid.UUID             `json:"card_id"`
-	UserID                  int64                 `json:"user_id"`
+	UserID                  uuid.UUID             `json:"user_id"`
 	BridgecardTransactionID string                `json:"bridgecard_transaction_id"`
 	TransactionType         string                `json:"transaction_type"`
 	MerchantName            sql.NullString        `json:"merchant_name"`
@@ -2535,7 +2535,7 @@ ORDER BY vc.created_at DESC
 
 type GetUserCardsRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardPlanID              int64          `json:"card_plan_id"`
 	BridgecardCardID        string         `json:"bridgecard_card_id"`
 	CardName                string         `json:"card_name"`
@@ -2563,7 +2563,7 @@ type GetUserCardsRow struct {
 	TransactionLimit        string         `json:"transaction_limit"`
 }
 
-func (q *Queries) GetUserCards(ctx context.Context, userID int64) ([]GetUserCardsRow, error) {
+func (q *Queries) GetUserCards(ctx context.Context, userID uuid.UUID) ([]GetUserCardsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserCards, userID)
 	if err != nil {
 		return nil, err
@@ -2620,8 +2620,8 @@ WHERE user_id = $1 AND card_plan_id = $2 AND terminated_at IS NULL
 `
 
 type GetUserCardsCountByPlanParams struct {
-	UserID     int64 `json:"user_id"`
-	CardPlanID int64 `json:"card_plan_id"`
+	UserID     uuid.UUID `json:"user_id"`
+	CardPlanID int64     `json:"card_plan_id"`
 }
 
 func (q *Queries) GetUserCardsCountByPlan(ctx context.Context, arg GetUserCardsCountByPlanParams) (int64, error) {
@@ -2641,7 +2641,7 @@ ORDER BY us.next_estimated_charge_date ASC
 
 type GetUserCustomSubscriptionsRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -2676,7 +2676,7 @@ type GetUserCustomSubscriptionsRow struct {
 	Website                 sql.NullString `json:"website"`
 }
 
-func (q *Queries) GetUserCustomSubscriptions(ctx context.Context, userID int64) ([]GetUserCustomSubscriptionsRow, error) {
+func (q *Queries) GetUserCustomSubscriptions(ctx context.Context, userID uuid.UUID) ([]GetUserCustomSubscriptionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserCustomSubscriptions, userID)
 	if err != nil {
 		return nil, err
@@ -2742,9 +2742,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetUserRemindersParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetUserReminders(ctx context.Context, arg GetUserRemindersParams) ([]SubscriptionReminder, error) {
@@ -2792,7 +2792,7 @@ WHERE us.id = $1
 
 type GetUserSubscriptionRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -2886,7 +2886,7 @@ type GetUserSubscriptionSummaryRow struct {
 	NextChargeDate    time.Time `json:"next_charge_date"`
 }
 
-func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID int64) (GetUserSubscriptionSummaryRow, error) {
+func (q *Queries) GetUserSubscriptionSummary(ctx context.Context, userID uuid.UUID) (GetUserSubscriptionSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserSubscriptionSummary, userID)
 	var i GetUserSubscriptionSummaryRow
 	err := row.Scan(
@@ -2908,7 +2908,7 @@ ORDER BY us.next_estimated_charge_date ASC
 
 type GetUserSubscriptionsRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -2943,7 +2943,7 @@ type GetUserSubscriptionsRow struct {
 	Website                 sql.NullString `json:"website"`
 }
 
-func (q *Queries) GetUserSubscriptions(ctx context.Context, userID int64) ([]GetUserSubscriptionsRow, error) {
+func (q *Queries) GetUserSubscriptions(ctx context.Context, userID uuid.UUID) ([]GetUserSubscriptionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, getUserSubscriptions, userID)
 	if err != nil {
 		return nil, err
@@ -3011,7 +3011,7 @@ ORDER BY us.next_estimated_charge_date ASC
 
 type GetUserSubscriptionsByCardRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -3297,7 +3297,7 @@ ORDER BY us.next_estimated_charge_date ASC
 
 type ListAllSubscriptionsRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -3669,7 +3669,7 @@ RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, 
 
 type TerminateCardParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) TerminateCard(ctx context.Context, arg TerminateCardParams) (VirtualCard, error) {
@@ -3716,7 +3716,7 @@ RETURNING id, user_id, card_plan_id, bridgecard_card_id, card_name, card_color, 
 
 type UnfreezeCardParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) UnfreezeCard(ctx context.Context, arg UnfreezeCardParams) (VirtualCard, error) {
@@ -4243,7 +4243,7 @@ RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, catego
 
 type UpdateCustomSubscriptionParams struct {
 	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	DisplayName            sql.NullString `json:"display_name"`
 	Amount                 sql.NullInt64  `json:"amount"`
 	BillingIntervalDays    sql.NullInt32  `json:"billing_interval_days"`
@@ -4543,7 +4543,7 @@ RETURNING id, user_id, card_id, merchant_id, merchant_name, display_name, catego
 
 type UpdateSubscriptionPreferencesParams struct {
 	ID                 uuid.UUID      `json:"id"`
-	UserID             int64          `json:"user_id"`
+	UserID             uuid.UUID      `json:"user_id"`
 	ReminderEnabled    sql.NullBool   `json:"reminder_enabled"`
 	ReminderDaysBefore sql.NullInt32  `json:"reminder_days_before"`
 	CustomName         sql.NullString `json:"custom_name"`
@@ -4669,7 +4669,7 @@ RETURNING id, setting_key, setting_value, setting_type, description, category, i
 type UpdateSystemSettingParams struct {
 	SettingKey   string        `json:"setting_key"`
 	SettingValue string        `json:"setting_value"`
-	UpdatedBy    sql.NullInt64 `json:"updated_by"`
+	UpdatedBy    uuid.NullUUID `json:"updated_by"`
 }
 
 func (q *Queries) UpdateSystemSetting(ctx context.Context, arg UpdateSystemSettingParams) (SubscriptionSystemSetting, error) {

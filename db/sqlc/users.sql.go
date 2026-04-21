@@ -21,7 +21,7 @@ WHERE "id" = $1
 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
-func (q *Queries) ActivateUser(ctx context.Context, id int64) (User, error) {
+func (q *Queries) ActivateUser(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, activateUser, id)
 	var i User
 	err := row.Scan(
@@ -80,7 +80,7 @@ RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_pass
 `
 
 type AdminUpdateUserParams struct {
-	ID          int64          `json:"id"`
+	ID          uuid.UUID      `json:"id"`
 	FirstName   sql.NullString `json:"first_name"`
 	LastName    sql.NullString `json:"last_name"`
 	Email       string         `json:"email"`
@@ -248,7 +248,7 @@ WHERE "id" = $1
 RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id
 `
 
-func (q *Queries) DeactivateUser(ctx context.Context, id int64) (User, error) {
+func (q *Queries) DeactivateUser(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, deactivateUser, id)
 	var i User
 	err := row.Scan(
@@ -316,7 +316,7 @@ type DeleteUserParams struct {
 	PhoneNumber string         `json:"phone_number"`
 	Email       string         `json:"email"`
 	FirstName   sql.NullString `json:"first_name"`
-	ID          int64          `json:"id"`
+	ID          uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) DeleteUser(ctx context.Context, arg DeleteUserParams) (User, error) {
@@ -378,7 +378,7 @@ WHERE id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) DisableRapidRamp(ctx context.Context, id int64) error {
+func (q *Queries) DisableRapidRamp(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, disableRapidRamp, id)
 	return err
 }
@@ -392,7 +392,7 @@ WHERE id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) EnableRapidRamp(ctx context.Context, id int64) error {
+func (q *Queries) EnableRapidRamp(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, enableRapidRamp, id)
 	return err
 }
@@ -401,7 +401,7 @@ const getBridgeCardCardholderByUserID = `-- name: GetBridgeCardCardholderByUserI
 SELECT bridgecard_cardholder_id FROM users WHERE id = $1
 `
 
-func (q *Queries) GetBridgeCardCardholderByUserID(ctx context.Context, id int64) (sql.NullString, error) {
+func (q *Queries) GetBridgeCardCardholderByUserID(ctx context.Context, id uuid.UUID) (sql.NullString, error) {
 	row := q.db.QueryRowContext(ctx, getBridgeCardCardholderByUserID, id)
 	var bridgecard_cardholder_id sql.NullString
 	err := row.Scan(&bridgecard_cardholder_id)
@@ -424,7 +424,7 @@ ORDER BY created_at DESC
 `
 
 type GetPendingCardholderVerificationsRow struct {
-	ID                           int64          `json:"id"`
+	ID                           uuid.UUID      `json:"id"`
 	Email                        string         `json:"email"`
 	BridgecardCardholderID       sql.NullString `json:"bridgecard_cardholder_id"`
 	BridgecardVerificationStatus sql.NullString `json:"bridgecard_verification_status"`
@@ -471,7 +471,7 @@ WHERE id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) GetRapidRampStatus(ctx context.Context, id int64) (bool, error) {
+func (q *Queries) GetRapidRampStatus(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, getRapidRampStatus, id)
 	var is_rapid_ramp_on bool
 	err := row.Scan(&is_rapid_ramp_on)
@@ -600,7 +600,7 @@ const getUserByID = `-- name: GetUserByID :one
 SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE id = $1
 `
 
-func (q *Queries) GetUserByID(ctx context.Context, id int64) (User, error) {
+func (q *Queries) GetUserByID(ctx context.Context, id uuid.UUID) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByID, id)
 	var i User
 	err := row.Scan(
@@ -750,7 +750,7 @@ WHERE id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) GetUserHasCompletedFirstConversion(ctx context.Context, id int64) (sql.NullBool, error) {
+func (q *Queries) GetUserHasCompletedFirstConversion(ctx context.Context, id uuid.UUID) (sql.NullBool, error) {
 	row := q.db.QueryRowContext(ctx, getUserHasCompletedFirstConversion, id)
 	var has_completed_first_conversion sql.NullBool
 	err := row.Scan(&has_completed_first_conversion)
@@ -1043,7 +1043,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type SetBridgeCardCardholderIDParams struct {
 	BridgecardCardholderID sql.NullString `json:"bridgecard_cardholder_id"`
 	UpdatedAt              time.Time      `json:"updated_at"`
-	ID                     int64          `json:"id"`
+	ID                     uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) SetBridgeCardCardholderID(ctx context.Context, arg SetBridgeCardCardholderIDParams) error {
@@ -1060,7 +1060,7 @@ type SetUserTwoFAParams struct {
 	TwofaSecret  sql.NullString `json:"twofa_secret"`
 	TwofaEnabled sql.NullBool   `json:"twofa_enabled"`
 	UpdatedAt    time.Time      `json:"updated_at"`
-	ID           int64          `json:"id"`
+	ID           uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) SetUserTwoFA(ctx context.Context, arg SetUserTwoFAParams) (User, error) {
@@ -1123,7 +1123,7 @@ WHERE id = $1
 RETURNING is_rapid_ramp_on
 `
 
-func (q *Queries) ToggleRapidRamp(ctx context.Context, id int64) (bool, error) {
+func (q *Queries) ToggleRapidRamp(ctx context.Context, id uuid.UUID) (bool, error) {
 	row := q.db.QueryRowContext(ctx, toggleRapidRamp, id)
 	var is_rapid_ramp_on bool
 	err := row.Scan(&is_rapid_ramp_on)
@@ -1138,7 +1138,7 @@ WHERE id = $3
 type UpdateCardholderVerificationStatusParams struct {
 	BridgecardVerificationStatus sql.NullString `json:"bridgecard_verification_status"`
 	UpdatedAt                    time.Time      `json:"updated_at"`
-	ID                           int64          `json:"id"`
+	ID                           uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateCardholderVerificationStatus(ctx context.Context, arg UpdateCardholderVerificationStatusParams) error {
@@ -1155,7 +1155,7 @@ type UpdateUserAvatarParams struct {
 	AvatarUrl  sql.NullString `json:"avatar_url"`
 	AvatarBlob []byte         `json:"avatar_blob"`
 	UpdatedAt  time.Time      `json:"updated_at"`
-	ID         int64          `json:"id"`
+	ID         uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserAvatar(ctx context.Context, arg UpdateUserAvatarParams) (User, error) {
@@ -1219,7 +1219,7 @@ WHERE id = $2
 
 type UpdateUserFirstConversionAtParams struct {
 	FirstConversionAt sql.NullTime `json:"first_conversion_at"`
-	ID                int64        `json:"id"`
+	ID                uuid.UUID    `json:"id"`
 }
 
 func (q *Queries) UpdateUserFirstConversionAt(ctx context.Context, arg UpdateUserFirstConversionAtParams) error {
@@ -1238,7 +1238,7 @@ WHERE id = $2
 
 type UpdateUserFirstConversionIDParams struct {
 	FirstConversionID uuid.NullUUID `json:"first_conversion_id"`
-	ID                int64         `json:"id"`
+	ID                uuid.UUID     `json:"id"`
 }
 
 func (q *Queries) UpdateUserFirstConversionID(ctx context.Context, arg UpdateUserFirstConversionIDParams) error {
@@ -1254,7 +1254,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserFirstNameParams struct {
 	FirstName sql.NullString `json:"first_name"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	ID        int64          `json:"id"`
+	ID        uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserFirstName(ctx context.Context, arg UpdateUserFirstNameParams) (User, error) {
@@ -1310,7 +1310,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserFreshChatIDParams struct {
 	FreshChatID sql.NullString `json:"fresh_chat_id"`
 	UpdatedAt   time.Time      `json:"updated_at"`
-	ID          int64          `json:"id"`
+	ID          uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserFreshChatID(ctx context.Context, arg UpdateUserFreshChatIDParams) (User, error) {
@@ -1367,7 +1367,7 @@ WHERE id = $1
   AND deleted_at IS NULL
 `
 
-func (q *Queries) UpdateUserHasCompletedFirstConversion(ctx context.Context, id int64) error {
+func (q *Queries) UpdateUserHasCompletedFirstConversion(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, updateUserHasCompletedFirstConversion, id)
 	return err
 }
@@ -1380,7 +1380,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserLastNameParams struct {
 	LastName  sql.NullString `json:"last_name"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	ID        int64          `json:"id"`
+	ID        uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserLastName(ctx context.Context, arg UpdateUserLastNameParams) (User, error) {
@@ -1437,7 +1437,7 @@ type UpdateUserNamesParams struct {
 	FirstName sql.NullString `json:"first_name"`
 	LastName  sql.NullString `json:"last_name"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	ID        int64          `json:"id"`
+	ID        uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserNames(ctx context.Context, arg UpdateUserNamesParams) (User, error) {
@@ -1498,7 +1498,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserPasscodeeParams struct {
 	HashedPasscode sql.NullString `json:"hashed_passcode"`
 	UpdatedAt      time.Time      `json:"updated_at"`
-	ID             int64          `json:"id"`
+	ID             uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserPasscodee(ctx context.Context, arg UpdateUserPasscodeeParams) (User, error) {
@@ -1554,7 +1554,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserPasswordParams struct {
 	HashedPassword sql.NullString `json:"hashed_password"`
 	UpdatedAt      time.Time      `json:"updated_at"`
-	ID             int64          `json:"id"`
+	ID             uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
@@ -1610,7 +1610,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserPhoneParams struct {
 	PhoneNumber string    `json:"phone_number"`
 	UpdatedAt   time.Time `json:"updated_at"`
-	ID          int64     `json:"id"`
+	ID          uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) (User, error) {
@@ -1666,7 +1666,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserPinParams struct {
 	HashedPin sql.NullString `json:"hashed_pin"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	ID        int64          `json:"id"`
+	ID        uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserPin(ctx context.Context, arg UpdateUserPinParams) (User, error) {
@@ -1722,7 +1722,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserTagParams struct {
 	UserTag   sql.NullString `json:"user_tag"`
 	UpdatedAt time.Time      `json:"updated_at"`
-	ID        int64          `json:"id"`
+	ID        uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserTag(ctx context.Context, arg UpdateUserTagParams) (User, error) {
@@ -1778,7 +1778,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserVerificationParams struct {
 	Verified  bool      `json:"verified"`
 	UpdatedAt time.Time `json:"updated_at"`
-	ID        int64     `json:"id"`
+	ID        uuid.UUID `json:"id"`
 }
 
 func (q *Queries) UpdateUserVerification(ctx context.Context, arg UpdateUserVerificationParams) (User, error) {
@@ -1835,7 +1835,7 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 type UpdateUserWalletStatusParams struct {
 	HasWallets bool      `json:"has_wallets"`
 	UpdatedAt  time.Time `json:"updated_at"`
-	ID         int64     `json:"id"`
+	ID         uuid.UUID `json:"id"`
 }
 
 // -- name: UpdateUserKYCVerificationStatus :one

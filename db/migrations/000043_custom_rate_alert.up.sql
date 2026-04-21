@@ -6,7 +6,7 @@
 -- =====================================================
 CREATE TABLE IF NOT EXISTS price_alerts (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Currency pair
     source_currency VARCHAR(10) NOT NULL,
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS price_alerts (
 CREATE TABLE IF NOT EXISTS alert_trigger_history (
     id BIGSERIAL PRIMARY KEY,
     alert_id UUID NOT NULL REFERENCES price_alerts(id) ON DELETE CASCADE,
-    user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Trigger details
     triggered_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

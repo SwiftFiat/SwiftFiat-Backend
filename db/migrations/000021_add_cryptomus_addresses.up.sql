@@ -7,7 +7,7 @@ BEGIN;
 -- Crypto Addresses table
 CREATE TABLE IF NOT EXISTS "cryptomus_addresses" (
                                                      "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "customer_id" BIGSERIAL REFERENCES users(id) ON DELETE SET NULL,
+    "customer_id" UUID REFERENCES users(id) ON DELETE SET NULL,
     "wallet_uuid" VARCHAR NOT NULL,
     "uuid" VARCHAR NOT NULL,
     "address" VARCHAR NOT NULL UNIQUE,

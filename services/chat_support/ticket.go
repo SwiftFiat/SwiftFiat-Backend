@@ -9,6 +9,7 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/google/uuid"
 )
 
 type TicketService struct {
@@ -59,7 +60,7 @@ func (s *TicketService) CreateTicket(ctx context.Context, params *CreateTicketPa
 }
 
 // AssignTicket assigns a ticket to a support admin
-func (s *TicketService) AssignTicket(ctx context.Context, ticketID, adminID, assignedBy int64) (*db.Ticket, error) {
+func (s *TicketService) AssignTicket(ctx context.Context, ticketID int64, adminID, assignedBy uuid.UUID) (*db.Ticket, error) {
 	// Get ticket to check current state
 	ticket, err := s.store.GetTicketByID(ctx, ticketID)
 	if err != nil {
@@ -73,7 +74,7 @@ func (s *TicketService) AssignTicket(ctx context.Context, ticketID, adminID, ass
 	// Assign ticket
 	updatedTicket, err := s.store.AssignTicket(ctx, db.AssignTicketParams{
 		ID:         ticketID,
-		AssignedTo: sql.NullInt64{Int64: adminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: adminID, Valid: true},
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to assign ticket: %v", err))
@@ -83,7 +84,7 @@ func (s *TicketService) AssignTicket(ctx context.Context, ticketID, adminID, ass
 	// Create assignment history
 	_, err = s.store.CreateTicketAssignmentHistory(ctx, db.CreateTicketAssignmentHistoryParams{
 		TicketID:   ticketID,
-		AssignedTo: sql.NullInt64{Int64: adminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: adminID, Valid: true},
 		AssignedBy: assignedBy,
 		Reason: sql.NullString{
 			String: "Ticket assigned by admin",
@@ -110,10 +111,10 @@ func (s *TicketService) AssignTicket(ctx context.Context, ticketID, adminID, ass
 }
 
 // ClaimTicket allows an agent to claim an unassigned ticket
-func (s *TicketService) ClaimTicket(ctx context.Context, ticketID, adminID int64) (*db.Ticket, error) {
+func (s *TicketService) ClaimTicket(ctx context.Context, ticketID int64, adminID uuid.UUID) (*db.Ticket, error) {
 	ticket, err := s.store.ClaimTicket(ctx, db.ClaimTicketParams{
 		ID:         ticketID,
-		AssignedTo: sql.NullInt64{Int64: adminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: adminID, Valid: true},
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to claim ticket: %v", err))
@@ -123,7 +124,7 @@ func (s *TicketService) ClaimTicket(ctx context.Context, ticketID, adminID int64
 	// Create assignment history
 	_, err = s.store.CreateTicketAssignmentHistory(ctx, db.CreateTicketAssignmentHistoryParams{
 		TicketID:   ticketID,
-		AssignedTo: sql.NullInt64{Int64: adminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: adminID, Valid: true},
 		AssignedBy: adminID,
 		Reason: sql.NullString{
 			String: "Ticket claimed by agent",
@@ -147,7 +148,7 @@ func (s *TicketService) ClaimTicket(ctx context.Context, ticketID, adminID int64
 }
 
 // ReassignTicket reassigns a ticket from one agent to another
-func (s *TicketService) ReassignTicket(ctx context.Context, ticketID, newAdminID, reassignedBy int64) (*db.Ticket, error) {
+func (s *TicketService) ReassignTicket(ctx context.Context, ticketID int64, newAdminID, reassignedBy uuid.UUID) (*db.Ticket, error) {
 	ticket, err := s.store.GetTicketByID(ctx, ticketID)
 	if err != nil {
 		return nil, ErrTicketNotFound
@@ -158,7 +159,7 @@ func (s *TicketService) ReassignTicket(ctx context.Context, ticketID, newAdminID
 	// Update assignment
 	updatedTicket, err := s.store.AssignTicket(ctx, db.AssignTicketParams{
 		ID:         ticketID,
-		AssignedTo: sql.NullInt64{Int64: newAdminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: newAdminID, Valid: true},
 	})
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to reassign ticket: %v", err))
@@ -168,7 +169,7 @@ func (s *TicketService) ReassignTicket(ctx context.Context, ticketID, newAdminID
 	_, err = s.store.CreateTicketAssignmentHistory(ctx, db.CreateTicketAssignmentHistoryParams{
 		TicketID:     ticketID,
 		AssignedFrom: oldAdminID,
-		AssignedTo:   sql.NullInt64{Int64: newAdminID, Valid: true},
+		AssignedTo:   uuid.NullUUID{UUID: newAdminID, Valid: true},
 		AssignedBy:   reassignedBy,
 		Reason: sql.NullString{
 			String: "Ticket reassigned",
@@ -181,7 +182,7 @@ func (s *TicketService) ReassignTicket(ctx context.Context, ticketID, newAdminID
 
 	// Update ticket counts
 	if oldAdminID.Valid {
-		err = s.store.DecrementActiveTicketCount(ctx, oldAdminID.Int64)
+		err = s.store.DecrementActiveTicketCount(ctx, oldAdminID.UUID)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("failed to decrement old admin ticket count: %v", err))
 		}
@@ -221,7 +222,7 @@ func (s *TicketService) UpdateTicketStatus(ctx context.Context, ticketID int64, 
 	// If ticket is resolved or closed, decrement active ticket count
 	if status == "resolved" || status == "closed" {
 		if ticket.AssignedTo.Valid {
-			err = s.store.DecrementActiveTicketCount(ctx, ticket.AssignedTo.Int64)
+			err = s.store.DecrementActiveTicketCount(ctx, ticket.AssignedTo.UUID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("failed to decrement active ticket count: %v", err))
 			}
@@ -244,14 +245,14 @@ func (s *TicketService) ResolveTicket(ctx context.Context, ticketID int64) (*db.
 
 	// Decrement active ticket count
 	if ticket.AssignedTo.Valid {
-		err = s.store.DecrementActiveTicketCount(ctx, ticket.AssignedTo.Int64)
+		err = s.store.DecrementActiveTicketCount(ctx, ticket.AssignedTo.UUID)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("failed to decrement active ticket count: %v", err))
 		}
 	}
 
 	// Update agent metrics
-	go s.updateAgentMetrics(ctx, ticket.AssignedTo.Int64, ticketID)
+	go s.updateAgentMetrics(ctx, ticket.AssignedTo.UUID, ticketID)
 
 	// Notify user
 	go s.notifyUserResolution(ctx, &ticket)
@@ -269,11 +270,11 @@ func (s *TicketService) AutoAssignTicket(ctx context.Context, ticketID int64) (*
 	}
 
 	// Assign to the agent with lowest workload
-	return s.AssignTicket(ctx, ticketID, agents[0].ID, 0) // 0 indicates auto-assignment
+	return s.AssignTicket(ctx, ticketID, agents[0].ID, uuid.Nil) // 0 indicates auto-assignment
 }
 
 // GetTicketsByUser retrieves all tickets for a user
-func (s *TicketService) GetTicketsByUser(ctx context.Context, userID int64, limit, offset int32) ([]db.Ticket, error) {
+func (s *TicketService) GetTicketsByUser(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]db.Ticket, error) {
 	tickets, err := s.store.ListTicketsByUser(ctx, db.ListTicketsByUserParams{
 		UserID: userID,
 		Limit:  limit,
@@ -314,9 +315,9 @@ func (s *TicketService) GetAllTickets(ctx context.Context, limit, offset int32) 
 }
 
 // GetTicketsByAssignedAdmin retrieves tickets assigned to a specific admin
-func (s *TicketService) GetTicketsByAssignedAdmin(ctx context.Context, adminID int64, limit, offset int32) ([]db.ListTicketsByAssignedAdminRow, error) {
+func (s *TicketService) GetTicketsByAssignedAdmin(ctx context.Context, adminID uuid.UUID, limit, offset int32) ([]db.ListTicketsByAssignedAdminRow, error) {
 	tickets, err := s.store.ListTicketsByAssignedAdmin(ctx, db.ListTicketsByAssignedAdminParams{
-		AssignedTo: sql.NullInt64{Int64: adminID, Valid: true},
+		AssignedTo: uuid.NullUUID{UUID: adminID, Valid: true},
 		Limit:      limit,
 		Offset:     offset,
 	})
@@ -377,7 +378,7 @@ func (s *TicketService) notifyAdminsNewTicket(ctx context.Context, ticket *db.Ti
 			"New Support Ticket",
 			fmt.Sprintf("New ticket #%d from %s %s", ticket.ID, user.FirstName.String, user.LastName.String),
 			"system",
-			[]int64{adminUser.ID},
+			[]uuid.UUID{adminUser.ID},
 		)
 		if err != nil {
 			s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -395,7 +396,7 @@ func (s *TicketService) notifyAdminsNewTicket(ctx context.Context, ticket *db.Ti
 	}
 }
 
-func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ticket, adminID int64) {
+func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ticket, adminID uuid.UUID) {
 	admin, err := s.store.GetSupportAdminByID(ctx, adminID)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to get admin: %v", err))
@@ -414,7 +415,7 @@ func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ti
 		"Ticket Assigned",
 		fmt.Sprintf("Ticket #%d has been assigned to you", ticket.ID),
 		"system",
-		[]int64{adminUser.ID},
+		[]uuid.UUID{adminUser.ID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -428,7 +429,7 @@ func (s *TicketService) notifyUserAssignment(ctx context.Context, ticket *db.Tic
 		"Support Agent Assigned",
 		"A support agent has joined your conversation and will assist you shortly.",
 		"system",
-		[]int64{ticket.UserID},
+		[]uuid.UUID{ticket.UserID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
@@ -442,14 +443,14 @@ func (s *TicketService) notifyUserResolution(ctx context.Context, ticket *db.Tic
 		"Ticket Resolved",
 		fmt.Sprintf("Your support ticket #%d has been resolved.", ticket.ID),
 		"system",
-		[]int64{ticket.UserID},
+		[]uuid.UUID{ticket.UserID},
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
 	}
 }
 
-func (s *TicketService) updateAgentMetrics(ctx context.Context, adminID, ticketID int64) {
+func (s *TicketService) updateAgentMetrics(ctx context.Context, adminID uuid.UUID, ticketID int64) {
 	// Calculate resolution time and other metrics
 	ticket, err := s.store.GetTicketByID(ctx, ticketID)
 	if err != nil {

@@ -578,7 +578,7 @@ func (r *RateManagerHandler) GetCurrentRateWithAdjustment(c *gin.Context) {
 		return
 	}
 
-	rate, err := r.service.GetAdjustedRateForUser(c.Request.Context(), int64(user_id), from, to, amount)
+	rate, err := r.service.GetAdjustedRateForUser(c.Request.Context(), user_id, from, to, amount)
 	if err != nil {
 		r.server.logger.Errorf("failed to get adjusted rate: %v", err)
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to get adjusted rate"))
@@ -654,7 +654,7 @@ func (r *RateManagerHandler) GetUserVIPLevel(c *gin.Context) {
 	}
 
 	// Use the service method which handles the new users table fields and auto-updates VIP levels
-	vipStatus, err := r.service.GetUserVIPStatus(c.Request.Context(), int64(activeUser.UserID))
+	vipStatus, err := r.service.GetUserVIPStatus(c.Request.Context(), activeUser.UserID)
 	if err != nil {
 		r.server.logger.Errorf("failed to get user vip status: %v", err)
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get user vip status"))

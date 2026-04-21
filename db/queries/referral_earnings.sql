@@ -113,3 +113,8 @@ SELECT * FROM referral_transactions WHERE id = $1;
 -- name: GetAllReferralTransactions :many
 SELECT * FROM referral_transactions
 ORDER BY created_at;
+
+-- name: GetUserReferralTxs :many
+SELECT * FROM referral_transactions
+WHERE user_id = $1
+ORDER BY created_at;

@@ -20,7 +20,7 @@ SET is_default = FALSE, updated_at = NOW()
 WHERE user_id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) ClearDefaultBankAccounts(ctx context.Context, userID int64) error {
+func (q *Queries) ClearDefaultBankAccounts(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, clearDefaultBankAccounts, userID)
 	return err
 }
@@ -42,7 +42,7 @@ RETURNING id, user_id, account_name, account_number, bank_code, bank_name, accou
 `
 
 type CreateBankAccountParams struct {
-	UserID        int64          `json:"user_id"`
+	UserID        uuid.UUID      `json:"user_id"`
 	AccountName   string         `json:"account_name"`
 	AccountNumber string         `json:"account_number"`
 	BankCode      string         `json:"bank_code"`
@@ -125,7 +125,7 @@ INSERT INTO conversion_history (
 
 type CreateConversionHistoryParams struct {
 	ConversionRuleID    uuid.NullUUID  `json:"conversion_rule_id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	TransactionID       uuid.NullUUID  `json:"transaction_id"`
 	SourceCurrency      string         `json:"source_currency"`
 	TargetCurrency      string         `json:"target_currency"`
@@ -231,7 +231,7 @@ INSERT INTO conversion_rules (
 `
 
 type CreateConversionRuleParams struct {
-	UserID             int64          `json:"user_id"`
+	UserID             uuid.UUID      `json:"user_id"`
 	SourceCurrency     string         `json:"source_currency"`
 	TargetCurrency     string         `json:"target_currency"`
 	SourceWalletID     uuid.NullUUID  `json:"source_wallet_id"`
@@ -338,7 +338,7 @@ INSERT INTO qr_codes (
 `
 
 type CreateQRCodeParams struct {
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	QrType              string         `json:"qr_type"`
 	CurrencyPreference  string         `json:"currency_preference"`
 	ConversionMode      string         `json:"conversion_mode"`
@@ -434,7 +434,7 @@ INSERT INTO qr_transactions (
 
 type CreateQRTransactionParams struct {
 	QrCodeID               uuid.UUID             `json:"qr_code_id"`
-	UserID                 int64                 `json:"user_id"`
+	UserID                 uuid.UUID             `json:"user_id"`
 	CryptomusTransactionID sql.NullString        `json:"cryptomus_transaction_id"`
 	CryptomusOrderID       sql.NullString        `json:"cryptomus_order_id"`
 	CryptomusUuid          sql.NullString        `json:"cryptomus_uuid"`
@@ -529,7 +529,7 @@ RETURNING id, user_id, account_name, account_number, bank_code, bank_name, accou
 
 type DeleteBankAccountParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) DeleteBankAccount(ctx context.Context, arg DeleteBankAccountParams) (BankAccount, error) {
@@ -571,7 +571,7 @@ RETURNING id, user_id, source_currency, target_currency, source_wallet_id, targe
 
 type DeleteConversionRuleParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) DeleteConversionRule(ctx context.Context, arg DeleteConversionRuleParams) (ConversionRule, error) {
@@ -623,7 +623,7 @@ RETURNING id, token, user_id, qr_type, currency_preference, conversion_mode, net
 
 type DeleteQRCodeParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) DeleteQRCode(ctx context.Context, arg DeleteQRCodeParams) (QrCode, error) {
@@ -737,9 +737,9 @@ LIMIT 1
 `
 
 type GetActiveRuleByCurrencyPairParams struct {
-	UserID         int64  `json:"user_id"`
-	SourceCurrency string `json:"source_currency"`
-	TargetCurrency string `json:"target_currency"`
+	UserID         uuid.UUID `json:"user_id"`
+	SourceCurrency string    `json:"source_currency"`
+	TargetCurrency string    `json:"target_currency"`
 }
 
 func (q *Queries) GetActiveRuleByCurrencyPair(ctx context.Context, arg GetActiveRuleByCurrencyPairParams) (ConversionRule, error) {
@@ -988,7 +988,7 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY is_default DESC, created_at DESC
 `
 
-func (q *Queries) GetBankAccountsByUser(ctx context.Context, userID int64) ([]BankAccount, error) {
+func (q *Queries) GetBankAccountsByUser(ctx context.Context, userID uuid.UUID) ([]BankAccount, error) {
 	rows, err := q.db.QueryContext(ctx, getBankAccountsByUser, userID)
 	if err != nil {
 		return nil, err
@@ -1134,9 +1134,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetConversionHistoryByUserParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetConversionHistoryByUser(ctx context.Context, arg GetConversionHistoryByUserParams) ([]ConversionHistory, error) {
@@ -1202,7 +1202,7 @@ AND executed_at >= $2
 `
 
 type GetConversionHistoryStatsParams struct {
-	UserID     int64     `json:"user_id"`
+	UserID     uuid.UUID `json:"user_id"`
 	ExecutedAt time.Time `json:"executed_at"`
 }
 
@@ -1279,7 +1279,7 @@ WHERE user_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetConversionRules(ctx context.Context, userID int64) ([]ConversionRule, error) {
+func (q *Queries) GetConversionRules(ctx context.Context, userID uuid.UUID) ([]ConversionRule, error) {
 	rows, err := q.db.QueryContext(ctx, getConversionRules, userID)
 	if err != nil {
 		return nil, err
@@ -1341,7 +1341,7 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetConversionRulesByUser(ctx context.Context, userID int64) ([]ConversionRule, error) {
+func (q *Queries) GetConversionRulesByUser(ctx context.Context, userID uuid.UUID) ([]ConversionRule, error) {
 	rows, err := q.db.QueryContext(ctx, getConversionRulesByUser, userID)
 	if err != nil {
 		return nil, err
@@ -1406,7 +1406,7 @@ WHERE user_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetDefaultBankAccount(ctx context.Context, userID int64) (BankAccount, error) {
+func (q *Queries) GetDefaultBankAccount(ctx context.Context, userID uuid.UUID) (BankAccount, error) {
 	row := q.db.QueryRowContext(ctx, getDefaultBankAccount, userID)
 	var i BankAccount
 	err := row.Scan(
@@ -1698,7 +1698,7 @@ WHERE user_id = $1 AND deleted_at IS NULL
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetQRCodesByUser(ctx context.Context, userID int64) ([]QrCode, error) {
+func (q *Queries) GetQRCodesByUser(ctx context.Context, userID uuid.UUID) ([]QrCode, error) {
 	rows, err := q.db.QueryContext(ctx, getQRCodesByUser, userID)
 	if err != nil {
 		return nil, err
@@ -1878,7 +1878,7 @@ WHERE user_id = $1
 `
 
 type GetQRTransactionStatsParams struct {
-	UserID    int64     `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	CreatedAt time.Time `json:"created_at"`
 	Limit     int32     `json:"limit"`
 	Offset    int32     `json:"offset"`
@@ -2049,9 +2049,9 @@ LIMIT $2 OFFSET $3
 `
 
 type GetQRTransactionsByUserParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) GetQRTransactionsByUser(ctx context.Context, arg GetQRTransactionsByUserParams) ([]QrTransaction, error) {
@@ -2131,9 +2131,9 @@ WHERE user_id = $1
 `
 
 type GetRulesByCurrencyPairParams struct {
-	UserID         int64  `json:"user_id"`
-	SourceCurrency string `json:"source_currency"`
-	TargetCurrency string `json:"target_currency"`
+	UserID         uuid.UUID `json:"user_id"`
+	SourceCurrency string    `json:"source_currency"`
+	TargetCurrency string    `json:"target_currency"`
 }
 
 func (q *Queries) GetRulesByCurrencyPair(ctx context.Context, arg GetRulesByCurrencyPairParams) ([]ConversionRule, error) {
@@ -2420,7 +2420,7 @@ RETURNING id, user_id, account_name, account_number, bank_code, bank_name, accou
 
 type SetDefaultBankAccountParams struct {
 	ID     uuid.UUID `json:"id"`
-	UserID int64     `json:"user_id"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) SetDefaultBankAccount(ctx context.Context, arg SetDefaultBankAccountParams) (BankAccount, error) {
@@ -2556,7 +2556,7 @@ RETURNING id, user_id, source_currency, target_currency, source_wallet_id, targe
 
 type UpdateConversionRuleParams struct {
 	ID          uuid.UUID      `json:"id"`
-	UserID      int64          `json:"user_id"`
+	UserID      uuid.UUID      `json:"user_id"`
 	TriggerRate sql.NullString `json:"trigger_rate"`
 	Percentage  sql.NullString `json:"percentage"`
 	FixedAmount sql.NullString `json:"fixed_amount"`

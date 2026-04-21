@@ -40,9 +40,9 @@ RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, 
 `
 
 type AssignUserToVIPLevelParams struct {
-	UserID                int64         `json:"user_id"`
+	UserID                uuid.UUID     `json:"user_id"`
 	VipLevelID            uuid.UUID     `json:"vip_level_id"`
-	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignedBy            uuid.NullUUID `json:"assigned_by"`
 	AssignmentType        string        `json:"assignment_type"`
 	TotalConversionVolume string        `json:"total_conversion_volume"`
 	ExpiresAt             sql.NullTime  `json:"expires_at"`
@@ -290,8 +290,8 @@ type CreateRateAdjustmentRuleParams struct {
 	ValidFrom           sql.NullTime   `json:"valid_from"`
 	ValidUntil          sql.NullTime   `json:"valid_until"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 }
 
 // =====================================================
@@ -430,8 +430,8 @@ type CreateVIPLevelParams struct {
 	BadgeColor          sql.NullString `json:"badge_color"`
 	IconUrl             sql.NullString `json:"icon_url"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 }
 
 // =====================================================
@@ -483,7 +483,7 @@ WHERE user_id = $1 AND is_active = TRUE
 RETURNING id, user_id, vip_level_id, assigned_at, assigned_by, assignment_type, total_conversion_volume, is_active, expires_at, created_at, updated_at
 `
 
-func (q *Queries) DeactivateUserVIPAssignment(ctx context.Context, userID int64) (UserVipAssignment, error) {
+func (q *Queries) DeactivateUserVIPAssignment(ctx context.Context, userID uuid.UUID) (UserVipAssignment, error) {
 	row := q.db.QueryRowContext(ctx, deactivateUserVIPAssignment, userID)
 	var i UserVipAssignment
 	err := row.Scan(
@@ -557,7 +557,7 @@ RETURNING id, level_name, level_code, level_rank, min_conversion_volume, descrip
 
 type DeleteVIPLevelParams struct {
 	ID        uuid.UUID     `json:"id"`
-	UpdatedBy sql.NullInt64 `json:"updated_by"`
+	UpdatedBy uuid.NullUUID `json:"updated_by"`
 }
 
 func (q *Queries) DeleteVIPLevel(ctx context.Context, arg DeleteVIPLevelParams) (VipLevel, error) {
@@ -749,7 +749,7 @@ WHERE user_id = $1
 LIMIT 1
 `
 
-func (q *Queries) GetActiveVIPAssignment(ctx context.Context, userID int64) (UserVipAssignment, error) {
+func (q *Queries) GetActiveVIPAssignment(ctx context.Context, userID uuid.UUID) (UserVipAssignment, error) {
 	row := q.db.QueryRowContext(ctx, getActiveVIPAssignment, userID)
 	var i UserVipAssignment
 	err := row.Scan(
@@ -798,7 +798,7 @@ type GetApplicableRulesForUserParams struct {
 	SourceCurrency      string         `json:"source_currency"`
 	TargetCurrency      string         `json:"target_currency"`
 	MinConversionAmount sql.NullString `json:"min_conversion_amount"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 }
 
 type GetApplicableRulesForUserRow struct {
@@ -818,8 +818,8 @@ type GetApplicableRulesForUserRow struct {
 	ValidFrom           sql.NullTime   `json:"valid_from"`
 	ValidUntil          sql.NullTime   `json:"valid_until"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 	DeletedAt           sql.NullTime   `json:"deleted_at"`
@@ -1128,7 +1128,7 @@ LIMIT $2 OFFSET $3
 `
 
 type GetRateChangesForUserParams struct {
-	AppliedToUserID sql.NullInt64 `json:"applied_to_user_id"`
+	AppliedToUserID uuid.NullUUID `json:"applied_to_user_id"`
 	Limit           int32         `json:"limit"`
 	Offset          int32         `json:"offset"`
 }
@@ -1239,7 +1239,7 @@ LIMIT $1
 `
 
 type GetTopVIPUsersRow struct {
-	ID                    int64          `json:"id"`
+	ID                    uuid.UUID      `json:"id"`
 	Email                 string         `json:"email"`
 	FirstName             sql.NullString `json:"first_name"`
 	LastName              sql.NullString `json:"last_name"`
@@ -1283,7 +1283,7 @@ FROM users
 WHERE id = $1 AND deleted_at IS NULL
 `
 
-func (q *Queries) GetTotalConversionVolumeForUser(ctx context.Context, userID int64) (int32, error) {
+func (q *Queries) GetTotalConversionVolumeForUser(ctx context.Context, userID uuid.UUID) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalConversionVolumeForUser, userID)
 	var total_volume int32
 	err := row.Scan(&total_volume)
@@ -1306,10 +1306,10 @@ LIMIT 1
 
 type GetUserVIPAssignmentRow struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	VipLevelID            uuid.UUID      `json:"vip_level_id"`
 	AssignedAt            time.Time      `json:"assigned_at"`
-	AssignedBy            sql.NullInt64  `json:"assigned_by"`
+	AssignedBy            uuid.NullUUID  `json:"assigned_by"`
 	AssignmentType        string         `json:"assignment_type"`
 	TotalConversionVolume string         `json:"total_conversion_volume"`
 	IsActive              bool           `json:"is_active"`
@@ -1323,7 +1323,7 @@ type GetUserVIPAssignmentRow struct {
 	BenefitsDescription   sql.NullString `json:"benefits_description"`
 }
 
-func (q *Queries) GetUserVIPAssignment(ctx context.Context, userID int64) (GetUserVIPAssignmentRow, error) {
+func (q *Queries) GetUserVIPAssignment(ctx context.Context, userID uuid.UUID) (GetUserVIPAssignmentRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserVIPAssignment, userID)
 	var i GetUserVIPAssignmentRow
 	err := row.Scan(
@@ -1355,7 +1355,7 @@ WHERE uva.user_id = $1 AND uva.is_active = TRUE
 LIMIT 1
 `
 
-func (q *Queries) GetUserVIPLevel(ctx context.Context, userID int64) (VipLevel, error) {
+func (q *Queries) GetUserVIPLevel(ctx context.Context, userID uuid.UUID) (VipLevel, error) {
 	row := q.db.QueryRowContext(ctx, getUserVIPLevel, userID)
 	var i VipLevel
 	err := row.Scan(
@@ -1406,7 +1406,7 @@ LIMIT 1
 
 type GetUserVIPStatusRow struct {
 	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	VipLevelID             uuid.UUID      `json:"vip_level_id"`
 	IsActive               bool           `json:"is_active"`
 	TotalConversionVolume  string         `json:"total_conversion_volume"`
@@ -1424,7 +1424,7 @@ type GetUserVIPStatusRow struct {
 	VipDeletedAt           sql.NullTime   `json:"vip_deleted_at"`
 }
 
-func (q *Queries) GetUserVIPStatus(ctx context.Context, userID int64) (GetUserVIPStatusRow, error) {
+func (q *Queries) GetUserVIPStatus(ctx context.Context, userID uuid.UUID) (GetUserVIPStatusRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserVIPStatus, userID)
 	var i GetUserVIPStatusRow
 	err := row.Scan(
@@ -1458,7 +1458,7 @@ WHERE u.id = $1 AND u.deleted_at IS NULL
 `
 
 type GetUserWithVIPFieldsRow struct {
-	ID                     int64          `json:"id"`
+	ID                     uuid.UUID      `json:"id"`
 	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
 	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
 	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
@@ -1470,7 +1470,7 @@ type GetUserWithVIPFieldsRow struct {
 	BenefitsDescription    sql.NullString `json:"benefits_description"`
 }
 
-func (q *Queries) GetUserWithVIPFields(ctx context.Context, id int64) (GetUserWithVIPFieldsRow, error) {
+func (q *Queries) GetUserWithVIPFields(ctx context.Context, id uuid.UUID) (GetUserWithVIPFieldsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserWithVIPFields, id)
 	var i GetUserWithVIPFieldsRow
 	err := row.Scan(
@@ -1671,8 +1671,8 @@ WHERE id = $2 AND deleted_at IS NULL
 `
 
 type IncrementUserConversionVolumeParams struct {
-	Amount string `json:"amount"`
-	UserID int64  `json:"user_id"`
+	Amount string    `json:"amount"`
+	UserID uuid.UUID `json:"user_id"`
 }
 
 func (q *Queries) IncrementUserConversionVolume(ctx context.Context, arg IncrementUserConversionVolumeParams) error {
@@ -1711,8 +1711,8 @@ type ListActiveRateAdjustmentRulesRow struct {
 	ValidFrom           sql.NullTime   `json:"valid_from"`
 	ValidUntil          sql.NullTime   `json:"valid_until"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 	DeletedAt           sql.NullTime   `json:"deleted_at"`
@@ -1847,8 +1847,8 @@ type ListRateAdjustmentRulesRow struct {
 	ValidFrom           sql.NullTime   `json:"valid_from"`
 	ValidUntil          sql.NullTime   `json:"valid_until"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 	DeletedAt           sql.NullTime   `json:"deleted_at"`
@@ -1994,10 +1994,10 @@ type ListRateChangesRow struct {
 	VipLevelID       uuid.NullUUID  `json:"vip_level_id"`
 	VipLevelName     sql.NullString `json:"vip_level_name"`
 	RateProvider     sql.NullString `json:"rate_provider"`
-	AppliedToUserID  sql.NullInt64  `json:"applied_to_user_id"`
+	AppliedToUserID  uuid.NullUUID  `json:"applied_to_user_id"`
 	ConversionID     uuid.NullUUID  `json:"conversion_id"`
 	ChangeReason     sql.NullString `json:"change_reason"`
-	ChangedBy        sql.NullInt64  `json:"changed_by"`
+	ChangedBy        uuid.NullUUID  `json:"changed_by"`
 	CreatedAt        time.Time      `json:"created_at"`
 	UserEmail        sql.NullString `json:"user_email"`
 }
@@ -2064,17 +2064,17 @@ LIMIT $2 OFFSET $3
 `
 
 type ListUserVIPHistoryParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 type ListUserVIPHistoryRow struct {
 	ID                    uuid.UUID     `json:"id"`
-	UserID                int64         `json:"user_id"`
+	UserID                uuid.UUID     `json:"user_id"`
 	VipLevelID            uuid.UUID     `json:"vip_level_id"`
 	AssignedAt            time.Time     `json:"assigned_at"`
-	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignedBy            uuid.NullUUID `json:"assigned_by"`
 	AssignmentType        string        `json:"assignment_type"`
 	TotalConversionVolume string        `json:"total_conversion_volume"`
 	IsActive              bool          `json:"is_active"`
@@ -2150,7 +2150,7 @@ type ListUsersInVIPLevelParams struct {
 }
 
 type ListUsersInVIPLevelRow struct {
-	ID                     int64          `json:"id"`
+	ID                     uuid.UUID      `json:"id"`
 	Email                  string         `json:"email"`
 	FirstName              sql.NullString `json:"first_name"`
 	LastName               sql.NullString `json:"last_name"`
@@ -2250,7 +2250,7 @@ SET is_read = TRUE, read_at = NOW(), read_by = $1
 WHERE is_read = FALSE
 `
 
-func (q *Queries) MarkAllRateAdminNotificationsAsRead(ctx context.Context, readBy sql.NullInt64) error {
+func (q *Queries) MarkAllRateAdminNotificationsAsRead(ctx context.Context, readBy uuid.NullUUID) error {
 	_, err := q.db.ExecContext(ctx, markAllRateAdminNotificationsAsRead, readBy)
 	return err
 }
@@ -2264,7 +2264,7 @@ RETURNING id, notification_type, severity, title, message, related_entity_type, 
 
 type MarkRateAdminNotificationAsReadParams struct {
 	ID     uuid.UUID     `json:"id"`
-	ReadBy sql.NullInt64 `json:"read_by"`
+	ReadBy uuid.NullUUID `json:"read_by"`
 }
 
 func (q *Queries) MarkRateAdminNotificationAsRead(ctx context.Context, arg MarkRateAdminNotificationAsReadParams) (RateAdminNotification, error) {
@@ -2320,10 +2320,10 @@ type RecordRateChangeParams struct {
 	VipLevelID       uuid.NullUUID  `json:"vip_level_id"`
 	VipLevelName     sql.NullString `json:"vip_level_name"`
 	RateProvider     sql.NullString `json:"rate_provider"`
-	AppliedToUserID  sql.NullInt64  `json:"applied_to_user_id"`
+	AppliedToUserID  uuid.NullUUID  `json:"applied_to_user_id"`
 	ConversionID     uuid.NullUUID  `json:"conversion_id"`
 	ChangeReason     sql.NullString `json:"change_reason"`
-	ChangedBy        sql.NullInt64  `json:"changed_by"`
+	ChangedBy        uuid.NullUUID  `json:"changed_by"`
 }
 
 // =====================================================
@@ -2378,7 +2378,7 @@ RETURNING id, rule_name, rule_description, vip_level_id, is_global_rule, source_
 type ToggleRateAdjustmentRuleParams struct {
 	ID        uuid.UUID     `json:"id"`
 	IsActive  bool          `json:"is_active"`
-	UpdatedBy sql.NullInt64 `json:"updated_by"`
+	UpdatedBy uuid.NullUUID `json:"updated_by"`
 }
 
 func (q *Queries) ToggleRateAdjustmentRule(ctx context.Context, arg ToggleRateAdjustmentRuleParams) (RateAdjustmentRule, error) {
@@ -2431,7 +2431,7 @@ RETURNING id, rule_name, rule_description, vip_level_id, is_global_rule, source_
 
 type UpdateRateAdjustmentRuleParams struct {
 	ID                  uuid.UUID      `json:"id"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	RuleName            sql.NullString `json:"rule_name"`
 	RuleDescription     sql.NullString `json:"rule_description"`
 	AdjustmentType      sql.NullString `json:"adjustment_type"`
@@ -2498,7 +2498,7 @@ WHERE id = $1
 `
 
 type UpdateUserVIPFieldsParams struct {
-	ID                     int64          `json:"id"`
+	ID                     uuid.UUID      `json:"id"`
 	TotalConversionVolume  sql.NullString `json:"total_conversion_volume"`
 	TotalTransactionVolume sql.NullString `json:"total_transaction_volume"`
 	CurrentVipLevelID      uuid.NullUUID  `json:"current_vip_level_id"`
@@ -2533,7 +2533,7 @@ RETURNING id, level_name, level_code, level_rank, min_conversion_volume, descrip
 
 type UpdateVIPLevelParams struct {
 	ID                  uuid.UUID      `json:"id"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	LevelName           sql.NullString `json:"level_name"`
 	LevelCode           sql.NullString `json:"level_code"`
 	LevelRank           sql.NullInt32  `json:"level_rank"`

@@ -26,7 +26,7 @@
     "id" BIGSERIAL PRIMARY KEY,
     
     -- Link to user
-    "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
     
     -- Streak Metrics
     "current_streak" INT NOT NULL DEFAULT 0, -- Current consecutive days with transactions
@@ -120,7 +120,7 @@ CREATE INDEX IF NOT EXISTS "idx_badges_required_days" ON "badges"("required_stre
     "id" BIGSERIAL PRIMARY KEY,
     
     -- Relations
-    "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
     "badge_id" BIGINT NOT NULL REFERENCES "badges"("id") ON DELETE CASCADE,
     
     -- Achievement metadata
@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS "transaction_streak_history" (
     "id" BIGSERIAL PRIMARY KEY,
     
     -- Relations
-    "user_id" BIGINT NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES "users"("id") ON DELETE CASCADE,
     "transaction_id" UUID, -- Optional: link to specific transaction
     
     -- Snapshot of streak state

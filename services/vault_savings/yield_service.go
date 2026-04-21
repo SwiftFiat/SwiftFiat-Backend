@@ -45,7 +45,7 @@ func NewYieldService(
 
 type VaultYieldResponse struct {
 	ID                     uuid.UUID `json:"id"`
-	UserID                 int64     `json:"user_id"`
+	UserID                 uuid.UUID     `json:"user_id"`
 	VaultID                uuid.UUID `json:"vault_id"`
 	YieldAmount            string    `json:"yield_amount"`
 	YieldRate              string    `json:"yield_rate"`

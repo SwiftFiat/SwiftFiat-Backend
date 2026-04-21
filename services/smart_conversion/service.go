@@ -52,7 +52,7 @@ func NewConversionService(
 }
 
 // CreateConversionRule creates a new conversion rule
-func (s *ConversionService) CreateConversionRule(ctx context.Context, userID int64, req *CreateConversionRuleRequest) (*ConversionRule, error) {
+func (s *ConversionService) CreateConversionRule(ctx context.Context, userID uuid.UUID, req *CreateConversionRuleRequest) (*ConversionRule, error) {
 	s.logger.Info(fmt.Sprintf("Creating conversion rule for user %d", userID))
 
 	// Validate currency pair
@@ -121,7 +121,7 @@ func (s *ConversionService) CreateConversionRule(ctx context.Context, userID int
 }
 
 // PauseConversionRule pauses a conversion rule
-func (s *ConversionService) PauseConversionRule(ctx context.Context, ruleID uuid.UUID, userID int64) error {
+func (s *ConversionService) PauseConversionRule(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
 	rule, err := s.store.GetConversionRule(ctx, ruleID)
 	if err != nil {
 		return ErrRuleNotFound
@@ -141,7 +141,7 @@ func (s *ConversionService) PauseConversionRule(ctx context.Context, ruleID uuid
 }
 
 // ResumeConversionRule resumes a paused conversion rule
-func (s *ConversionService) ResumeConversionRule(ctx context.Context, ruleID uuid.UUID, userID int64) error {
+func (s *ConversionService) ResumeConversionRule(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
 	rule, err := s.store.GetConversionRule(ctx, ruleID)
 	if err != nil {
 		return ErrRuleNotFound
@@ -161,7 +161,7 @@ func (s *ConversionService) ResumeConversionRule(ctx context.Context, ruleID uui
 }
 
 // DeleteConversionRule soft deletes a conversion rule
-func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uuid.UUID, userID int64) error {
+func (s *ConversionService) DeleteConversionRule(ctx context.Context, ruleID uuid.UUID, userID uuid.UUID) error {
 	_, err := s.store.DeleteConversionRule(ctx, db.DeleteConversionRuleParams{
 		ID:     ruleID,
 		UserID: userID,
@@ -220,7 +220,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 		return nil, fmt.Errorf("failed to convert amount to decimal: %w", err)
 	}
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -300,7 +300,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 // executeWithBaseRate is a fallback when VIP rate calculation fails
 func (s *ConversionService) executeWithBaseRate(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	req *ManualConversionRequest,
 	targetWalletID uuid.UUID,
 	sourceWalletID uuid.UUID,
@@ -362,7 +362,7 @@ func (s *ConversionService) executeWithBaseRate(
 }
 
 type conversionExecutionParams struct {
-	userID         int64
+	userID         uuid.UUID
 	ruleID         *uuid.UUID
 	sourceWalletID uuid.UUID
 	targetWalletID uuid.UUID
@@ -531,7 +531,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 				bgCtx := context.Background()
 				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
 					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
-					"system", []int64{*referrerID})
+					"system", []uuid.UUID{*referrerID})
 				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
 			}()
 		}
@@ -545,7 +545,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 			bgCtx := context.Background()
 			s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral conversion Bonus Earned",
 				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()),
-				"system", []int64{*referrerID})
+				"system", []uuid.UUID{*referrerID})
 			s.push.SendPushNotification(bgCtx, *referrerID, "Referral conversion Bonus Earned",
 				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
 		}()
@@ -556,7 +556,7 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		bgCtx := context.Background()
 		s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
-			"system", []int64{params.userID})
+			"system", []uuid.UUID{params.userID})
 		s.push.SendPushNotification(bgCtx, params.userID, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
 	}()
@@ -744,7 +744,7 @@ func (s *ConversionService) executeRuleConversion(ctx context.Context, rule *db.
 // ============================================================
 
 // GetConversionHistory retrieves conversion history for a user
-func (s *ConversionService) GetConversionHistory(ctx context.Context, userID int64, limit, offset int32) ([]*ConversionHistoryResponse, error) {
+func (s *ConversionService) GetConversionHistory(ctx context.Context, userID uuid.UUID, limit, offset int32) ([]*ConversionHistoryResponse, error) {
 	histories, err := s.store.GetConversionHistoryByUser(ctx, db.GetConversionHistoryByUserParams{
 		UserID: userID,
 		Limit:  limit,
@@ -787,7 +787,7 @@ func (s *ConversionService) GetConversionHistory(ctx context.Context, userID int
 }
 
 // GetConversionStats retrieves conversion statistics for a user
-func (s *ConversionService) GetConversionStats(ctx context.Context, userID int64, since time.Time) (*ConversionStats, error) {
+func (s *ConversionService) GetConversionStats(ctx context.Context, userID uuid.UUID, since time.Time) (*ConversionStats, error) {
 	stats, err := s.store.GetConversionHistoryStats(ctx, db.GetConversionHistoryStatsParams{
 		UserID:     userID,
 		ExecutedAt: since,

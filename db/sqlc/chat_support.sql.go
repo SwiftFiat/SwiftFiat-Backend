@@ -10,6 +10,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 	"github.com/sqlc-dev/pqtype"
 )
@@ -23,7 +24,7 @@ RETURNING id, user_id, status, assigned_to, escalation_reason, priority, categor
 
 type AssignTicketParams struct {
 	ID         int64         `json:"id"`
-	AssignedTo sql.NullInt64 `json:"assigned_to"`
+	AssignedTo uuid.NullUUID `json:"assigned_to"`
 }
 
 func (q *Queries) AssignTicket(ctx context.Context, arg AssignTicketParams) (Ticket, error) {
@@ -55,7 +56,7 @@ RETURNING id, user_id, status, assigned_to, escalation_reason, priority, categor
 
 type ClaimTicketParams struct {
 	ID         int64         `json:"id"`
-	AssignedTo sql.NullInt64 `json:"assigned_to"`
+	AssignedTo uuid.NullUUID `json:"assigned_to"`
 }
 
 func (q *Queries) ClaimTicket(ctx context.Context, arg ClaimTicketParams) (Ticket, error) {
@@ -105,7 +106,7 @@ SELECT COUNT(*) FROM tickets
 WHERE user_id = $1 AND status IN ('open', 'assigned', 'in_progress')
 `
 
-func (q *Queries) CountUserOpenTickets(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) CountUserOpenTickets(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countUserOpenTickets, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -166,7 +167,7 @@ type CreateCannedResponseParams struct {
 	Content   string         `json:"content"`
 	Shortcut  sql.NullString `json:"shortcut"`
 	Category  sql.NullString `json:"category"`
-	CreatedBy sql.NullInt64  `json:"created_by"`
+	CreatedBy uuid.NullUUID  `json:"created_by"`
 }
 
 // ============================================================
@@ -205,7 +206,7 @@ RETURNING id, ticket_id, sender_id, sender_type, message_text, ai_confidence_sco
 
 type CreateChatMessageParams struct {
 	TicketID          int64                 `json:"ticket_id"`
-	SenderID          int64                 `json:"sender_id"`
+	SenderID          uuid.UUID             `json:"sender_id"`
 	SenderType        string                `json:"sender_type"`
 	MessageText       string                `json:"message_text"`
 	AiConfidenceScore sql.NullString        `json:"ai_confidence_score"`
@@ -253,7 +254,7 @@ type CreateFAQDocumentParams struct {
 	Category    sql.NullString `json:"category"`
 	Tags        []string       `json:"tags"`
 	EmbeddingID sql.NullString `json:"embedding_id"`
-	CreatedBy   sql.NullInt64  `json:"created_by"`
+	CreatedBy   uuid.NullUUID  `json:"created_by"`
 }
 
 // ============================================================
@@ -294,9 +295,9 @@ RETURNING id, user_id, status, active_ticket_count, max_concurrent_tickets, crea
 `
 
 type CreateSupportAdminParams struct {
-	UserID               int64  `json:"user_id"`
-	Status               string `json:"status"`
-	MaxConcurrentTickets int32  `json:"max_concurrent_tickets"`
+	UserID               uuid.UUID `json:"user_id"`
+	Status               string    `json:"status"`
+	MaxConcurrentTickets int32     `json:"max_concurrent_tickets"`
 }
 
 func (q *Queries) CreateSupportAdmin(ctx context.Context, arg CreateSupportAdminParams) (SupportAdmin, error) {
@@ -322,7 +323,7 @@ RETURNING id, user_id, status, assigned_to, escalation_reason, priority, categor
 `
 
 type CreateTicketParams struct {
-	UserID           int64          `json:"user_id"`
+	UserID           uuid.UUID      `json:"user_id"`
 	Status           string         `json:"status"`
 	EscalationReason sql.NullString `json:"escalation_reason"`
 	Priority         string         `json:"priority"`
@@ -367,9 +368,9 @@ RETURNING id, ticket_id, assigned_from, assigned_to, assigned_by, reason, create
 
 type CreateTicketAssignmentHistoryParams struct {
 	TicketID     int64          `json:"ticket_id"`
-	AssignedFrom sql.NullInt64  `json:"assigned_from"`
-	AssignedTo   sql.NullInt64  `json:"assigned_to"`
-	AssignedBy   int64          `json:"assigned_by"`
+	AssignedFrom uuid.NullUUID  `json:"assigned_from"`
+	AssignedTo   uuid.NullUUID  `json:"assigned_to"`
+	AssignedBy   uuid.UUID      `json:"assigned_by"`
 	Reason       sql.NullString `json:"reason"`
 }
 
@@ -425,7 +426,7 @@ SET active_ticket_count = active_ticket_count - 1
 WHERE id = $1 AND active_ticket_count > 0
 `
 
-func (q *Queries) DecrementActiveTicketCount(ctx context.Context, id int64) error {
+func (q *Queries) DecrementActiveTicketCount(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, decrementActiveTicketCount, id)
 	return err
 }
@@ -451,8 +452,8 @@ ORDER BY sa.active_ticket_count ASC
 `
 
 type GetAdminWorkloadRow struct {
-	ID                int64          `json:"id"`
-	UserID            int64          `json:"user_id"`
+	ID                uuid.UUID      `json:"id"`
+	UserID            uuid.UUID      `json:"user_id"`
 	Status            string         `json:"status"`
 	ActiveTicketCount int32          `json:"active_ticket_count"`
 	FirstName         sql.NullString `json:"first_name"`
@@ -500,7 +501,7 @@ LIMIT 1
 `
 
 type GetAgentMetricsByDateParams struct {
-	SupportAdminID int64     `json:"support_admin_id"`
+	SupportAdminID uuid.UUID `json:"support_admin_id"`
 	Date           time.Time `json:"date"`
 }
 
@@ -661,7 +662,7 @@ const getSupportAdminByID = `-- name: GetSupportAdminByID :one
 SELECT id, user_id, status, active_ticket_count, max_concurrent_tickets, created_at, updated_at FROM support_admins WHERE id = $1 LIMIT 1
 `
 
-func (q *Queries) GetSupportAdminByID(ctx context.Context, id int64) (SupportAdmin, error) {
+func (q *Queries) GetSupportAdminByID(ctx context.Context, id uuid.UUID) (SupportAdmin, error) {
 	row := q.db.QueryRowContext(ctx, getSupportAdminByID, id)
 	var i SupportAdmin
 	err := row.Scan(
@@ -680,7 +681,7 @@ const getSupportAdminByUserID = `-- name: GetSupportAdminByUserID :one
 SELECT id, user_id, status, active_ticket_count, max_concurrent_tickets, created_at, updated_at FROM support_admins WHERE user_id = $1 LIMIT 1
 `
 
-func (q *Queries) GetSupportAdminByUserID(ctx context.Context, userID int64) (SupportAdmin, error) {
+func (q *Queries) GetSupportAdminByUserID(ctx context.Context, userID uuid.UUID) (SupportAdmin, error) {
 	row := q.db.QueryRowContext(ctx, getSupportAdminByUserID, userID)
 	var i SupportAdmin
 	err := row.Scan(
@@ -768,9 +769,9 @@ LIMIT 1
 
 type GetTicketWithUserDetailsRow struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -815,7 +816,7 @@ SET active_ticket_count = active_ticket_count + 1
 WHERE id = $1
 `
 
-func (q *Queries) IncrementActiveTicketCount(ctx context.Context, id int64) error {
+func (q *Queries) IncrementActiveTicketCount(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, incrementActiveTicketCount, id)
 	return err
 }
@@ -861,7 +862,7 @@ ORDER BY date DESC
 `
 
 type ListAgentMetricsByDateRangeParams struct {
-	SupportAdminID int64     `json:"support_admin_id"`
+	SupportAdminID uuid.UUID `json:"support_admin_id"`
 	Date           time.Time `json:"date"`
 	Date_2         time.Time `json:"date_2"`
 }
@@ -907,8 +908,8 @@ ORDER BY sa.created_at DESC
 `
 
 type ListAllSupportAdminsRow struct {
-	ID                   int64          `json:"id"`
-	UserID               int64          `json:"user_id"`
+	ID                   uuid.UUID      `json:"id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Status               string         `json:"status"`
 	ActiveTicketCount    int32          `json:"active_ticket_count"`
 	MaxConcurrentTickets int32          `json:"max_concurrent_tickets"`
@@ -968,9 +969,9 @@ type ListAllTicketsParams struct {
 
 type ListAllTicketsRow struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -1189,7 +1190,7 @@ ORDER BY cm.created_at ASC
 type ListChatMessagesByTicketRow struct {
 	ID                int64                 `json:"id"`
 	TicketID          int64                 `json:"ticket_id"`
-	SenderID          int64                 `json:"sender_id"`
+	SenderID          uuid.UUID             `json:"sender_id"`
 	SenderType        string                `json:"sender_type"`
 	MessageText       string                `json:"message_text"`
 	AiConfidenceScore sql.NullString        `json:"ai_confidence_score"`
@@ -1349,9 +1350,9 @@ ORDER BY tah.created_at DESC
 type ListTicketAssignmentHistoryRow struct {
 	ID            int64          `json:"id"`
 	TicketID      int64          `json:"ticket_id"`
-	AssignedFrom  sql.NullInt64  `json:"assigned_from"`
-	AssignedTo    sql.NullInt64  `json:"assigned_to"`
-	AssignedBy    int64          `json:"assigned_by"`
+	AssignedFrom  uuid.NullUUID  `json:"assigned_from"`
+	AssignedTo    uuid.NullUUID  `json:"assigned_to"`
+	AssignedBy    uuid.UUID      `json:"assigned_by"`
 	Reason        sql.NullString `json:"reason"`
 	CreatedAt     time.Time      `json:"created_at"`
 	FromFirstName sql.NullString `json:"from_first_name"`
@@ -1409,16 +1410,16 @@ LIMIT $2 OFFSET $3
 `
 
 type ListTicketsByAssignedAdminParams struct {
-	AssignedTo sql.NullInt64 `json:"assigned_to"`
+	AssignedTo uuid.NullUUID `json:"assigned_to"`
 	Limit      int32         `json:"limit"`
 	Offset     int32         `json:"offset"`
 }
 
 type ListTicketsByAssignedAdminRow struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -1488,9 +1489,9 @@ type ListTicketsByStatusParams struct {
 
 type ListTicketsByStatusRow struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -1551,9 +1552,9 @@ LIMIT $2 OFFSET $3
 `
 
 type ListTicketsByUserParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 func (q *Queries) ListTicketsByUser(ctx context.Context, arg ListTicketsByUserParams) ([]Ticket, error) {
@@ -1608,9 +1609,9 @@ type ListUnassignedTicketsParams struct {
 
 type ListUnassignedTicketsRow struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -1859,8 +1860,8 @@ RETURNING id, user_id, status, active_ticket_count, max_concurrent_tickets, crea
 `
 
 type UpdateSupportAdminStatusParams struct {
-	ID     int64  `json:"id"`
-	Status string `json:"status"`
+	ID     uuid.UUID `json:"id"`
+	Status string    `json:"status"`
 }
 
 func (q *Queries) UpdateSupportAdminStatus(ctx context.Context, arg UpdateSupportAdminStatusParams) (SupportAdmin, error) {
@@ -1936,7 +1937,7 @@ RETURNING id, support_admin_id, tickets_handled, tickets_resolved, average_resol
 `
 
 type UpsertAgentMetricsParams struct {
-	SupportAdminID            int64          `json:"support_admin_id"`
+	SupportAdminID            uuid.UUID      `json:"support_admin_id"`
 	TicketsHandled            int32          `json:"tickets_handled"`
 	TicketsResolved           int32          `json:"tickets_resolved"`
 	AverageResolutionTime     sql.NullInt32  `json:"average_resolution_time"`

@@ -28,10 +28,10 @@ WHERE uva.is_active = TRUE
 
 type GetExpiredVIPAssignmentsRow struct {
 	ID                    uuid.UUID     `json:"id"`
-	UserID                int64         `json:"user_id"`
+	UserID                uuid.UUID     `json:"user_id"`
 	VipLevelID            uuid.UUID     `json:"vip_level_id"`
 	AssignedAt            time.Time     `json:"assigned_at"`
-	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignedBy            uuid.NullUUID `json:"assigned_by"`
 	AssignmentType        string        `json:"assignment_type"`
 	TotalConversionVolume string        `json:"total_conversion_volume"`
 	IsActive              bool          `json:"is_active"`
@@ -122,7 +122,7 @@ GROUP BY u.id
 `
 
 type GetUserTransactionMetricsRow struct {
-	UserID              int64       `json:"user_id"`
+	UserID              uuid.UUID   `json:"user_id"`
 	TotalVolume         interface{} `json:"total_volume"`
 	ConversionCount     interface{} `json:"conversion_count"`
 	MonthlyVolume       interface{} `json:"monthly_volume"`
@@ -134,7 +134,7 @@ type GetUserTransactionMetricsRow struct {
 // Add these to your queries.sql file
 // =====================================================
 // 1. Get User Transaction Metrics (for VIP assignment)
-func (q *Queries) GetUserTransactionMetrics(ctx context.Context, id int64) (GetUserTransactionMetricsRow, error) {
+func (q *Queries) GetUserTransactionMetrics(ctx context.Context, id uuid.UUID) (GetUserTransactionMetricsRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserTransactionMetrics, id)
 	var i GetUserTransactionMetricsRow
 	err := row.Scan(
@@ -200,7 +200,7 @@ WHERE u.deleted_at IS NULL
 `
 
 type GetUsersEligibleForVIPUpgradeRow struct {
-	UserID            int64       `json:"user_id"`
+	UserID            uuid.UUID   `json:"user_id"`
 	Email             string      `json:"email"`
 	CurrentLevelID    uuid.UUID   `json:"current_level_id"`
 	TotalVolume       interface{} `json:"total_volume"`
@@ -257,10 +257,10 @@ DO UPDATE SET
 `
 
 type RecordBillTransactionVolumeParams struct {
-	UserID          int64  `json:"user_id"`
-	TransactionType string `json:"transaction_type"`
-	Amount          string `json:"amount"`
-	Currency        string `json:"currency"`
+	UserID          uuid.UUID `json:"user_id"`
+	TransactionType string    `json:"transaction_type"`
+	Amount          string    `json:"amount"`
+	Currency        string    `json:"currency"`
 }
 
 // 10. Track Bill Transaction Volume (Real-time)

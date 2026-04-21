@@ -9,6 +9,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/google/uuid"
 )
 
 type StreakService struct {
@@ -24,7 +25,7 @@ func NewStreakService(store *db.Store, logger *logging.Logger) *StreakService {
 }
 
 // GetUserStreakDashboard retrieves comprehensive streak dashboard for a user
-func (s *StreakService) GetUserStreakDashboard(ctx context.Context, userID int64) (*StreakDashboard, error) {
+func (s *StreakService) GetUserStreakDashboard(ctx context.Context, userID uuid.UUID) (*StreakDashboard, error) {
 	s.logger.Info(fmt.Sprintf("fetching streak dashboard for user: %d", userID))
 
 	// Get or create streak record
@@ -132,7 +133,7 @@ func (s *StreakService) GetUserStreakDashboard(ctx context.Context, userID int64
 }
 
 // GetRecentUserAchievements gets recently earned badges for a user
-func (s *StreakService) GetRecentUserAchievements(ctx context.Context, userID int64, limit int) ([]RecentBadge, error) {
+func (s *StreakService) GetRecentUserAchievements(ctx context.Context, userID uuid.UUID, limit int) ([]RecentBadge, error) {
 	badges, err := s.store.GetUserBadges(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -286,15 +287,15 @@ func (s *StreakService) GetAllBadges(ctx context.Context) ([]db.Badge, error) {
 }
 
 // GetUserBadgesWithProgress retrieves user's badge progress
-func (s *StreakService) GetUserBadgesWithProgress(ctx context.Context, userID int64) ([]BadgeWithStatus, error) {
+func (s *StreakService) GetUserBadgesWithProgress(ctx context.Context, userID uuid.UUID) ([]BadgeWithStatus, error) {
 	streak, err := s.store.GetUserStreak(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch streak: %w", err)
 	}
 
 	badgesRows, err := s.store.GetUserBadgesWithLockStatus(ctx, db.GetUserBadgesWithLockStatusParams{
-		UserID:               userID,
-		RequiredStreakDays:   int32(streak.CurrentStreak),
+		UserID:             userID,
+		RequiredStreakDays: int32(streak.CurrentStreak),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch badges: %w", err)
@@ -338,7 +339,7 @@ func (s *StreakService) GetUserBadgesWithProgress(ctx context.Context, userID in
 
 // RecalculateUserStreak recalculates streak from transaction history
 // Useful for fixing data inconsistencies
-func (s *StreakService) RecalculateUserStreak(ctx context.Context, userID int64) (*db.TransactionStreak, error) {
+func (s *StreakService) RecalculateUserStreak(ctx context.Context, userID uuid.UUID) (*db.TransactionStreak, error) {
 	s.logger.Info(fmt.Sprintf("recalculating streak for user: %d", userID))
 
 	streak, err := s.store.RecalculateUserStreak(ctx, userID)
@@ -374,7 +375,7 @@ func (s *StreakService) GetSystemHealthCheck(ctx context.Context) (db.GetSystemH
 // ===============================================
 // NOTIFICATION HELPERS
 // ===============================================
- 
+
 // NotifyStreakMilestone sends notification when user reaches milestone
 func (s *StreakService) NotifyStreakMilestone(ctx context.Context, userID int64, streak int, badgeName string) error {
 	s.logger.Info(fmt.Sprintf("notifying user %d of milestone: %d days, badge: %s", userID, streak, badgeName))

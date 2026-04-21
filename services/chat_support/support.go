@@ -8,6 +8,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	"github.com/google/uuid"
 )
 
 type SupportAdminService struct {
@@ -52,7 +53,7 @@ func (s *SupportAdminService) CreateSupportAdmin(ctx context.Context, params *Cr
 }
 
 // GetSupportAdminByUserID retrieves a support admin by user ID
-func (s *SupportAdminService) GetSupportAdminByUserID(ctx context.Context, userID int64) (*db.SupportAdmin, error) {
+func (s *SupportAdminService) GetSupportAdminByUserID(ctx context.Context, userID uuid.UUID) (*db.SupportAdmin, error) {
 	admin, err := s.store.GetSupportAdminByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -65,7 +66,7 @@ func (s *SupportAdminService) GetSupportAdminByUserID(ctx context.Context, userI
 }
 
 // GetSupportAdminByID retrieves a support admin by ID
-func (s *SupportAdminService) GetSupportAdminByID(ctx context.Context, adminID int64) (*db.SupportAdmin, error) {
+func (s *SupportAdminService) GetSupportAdminByID(ctx context.Context, adminID uuid.UUID) (*db.SupportAdmin, error) {
 	admin, err := s.store.GetSupportAdminByID(ctx, adminID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -78,7 +79,7 @@ func (s *SupportAdminService) GetSupportAdminByID(ctx context.Context, adminID i
 }
 
 // UpdateAdminStatus updates the status of a support admin
-func (s *SupportAdminService) UpdateAdminStatus(ctx context.Context, adminID int64, status string) (*db.SupportAdmin, error) {
+func (s *SupportAdminService) UpdateAdminStatus(ctx context.Context, adminID uuid.UUID, status string) (*db.SupportAdmin, error) {
 	// Validate status
 	validStatuses := map[string]bool{
 		"online":  true,
@@ -103,7 +104,7 @@ func (s *SupportAdminService) UpdateAdminStatus(ctx context.Context, adminID int
 }
 
 // SetAdminOnline sets an admin's status to online
-func (s *SupportAdminService) SetAdminOnline(ctx context.Context, userID int64) error {
+func (s *SupportAdminService) SetAdminOnline(ctx context.Context, userID uuid.UUID) error {
 	admin, err := s.GetSupportAdminByUserID(ctx, userID)
 	if err != nil {
 		return err
@@ -114,7 +115,7 @@ func (s *SupportAdminService) SetAdminOnline(ctx context.Context, userID int64) 
 }
 
 // SetAdminOffline sets an admin's status to offline
-func (s *SupportAdminService) SetAdminOffline(ctx context.Context, userID int64) error {
+func (s *SupportAdminService) SetAdminOffline(ctx context.Context, userID uuid.UUID) error {
 	admin, err := s.GetSupportAdminByUserID(ctx, userID)
 	if err != nil {
 		return err
@@ -163,7 +164,7 @@ func (s *SupportAdminService) GetAdminWorkload(ctx context.Context) ([]GetAdminW
 }
 
 // IncrementTicketCount increments an admin's active ticket count
-func (s *SupportAdminService) IncrementTicketCount(ctx context.Context, adminID int64) error {
+func (s *SupportAdminService) IncrementTicketCount(ctx context.Context, adminID uuid.UUID) error {
 	admin, err := s.GetSupportAdminByID(ctx, adminID)
 	if err != nil {
 		return err
@@ -192,7 +193,7 @@ func (s *SupportAdminService) IncrementTicketCount(ctx context.Context, adminID 
 }
 
 // DecrementTicketCount decrements an admin's active ticket count
-func (s *SupportAdminService) DecrementTicketCount(ctx context.Context, adminID int64) error {
+func (s *SupportAdminService) DecrementTicketCount(ctx context.Context, adminID uuid.UUID) error {
 	admin, err := s.GetSupportAdminByID(ctx, adminID)
 	if err != nil {
 		return err
@@ -216,8 +217,8 @@ func (s *SupportAdminService) DecrementTicketCount(ctx context.Context, adminID 
 }
 
 type ListAllSupportAdminsRowResponse struct {
-	ID                   int64     `json:"id"`
-	UserID               int64     `json:"user_id"`
+	ID                   uuid.UUID     `json:"id"`
+	UserID               uuid.UUID     `json:"user_id"`
 	Status               string    `json:"status"`
 	ActiveTicketCount    int32     `json:"active_ticket_count"`
 	MaxConcurrentTickets int32     `json:"max_concurrent_tickets"`
@@ -244,14 +245,14 @@ func mapListAllAdminRowToResponse(row db.ListAllSupportAdminsRow) ListAllSupport
 }
 
 type GetAdminWorkloadRowResponse struct {
-	ID                int64   `json:"id"`
-	UserID            int64   `json:"user_id"`
-	Status            string  `json:"status"`
-	ActiveTicketCount int32   `json:"active_ticket_count"`
-	FirstName         *string `json:"first_name"`
-	LastName          *string `json:"last_name"`
-	Email             string  `json:"email"`
-	TotalTickets      int64   `json:"total_tickets"`
+	ID                uuid.UUID     `json:"id"`
+	UserID            uuid.UUID `json:"user_id"`
+	Status            string    `json:"status"`
+	ActiveTicketCount int32     `json:"active_ticket_count"`
+	FirstName         *string   `json:"first_name"`
+	LastName          *string   `json:"last_name"`
+	Email             string    `json:"email"`
+	TotalTickets      int64     `json:"total_tickets"`
 }
 
 func mapGetAdminWorkloadRowToResponse(row db.GetAdminWorkloadRow) GetAdminWorkloadRowResponse {
@@ -268,17 +269,16 @@ func mapGetAdminWorkloadRowToResponse(row db.GetAdminWorkloadRow) GetAdminWorklo
 }
 
 type AgentMetricResponse struct {
-	ID                        int64          `json:"id"`
-	SupportAdminID            int64          `json:"support_admin_id"`
-	TicketsHandled            int32          `json:"tickets_handled"`
-	TicketsResolved           int32          `json:"tickets_resolved"`
-	AverageResolutionTime     *int32  `json:"average_resolution_time"`
-	AverageResponseTime       *int32 `json:"average_response_time"`
-	CustomerSatisfactionScore *string`json:"customer_satisfaction_score"`
-	Date                      time.Time      `json:"date"`
-	CreatedAt                 time.Time      `json:"created_at"`
+	ID                        int64     `json:"id"`
+	SupportAdminID            uuid.UUID     `json:"support_admin_id"`
+	TicketsHandled            int32     `json:"tickets_handled"`
+	TicketsResolved           int32     `json:"tickets_resolved"`
+	AverageResolutionTime     *int32    `json:"average_resolution_time"`
+	AverageResponseTime       *int32    `json:"average_response_time"`
+	CustomerSatisfactionScore *string   `json:"customer_satisfaction_score"`
+	Date                      time.Time `json:"date"`
+	CreatedAt                 time.Time `json:"created_at"`
 }
-
 
 func MapAgentMetricToResponse(raw db.AgentMetric) AgentMetricResponse {
 	return AgentMetricResponse{
@@ -293,4 +293,3 @@ func MapAgentMetricToResponse(raw db.AgentMetric) AgentMetricResponse {
 		CreatedAt:                 raw.CreatedAt,
 	}
 }
-

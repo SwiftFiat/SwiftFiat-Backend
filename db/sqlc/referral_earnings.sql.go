@@ -20,16 +20,16 @@ VALUES ($1, $2, $3, $4)
 `
 
 type CreateReferralParams struct {
-	ReferrerID   int32  `json:"referrer_id"`
-	RefereeID    int32  `json:"referee_id"`
-	EarnedAmount string `json:"earned_amount"`
-	Status       string `json:"status"`
+	ReferrerID   uuid.UUID `json:"referrer_id"`
+	RefereeID    uuid.UUID `json:"referee_id"`
+	EarnedAmount string    `json:"earned_amount"`
+	Status       string    `json:"status"`
 }
 
 type CreateReferralRow struct {
 	ID           int32     `json:"id"`
-	ReferrerID   int32     `json:"referrer_id"`
-	RefereeID    int32     `json:"referee_id"`
+	ReferrerID   uuid.UUID `json:"referrer_id"`
+	RefereeID    uuid.UUID `json:"referee_id"`
 	EarnedAmount string    `json:"earned_amount"`
 	Status       string    `json:"status"`
 	CreatedAt    time.Time `json:"created_at"`
@@ -86,7 +86,7 @@ ON CONFLICT (user_id) DO UPDATE SET user_id = EXCLUDED.user_id
     RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at
 `
 
-func (q *Queries) CreateReferralEarnings(ctx context.Context, userID int32) (ReferralEarning, error) {
+func (q *Queries) CreateReferralEarnings(ctx context.Context, userID uuid.UUID) (ReferralEarning, error) {
 	row := q.db.QueryRowContext(ctx, createReferralEarnings, userID)
 	var i ReferralEarning
 	err := row.Scan(
@@ -112,7 +112,7 @@ VALUES ($1, $2, $3, $4, $5, $6)
 `
 
 type CreateReferralTransactionParams struct {
-	UserID          int32         `json:"user_id"`
+	UserID          uuid.UUID     `json:"user_id"`
 	Amount          string        `json:"amount"`
 	TransactionID   uuid.NullUUID `json:"transaction_id"`
 	TransactionType string        `json:"transaction_type"`
@@ -164,7 +164,7 @@ WHERE user_id = $2
 
 type FlagReferralEarningParams struct {
 	FlaggedReason sql.NullString `json:"flagged_reason"`
-	UserID        int32          `json:"user_id"`
+	UserID        uuid.UUID      `json:"user_id"`
 }
 
 func (q *Queries) FlagReferralEarning(ctx context.Context, arg FlagReferralEarningParams) error {
@@ -180,7 +180,7 @@ SET
 WHERE user_id = $1
 `
 
-func (q *Queries) FreezeReferralEarning(ctx context.Context, userID int32) error {
+func (q *Queries) FreezeReferralEarning(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, freezeReferralEarning, userID)
 	return err
 }
@@ -261,7 +261,7 @@ const getReferralByRefereeID = `-- name: GetReferralByRefereeID :one
 SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals WHERE referee_id = $1
 `
 
-func (q *Queries) GetReferralByRefereeID(ctx context.Context, refereeID int32) (UserReferral, error) {
+func (q *Queries) GetReferralByRefereeID(ctx context.Context, refereeID uuid.UUID) (UserReferral, error) {
 	row := q.db.QueryRowContext(ctx, getReferralByRefereeID, refereeID)
 	var i UserReferral
 	err := row.Scan(
@@ -297,7 +297,7 @@ const getReferralEarnings = `-- name: GetReferralEarnings :one
 SELECT id, user_id, total_earned, available_balance, withdrawn_balance, is_frozen, freezed_at, flagged, flagged_reason, created_at, updated_at FROM referral_earnings WHERE user_id = $1
 `
 
-func (q *Queries) GetReferralEarnings(ctx context.Context, userID int32) (ReferralEarning, error) {
+func (q *Queries) GetReferralEarnings(ctx context.Context, userID uuid.UUID) (ReferralEarning, error) {
 	row := q.db.QueryRowContext(ctx, getReferralEarnings, userID)
 	var i ReferralEarning
 	err := row.Scan(
@@ -337,12 +337,51 @@ func (q *Queries) GetReferralTransaction(ctx context.Context, id int64) (Referra
 	return i, err
 }
 
+const getUserReferralTxs = `-- name: GetUserReferralTxs :many
+SELECT id, user_id, amount, transaction_id, transaction_type, reference, status, created_at, updated_at FROM referral_transactions
+WHERE user_id = $1
+ORDER BY created_at
+`
+
+func (q *Queries) GetUserReferralTxs(ctx context.Context, userID uuid.UUID) ([]ReferralTransaction, error) {
+	rows, err := q.db.QueryContext(ctx, getUserReferralTxs, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ReferralTransaction{}
+	for rows.Next() {
+		var i ReferralTransaction
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.Amount,
+			&i.TransactionID,
+			&i.TransactionType,
+			&i.Reference,
+			&i.Status,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserReferrals = `-- name: GetUserReferrals :many
 SELECT id, referrer_id, referee_id, earned_amount, created_at, status FROM user_referrals WHERE referrer_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) GetUserReferrals(ctx context.Context, referrerID int32) ([]UserReferral, error) {
+func (q *Queries) GetUserReferrals(ctx context.Context, referrerID uuid.UUID) ([]UserReferral, error) {
 	rows, err := q.db.QueryContext(ctx, getUserReferrals, referrerID)
 	if err != nil {
 		return nil, err
@@ -380,7 +419,7 @@ SET
 WHERE user_id = $1
 `
 
-func (q *Queries) UnFreezeReferralEarning(ctx context.Context, userID int32) error {
+func (q *Queries) UnFreezeReferralEarning(ctx context.Context, userID uuid.UUID) error {
 	_, err := q.db.ExecContext(ctx, unFreezeReferralEarning, userID)
 	return err
 }
@@ -399,8 +438,8 @@ RETURNING id, user_id, total_earned, available_balance, withdrawn_balance, is_fr
 `
 
 type UpdateAvailableBalanceAfterWithdrawalParams struct {
-	UserID           int32  `json:"user_id"`
-	AvailableBalance string `json:"available_balance"`
+	UserID           uuid.UUID `json:"user_id"`
+	AvailableBalance string    `json:"available_balance"`
 }
 
 func (q *Queries) UpdateAvailableBalanceAfterWithdrawal(ctx context.Context, arg UpdateAvailableBalanceAfterWithdrawalParams) (ReferralEarning, error) {
@@ -464,8 +503,8 @@ WHERE user_id = $1
 `
 
 type UpdateReferralEarningsParams struct {
-	UserID      int32  `json:"user_id"`
-	TotalEarned string `json:"total_earned"`
+	UserID      uuid.UUID `json:"user_id"`
+	TotalEarned string    `json:"total_earned"`
 }
 
 func (q *Queries) UpdateReferralEarnings(ctx context.Context, arg UpdateReferralEarningsParams) (ReferralEarning, error) {

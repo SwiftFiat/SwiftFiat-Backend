@@ -8,6 +8,8 @@ package db
 import (
 	"context"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const deleteProofImage = `-- name: DeleteProofImage :execrows
@@ -31,7 +33,7 @@ WHERE id = $1
 
 type GetProofImageRow struct {
 	ID        int32     `json:"id"`
-	UserID    int32     `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	Filename  string    `json:"filename"`
 	ProofType string    `json:"proof_type"`
 	ImageData []byte    `json:"image_data"`
@@ -59,10 +61,10 @@ RETURNING id, user_id, filename, proof_type, image_data, created_at, updated_at,
 `
 
 type InsertNewProofImageParams struct {
-	UserID    int32  `json:"user_id"`
-	Filename  string `json:"filename"`
-	ProofType string `json:"proof_type"`
-	ImageData []byte `json:"image_data"`
+	UserID    uuid.UUID `json:"user_id"`
+	Filename  string    `json:"filename"`
+	ProofType string    `json:"proof_type"`
+	ImageData []byte    `json:"image_data"`
 }
 
 func (q *Queries) InsertNewProofImage(ctx context.Context, arg InsertNewProofImageParams) (ProofOfAddressImage, error) {
@@ -142,7 +144,7 @@ type ListProofImagesForUserRow struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func (q *Queries) ListProofImagesForUser(ctx context.Context, userID int32) ([]ListProofImagesForUserRow, error) {
+func (q *Queries) ListProofImagesForUser(ctx context.Context, userID uuid.UUID) ([]ListProofImagesForUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, listProofImagesForUser, userID)
 	if err != nil {
 		return nil, err

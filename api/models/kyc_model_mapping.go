@@ -10,7 +10,7 @@ func ToUserKYCInformationExtended(kyc *db.GetUserAndKYCWithProofOfAddressRow) *U
 	return &UserKYCInformationExtended{
 		KYC: &UserKYCInformation{
 			ID:                 ID(kyc.ID),
-			UserID:             kyc.UserID.Int64,
+			UserID:             kyc.UserID.UUID,
 			Status:             kyc.Status,
 			VerificationDate:   kyc.VerificationDate.Time,
 			FullName:           kyc.FullName.String,
@@ -40,7 +40,7 @@ func ToUserKYCInformationExtended(kyc *db.GetUserAndKYCWithProofOfAddressRow) *U
 func ToUserKYCInformation(kyc *db.Kyc) *UserKYCInformation {
 	return &UserKYCInformation{
 		ID:                 ID(kyc.ID),
-		UserID:             int64(kyc.UserID),
+		UserID:             kyc.UserID,
 		Status:             kyc.Status,
 		VerificationDate:   kyc.VerificationDate.Time,
 		FullName:           kyc.FullName.String,
@@ -86,7 +86,7 @@ func ToProofOfAddressCollection(data *json.RawMessage) []ProofOfAddressOutputEle
 func ToListAllKYCInformation(kyc *db.ListAllKYCRow) *UserKYCInformation {
 	return &UserKYCInformation{
 		ID:                 ID(kyc.ID),
-		UserID:             int64(kyc.UserID),
+		UserID:             kyc.UserID,
 		Status:             kyc.Status,
 		VerificationDate:   kyc.VerificationDate.Time,
 		FullName:           kyc.FullName.String,

@@ -84,7 +84,7 @@ func (w *WalletService) ResolveTag(ctx context.Context, tag string, currency str
 	return &db_wallet, nil
 }
 
-func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID int64, all bool) ([]*WalletModel, error) {
+func (w *WalletService) CreateWallets(ctx context.Context, dbTx *sql.Tx, userID uuid.UUID, all bool) ([]*WalletModel, error) {
 	var wallets []*WalletModel
 	/// 'all' signifies currently supported currencies (NGN | USD | EUR)
 	if dbTx == nil {

@@ -345,7 +345,7 @@ func (g *GiftcardService) SyncGiftCards(prov *providers.ProviderService) error {
 	return nil
 }
 
-func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
+func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *transaction.TransactionService, userID uuid.UUID, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
 	gprov, exists := prov.GetProvider(providers.Reloadly)
 	if !exists {
 		return nil, fmt.Errorf("failed to get provider: 'RELOADLY'")
@@ -563,7 +563,7 @@ func (g *GiftcardService) BuyRGPGiftCard(prov *providers.ProviderService, token 
 	return card, nil
 }
 
-func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderService, trans *transaction.TransactionService, userID int64, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
+func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderService, trans *transaction.TransactionService, userID uuid.UUID, productID int64, walletID uuid.UUID, quantity int, unitPrice int) (*transaction.TransactionResponse[transaction.GiftcardMetadataResponse], error) {
 	token, err := g.GetReloadlyToken(prov)
 	if err != nil {
 		return nil, err
@@ -610,7 +610,7 @@ func (g *GiftcardService) Buy(ctx context.Context, prov *providers.ProviderServi
 		return nil, fmt.Errorf("potential amount is less than 0")
 	}
 
-	kyc, err := g.store.Queries.GetKYCByUserID(ctx, int32(userID))
+	kyc, err := g.store.Queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")

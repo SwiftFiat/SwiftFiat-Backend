@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS "audit_logs" (
     "severity" audit_severity NOT NULL DEFAULT 'info',
     
     -- Actor information (who performed the action)
-    "actor_id" BIGINT,  -- NULL for system actions
+    "actor_id" UUID,  -- NULL for system actions
     "actor_type" VARCHAR(50) NOT NULL,  -- 'user', 'admin', 'system', 'webhook'
     "actor_email" VARCHAR(256),  -- Denormalized for quick access
     

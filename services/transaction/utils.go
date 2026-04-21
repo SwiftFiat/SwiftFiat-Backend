@@ -19,7 +19,7 @@ import (
 //	It returns the referrer's ID and the referral bonus amount if successful,
 //
 // or nil if the user has no referrer or has already completed a conversion.
-func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.Store, dbTx *sql.Tx, userID int64, cID uuid.UUID) (*int64, *decimal.Decimal, error) {
+func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.Store, dbTx *sql.Tx, userID uuid.UUID, cID uuid.UUID) (*uuid.UUID, *decimal.Decimal, error) {
 	if err := store.UpdateUserHasCompletedFirstConversion(ctx, userID); err != nil {
 		return nil, nil, fmt.Errorf("failed to update user has completed first conversion: %w", err)
 	}
@@ -42,7 +42,7 @@ func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.
 	}
 
 	// Check if the user has a referrer
-	referral, err := store.WithTx(dbTx).GetReferralByRefereeID(ctx, int32(userID))
+	referral, err := store.WithTx(dbTx).GetReferralByRefereeID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No referrer found, nothing to do
@@ -52,7 +52,7 @@ func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.
 	}
 
 	// Get the referrer's ID and referral bonus amount
-	referrerID := int64(referral.ReferrerID)
+	referrerID := referral.ReferrerID
 	referralBonus, err := decimal.NewFromString(referral.EarnedAmount)
 	if err != nil {
 		return nil, nil, fmt.Errorf("convert referral bonus to decimal: %w", err)
@@ -84,7 +84,7 @@ func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.
 
 	// create tx records for referral bonus
 	refTx, err := store.WithTx(dbTx).CreateReferralTransaction(ctx, db.CreateReferralTransactionParams{
-		UserID:          int32(referrerID),
+		UserID:          referrerID,
 		Amount:          referralBonus.String(),
 		TransactionID:   uuid.NullUUID{UUID: txx.ID, Valid: true},
 		TransactionType: "credit",
@@ -97,7 +97,7 @@ func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.
 
 	// Update the referrer's earnings
 	params := db.UpdateReferralEarningsParams{
-		UserID:      int32(referrerID),
+		UserID:      referrerID,
 		TotalEarned: referralBonus.String(),
 	}
 
@@ -135,14 +135,14 @@ func CheckFirstConersionAndDisburseReferralBonus(ctx context.Context, store *db.
 // CreditReferrerForConversion checks if the user has a referrer and credits them with a % of conversion amount if they do.
 // It returns the referrer's ID and the referral bonus amount if successful,
 // or nil if the user has no referrer.
-func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql.Tx, userID int64, conversionAmount decimal.Decimal) (*int64, *decimal.Decimal, error) {
+func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql.Tx, userID uuid.UUID, conversionAmount decimal.Decimal) (*uuid.UUID, *decimal.Decimal, error) {
 	// Validate input
     if conversionAmount.IsZero() || conversionAmount.IsNegative() {
         return nil, nil, fmt.Errorf("invalid conversion amount: %v", conversionAmount)
     }
 
 	// Check if the user has a referrer
-	referral, err := store.WithTx(dbTx).GetReferralByRefereeID(ctx, int32(userID))
+	referral, err := store.WithTx(dbTx).GetReferralByRefereeID(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// No referrer found, nothing to do
@@ -152,7 +152,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 	}
 
 	// Get the referrer's ID and referral bonus amount
-	referrerID := int64(referral.ReferrerID)
+	referrerID := referral.ReferrerID
 	referralConfig, err := store.WithTx(dbTx).GetReferralConfig(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("get referral config: %w", err)
@@ -198,7 +198,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 
 	// create tx records for referral bonus
 	refTx, err := store.WithTx(dbTx).CreateReferralTransaction(ctx, db.CreateReferralTransactionParams{
-		UserID:          int32(referrerID),
+		UserID:          referrerID,
 		Amount:          referralBonus.String(),
 		TransactionID:   uuid.NullUUID{UUID: txx.ID, Valid: true},
 		TransactionType: "credit",
@@ -211,7 +211,7 @@ func CreditReferrerForConversion(ctx context.Context, store *db.Store, dbTx *sql
 
 	// Update the referrer's earnings
 	params := db.UpdateReferralEarningsParams{
-		UserID:      int32(referrerID),
+		UserID:      referrerID,
 		TotalEarned: referralBonus.String(),
 	}
 

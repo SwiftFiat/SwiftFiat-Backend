@@ -116,8 +116,8 @@ func (ss *StreakScheduler) resetBrokenStreaksTask(ctx context.Context) error {
 			)
 
 			// Non-blocking notification
-			go func(userID int64, msg string) {
-				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Streak At Risk", msg, "system", []int64{userID})
+			go func(userID uuid.UUID, msg string) {
+				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Streak At Risk", msg, "system", []uuid.UUID{userID})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("Failed to send streak notification to user %d: %v", userID, err))
 				}
@@ -165,8 +165,8 @@ func (ss *StreakScheduler) sendStreakReminders(ctx context.Context) error {
 			)
 
 			// Send notification asynchronously
-			go func(userID int64, msg string) {
-				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Daily Streak Reminder", msg, "system", []int64{userID})
+			go func(userID uuid.UUID, msg string) {
+				_, err := ss.notifService.CreateWithRecipients(ctx, nil, "Daily Streak Reminder", msg, "system", []uuid.UUID{userID})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("Failed to send reminder to user %d: %v", userID, err))
 				}
@@ -210,7 +210,7 @@ func (ss *StreakScheduler) generateWeeklyAnalytics(ctx context.Context) error {
 // This should be called from the transaction service after commit
 func (ss *StreakScheduler) UpdateStreakOnTransaction(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	transactionID uuid.UUID,
 	transactionType string,
 ) error {
@@ -279,7 +279,7 @@ func (ss *StreakScheduler) UpdateStreakOnTransaction(
 // handleStreakMilestone checks for badge unlocks and sends notifications
 func (ss *StreakScheduler) handleStreakMilestone(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	currentStreak int32,
 	transactionType string,
 ) {
@@ -318,9 +318,9 @@ func (ss *StreakScheduler) handleStreakMilestone(
 				userID, badge.Name, badge.RequiredStreakDays))
 
 			// Send celebration notification
-			go func(uid int64, msg string, badgeName string) {
+			go func(uid uuid.UUID, msg string, badgeName string) {
 				ss.logger.Info(fmt.Sprintf("📬 Sending badge notification to user %d: %s", uid, badgeName))
-				_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, "Badge Unlocked! 🏆", msg, "system", []int64{uid})
+				_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, "Badge Unlocked! 🏆", msg, "system", []uuid.UUID{uid})
 				if err != nil {
 					ss.logger.Error(fmt.Sprintf("❌ Failed to send badge notification: %v", err))
 				} else {
@@ -359,9 +359,9 @@ func (ss *StreakScheduler) handleStreakMilestone(
 		}
 
 		// Send notification (use background context to avoid cancellation)
-		go func(uid int64, notifTitle, msg string) {
+		go func(uid uuid.UUID, notifTitle, msg string) {
 			ss.logger.Info(fmt.Sprintf("📬 Sending milestone notification to user %d: %s", uid, notifTitle))
-			_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, notifTitle, msg, "system", []int64{uid})
+			_, err := ss.notifService.CreateWithRecipients(context.Background(), nil, notifTitle, msg, "system", []uuid.UUID{uid})
 			if err != nil {
 				ss.logger.Error(fmt.Sprintf("❌ Failed to send milestone notification: %v", err))
 			} else {
@@ -397,7 +397,7 @@ func (ss *StreakScheduler) getNextScheduledTime(hour, minute int) time.Time {
 }
 
 // ScheduleStreakRecalculation schedules a recalculation for a specific user
-func (ss *StreakScheduler) ScheduleStreakRecalculation(userID int64, delay time.Duration) error {
+func (ss *StreakScheduler) ScheduleStreakRecalculation(userID uuid.UUID, delay time.Duration) error {
 	taskID := fmt.Sprintf("recalculate-streak-%d", userID)
 
 	recalcTask := func(ctx context.Context) error {

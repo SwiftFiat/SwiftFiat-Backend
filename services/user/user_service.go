@@ -66,7 +66,7 @@ func (u *UserService) CreateUserWithWalletsAndKYC(ctx context.Context, arg *db.C
 	return &newUser, nil
 }
 
-func (u *UserService) CreateSwiftWalletForUser(ctx context.Context, userID int64) error {
+func (u *UserService) CreateSwiftWalletForUser(ctx context.Context, userID uuid.UUID) error {
 
 	/// Start a new transaction if none is provided
 	dbTx, err := u.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
@@ -132,7 +132,7 @@ var (
 	inactive AddressStatus
 )
 
-func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddress string, userID int64, walletCoin string) error {
+func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddress string, userID uuid.UUID, walletCoin string) error {
 	dbTx, err := u.store.DB.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelDefault})
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
@@ -142,9 +142,9 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	/// Storing the address is better than storing the address ID as the address
 	/// is what gets returned by the webhook for transaction notification
 	_, err = u.store.WithTx(dbTx).AssignAddressToCustomer(ctx, db.AssignAddressToCustomerParams{
-		CustomerID: sql.NullInt64{
-			Int64: userID,
-			Valid: userID != 0,
+		CustomerID: uuid.NullUUID{
+			UUID: userID,
+			Valid: true,
 		},
 		AddressID: walletAddress,
 		Coin:      walletCoin,
@@ -170,11 +170,11 @@ func (u *UserService) AssignWalletAddressToUser(ctx context.Context, walletAddre
 	return nil
 }
 
-func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID int64, coin string) (*db.CryptoAddress, error) {
+func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID uuid.UUID, coin string) (*db.CryptoAddress, error) {
 	address, err := u.store.FetchActiveByCustomerIDAndCoin(ctx, db.FetchActiveByCustomerIDAndCoinParams{
-		CustomerID: sql.NullInt64{
-			Int64: userID,
-			Valid: userID != 0,
+		CustomerID: uuid.NullUUID{
+			UUID: userID,
+			Valid: true,
 		},
 		Coin: coin,
 	})
@@ -184,7 +184,7 @@ func (u *UserService) GetUserCryptoWalletAddress(ctx context.Context, userID int
 	return &address, nil
 }
 
-func (u *UserService) UpdateUserTag(ctx context.Context, userID int64, newTag string) (*db.User, error) {
+func (u *UserService) UpdateUserTag(ctx context.Context, userID uuid.UUID, newTag string) (*db.User, error) {
 
 	user, err := u.store.UpdateUserTag(ctx, db.UpdateUserTagParams{
 		UserTag: sql.NullString{
@@ -207,7 +207,7 @@ func (u *UserService) UpdateUserTag(ctx context.Context, userID int64, newTag st
 	return &user, err
 }
 
-func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID int64, freshChatID string) (*db.User, error) {
+func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID uuid.UUID, freshChatID string) (*db.User, error) {
 
 	user, err := u.store.UpdateUserFreshChatID(ctx, db.UpdateUserFreshChatIDParams{
 		FreshChatID: sql.NullString{
@@ -221,7 +221,7 @@ func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID int64, f
 	return &user, err
 }
 
-func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToken string, deviceUUID string) (*db.UserToken, error) {
+func (u *UserService) AddUserFCMToken(ctx context.Context, userID uuid.UUID, fcmToken string, deviceUUID string) (*db.UserToken, error) {
 	fcmToken = strings.TrimSpace(fcmToken)
 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
 		Token:    fcmToken,
@@ -236,21 +236,21 @@ func (u *UserService) AddUserFCMToken(ctx context.Context, userID int64, fcmToke
 	return &tokenValue, err
 }
 
-func (u *UserService) GetUserPushTokens(ctx context.Context, userID int64) (*[]db.UserToken, error) {
+func (u *UserService) GetUserPushTokens(ctx context.Context, userID uuid.UUID) (*[]db.UserToken, error) {
 
 	tokens, err := u.store.GetTokens(ctx, userID)
 
 	return &tokens, err
 }
 
-func (u *UserService) RemoveUserToken(ctx context.Context, userID int64, token string) error {
+func (u *UserService) RemoveUserToken(ctx context.Context, userID uuid.UUID, token string) error {
 	return u.store.RemoveToken(ctx, db.RemoveTokenParams{
 		UserID: userID,
 		Token:  token,
 	})
 }
 
-func (u *UserService) AddUserExpoToken(ctx context.Context, userID int64, expoToken string, deviceUUID string) (*db.UserToken, error) {
+func (u *UserService) AddUserExpoToken(ctx context.Context, userID uuid.UUID, expoToken string, deviceUUID string) (*db.UserToken, error) {
 	expoToken = strings.TrimSpace(expoToken)
 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
 		Token:    expoToken,
@@ -279,7 +279,7 @@ func (u *UserService) UserTagExists(ctx context.Context, newTag string) (bool, e
 	return exists, err
 }
 
-func (u *UserService) UpdateUserPhoneNumber(ctx context.Context, userID int64, phoneNumber string) (*db.User, error) {
+func (u *UserService) UpdateUserPhoneNumber(ctx context.Context, userID uuid.UUID, phoneNumber string) (*db.User, error) {
 
 	user, err := u.store.UpdateUserPhone(ctx, db.UpdateUserPhoneParams{
 		PhoneNumber: phoneNumber,
@@ -290,7 +290,7 @@ func (u *UserService) UpdateUserPhoneNumber(ctx context.Context, userID int64, p
 	return &user, err
 }
 
-func (u *UserService) UpdateUserNames(ctx context.Context, userID int64, firstName string, lastName string) (*db.User, error) {
+func (u *UserService) UpdateUserNames(ctx context.Context, userID uuid.UUID, firstName string, lastName string) (*db.User, error) {
 	user, err := u.store.UpdateUserNames(ctx, db.UpdateUserNamesParams{
 		FirstName: sql.NullString{
 			String: firstName,
@@ -307,20 +307,20 @@ func (u *UserService) UpdateUserNames(ctx context.Context, userID int64, firstNa
 	return &user, err
 }
 
-func (u *UserService) GetUserReferral(ctx context.Context, userID int64) (*db.Referral, error) {
-	referral, err := u.store.GetReferralByUserID(ctx, int32(userID))
+func (u *UserService) GetUserReferral(ctx context.Context, userID uuid.UUID) (*db.Referral, error) {
+	referral, err := u.store.GetReferralByUserID(ctx, userID)
 	return &referral, err
 }
 
-func (u *UserService) CreateUserReferral(ctx context.Context, userID int64, referralKey string) (*db.Referral, error) {
+func (u *UserService) CreateUserReferral(ctx context.Context, userID uuid.UUID, referralKey string) (*db.Referral, error) {
 	referral, err := u.store.CreateNewReferral(ctx, db.CreateNewReferralParams{
-		UserID:      int32(userID),
+		UserID:      userID,
 		ReferralKey: referralKey,
 	})
 	return &referral, err
 }
 
-func (u *UserService) UpdateUserAvatar(ctx context.Context, userID int64, avatarURL string, avatarBlob []byte) (*db.User, error) {
+func (u *UserService) UpdateUserAvatar(ctx context.Context, userID uuid.UUID, avatarURL string, avatarBlob []byte) (*db.User, error) {
 	user, err := u.store.UpdateUserAvatar(ctx, db.UpdateUserAvatarParams{
 		AvatarUrl: sql.NullString{
 			String: avatarURL,
@@ -333,7 +333,7 @@ func (u *UserService) UpdateUserAvatar(ctx context.Context, userID int64, avatar
 	return &user, err
 }
 
-func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID int64, Currency string, Network string) (*db.CryptomusAddress, error) {
+func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID uuid.UUID, Currency string, Network string) (*db.CryptomusAddress, error) {
 	address, err := u.store.GetCryptomusAddressByNetworkAndCurrencyAndCustomerID(ctx, db.GetCryptomusAddressByNetworkAndCurrencyAndCustomerIDParams{
 		Network: sql.NullString{
 			String: Network,
@@ -343,9 +343,9 @@ func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID int64,
 			String: Currency,
 			Valid:  Currency != "",
 		},
-		CustomerID: sql.NullInt64{
-			Int64: userID,
-			Valid: userID != 0,
+		CustomerID: uuid.NullUUID{
+			UUID: userID,
+			Valid: true,
 		},
 	})
 	if err != nil {
@@ -354,11 +354,11 @@ func (u *UserService) GetUserCryptomusAddress(ctx context.Context, userID int64,
 	return &address, nil
 }
 
-func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUUID string, UUID, orderID string, walletAddress string, userID int64, walletCurrency string, walletNetwork string, paymentURL string, callbackURL string) error {
+func (u *UserService) AssignCryptomusAddressToUser(ctx context.Context, walletUUID string, UUID, orderID string, walletAddress string, userID uuid.UUID, walletCurrency string, walletNetwork string, paymentURL string, callbackURL string) error {
 	_, err := u.store.UpsertCryptomusAddress(ctx, db.UpsertCryptomusAddressParams{
-		CustomerID: sql.NullInt64{
-			Int64: userID,
-			Valid: userID != 0,
+		CustomerID: uuid.NullUUID{
+			UUID: userID,
+			Valid: true,
 		},
 		WalletUuid: walletUUID,
 		Uuid:       UUID,
@@ -427,7 +427,7 @@ func (u *UserService) ListActiveUserTokens(ctx context.Context) ([]db.UserToken,
 	return tokens, nil
 }
 
-func (u *UserService) ListUserTransactions(ctx context.Context, userID int64) ([]db.ListUserTransactionsRow, error) {
+func (u *UserService) ListUserTransactions(ctx context.Context, userID uuid.UUID) ([]db.ListUserTransactionsRow, error) {
 	transactions, err := u.store.ListUserTransactions(ctx, userID)
 	if err != nil {
 		u.logger.Error(fmt.Sprintf("failed to list user transactions: %v", err))
@@ -445,7 +445,7 @@ func (u *UserService) GetTansactionDetails(ctx context.Context, transactionID uu
 	return transaction, nil
 }
 
-func (u *UserService) ToggleRapidRamp(ctx context.Context, userID int64) (bool, error) {
+func (u *UserService) ToggleRapidRamp(ctx context.Context, userID uuid.UUID) (bool, error) {
 	user, err := u.store.GetUserByID(ctx, userID)
 	if err != nil {
 		u.logger.Errorf("get user failed [ToggleRapidRamp]: %v", err)

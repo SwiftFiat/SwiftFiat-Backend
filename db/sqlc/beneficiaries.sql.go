@@ -7,7 +7,6 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -19,7 +18,7 @@ RETURNING id, user_id, bank_code, account_number, beneficiary_name, created_at, 
 `
 
 type CreateBeneficiaryParams struct {
-	UserID          sql.NullInt64 `json:"user_id"`
+	UserID          uuid.NullUUID `json:"user_id"`
 	BankCode        string        `json:"bank_code"`
 	AccountNumber   string        `json:"account_number"`
 	BeneficiaryName string        `json:"beneficiary_name"`
@@ -93,7 +92,7 @@ const getBeneficiariesByUserID = `-- name: GetBeneficiariesByUserID :many
 SELECT id, user_id, bank_code, account_number, beneficiary_name, created_at, updated_at FROM beneficiaries WHERE user_id = $1
 `
 
-func (q *Queries) GetBeneficiariesByUserID(ctx context.Context, userID sql.NullInt64) ([]Beneficiary, error) {
+func (q *Queries) GetBeneficiariesByUserID(ctx context.Context, userID uuid.NullUUID) ([]Beneficiary, error) {
 	rows, err := q.db.QueryContext(ctx, getBeneficiariesByUserID, userID)
 	if err != nil {
 		return nil, err
@@ -151,7 +150,7 @@ RETURNING id, user_id, bank_code, account_number, beneficiary_name, created_at, 
 `
 
 type UpdateBeneficiaryParams struct {
-	UserID          sql.NullInt64 `json:"user_id"`
+	UserID          uuid.NullUUID `json:"user_id"`
 	BankCode        string        `json:"bank_code"`
 	AccountNumber   string        `json:"account_number"`
 	BeneficiaryName string        `json:"beneficiary_name"`

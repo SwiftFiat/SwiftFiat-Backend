@@ -19,7 +19,7 @@ RETURNING id, customer_id, address_id, coin, balance, status, created_at, update
 `
 
 type AssignAddressToCustomerParams struct {
-	CustomerID sql.NullInt64  `json:"customer_id"`
+	CustomerID uuid.NullUUID  `json:"customer_id"`
 	AddressID  string         `json:"address_id"`
 	Coin       string         `json:"coin"`
 	Balance    sql.NullString `json:"balance"`
@@ -78,7 +78,7 @@ FROM crypto_addresses
 WHERE customer_id = $1 AND status = 'active'
 `
 
-func (q *Queries) FetchActiveByCustomerID(ctx context.Context, customerID sql.NullInt64) ([]CryptoAddress, error) {
+func (q *Queries) FetchActiveByCustomerID(ctx context.Context, customerID uuid.NullUUID) ([]CryptoAddress, error) {
 	rows, err := q.db.QueryContext(ctx, fetchActiveByCustomerID, customerID)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ WHERE customer_id = $1 AND coin = $2 AND status = 'active'
 `
 
 type FetchActiveByCustomerIDAndCoinParams struct {
-	CustomerID sql.NullInt64 `json:"customer_id"`
+	CustomerID uuid.NullUUID `json:"customer_id"`
 	Coin       string        `json:"coin"`
 }
 
@@ -152,7 +152,7 @@ LEFT JOIN users u ON ca.customer_id = u.id
 
 type FetchAllAddressesAndCustomersRow struct {
 	AddressID     uuid.UUID      `json:"address_id"`
-	CustomerID    sql.NullInt64  `json:"customer_id"`
+	CustomerID    uuid.NullUUID  `json:"customer_id"`
 	Coin          string         `json:"coin"`
 	Balance       sql.NullString `json:"balance"`
 	Status        string         `json:"status"`
@@ -223,7 +223,7 @@ LIMIT $1
 `
 
 type FindTopCustomersByBalanceRow struct {
-	CustomerID   sql.NullInt64 `json:"customer_id"`
+	CustomerID   uuid.NullUUID `json:"customer_id"`
 	TotalBalance int64         `json:"total_balance"`
 }
 

@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"image/png"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
+	"github.com/google/uuid"
 	"github.com/pquerna/otp/totp"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
@@ -447,7 +447,7 @@ func (a *Auth) login(ctx *gin.Context) {
 
 // logFailedNotification stores failed notification attempts in DB for admin dashboard.
 // This is a fire-and-forget logging mechanism - errors here are non-fatal.
-func (a *Auth) logFailedNotification(ctx context.Context, notifType, category string, userID int64,
+func (a *Auth) logFailedNotification(ctx context.Context, notifType, category string, userID uuid.UUID,
 	recipient, subject, message, errorMsg string) {
 
 	defer func() { recover() }()
@@ -518,7 +518,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		return
 	}
 
-	user, err := a.server.queries.GetUserByID(ctx, int64(activeUser.UserID))
+	user, err := a.server.queries.GetUserByID(ctx, activeUser.UserID)
 	if err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred retrieving user"))
@@ -553,7 +553,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		}
 
 		_, err = a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
-			ID:           int64(activeUser.UserID),
+			ID:           activeUser.UserID,
 			TwofaSecret:  sql.NullString{String: key.Secret(), Valid: true},
 			TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
 			UpdatedAt:    time.Now(),
@@ -597,7 +597,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 
 	// Disable 2FA
 	updatedUser, err := a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
-		ID:           int64(activeUser.UserID),
+		ID:           activeUser.UserID,
 		TwofaSecret:  sql.NullString{Valid: false},
 		TwofaEnabled: sql.NullBool{Bool: false, Valid: true},
 		UpdatedAt:    time.Now(),
@@ -657,14 +657,14 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 		return
 	}
 
-	userID, err := strconv.Atoi(userIDStr)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, apistrings.ServerError)
 		return
 	}
 
-	user, err := a.server.queries.GetUserByID(ctx, int64(userID))
+	user, err := a.server.queries.GetUserByID(ctx, userID)
 	if err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusInternalServerError, apistrings.ServerError)
@@ -1188,7 +1188,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		title := "Welcome to SwiftFiat"
 		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", u.FirstName.String, tag)
 
-		if _, err := a.notifr.CreateWithRecipients(bgCtx, nil, title, message, "system", []int64{u.ID}); err != nil {
+		if _, err := a.notifr.CreateWithRecipients(bgCtx, nil, title, message, "system", []uuid.UUID{u.ID}); err != nil {
 			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %d: %v", u.ID, err))
 			// In-app notification failure is non-fatal but log it
 			a.logFailedNotification(bgCtx, "in_app", "marketing", u.ID, "", title, message, err.Error())
@@ -1266,14 +1266,14 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 
 	a.server.redis.Delete(ctx, redisKey)
 
-	_, err = a.server.queries.CreateNewKYC(ctx, int32(user.ID))
+	kyc, err := a.server.queries.CreateNewKYC(ctx, user.ID)
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("failed to update user %s tier to tier 1: %v", user.UserTag.String, err))
 	}
 
 	_, err = a.server.queries.UpdateKYCNINInfo(ctx, db.UpdateKYCNINInfoParams{
-		FullName: sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
-		ID: user.ID,
+		FullName:    sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
+		ID:          kyc.ID,
 		PhoneNumber: sql.NullString{String: user.PhoneNumber, Valid: true},
 	})
 	if err != nil {
@@ -1284,7 +1284,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 
 	bgCtx := context.Background()
 	go func() {
-		a.notifr.CreateWithRecipients(bgCtx, nil, "Email Verified", message, "system", []int64{user.ID})
+		a.notifr.CreateWithRecipients(bgCtx, nil, "Email Verified", message, "system", []uuid.UUID{user.ID})
 		a.push.SendPushNotification(bgCtx, user.ID, "Email Verified", message)
 	}()
 
@@ -1493,7 +1493,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 
 	// Enable 2FA for admin user with TOTP secret
 	if _, err := qtx.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
-		ID:           int64(newUser.ID),
+		ID:           newUser.ID,
 		TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
 		TwofaSecret:  sql.NullString{String: totpKey.Secret(), Valid: true},
 		UpdatedAt:    time.Now(),
@@ -1847,7 +1847,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 
 	message := fmt.Sprintf("Hello %s, your passcode has been created successfully", user.FirstName.String)
 	title := "Passcode Created"
-	_, err = a.notifr.CreateWithRecipients(ctx, nil, title, message, "system", []int64{user.ID})
+	_, err = a.notifr.CreateWithRecipients(ctx, nil, title, message, "system", []uuid.UUID{user.ID})
 	if err != nil {
 		entry := audit.WarningLog("InApp Notification failed", err.Error())
 		a.audit.Log(entry)
@@ -1954,7 +1954,6 @@ func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
 		return
 	}
 
-
 	// Verify provided pin against stored hashed pin
 	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
@@ -2004,7 +2003,6 @@ func (a *Auth) updateTransactionPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError(apistrings.DeactivatedAccount))
 		return
 	}
-
 
 	if err := utils.VerifyHashValue(pin.OldPin, dbUser.HashedPin.String); err != nil {
 		a.server.logger.Error(err.Error())

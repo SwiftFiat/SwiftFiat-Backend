@@ -7,13 +7,14 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
 type Referral struct {
 	ID           int64           `json:"id"`
-	ReferrerID   int64           `json:"referrer_id"`
-	RefereeID    int64           `json:"referee_id"`
+	ReferrerID   uuid.UUID           `json:"referrer_id"`
+	RefereeID    uuid.UUID           `json:"referee_id"`
 	EarnedAmount decimal.Decimal `json:"earned_amount"`
 	CreatedAt    time.Time       `json:"created_at"`
 	Status       ReferralStatus  `json:"status"`
@@ -140,10 +141,10 @@ func NewReferralRepository(queries *db.Store) *Repo {
 	return &Repo{queries}
 }
 
-func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, amount decimal.Decimal, status string) (*Referral, error) {
+func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID uuid.UUID, amount decimal.Decimal, status string) (*Referral, error) {
 	params := db.CreateReferralParams{
-		ReferrerID:   int32(referrerID),
-		RefereeID:    int32(refereeID),
+		ReferrerID:   referrerID,
+		RefereeID:    refereeID,
 		EarnedAmount: amount.String(),
 		Status:       status,
 	}
@@ -154,21 +155,21 @@ func (r *Repo) CreateReferral(ctx context.Context, referrerID, refereeID int64, 
 	}
 
 	// Create referral earning
-	_, err = r.queries.CreateReferralEarnings(ctx, int32(referrerID))
+	_, err = r.queries.CreateReferralEarnings(ctx, referrerID)
 	if err != nil {
 		return nil, err
 	}
 
 	return &Referral{
-		ReferrerID:   int64(referral.ReferrerID),
-		RefereeID:    int64(referral.RefereeID),
+		ReferrerID:   referral.ReferrerID,
+		RefereeID:    referral.RefereeID,
 		EarnedAmount: amount,
 		Status:       ReferralStatus(referral.Status),
 	}, nil
 }
 
-func (r *Repo) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, error) {
-	dbReferrals, err := r.queries.GetUserReferrals(ctx, int32(userID))
+func (r *Repo) GetUserReferrals(ctx context.Context, userID uuid.UUID) ([]Referral, error) {
+	dbReferrals, err := r.queries.GetUserReferrals(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -181,8 +182,8 @@ func (r *Repo) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, 
 		}
 		referrals[i] = Referral{
 			ID:           int64(ref.ID),
-			ReferrerID:   int64(ref.ReferrerID),
-			RefereeID:    int64(ref.RefereeID),
+			ReferrerID:   ref.ReferrerID,
+			RefereeID:    ref.RefereeID,
 			EarnedAmount: amount,
 			Status: ReferralStatus(ref.Status),
 			CreatedAt:    ref.CreatedAt,
@@ -192,12 +193,12 @@ func (r *Repo) GetUserReferrals(ctx context.Context, userID int64) ([]Referral, 
 	return referrals, nil
 }
 
-func (r *Repo) GetReferralEarnings(ctx context.Context, userID int64) (*db.ReferralEarning, error) {
-	earnings, err := r.queries.GetReferralEarnings(ctx, int32(userID))
+func (r *Repo) GetReferralEarnings(ctx context.Context, userID uuid.UUID) (*db.ReferralEarning, error) {
+	earnings, err := r.queries.GetReferralEarnings(ctx, userID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			// Create earnings record if it doesn't exist
-			earnings, err = r.queries.CreateReferralEarnings(ctx, int32(userID))
+			earnings, err = r.queries.CreateReferralEarnings(ctx, userID)
 			if err != nil {
 				return nil, err
 			}

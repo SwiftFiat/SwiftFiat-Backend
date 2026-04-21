@@ -80,11 +80,11 @@ func (s *Service) decryptKycField(value string) string {
 
 // notifyCard fires both in-app and push notifications for a card event.
 // Always non-blocking; errors are logged and swallowed.
-func (s *Service) notifyCard(userID int64, title, message string) {
+func (s *Service) notifyCard(userID uuid.UUID, title, message string) {
 	go func() {
 		bgCtx := context.Background()
 		if s.notifySvc != nil {
-			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, title, message, "system", []int64{userID}); err != nil {
+			if _, err := s.notifySvc.CreateWithRecipients(bgCtx, nil, title, message, "system", []uuid.UUID{userID}); err != nil {
 				s.logger.Errorf("notifyCard in-app error (user=%d title=%s): %v", userID, title, err)
 			}
 		}
@@ -107,7 +107,7 @@ func billingPeriod(t time.Time) (time.Time, time.Time) {
 
 // CreateCardHolder registers a user as a BridgeCard cardholder.
 // Requires KYC tier_3. Persists cardholder ID + verification status atomically.
-func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone string) (*bridgecards.CreateCardHolderResponse, error) {
+func (s *Service) CreateCardHolder(ctx context.Context, userID uuid.UUID, phone string) (*bridgecards.CreateCardHolderResponse, error) {
 	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -116,12 +116,12 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 		return nil, fmt.Errorf("failed to fetch KYC: %w", err)
 	}
 	if kyc.Tier != "tier_3" {
-		s.notifyCard(int64(userID), "Verification required",
+		s.notifyCard(userID, "Verification required",
 			"This feature requires Tier 3 verification. Complete identity verification to continue.")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_3")
 	}
 
-	user, err := s.store.GetUserByID(ctx, int64(userID))
+	user, err := s.store.GetUserByID(ctx, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch user: %w", err)
 	}
@@ -166,12 +166,12 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 
 	if err := qtx.SetBridgeCardCardholderID(ctx, db.SetBridgeCardCardholderIDParams{
 		BridgecardCardholderID: sql.NullString{String: response.Data.CardHolderID, Valid: true},
-		UpdatedAt:              time.Now(), ID: int64(userID),
+		UpdatedAt:              time.Now(), ID: userID,
 	}); err != nil {
 		return nil, fmt.Errorf("persist cardholder ID: %w", err)
 	}
 	if err := qtx.UpdateCardholderVerificationStatus(ctx, db.UpdateCardholderVerificationStatusParams{
-		ID:                           int64(userID),
+		ID:                           userID,
 		BridgecardVerificationStatus: sql.NullString{String: "verified", Valid: true},
 		UpdatedAt:                    time.Now(),
 	}); err != nil {
@@ -181,7 +181,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
-	s.notifyCard(int64(userID), "Identity verified",
+	s.notifyCard(userID, "Identity verified",
 		"Your identity has been verified. You can now create a virtual card.")
 	return response, nil
 }
@@ -192,7 +192,7 @@ func (s *Service) CreateCardHolder(ctx context.Context, userID int32, phone stri
 // records all ledger entries, and commits atomically.
 func (s *Service) CreateCard(ctx context.Context, params *bridgecards.CreateCardRequest) (*bridgecards.CreateCardResponse, error) {
 	// 1. KYC gate
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(params.UserID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, params.UserID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -483,7 +483,7 @@ func (s *Service) VerifyWebhookSignature(payload []byte, signature string) (bool
 
 // ── Card funding ──────────────────────────────────────────────────────────────
 
-func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest, userID int64) (*bridgecards.FundCardResponse, error) {
+func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest, userID uuid.UUID) (*bridgecards.FundCardResponse, error) {
 	wallet, err := s.store.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: userID, Currency: "USD",
 	})
@@ -597,7 +597,7 @@ func (s *Service) FundCard(ctx context.Context, req bridgecards.FundCardRequest,
 
 // ── Freeze / Unfreeze ─────────────────────────────────────────────────────────
 
-func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+func (s *Service) FreezeCard(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.FreezeCardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -622,7 +622,7 @@ func (s *Service) FreezeCard(ctx context.Context, cardID string, userID int64) (
 	return resp, nil
 }
 
-func (s *Service) AdminFreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+func (s *Service) AdminFreezeCard(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.FreezeCardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -641,12 +641,12 @@ func (s *Service) AdminFreezeCard(ctx context.Context, cardID string, userID int
 		s.pushSvc.AdminFreezeCardNotification(bgCtx, card.UserID, card.CardName)
 		s.notifySvc.CreateWithRecipients(bgCtx, nil, "Card frozen by admin",
 			"An administrator has frozen your virtual card. Contact support if you believe this is an error.",
-			"system", []int64{card.UserID})
+			"system", []uuid.UUID{card.UserID})
 	}()
 	return resp, nil
 }
 
-func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.FreezeCardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -670,7 +670,7 @@ func (s *Service) UnfreezeCard(ctx context.Context, cardID string, userID int64)
 	return resp, nil
 }
 
-func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID int64) (*bridgecards.FreezeCardResponse, error) {
+func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.FreezeCardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -689,14 +689,14 @@ func (s *Service) AdminUnfreezeCard(ctx context.Context, cardID string, userID i
 		s.pushSvc.AdminUnfreezeCardNotification(bgCtx, card.UserID, card.CardName)
 		s.notifySvc.CreateWithRecipients(bgCtx, nil, "Card unfrozen by admin",
 			"An administrator has unfrozen your virtual card. It is now active.",
-			"system", []int64{card.UserID})
+			"system", []uuid.UUID{card.UserID})
 	}()
 	return resp, nil
 }
 
 // ── PIN ───────────────────────────────────────────────────────────────────────
 
-func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardPinRequest, userID int64) (*bridgecards.CardResponse, error) {
+func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardPinRequest, userID uuid.UUID) (*bridgecards.CardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, req.CardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -714,7 +714,7 @@ func (s *Service) UpdateCardPin(ctx context.Context, req bridgecards.UpdateCardP
 
 // ── Termination ───────────────────────────────────────────────────────────────
 
-func (s *Service) DeleteCard(ctx context.Context, cardID uuid.UUID, userID int64) (*bridgecards.CardResponse, error) {
+func (s *Service) DeleteCard(ctx context.Context, cardID uuid.UUID, userID uuid.UUID) (*bridgecards.CardResponse, error) {
 	card, err := s.store.GetVirtualCard(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -737,7 +737,7 @@ func (s *Service) DeleteCard(ctx context.Context, cardID uuid.UUID, userID int64
 	return resp, nil
 }
 
-func (s *Service) AdminDeleteCard(ctx context.Context, cardID uuid.UUID, userID int64) (*bridgecards.CardResponse, error) {
+func (s *Service) AdminDeleteCard(ctx context.Context, cardID uuid.UUID, userID uuid.UUID) (*bridgecards.CardResponse, error) {
 	card, err := s.store.GetVirtualCard(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -756,23 +756,23 @@ func (s *Service) AdminDeleteCard(ctx context.Context, cardID uuid.UUID, userID 
 		s.pushSvc.AdminTerminateCardNotification(bgCtx, card.UserID, card.CardName)
 		s.notifySvc.CreateWithRecipients(bgCtx, nil, "Virtual Card Terminated",
 			"Your virtual card has been terminated by an administrator. Contact support for more information.",
-			"system", []int64{card.UserID})
+			"system", []uuid.UUID{card.UserID})
 	}()
 	return resp, nil
 }
 
 // ── Card info ─────────────────────────────────────────────────────────────────
 
-func (s *Service) ListCardsFromProvider(ctx context.Context, cardholderID string, userID int64) (*bridgecards.ListCardsResponse, error) {
+func (s *Service) ListCardsFromProvider(ctx context.Context, cardholderID string, userID uuid.UUID) (*bridgecards.ListCardsResponse, error) {
 	return s.bridgeCard.ListCards(ctx, cardholderID)
 }
 
-func (s *Service) ListCardsFromDB(ctx context.Context, userID int64) ([]db.GetUserCardsRow, error) {
+func (s *Service) ListCardsFromDB(ctx context.Context, userID uuid.UUID) ([]db.GetUserCardsRow, error) {
 	return s.store.GetUserCards(ctx, userID)
 }
 
 // GetCardDetails returns card details from BridgeCard after validating ownership.
-func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID int64) (*bridgecards.GetCardDetailsResponse, error) {
+func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.GetCardDetailsResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -784,7 +784,7 @@ func (s *Service) GetCardDetails(ctx context.Context, cardID string, userID int6
 }
 
 // DebitCard validates ownership before calling BridgeCard.
-func (s *Service) DebitCard(ctx context.Context, cardID string, userID int64) (*bridgecards.DebitCardResponse, error) {
+func (s *Service) DebitCard(ctx context.Context, cardID string, userID uuid.UUID) (*bridgecards.DebitCardResponse, error) {
 	card, err := s.store.GetVirtualCardByBridgeCardID(ctx, cardID)
 	if err != nil {
 		return nil, ErrCardNotFound
@@ -803,7 +803,7 @@ func (s *Service) ListCardTransactions(ctx context.Context, req bridgecards.List
 	return s.bridgeCard.ListCardTransactions(ctx, req)
 }
 
-func (s *Service) GetCardTransactionStatus(ctx context.Context, cardID, clientRef string, userID int64) (*bridgecards.GetCardTransactionStatusResponse, error) {
+func (s *Service) GetCardTransactionStatus(ctx context.Context, cardID, clientRef string, userID uuid.UUID) (*bridgecards.GetCardTransactionStatusResponse, error) {
 	return s.bridgeCard.GetCardTransactionStatus(ctx, cardID, clientRef)
 }
 
@@ -1350,11 +1350,11 @@ func (s *Service) handleCardholderVerificationSuccess(ctx context.Context, succe
 		return "", fmt.Errorf("fetch cardholder %s: %w", success.CardholderID, err)
 	}
 
-	var userID int64
+	var userID uuid.UUID
 	if ch != nil && ch.Metadata != nil {
-		userID = extractInt64Metadata(ch.Metadata, "user_id")
+		userID = extractUUIDMetadata(ch.Metadata, "user_id")
 	}
-	if userID == 0 {
+	if userID == uuid.Nil {
 		user, err := s.store.GetUserByBridgeCardCardholderID(ctx, sql.NullString{String: success.CardholderID, Valid: true})
 		if err != nil {
 			return "", fmt.Errorf("resolve user for cardholder %s: %w", success.CardholderID, err)
@@ -1431,32 +1431,39 @@ func (s *Service) handleCardholderVerificationFailed(ctx context.Context, failed
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
-// extractInt64Metadata safely reads an int64 from a map[string]any.
-func extractInt64Metadata(meta map[string]interface{}, key string) int64 {
+// extractUUIDMetadata safely reads a UUID from a map[string]any.
+func extractUUIDMetadata(meta map[string]interface{}, key string) uuid.UUID {
 	v, ok := meta[key]
 	if !ok || v == nil {
-		return 0
+		return uuid.Nil
 	}
 	switch t := v.(type) {
-	case float64:
-		return int64(t)
-	case int:
-		return int64(t)
-	case int64:
+	case uuid.UUID:
 		return t
 	case string:
-		if n, err := strconv.ParseInt(t, 10, 64); err == nil {
-			return n
+		if parsed, err := uuid.Parse(strings.TrimSpace(t)); err == nil {
+			return parsed
+		}
+	case []byte:
+		if parsed, err := uuid.FromBytes(t); err == nil {
+			return parsed
 		}
 	case json.Number:
-		if n, err := t.Int64(); err == nil {
-			return n
+		if parsed, err := uuid.Parse(strings.TrimSpace(t.String())); err == nil {
+			return parsed
 		}
 	}
-	raw, _ := json.Marshal(v)
-	var n int64
-	if err := json.Unmarshal(raw, &n); err == nil {
-		return n
+
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return uuid.Nil
 	}
-	return 0
+
+	var str string
+	if err := json.Unmarshal(raw, &str); err == nil {
+		if parsed, parseErr := uuid.Parse(strings.TrimSpace(str)); parseErr == nil {
+			return parsed
+		}
+	}
+	return uuid.Nil
 }

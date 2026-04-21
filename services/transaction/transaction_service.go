@@ -137,18 +137,18 @@ func (s *TransactionService) CreatePendingCryptoTransaction(
 
 	// Lock destination wallet — prevents concurrent credits.
 	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: walletAddress.CustomerID.Int64,
+		CustomerID: walletAddress.CustomerID.UUID,
 		Currency:   "USD",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("fetching USD wallet for customer %d: %w", walletAddress.CustomerID.Int64, err)
+		return nil, fmt.Errorf("fetching USD wallet for customer %d: %w", walletAddress.CustomerID.UUID, err)
 	}
 
 	// FIX [C1]: Direct CreateTransaction with all required fields.
 	// Old createPendingTransactionRecord was missing IdempotencyKey, Direction, TFrom, TTo.
 	idempotencyKey := "crypto_pending_" + orderID
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          walletAddress.CustomerID.Int64,
+		UserID:          walletAddress.CustomerID.UUID,
 		Type:            string(CryptoInflowTransaction),
 		Description:     sql.NullString{String: "Crypto Deposit (Pending)", Valid: true},
 		TransactionFlow: string(Inflow),
@@ -342,7 +342,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(
 			tObj = buildCryptoTransactionResponse(updatedTx)
 
 			// FIX [C5]: Capture user for post-commit notification (do NOT notify inside TX).
-			if u, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.Int64); err == nil {
+			if u, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.UUID); err == nil {
 				notifyUser = &u
 				notifyAmount = finalAmount
 				notifyCoin = coinSym
@@ -414,7 +414,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching cryptomus address: %w", err)
 	}
 
-	user, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.Int64)
+	user, err := qtx.GetUserByID(ctx, walletAddress.CustomerID.UUID)
 	if err != nil {
 		return nil, nil, decimal.Zero, "", fmt.Errorf("fetching user: %w", err)
 	}
@@ -456,7 +456,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 	usdAmount := coinAmount.Mul(rate)
 
 	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
-		CustomerID: walletAddress.CustomerID.Int64,
+		CustomerID: walletAddress.CustomerID.UUID,
 		Currency:   "USD",
 	})
 	if err != nil {
@@ -471,7 +471,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 	// FIX [C2b]: Amount = coin amount, not USD equivalent.
 	// FIX [C2d]: Added IdempotencyKey, Direction, TFrom, TTo.
 	txx, err := qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          walletAddress.CustomerID.Int64,
+		UserID:          walletAddress.CustomerID.UUID,
 		Type:            string(CryptoInflowTransaction),
 		Description:     sql.NullString{String: tx.Description, Valid: tx.Description != ""},
 		TransactionFlow: string(Inflow),
@@ -573,7 +573,7 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 
 	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
 		fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()),
-		"system", []int64{user.ID})
+		"system", []uuid.UUID{user.ID})
 }
 
 // Helper function to build response from database transaction
@@ -597,7 +597,7 @@ func (s *TransactionService) processRapidRampInflow(
 	tx CryptoTransaction,
 	coinAmount decimal.Decimal,
 	coinSym string,
-	userID int64,
+	userID uuid.UUID,
 	prov *providers.ProviderService,
 ) (*TransactionResponse[CryptoMetadataResponse], error) {
 	qtx := s.store.WithTx(dbTx)
@@ -797,7 +797,7 @@ func (s *TransactionService) processRapidRampInflow(
 			bgctx := context.Background()
 			s.notifyr.CreateWithRecipients(bgctx, nil, "Wallet Credit Alert",
 				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"),
-				"system", []int64{user.ID})
+				"system", []uuid.UUID{user.ID})
 
 			s.push.SendPushNotification(bgctx, user.ID, "Wallet Credit Alert",
 				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"))
@@ -894,7 +894,7 @@ func (s *TransactionService) processRapidRampInflow(
 				bgCtx := context.Background()
 				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
 					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
-					"system", []int64{*referrerID})
+					"system", []uuid.UUID{*referrerID})
 				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
 			}()
 		}
@@ -910,7 +910,7 @@ func (s *TransactionService) processRapidRampInflow(
 			bgCtx := context.Background()
 			s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Bonus Credit",
 				fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
-				"system", []int64{*refererID})
+				"system", []uuid.UUID{*refererID})
 			s.push.ConversionBonusEarned(bgCtx, *refererID, conversionBonus.String())
 		}()
 	}
@@ -1052,7 +1052,7 @@ func (s *TransactionService) CreateGiftCardOutflowTransactionWithTx(ctx context.
 	return tObj, nil
 }
 
-func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow, transactionFlow string, userID int64) (interface{}, error) {
+func (s *TransactionService) createTransactionRecord(ctx context.Context, dbTx *sql.Tx, platform TransactionPlatform, txx interface{}, currFlow, transactionFlow string, userID uuid.UUID) (interface{}, error) {
 
 	if platform == WalletTransaction {
 		tx, ok := txx.(*IntraTransaction)
@@ -1531,7 +1531,7 @@ func (s *TransactionService) ProcessRewardRedemption(
 func (s *TransactionService) CompleteRewardRedemption(
 	ctx context.Context,
 	dbTx *sql.Tx,
-	userID int32,
+	userID uuid.UUID,
 	transactionID uuid.UUID,
 	pointsRedeemed decimal.Decimal,
 	originalAmount decimal.Decimal,
@@ -1546,7 +1546,7 @@ func (s *TransactionService) CompleteRewardRedemption(
 		pointsRedeemed.String(), serviceType, serviceProvider)
 
 	rewardTx, err := qtx.RedeemRewardPointsSimple(ctx, db.RedeemRewardPointsSimpleParams{
-		UserID:            int64(userID),
+		UserID:            userID,
 		PointsAmount:      pointsRedeemed.String(),
 		TransactionID:     uuid.NullUUID{UUID: transactionID, Valid: true},
 		TransactionAmount: sql.NullString{String: originalAmount.String(), Valid: true},
@@ -1581,7 +1581,7 @@ func (s *TransactionService) CompleteRewardRedemption(
 func (s *TransactionService) AwardRewardPoints(
 	ctx context.Context,
 	dbTx *sql.Tx,
-	userID int32,
+	userID uuid.UUID,
 	transactionID uuid.UUID,
 	paidAmount decimal.Decimal,
 	serviceType string,
@@ -1639,7 +1639,7 @@ func (s *TransactionService) AwardRewardPoints(
 	description := fmt.Sprintf("%s bonus", serviceType)
 
 	_, err = qtx.AwardRewardPoints(ctx, db.AwardRewardPointsParams{
-		UserID:                int64(userID),
+		UserID:                userID,
 		PointsAmount:          pointsEarned.String(),
 		TransactionID:         uuid.NullUUID{UUID: transactionID, Valid: true},
 		SourceTransactionType: sql.NullString{String: "airtime_purchase", Valid: true},
@@ -1657,7 +1657,7 @@ func (s *TransactionService) AwardRewardPoints(
 	}
 
 	_, err = qtx.CreateTransaction(ctx, db.CreateTransactionParams{
-		UserID:          int64(userID),
+		UserID:          userID,
 		Amount:          pointsEarned.String(),
 		Currency:        "NGN",
 		AmountUsd:       amountUSD.String(),
@@ -1699,7 +1699,7 @@ func (s *TransactionService) AwardRewardPoints(
 }
 
 // GetUserRewardBalance is a convenience method to get user's reward balance
-func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID int64) (string, error) {
+func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID uuid.UUID) (string, error) {
 	balance, err := s.store.GetUserRewardBalance(ctx, userID)
 	if err != nil {
 		return "", fmt.Errorf("failed to get reward balance: %w", err)
@@ -1710,7 +1710,7 @@ func (s *TransactionService) GetUserRewardBalance(ctx context.Context, userID in
 // UpdateStreakAfterBillPayment updates streak after successful bill payment
 func (s *TransactionService) UpdateStreakAfterBillPayment(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	transactionID uuid.UUID,
 	transactionType TransactionType,
 ) error {
@@ -1797,7 +1797,7 @@ func (s *TransactionService) postBillSuccess(
 ) (pointsEarned float64) {
 	if redemptionApplied {
 		if err := s.CompleteRewardRedemption(
-			ctx, dbTx, int32(user.ID), txx.ID,
+			ctx, dbTx, user.ID, txx.ID,
 			pointsToUse, amount, finalAmount, txType, serviceID,
 		); err != nil {
 			s.logger.Error("Failed to complete reward redemption:", err)
@@ -1805,7 +1805,7 @@ func (s *TransactionService) postBillSuccess(
 	}
 
 	pointAmount, err := s.AwardRewardPoints(
-		ctx, dbTx, int32(user.ID), txx.ID, amount, txType, "bill_payment",
+		ctx, dbTx, user.ID, txx.ID, amount, txType, "bill_payment",
 	)
 	if err != nil {
 		s.logger.Error("Failed to award reward points:", err)
@@ -1898,7 +1898,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		return nil, ErrInsufficientBalance
 	}
 
-	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -2074,7 +2074,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		if pointsEarned > 0 {
 			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
 		if err = s.push.SuccessfulAirtimePurchase(ctx, user.ID, req.Amount, req.Phone); err != nil {
@@ -2156,7 +2156,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		return nil, ErrInsufficientBalance
 	}
 
-	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -2331,7 +2331,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		if pointsEarned > 0 {
 			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
 		if err = s.push.SuccessfulDataPurchase(ctx, user.ID, selectedVariation.Name, req.Phone); err != nil {
@@ -2431,7 +2431,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		return nil, ErrInsufficientBalance
 	}
 
-	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -2603,7 +2603,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		if pointsEarned > 0 {
 			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "TV Subscription", notificationMsg, "system", []int64{user.ID}); err != nil {
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "TV Subscription", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
 		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
@@ -3089,7 +3089,7 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		return nil, ErrInsufficientBalance
 	}
 
-	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.WithTx(dbTx).GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -3267,7 +3267,7 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		if pointsEarned > 0 {
 			notificationMsg += fmt.Sprintf(". You earned ₦%.2f in reward points!", pointsEarned)
 		}
-		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []int64{user.ID}); err != nil {
+		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
 		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
@@ -3314,7 +3314,7 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 		return nil, fmt.Errorf("tx exists") //TODO: finish for tx status
 	}
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -3509,8 +3509,8 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 		message := fmt.Sprintf("A wallet debit transaction of %2.f %s has just been sent to %s. If this was not initiated by you, please contact SWIIFT immediately", amount.InexactFloat64(), req.Currency, recipientUser.UserTag.String)
 		message_2 := fmt.Sprintf("%2.f %s has been credited to your wallet from %s", amount.InexactFloat64(), req.Currency, user.UserTag.String)
 
-		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Debit", message, "system", []int64{user.ID})
-		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Credit", message_2, "system", []int64{recipientUser.ID})
+		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Debit", message, "system", []uuid.UUID{user.ID})
+		s.notifyr.CreateWithRecipients(bgCtx, nil, "Wallet Credit", message_2, "system", []uuid.UUID{recipientUser.ID})
 
 		s.push.CreditAlert(bgCtx, recipientUser.ID, amount.InexactFloat64(), req.Currency)
 		s.push.DebitAlert(bgCtx, user.ID, amount.InexactFloat64(), req.Currency)
@@ -3525,7 +3525,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		return nil, fmt.Errorf("invalid request: missing account number, bank code, or recipient name")
 	}
 
-	kyc, err := s.store.Queries.GetKYCByUserID(ctx, int32(user.ID))
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, user.ID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("Err_KYC_NOT_FOUND")
@@ -3644,7 +3644,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 
 	if req.SaveBeneficiary {
 		_, err = s.store.CreateBeneficiary(ctx, db.CreateBeneficiaryParams{
-			UserID:          sql.NullInt64{Int64: user.ID, Valid: true},
+			UserID:          uuid.NullUUID{UUID: user.ID, Valid: true},
 			AccountNumber:   req.AccountNumber,
 			BeneficiaryName: req.Name,
 			BankCode:        req.BankCode,
@@ -3791,7 +3791,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 			s.logger.Error(fmt.Sprintf("failed to update user streak: %v", err))
 		}
 
-		go s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []int64{user.ID})
+		go s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []uuid.UUID{user.ID})
 		go s.push.SendPushNotification(ctx, user.ID, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()))
 
 		return &BankTransferResponse{

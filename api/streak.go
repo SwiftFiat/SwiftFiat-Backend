@@ -10,6 +10,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/streaks"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 // Streaks handles all streak-related API endpoints
@@ -280,7 +281,7 @@ func (st *Streaks) getStreakLeaderboard(ctx *gin.Context) {
 	// Get authenticated user's rank if logged in
 	activeUser, _ := utils.GetActiveUser(ctx)
 	var userRank *streaks.LeaderboardEntry
-	if activeUser.UserID != 0 {
+	if activeUser.UserID != uuid.Nil {
 		// Find user in leaderboard or calculate separately
 		for _, entry := range leaderboard {
 			if entry.UserID == activeUser.UserID {
@@ -378,7 +379,7 @@ func (st *Streaks) getPlatformStatistics(ctx *gin.Context) {
 // @Router /api/v1/admin/streaks/recalculate/{user_id} [post]
 func (st *Streaks) recalculateUserStreak(ctx *gin.Context) {
 	userIDStr := ctx.Param("user_id")
-	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	userID, err := uuid.Parse(userIDStr)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return

@@ -135,13 +135,13 @@ type AdminAlert struct {
 	Source         sql.NullString `json:"source"`
 	Acknowledged   sql.NullBool   `json:"acknowledged"`
 	AcknowledgedAt sql.NullTime   `json:"acknowledged_at"`
-	AcknowledgedBy sql.NullInt64  `json:"acknowledged_by"`
+	AcknowledgedBy uuid.NullUUID  `json:"acknowledged_by"`
 	CreatedAt      time.Time      `json:"created_at"`
 }
 
 type AgentMetric struct {
 	ID                        int64          `json:"id"`
-	SupportAdminID            int64          `json:"support_admin_id"`
+	SupportAdminID            uuid.UUID      `json:"support_admin_id"`
 	TicketsHandled            int32          `json:"tickets_handled"`
 	TicketsResolved           int32          `json:"tickets_resolved"`
 	AverageResolutionTime     sql.NullInt32  `json:"average_resolution_time"`
@@ -155,7 +155,7 @@ type AgentMetric struct {
 type AlertTriggerHistory struct {
 	ID                    int64          `json:"id"`
 	AlertID               uuid.UUID      `json:"alert_id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	TriggeredAt           time.Time      `json:"triggered_at"`
 	CurrentRate           string         `json:"current_rate"`
 	PreviousRate          sql.NullString `json:"previous_rate"`
@@ -187,7 +187,7 @@ type AuditLog struct {
 	// Specific event identifier (e.g., user.login.success)
 	EventType  string         `json:"event_type"`
 	Severity   AuditSeverity  `json:"severity"`
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorType  string         `json:"actor_type"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	EntityType string         `json:"entity_type"`
@@ -214,7 +214,7 @@ type AuditLogs202412 struct {
 	// Specific event identifier (e.g., user.login.success)
 	EventType  string         `json:"event_type"`
 	Severity   AuditSeverity  `json:"severity"`
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorType  string         `json:"actor_type"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	EntityType string         `json:"entity_type"`
@@ -241,7 +241,7 @@ type AuditLogs202501 struct {
 	// Specific event identifier (e.g., user.login.success)
 	EventType  string         `json:"event_type"`
 	Severity   AuditSeverity  `json:"severity"`
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorType  string         `json:"actor_type"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	EntityType string         `json:"entity_type"`
@@ -268,7 +268,7 @@ type AuditLogs202502 struct {
 	// Specific event identifier (e.g., user.login.success)
 	EventType  string         `json:"event_type"`
 	Severity   AuditSeverity  `json:"severity"`
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorType  string         `json:"actor_type"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	EntityType string         `json:"entity_type"`
@@ -295,7 +295,7 @@ type AuditLogsDefault struct {
 	// Specific event identifier (e.g., user.login.success)
 	EventType  string         `json:"event_type"`
 	Severity   AuditSeverity  `json:"severity"`
-	ActorID    sql.NullInt64  `json:"actor_id"`
+	ActorID    uuid.NullUUID  `json:"actor_id"`
 	ActorType  string         `json:"actor_type"`
 	ActorEmail sql.NullString `json:"actor_email"`
 	EntityType string         `json:"entity_type"`
@@ -332,7 +332,7 @@ type Badge struct {
 // User bank accounts for withdrawals and QR payments - users can have multiple accounts with one default
 type BankAccount struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	AccountName           string         `json:"account_name"`
 	AccountNumber         string         `json:"account_number"`
 	BankCode              string         `json:"bank_code"`
@@ -371,7 +371,7 @@ type BankTransferMetadatum struct {
 
 type Beneficiary struct {
 	ID              uuid.UUID     `json:"id"`
-	UserID          sql.NullInt64 `json:"user_id"`
+	UserID          uuid.NullUUID `json:"user_id"`
 	BankCode        string        `json:"bank_code"`
 	AccountNumber   string        `json:"account_number"`
 	BeneficiaryName string        `json:"beneficiary_name"`
@@ -392,7 +392,7 @@ type CannedResponse struct {
 	Shortcut   sql.NullString `json:"shortcut"`
 	Category   sql.NullString `json:"category"`
 	UsageCount int32          `json:"usage_count"`
-	CreatedBy  sql.NullInt64  `json:"created_by"`
+	CreatedBy  uuid.NullUUID  `json:"created_by"`
 	IsActive   bool           `json:"is_active"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
@@ -402,7 +402,7 @@ type CardBillingHistory struct {
 	ID                 uuid.UUID      `json:"id"`
 	TransactionID      uuid.UUID      `json:"transaction_id"`
 	CardID             uuid.UUID      `json:"card_id"`
-	UserID             int64          `json:"user_id"`
+	UserID             uuid.UUID      `json:"user_id"`
 	CardPlanID         int64          `json:"card_plan_id"`
 	BillingType        string         `json:"billing_type"`
 	Amount             string         `json:"amount"`
@@ -420,7 +420,7 @@ type CardFundingHistory struct {
 	ID                      uuid.UUID      `json:"id"`
 	TransactionID           uuid.UUID      `json:"transaction_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	SourceWalletID          uuid.UUID      `json:"source_wallet_id"`
 	Amount                  string         `json:"amount"`
 	Currency                string         `json:"currency"`
@@ -455,7 +455,7 @@ type CardPlan struct {
 
 type CardSpendingSummary struct {
 	CardID                   uuid.UUID `json:"card_id"`
-	UserID                   int64     `json:"user_id"`
+	UserID                   uuid.UUID `json:"user_id"`
 	CardName                 string    `json:"card_name"`
 	Transactions30d          int64     `json:"transactions_30d"`
 	Spend30d                 int64     `json:"spend_30d"`
@@ -467,7 +467,7 @@ type CardTransaction struct {
 	ID                      uuid.UUID             `json:"id"`
 	TransactionID           uuid.UUID             `json:"transaction_id"`
 	CardID                  uuid.UUID             `json:"card_id"`
-	UserID                  int64                 `json:"user_id"`
+	UserID                  uuid.UUID             `json:"user_id"`
 	BridgecardTransactionID string                `json:"bridgecard_transaction_id"`
 	TransactionType         string                `json:"transaction_type"`
 	MerchantName            sql.NullString        `json:"merchant_name"`
@@ -500,7 +500,7 @@ type Category struct {
 type ChatMessage struct {
 	ID                int64                 `json:"id"`
 	TicketID          int64                 `json:"ticket_id"`
-	SenderID          int64                 `json:"sender_id"`
+	SenderID          uuid.UUID             `json:"sender_id"`
 	SenderType        string                `json:"sender_type"`
 	MessageText       string                `json:"message_text"`
 	AiConfidenceScore sql.NullString        `json:"ai_confidence_score"`
@@ -514,7 +514,7 @@ type ChatMessage struct {
 type ConversionHistory struct {
 	ID                       uuid.UUID      `json:"id"`
 	ConversionRuleID         uuid.NullUUID  `json:"conversion_rule_id"`
-	UserID                   int64          `json:"user_id"`
+	UserID                   uuid.UUID      `json:"user_id"`
 	TransactionID            uuid.NullUUID  `json:"transaction_id"`
 	SourceCurrency           string         `json:"source_currency"`
 	TargetCurrency           string         `json:"target_currency"`
@@ -543,7 +543,7 @@ type ConversionHistory struct {
 // User-defined automated conversion rules with rate-based and scheduled triggers
 type ConversionRule struct {
 	ID                  uuid.UUID      `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	SourceCurrency      string         `json:"source_currency"`
 	TargetCurrency      string         `json:"target_currency"`
 	SourceWalletID      uuid.NullUUID  `json:"source_wallet_id"`
@@ -585,7 +585,7 @@ type Country struct {
 
 type CryptoAddress struct {
 	ID         uuid.UUID      `json:"id"`
-	CustomerID sql.NullInt64  `json:"customer_id"`
+	CustomerID uuid.NullUUID  `json:"customer_id"`
 	AddressID  string         `json:"address_id"`
 	Coin       string         `json:"coin"`
 	Balance    sql.NullString `json:"balance"`
@@ -622,7 +622,7 @@ type CryptoTransactionTrail struct {
 
 type CryptomusAddress struct {
 	ID          uuid.UUID      `json:"id"`
-	CustomerID  sql.NullInt64  `json:"customer_id"`
+	CustomerID  uuid.NullUUID  `json:"customer_id"`
 	WalletUuid  string         `json:"wallet_uuid"`
 	Uuid        string         `json:"uuid"`
 	Address     string         `json:"address"`
@@ -637,13 +637,13 @@ type CryptomusAddress struct {
 }
 
 type CustomSubscriptionsSummary struct {
-	UserID                  int64 `json:"user_id"`
-	CustomSubscriptionCount int64 `json:"custom_subscription_count"`
-	ActiveCustomCount       int64 `json:"active_custom_count"`
-	TotalCustomSpend        int64 `json:"total_custom_spend"`
-	DailySubscriptions      int64 `json:"daily_subscriptions"`
-	MonthlySubscriptions    int64 `json:"monthly_subscriptions"`
-	YearlySubscriptions     int64 `json:"yearly_subscriptions"`
+	UserID                  uuid.UUID `json:"user_id"`
+	CustomSubscriptionCount int64     `json:"custom_subscription_count"`
+	ActiveCustomCount       int64     `json:"active_custom_count"`
+	TotalCustomSpend        int64     `json:"total_custom_spend"`
+	DailySubscriptions      int64     `json:"daily_subscriptions"`
+	MonthlySubscriptions    int64     `json:"monthly_subscriptions"`
+	YearlySubscriptions     int64     `json:"yearly_subscriptions"`
 }
 
 type DataAirtimePurchaseMetadatum struct {
@@ -705,7 +705,7 @@ type FaqDocument struct {
 	IsActive     bool           `json:"is_active"`
 	ViewCount    int32          `json:"view_count"`
 	HelpfulCount int32          `json:"helpful_count"`
-	CreatedBy    sql.NullInt64  `json:"created_by"`
+	CreatedBy    uuid.NullUUID  `json:"created_by"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 	Tsv          interface{}    `json:"tsv"`
@@ -768,7 +768,7 @@ type GiftcardTransactionMetadatum struct {
 
 type Kyc struct {
 	ID                 int64                 `json:"id"`
-	UserID             int32                 `json:"user_id"`
+	UserID             uuid.UUID             `json:"user_id"`
 	Status             string                `json:"status"`
 	Tier               string                `json:"tier"`
 	VerificationDate   sql.NullTime          `json:"verification_date"`
@@ -812,7 +812,7 @@ type LedgerEntry struct {
 
 type Notification struct {
 	ID            int64                 `json:"id"`
-	SenderAdminID sql.NullInt64         `json:"sender_admin_id"`
+	SenderAdminID uuid.NullUUID         `json:"sender_admin_id"`
 	Source        string                `json:"source"`
 	Title         sql.NullString        `json:"title"`
 	Message       string                `json:"message"`
@@ -823,7 +823,7 @@ type Notification struct {
 type NotificationRecipient struct {
 	ID             int64        `json:"id"`
 	NotificationID int64        `json:"notification_id"`
-	UserID         int64        `json:"user_id"`
+	UserID         uuid.UUID    `json:"user_id"`
 	Read           bool         `json:"read"`
 	ReadAt         sql.NullTime `json:"read_at"`
 	CreatedAt      time.Time    `json:"created_at"`
@@ -831,7 +831,7 @@ type NotificationRecipient struct {
 
 type Otp struct {
 	ID        int64     `json:"id"`
-	UserID    int32     `json:"user_id"`
+	UserID    uuid.UUID `json:"user_id"`
 	Otp       string    `json:"otp"`
 	Expired   bool      `json:"expired"`
 	CreatedAt time.Time `json:"created_at"`
@@ -842,7 +842,7 @@ type Otp struct {
 // Stores user-configured price alerts for cryptocurrency-to-fiat rate monitoring
 type PriceAlert struct {
 	ID             uuid.UUID `json:"id"`
-	UserID         int64     `json:"user_id"`
+	UserID         uuid.UUID `json:"user_id"`
 	SourceCurrency string    `json:"source_currency"`
 	TargetCurrency string    `json:"target_currency"`
 	// Type of price condition: above, below, equals, percent_up, percent_down, range, breakout
@@ -875,7 +875,7 @@ type PriceAlert struct {
 
 type ProofOfAddressImage struct {
 	ID         int32        `json:"id"`
-	UserID     int32        `json:"user_id"`
+	UserID     uuid.UUID    `json:"user_id"`
 	Filename   string       `json:"filename"`
 	ProofType  string       `json:"proof_type"`
 	ImageData  []byte       `json:"image_data"`
@@ -889,7 +889,7 @@ type ProofOfAddressImage struct {
 type QrCode struct {
 	ID                  uuid.UUID      `json:"id"`
 	Token               uuid.UUID      `json:"token"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	QrType              string         `json:"qr_type"`
 	CurrencyPreference  string         `json:"currency_preference"`
 	ConversionMode      string         `json:"conversion_mode"`
@@ -918,7 +918,7 @@ type QrTransaction struct {
 	ID                     uuid.UUID             `json:"id"`
 	QrCodeID               uuid.UUID             `json:"qr_code_id"`
 	TransactionID          uuid.NullUUID         `json:"transaction_id"`
-	UserID                 int64                 `json:"user_id"`
+	UserID                 uuid.UUID             `json:"user_id"`
 	CryptomusTransactionID sql.NullString        `json:"cryptomus_transaction_id"`
 	CryptomusOrderID       sql.NullString        `json:"cryptomus_order_id"`
 	CryptomusUuid          sql.NullString        `json:"cryptomus_uuid"`
@@ -979,8 +979,8 @@ type RateAdjustmentRule struct {
 	ValidFrom           sql.NullTime   `json:"valid_from"`
 	ValidUntil          sql.NullTime   `json:"valid_until"`
 	IsActive            bool           `json:"is_active"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 	DeletedAt           sql.NullTime   `json:"deleted_at"`
@@ -998,7 +998,7 @@ type RateAdminNotification struct {
 	Metadata          pqtype.NullRawMessage `json:"metadata"`
 	IsRead            bool                  `json:"is_read"`
 	ReadAt            sql.NullTime          `json:"read_at"`
-	ReadBy            sql.NullInt64         `json:"read_by"`
+	ReadBy            uuid.NullUUID         `json:"read_by"`
 	CreatedAt         time.Time             `json:"created_at"`
 }
 
@@ -1015,10 +1015,10 @@ type RateChangeHistory struct {
 	VipLevelID       uuid.NullUUID  `json:"vip_level_id"`
 	VipLevelName     sql.NullString `json:"vip_level_name"`
 	RateProvider     sql.NullString `json:"rate_provider"`
-	AppliedToUserID  sql.NullInt64  `json:"applied_to_user_id"`
+	AppliedToUserID  uuid.NullUUID  `json:"applied_to_user_id"`
 	ConversionID     uuid.NullUUID  `json:"conversion_id"`
 	ChangeReason     sql.NullString `json:"change_reason"`
-	ChangedBy        sql.NullInt64  `json:"changed_by"`
+	ChangedBy        uuid.NullUUID  `json:"changed_by"`
 	CreatedAt        time.Time      `json:"created_at"`
 }
 
@@ -1044,7 +1044,7 @@ type RedeemInstruction struct {
 
 type Referral struct {
 	ID          int64     `json:"id"`
-	UserID      int32     `json:"user_id"`
+	UserID      uuid.UUID `json:"user_id"`
 	ReferralKey string    `json:"referral_key"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
@@ -1061,7 +1061,7 @@ type ReferralConfig struct {
 
 type ReferralEarning struct {
 	ID               int64          `json:"id"`
-	UserID           int32          `json:"user_id"`
+	UserID           uuid.UUID      `json:"user_id"`
 	TotalEarned      string         `json:"total_earned"`
 	AvailableBalance string         `json:"available_balance"`
 	WithdrawnBalance string         `json:"withdrawn_balance"`
@@ -1076,8 +1076,8 @@ type ReferralEarning struct {
 type ReferralEntry struct {
 	ID             int64        `json:"id"`
 	ReferralKey    string       `json:"referral_key"`
-	Referrer       int32        `json:"referrer"`
-	Referee        int32        `json:"referee"`
+	Referrer       uuid.UUID    `json:"referrer"`
+	Referee        uuid.UUID    `json:"referee"`
 	ReferralDetail string       `json:"referral_detail"`
 	CreatedAt      time.Time    `json:"created_at"`
 	UpdatedAt      time.Time    `json:"updated_at"`
@@ -1086,7 +1086,7 @@ type ReferralEntry struct {
 
 type ReferralTransaction struct {
 	ID              int64         `json:"id"`
-	UserID          int32         `json:"user_id"`
+	UserID          uuid.UUID     `json:"user_id"`
 	Amount          string        `json:"amount"`
 	TransactionID   uuid.NullUUID `json:"transaction_id"`
 	TransactionType string        `json:"transaction_type"`
@@ -1111,7 +1111,7 @@ type RewardConfiguration struct {
 	IsActive                bool           `json:"is_active"`
 	ValidFrom               time.Time      `json:"valid_from"`
 	ValidUntil              sql.NullTime   `json:"valid_until"`
-	CreatedBy               sql.NullInt32  `json:"created_by"`
+	CreatedBy               uuid.NullUUID  `json:"created_by"`
 	CreatedAt               time.Time      `json:"created_at"`
 	UpdatedAt               time.Time      `json:"updated_at"`
 }
@@ -1120,7 +1120,7 @@ type RewardConfiguration struct {
 type RewardRedemption struct {
 	ID                       int64     `json:"id"`
 	RewardTransactionID      int64     `json:"reward_transaction_id"`
-	UserID                   int32     `json:"user_id"`
+	UserID                   uuid.UUID `json:"user_id"`
 	BillPaymentTransactionID uuid.UUID `json:"bill_payment_transaction_id"`
 	// Reward points redeemed (₦ value)
 	PointsRedeemed string `json:"points_redeemed"`
@@ -1137,7 +1137,7 @@ type RewardRedemption struct {
 // Complete history of reward points earned and redeemed
 type RewardTransaction struct {
 	ID            int64         `json:"id"`
-	UserID        int64         `json:"user_id"`
+	UserID        uuid.UUID     `json:"user_id"`
 	TransactionID uuid.NullUUID `json:"transaction_id"`
 	// Type: earned or redeemed
 	TransactionType       string         `json:"transaction_type"`
@@ -1197,7 +1197,7 @@ type SubscriptionMerchant struct {
 type SubscriptionReminder struct {
 	ID             uuid.UUID      `json:"id"`
 	SubscriptionID uuid.UUID      `json:"subscription_id"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	ReminderType   string         `json:"reminder_type"`
 	ScheduledFor   time.Time      `json:"scheduled_for"`
 	SentAt         sql.NullTime   `json:"sent_at"`
@@ -1217,14 +1217,14 @@ type SubscriptionSystemSetting struct {
 	Description  sql.NullString `json:"description"`
 	Category     string         `json:"category"`
 	IsActive     bool           `json:"is_active"`
-	UpdatedBy    sql.NullInt64  `json:"updated_by"`
+	UpdatedBy    uuid.NullUUID  `json:"updated_by"`
 	CreatedAt    time.Time      `json:"created_at"`
 	UpdatedAt    time.Time      `json:"updated_at"`
 }
 
 type SupportAdmin struct {
-	ID                   int64     `json:"id"`
-	UserID               int64     `json:"user_id"`
+	ID                   uuid.UUID `json:"id"`
+	UserID               uuid.UUID `json:"user_id"`
 	Status               string    `json:"status"`
 	ActiveTicketCount    int32     `json:"active_ticket_count"`
 	MaxConcurrentTickets int32     `json:"max_concurrent_tickets"`
@@ -1250,7 +1250,7 @@ type SwapTransferMetadatum struct {
 
 type SwiftWallet struct {
 	ID         uuid.UUID      `json:"id"`
-	CustomerID int64          `json:"customer_id"`
+	CustomerID uuid.UUID      `json:"customer_id"`
 	Type       string         `json:"type"`
 	Currency   string         `json:"currency"`
 	Balance    sql.NullString `json:"balance"`
@@ -1289,9 +1289,9 @@ type SystemSetting struct {
 
 type Ticket struct {
 	ID                  int64          `json:"id"`
-	UserID              int64          `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string         `json:"status"`
-	AssignedTo          sql.NullInt64  `json:"assigned_to"`
+	AssignedTo          uuid.NullUUID  `json:"assigned_to"`
 	EscalationReason    sql.NullString `json:"escalation_reason"`
 	Priority            string         `json:"priority"`
 	Category            sql.NullString `json:"category"`
@@ -1305,9 +1305,9 @@ type Ticket struct {
 type TicketAssignmentHistory struct {
 	ID           int64          `json:"id"`
 	TicketID     int64          `json:"ticket_id"`
-	AssignedFrom sql.NullInt64  `json:"assigned_from"`
-	AssignedTo   sql.NullInt64  `json:"assigned_to"`
-	AssignedBy   int64          `json:"assigned_by"`
+	AssignedFrom uuid.NullUUID  `json:"assigned_from"`
+	AssignedTo   uuid.NullUUID  `json:"assigned_to"`
+	AssignedBy   uuid.UUID      `json:"assigned_by"`
 	Reason       sql.NullString `json:"reason"`
 	CreatedAt    time.Time      `json:"created_at"`
 }
@@ -1315,7 +1315,7 @@ type TicketAssignmentHistory struct {
 // Core transaction table storing all financial transactions
 type Transaction struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      string         `json:"transaction_flow"`
@@ -1350,7 +1350,7 @@ type TransactionFee struct {
 // Tracks daily transaction streak metrics per user
 type TransactionStreak struct {
 	ID                   int64        `json:"id"`
-	UserID               int64        `json:"user_id"`
+	UserID               uuid.UUID    `json:"user_id"`
 	CurrentStreak        int32        `json:"current_streak"`
 	BestStreak           int32        `json:"best_streak"`
 	TotalTransactionDays int32        `json:"total_transaction_days"`
@@ -1363,7 +1363,7 @@ type TransactionStreak struct {
 // Audit log of all streak changes
 type TransactionStreakHistory struct {
 	ID              int64                 `json:"id"`
-	UserID          int64                 `json:"user_id"`
+	UserID          uuid.UUID             `json:"user_id"`
 	TransactionID   uuid.NullUUID         `json:"transaction_id"`
 	PreviousStreak  int32                 `json:"previous_streak"`
 	NewStreak       int32                 `json:"new_streak"`
@@ -1374,7 +1374,7 @@ type TransactionStreakHistory struct {
 }
 
 type User struct {
-	ID                           int64          `json:"id"`
+	ID                           uuid.UUID      `json:"id"`
 	AvatarUrl                    sql.NullString `json:"avatar_url"`
 	AvatarBlob                   []byte         `json:"avatar_blob"`
 	FirstName                    sql.NullString `json:"first_name"`
@@ -1417,7 +1417,7 @@ type User struct {
 }
 
 type UserActivityTimeline struct {
-	UserID      sql.NullInt64  `json:"user_id"`
+	UserID      uuid.NullUUID  `json:"user_id"`
 	Email       sql.NullString `json:"email"`
 	EventType   string         `json:"event_type"`
 	EntityType  string         `json:"entity_type"`
@@ -1431,7 +1431,7 @@ type UserActivityTimeline struct {
 
 // Aggregated statistics per user for alert usage
 type UserAlertStat struct {
-	UserID          int64       `json:"user_id"`
+	UserID          uuid.UUID   `json:"user_id"`
 	TotalAlerts     int64       `json:"total_alerts"`
 	ActiveAlerts    int64       `json:"active_alerts"`
 	PausedAlerts    int64       `json:"paused_alerts"`
@@ -1443,7 +1443,7 @@ type UserAlertStat struct {
 // Junction table tracking which badges users have earned
 type UserBadge struct {
 	ID             int64     `json:"id"`
-	UserID         int64     `json:"user_id"`
+	UserID         uuid.UUID `json:"user_id"`
 	BadgeID        int64     `json:"badge_id"`
 	EarnedAt       time.Time `json:"earned_at"`
 	StreakAtUnlock int32     `json:"streak_at_unlock"`
@@ -1451,8 +1451,8 @@ type UserBadge struct {
 
 type UserReferral struct {
 	ID           int32     `json:"id"`
-	ReferrerID   int32     `json:"referrer_id"`
-	RefereeID    int32     `json:"referee_id"`
+	ReferrerID   uuid.UUID `json:"referrer_id"`
+	RefereeID    uuid.UUID `json:"referee_id"`
 	EarnedAmount string    `json:"earned_amount"`
 	CreatedAt    time.Time `json:"created_at"`
 	Status       string    `json:"status"`
@@ -1460,7 +1460,7 @@ type UserReferral struct {
 
 type UserSubscription struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -1494,7 +1494,7 @@ type UserSubscription struct {
 }
 
 type UserSubscriptionSummary struct {
-	UserID              int64       `json:"user_id"`
+	UserID              uuid.UUID   `json:"user_id"`
 	ActiveSubscriptions int64       `json:"active_subscriptions"`
 	FailedSubscriptions int64       `json:"failed_subscriptions"`
 	TotalMonthlySpend   int64       `json:"total_monthly_spend"`
@@ -1504,7 +1504,7 @@ type UserSubscriptionSummary struct {
 
 type UserToken struct {
 	ID         int32          `json:"id"`
-	UserID     int64          `json:"user_id"`
+	UserID     uuid.UUID      `json:"user_id"`
 	Token      string         `json:"token"`
 	Provider   string         `json:"provider"`
 	DeviceUuid sql.NullString `json:"device_uuid"`
@@ -1515,7 +1515,7 @@ type UserToken struct {
 // Tracks individual transaction volumes for VIP level evaluation
 type UserTransactionVolume struct {
 	ID              int64     `json:"id"`
-	UserID          int64     `json:"user_id"`
+	UserID          uuid.UUID `json:"user_id"`
 	TransactionType string    `json:"transaction_type"`
 	Amount          string    `json:"amount"`
 	Currency        string    `json:"currency"`
@@ -1529,10 +1529,10 @@ type UserTransactionVolume struct {
 // User VIP level assignments and tier progression tracking
 type UserVipAssignment struct {
 	ID                    uuid.UUID     `json:"id"`
-	UserID                int64         `json:"user_id"`
+	UserID                uuid.UUID     `json:"user_id"`
 	VipLevelID            uuid.UUID     `json:"vip_level_id"`
 	AssignedAt            time.Time     `json:"assigned_at"`
-	AssignedBy            sql.NullInt64 `json:"assigned_by"`
+	AssignedBy            uuid.NullUUID `json:"assigned_by"`
 	AssignmentType        string        `json:"assignment_type"`
 	TotalConversionVolume string        `json:"total_conversion_volume"`
 	IsActive              bool          `json:"is_active"`
@@ -1544,7 +1544,7 @@ type UserVipAssignment struct {
 // Historical record of VIP level changes
 type UserVipLevelHistory struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	PreviousLevelID         uuid.NullUUID  `json:"previous_level_id"`
 	PreviousLevelName       sql.NullString `json:"previous_level_name"`
 	NewLevelID              uuid.NullUUID  `json:"new_level_id"`
@@ -1553,14 +1553,14 @@ type UserVipLevelHistory struct {
 	ChangeType              string         `json:"change_type"`
 	TotalVolumeAtChange     sql.NullString `json:"total_volume_at_change"`
 	ConversionCountAtChange sql.NullInt32  `json:"conversion_count_at_change"`
-	ChangedBy               sql.NullInt64  `json:"changed_by"`
+	ChangedBy               uuid.NullUUID  `json:"changed_by"`
 	ChangedByType           sql.NullString `json:"changed_by_type"`
 	ChangedAt               time.Time      `json:"changed_at"`
 }
 
 // Cached aggregated metrics for fast VIP level queries
 type UserVipMetricsCache struct {
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	TotalTransactionVolume string         `json:"total_transaction_volume"`
 	TotalConversionCount   int32          `json:"total_conversion_count"`
 	MonthlyVolume          string         `json:"monthly_volume"`
@@ -1579,7 +1579,7 @@ type UserVipMetricsCache struct {
 
 type VaultSaving struct {
 	ID                   uuid.UUID             `json:"id"`
-	UserID               int64                 `json:"user_id"`
+	UserID               uuid.UUID             `json:"user_id"`
 	VaultName            string                `json:"vault_name"`
 	Description          sql.NullString        `json:"description"`
 	GoalAmount           sql.NullString        `json:"goal_amount"`
@@ -1603,7 +1603,7 @@ type VaultSaving struct {
 
 type VaultTransaction struct {
 	ID                uuid.UUID             `json:"id"`
-	UserID            int64                 `json:"user_id"`
+	UserID            uuid.UUID             `json:"user_id"`
 	VaultID           uuid.UUID             `json:"vault_id"`
 	TransactionType   string                `json:"transaction_type"`
 	TransactionID     uuid.NullUUID         `json:"transaction_id"`
@@ -1625,7 +1625,7 @@ type VaultTransaction struct {
 
 type VaultYield struct {
 	ID                     uuid.UUID      `json:"id"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	VaultID                uuid.UUID      `json:"vault_id"`
 	YieldAmount            string         `json:"yield_amount"`
 	YieldRate              string         `json:"yield_rate"`
@@ -1664,8 +1664,8 @@ type VipLevel struct {
 	IconUrl             sql.NullString `json:"icon_url"`
 	IsActive            bool           `json:"is_active"`
 	IsDefault           bool           `json:"is_default"`
-	CreatedBy           sql.NullInt64  `json:"created_by"`
-	UpdatedBy           sql.NullInt64  `json:"updated_by"`
+	CreatedBy           uuid.NullUUID  `json:"created_by"`
+	UpdatedBy           uuid.NullUUID  `json:"updated_by"`
 	CreatedAt           time.Time      `json:"created_at"`
 	UpdatedAt           time.Time      `json:"updated_at"`
 	DeletedAt           sql.NullTime   `json:"deleted_at"`
@@ -1673,7 +1673,7 @@ type VipLevel struct {
 
 type VirtualCard struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID      `json:"user_id"`
 	CardPlanID              int64          `json:"card_plan_id"`
 	BridgecardCardID        string         `json:"bridgecard_card_id"`
 	CardName                string         `json:"card_name"`
@@ -1713,7 +1713,7 @@ type VwVipDistribution struct {
 
 // Users eligible for VIP level upgrades
 type VwVipUpgradeCandidate struct {
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	Email                  string         `json:"email"`
 	PhoneNumber            string         `json:"phone_number"`
 	CurrentVipLevelName    sql.NullString `json:"current_vip_level_name"`

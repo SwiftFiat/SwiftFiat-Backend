@@ -5,7 +5,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_savings" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_name" VARCHAR(100) NOT NULL,
     "description" TEXT,
     "goal_amount" DECIMAL(19,4) DEFAULT 0,
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS "vault_savings" (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS "vault_transactions" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),  
-    "user_id" BIGINT NOT NULL REFERENCES users("id") ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users("id") ON DELETE CASCADE,
     "vault_id" UUID NOT NULL REFERENCES vault_savings("id") ON DELETE CASCADE,
     "transaction_type" VARCHAR(30) NOT NULL CHECK(transaction_type IN ('deposit', 'withdrawal', 'auto_save', 'yield_credit')),
     "transaction_id" UUID REFERENCES transactions(id) ON DELETE CASCADE,

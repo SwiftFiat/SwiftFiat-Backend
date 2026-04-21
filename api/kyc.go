@@ -22,6 +22,7 @@ import (
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 )
 
@@ -66,7 +67,7 @@ func (k *KYC) getVerificationProgress(ctx *gin.Context) {
 		return
 	}
 
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("No KYC record found", gin.H{
 			"completed_fields": []string{},
@@ -172,7 +173,7 @@ func (k *KYC) getUserKyc(ctx *gin.Context) {
 		return
 	}
 
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNoKYC))
 		return
@@ -207,7 +208,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		return
 	}
 
-	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
 		return
@@ -287,9 +288,9 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 	}
 
 	// Get or create KYC record
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
-		userKyc, err = k.server.queries.CreateNewKYC(ctx, int32(activeUser.UserID))
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, activeUser.UserID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
@@ -333,7 +334,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		}
 
 		_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-			ID:            int64(kyc.UserID),
+			ID:            kyc.UserID,
 			IsKycVerified: true,
 			UpdatedAt:     time.Now(),
 		})
@@ -351,16 +352,16 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 		go func() {
 			bgCtx := context.Background()
 			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
-			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []int64{int64(kyc.UserID)})
-			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your identity verification (Tier 2) was successful.")
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []uuid.UUID{kyc.UserID})
+			k.push.SendPushNotification(bgCtx, kyc.UserID, "KYC Verified", "Your identity verification (Tier 2) was successful.")
 			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
 		}()
 	} else {
 		// Only BVN verified
 		go func() {
 			bgCtx := context.Background()
-			k.notifyr.CreateWithRecipients(bgCtx, nil, "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.", "system", []int64{int64(kyc.UserID)})
-			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.")
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.", "system", []uuid.UUID{kyc.UserID})
+			k.push.SendPushNotification(bgCtx, kyc.UserID, "BVN Verified", "Your BVN has been verified. Please verify your NIN to complete Tier 2 verification.")
 		}()
 	}
 
@@ -386,7 +387,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
 		return
@@ -459,9 +460,9 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 	}
 
 	// Get or create KYC record
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
-		userKyc, err = k.server.queries.CreateNewKYC(ctx, int32(activeUser.UserID))
+		userKyc, err = k.server.queries.CreateNewKYC(ctx, activeUser.UserID)
 		if err != nil {
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
@@ -521,7 +522,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		}
 
 		_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-			ID:            int64(kyc.UserID),
+			ID:            kyc.UserID,
 			IsKycVerified: true,
 			UpdatedAt:     time.Now(),
 		})
@@ -539,16 +540,16 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		go func() {
 			bgCtx := context.Background()
 			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
-			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []int64{int64(kyc.UserID)})
-			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your identity verification (Tier 2) was successful.")
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your identity verification (Tier 2) was successful.", "system", []uuid.UUID{kyc.UserID})
+			k.push.SendPushNotification(bgCtx, kyc.UserID, "KYC Verified", "Your identity verification (Tier 2) was successful.")
 			k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
 		}()
 	} else {
 		// Only NIN verified
 		go func() {
 			bgCtx := context.Background()
-			k.notifyr.CreateWithRecipients(bgCtx, nil, "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.", "system", []int64{int64(kyc.UserID)})
-			k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.")
+			k.notifyr.CreateWithRecipients(bgCtx, nil, "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.", "system", []uuid.UUID{kyc.UserID})
+			k.push.SendPushNotification(bgCtx, kyc.UserID, "NIN Verified", "Your NIN has been verified. Please verify your BVN to complete Tier 2 verification.")
 		}()
 	}
 
@@ -634,7 +635,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	// Get KYC record
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
 		return
@@ -685,7 +686,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 
 	// Store proof document
 	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
-		UserID:    int32(activeUser.UserID),
+		UserID:    activeUser.UserID,
 		Filename:  filename,
 		ProofType: proofType,
 		ImageData: imageData,
@@ -735,7 +736,7 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	}
 
 	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		ID:            int64(kyc.UserID),
+		ID:            kyc.UserID,
 		IsKycVerified: true,
 		UpdatedAt:     time.Now(),
 	})
@@ -752,15 +753,15 @@ func (k *KYC) uploadProofOfAddress(ctx *gin.Context) {
 	// Send notifications
 	go func() {
 		bgCtx := context.Background()
-		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		u, _ := k.server.queries.GetUserByID(bgCtx, kyc.UserID)
 		k.email.KycVerified(bgCtx, u.FirstName.String, u.Email)
-		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []int64{int64(kyc.UserID)})
-		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your address verification (Tier 3) was successful.")
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []uuid.UUID{kyc.UserID})
+		k.push.SendPushNotification(bgCtx, kyc.UserID, "KYC Verified", "Your address verification (Tier 3) was successful.")
 	}()
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Proof of address uploaded and address updated successfully!", gin.H{
 		"id":           models.ID(proof.ID),
-		"user_id":      models.ID(proof.UserID),
+		"user_id":      proof.UserID,
 		"filename":     proof.Filename,
 		"proof_type":   proof.ProofType,
 		"created_at":   proof.CreatedAt,
@@ -785,7 +786,7 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 		return
 	}
 
-	userKYC, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKYC, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("User KYC not found"))
 		return
@@ -880,7 +881,7 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 	}
 
 	// Get KYC record
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(activeUser.UserID))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, activeUser.UserID)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Please complete basic KYC verification first"))
 		return
@@ -945,7 +946,7 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 
 	var proofID int32
 	proof, err := k.server.queries.InsertNewProofImage(ctx, db.InsertNewProofImageParams{
-		UserID:    int32(activeUser.UserID),
+		UserID:    activeUser.UserID,
 		Filename:  filename,
 		ProofType: "utility_bill",
 		ImageData: imageData,
@@ -1000,7 +1001,7 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 	}
 
 	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		ID:            int64(updatedKycRecord.UserID),
+		ID:            updatedKycRecord.UserID,
 		IsKycVerified: true,
 		UpdatedAt:     time.Now(),
 	})
@@ -1018,8 +1019,8 @@ func (k *KYC) verifyUtilityBill(ctx *gin.Context) {
 	go func() {
 		bgCtx := context.Background()
 		k.email.KycVerified(bgCtx, dbUser.FirstName.String, dbUser.Email)
-		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []int64{int64(updatedKycRecord.UserID)})
-		k.push.SendPushNotification(bgCtx, int64(updatedKycRecord.UserID), "KYC Verified", "Your address verification (Tier 3) was successful.")
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your address verification (Tier 3) was successful.", "system", []uuid.UUID{updatedKycRecord.UserID})
+		k.push.SendPushNotification(bgCtx, updatedKycRecord.UserID, "KYC Verified", "Your address verification (Tier 3) was successful.")
 	}()
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Utility bill verified and address updated successfully!", gin.H{
@@ -1076,7 +1077,7 @@ func (k *KYC) verifyKYC(ctx *gin.Context) {
 
 	// Update user table
 	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		ID:            int64(kyc.UserID),
+		ID:            kyc.UserID,
 		IsKycVerified: true,
 		UpdatedAt:     time.Now(),
 	})
@@ -1087,10 +1088,10 @@ func (k *KYC) verifyKYC(ctx *gin.Context) {
 	// Send notifications
 	go func() {
 		bgCtx := context.Background()
-		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		u, _ := k.server.queries.GetUserByID(bgCtx, kyc.UserID)
 		k.email.KycVerified(bgCtx, u.FirstName.String, u.Email)
-		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your KYC has been manually verified by an administrator.", "system", []int64{int64(kyc.UserID)})
-		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Verified", "Your KYC has been manually verified by an administrator.")
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Verified", "Your KYC has been manually verified by an administrator.", "system", []uuid.UUID{kyc.UserID})
+		k.push.SendPushNotification(bgCtx, kyc.UserID, "KYC Verified", "Your KYC has been manually verified by an administrator.")
 	}()
 
 	// Decrypt KYC data
@@ -1137,7 +1138,7 @@ func (k *KYC) rejectKYC(ctx *gin.Context) {
 
 	// Update user table
 	_, err = k.server.queries.UpdateUserKYCVerificationStatus(ctx, db.UpdateUserKYCVerificationStatusParams{
-		ID:            int64(kyc.UserID),
+		ID:            kyc.UserID,
 		IsKycVerified: false,
 		UpdatedAt:     time.Now(),
 	})
@@ -1148,10 +1149,10 @@ func (k *KYC) rejectKYC(ctx *gin.Context) {
 	// Send notifications
 	go func() {
 		bgCtx := context.Background()
-		u, _ := k.server.queries.GetUserByID(bgCtx, int64(kyc.UserID))
+		u, _ := k.server.queries.GetUserByID(bgCtx, kyc.UserID)
 		k.email.KycFailed(bgCtx, u.FirstName.String, u.Email, req.Reason)
-		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason), "system", []int64{int64(kyc.UserID)})
-		k.push.SendPushNotification(bgCtx, int64(kyc.UserID), "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason))
+		k.notifyr.CreateWithRecipients(bgCtx, nil, "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason), "system", []uuid.UUID{kyc.UserID})
+		k.push.SendPushNotification(bgCtx, kyc.UserID, "KYC Rejected", fmt.Sprintf("Your KYC was rejected. Reason: %s", req.Reason))
 	}()
 
 	// Decrypt KYC data
@@ -1171,14 +1172,14 @@ func (k *KYC) getAdminUserKyc(ctx *gin.Context) {
 		return
 	}
 
-	id, err := strconv.Atoi(ctx.Param("id"))
+	id, err := uuid.Parse(ctx.Param("id"))
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("Invalid User ID"))
 		return
 	}
 
 	// Get KYC by User ID
-	userKyc, err := k.server.queries.GetKYCByUserID(ctx, int32(id))
+	userKyc, err := k.server.queries.GetKYCByUserID(ctx, id)
 	if err == sql.ErrNoRows {
 		ctx.JSON(http.StatusNotFound, basemodels.NewError("KYC record not found for this user"))
 		return

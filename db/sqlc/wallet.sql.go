@@ -25,7 +25,7 @@ INSERT INTO swift_wallets (
 `
 
 type CreateWalletParams struct {
-	CustomerID int64          `json:"customer_id"`
+	CustomerID uuid.UUID      `json:"customer_id"`
 	Type       string         `json:"type"`
 	Currency   string         `json:"currency"`
 	Balance    sql.NullString `json:"balance"`
@@ -67,7 +67,7 @@ type DecrementWalletBalanceParams struct {
 
 type DecrementWalletBalanceRow struct {
 	ID         uuid.UUID      `json:"id"`
-	CustomerID int64          `json:"customer_id"`
+	CustomerID uuid.UUID      `json:"customer_id"`
 	Currency   string         `json:"currency"`
 	Balance    sql.NullString `json:"balance"`
 	Status     string         `json:"status"`
@@ -117,8 +117,8 @@ WHERE customer_id = $1 AND currency = $2 LIMIT 1
 `
 
 type GetWalletByCurrencyParams struct {
-	CustomerID int64  `json:"customer_id"`
-	Currency   string `json:"currency"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	Currency   string    `json:"currency"`
 }
 
 func (q *Queries) GetWalletByCurrency(ctx context.Context, arg GetWalletByCurrencyParams) (SwiftWallet, error) {
@@ -144,8 +144,8 @@ FOR UPDATE
 `
 
 type GetWalletByCurrencyForUpdateParams struct {
-	CustomerID int64  `json:"customer_id"`
-	Currency   string `json:"currency"`
+	CustomerID uuid.UUID `json:"customer_id"`
+	Currency   string    `json:"currency"`
 }
 
 func (q *Queries) GetWalletByCurrencyForUpdate(ctx context.Context, arg GetWalletByCurrencyForUpdateParams) (SwiftWallet, error) {
@@ -169,7 +169,7 @@ SELECT id, customer_id, type, currency, balance, status, created_at, updated_at 
 WHERE customer_id = $1
 `
 
-func (q *Queries) GetWalletByCustomerID(ctx context.Context, customerID int64) ([]SwiftWallet, error) {
+func (q *Queries) GetWalletByCustomerID(ctx context.Context, customerID uuid.UUID) ([]SwiftWallet, error) {
 	rows, err := q.db.QueryContext(ctx, getWalletByCustomerID, customerID)
 	if err != nil {
 		return nil, err
@@ -217,7 +217,7 @@ type GetWalletByTagRow struct {
 	ID        uuid.UUID      `json:"id"`
 	Currency  string         `json:"currency"`
 	Status    string         `json:"status"`
-	ID_2      int64          `json:"id_2"`
+	ID_2      uuid.UUID      `json:"id_2"`
 	FirstName sql.NullString `json:"first_name"`
 	LastName  sql.NullString `json:"last_name"`
 }
@@ -273,7 +273,7 @@ type IncrementWalletBalanceParams struct {
 
 type IncrementWalletBalanceRow struct {
 	ID         uuid.UUID      `json:"id"`
-	CustomerID int64          `json:"customer_id"`
+	CustomerID uuid.UUID      `json:"customer_id"`
 	Currency   string         `json:"currency"`
 	Balance    sql.NullString `json:"balance"`
 	Status     string         `json:"status"`
@@ -302,7 +302,7 @@ WHERE customer_id = $1
 ORDER BY created_at
 `
 
-func (q *Queries) ListWallets(ctx context.Context, customerID int64) ([]SwiftWallet, error) {
+func (q *Queries) ListWallets(ctx context.Context, customerID uuid.UUID) ([]SwiftWallet, error) {
 	rows, err := q.db.QueryContext(ctx, listWallets, customerID)
 	if err != nil {
 		return nil, err

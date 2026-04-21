@@ -61,7 +61,7 @@ CREATE INDEX idx_card_plans_active ON card_plans(is_active) WHERE deleted_at IS 
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Relationships
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "card_plan_id" BIGINT NOT NULL REFERENCES card_plans(id),
     
     -- BridgeCard Integration (ONLY reference)
@@ -121,7 +121,7 @@ CREATE INDEX idx_virtual_cards_autotopup ON virtual_cards(auto_topup_enabled) WH
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "user_id" UUID NOT NULL REFERENCES users(id),
     "source_wallet_id" UUID NOT NULL References swift_wallets(id), -- References wallets table
     
     -- Funding details
@@ -168,7 +168,7 @@ CREATE INDEX idx_card_funding_created ON card_funding_history(created_at DESC);
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "user_id" UUID NOT NULL REFERENCES users(id),
     
     -- BridgeCard transaction reference
     "bridgecard_transaction_id" VARCHAR(255) UNIQUE NOT NULL,
@@ -282,7 +282,7 @@ CREATE INDEX idx_subscription_merchants_active ON subscription_merchants(is_acti
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- Relationships
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
     "merchant_id" BIGINT REFERENCES subscription_merchants(id),
     
@@ -354,7 +354,7 @@ CHECK (custom_billing_cycle IS NULL OR custom_billing_cycle IN ('daily', 'monthl
     
     -- Relationships
     "subscription_id" UUID NOT NULL REFERENCES user_subscriptions(id) ON DELETE CASCADE,
-    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "user_id" UUID NOT NULL REFERENCES users(id),
     
     -- Reminder details
     "reminder_type" VARCHAR(50) NOT NULL,
@@ -396,7 +396,7 @@ CREATE TABLE IF NOT EXISTS "card_billing_history" (
     
     -- Relationships
     "card_id" UUID NOT NULL REFERENCES virtual_cards(id) ON DELETE CASCADE,
-    "user_id" BIGINT NOT NULL REFERENCES users(id),
+    "user_id" UUID NOT NULL REFERENCES users(id),
     "card_plan_id" BIGINT NOT NULL REFERENCES card_plans(id),
     
     -- Billing details
@@ -434,7 +434,7 @@ CREATE TABLE IF NOT EXISTS "subscription_system_settings" (
     "description" TEXT,
     "category" VARCHAR(50) NOT NULL, -- 'renewal', 'auto_topup', 'reminder', 'limits'
     "is_active" BOOLEAN NOT NULL DEFAULT TRUE,
-    "updated_by" BIGINT REFERENCES users(id),
+    "updated_by" UUID REFERENCES users(id),
     "created_at" TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     "updated_at" TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

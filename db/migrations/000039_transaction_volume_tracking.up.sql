@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "user_transaction_volumes" (
     "id" BIGSERIAL PRIMARY KEY,
     
     -- User reference
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Transaction details
     "transaction_type" VARCHAR(50) NOT NULL, -- airtime, data, tv, electricity, swap, transfer
@@ -43,7 +43,7 @@ CREATE UNIQUE INDEX "idx_unique_user_date_volume"
 -- =====================================================
 
 CREATE TABLE IF NOT EXISTS "user_vip_metrics_cache" (
-    "user_id" BIGINT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
     
     -- Lifetime metrics
     "total_transaction_volume" DECIMAL(20, 2) NOT NULL DEFAULT 0,
@@ -85,7 +85,7 @@ CREATE TABLE IF NOT EXISTS "user_vip_level_history" (
     "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     
     -- User reference
-    "user_id" BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    "user_id" UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Level change details
     "previous_level_id" UUID REFERENCES vip_levels(id) ON DELETE SET NULL,
@@ -102,7 +102,7 @@ CREATE TABLE IF NOT EXISTS "user_vip_level_history" (
     "conversion_count_at_change" INTEGER,
     
     -- Who made the change
-    "changed_by" BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    "changed_by" UUID REFERENCES users(id) ON DELETE SET NULL,
     "changed_by_type" VARCHAR(20), -- 'system', 'admin', 'user'
     
     -- Timestamp

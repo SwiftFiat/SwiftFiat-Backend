@@ -55,7 +55,7 @@ type CreateQRCodeRequest struct {
 
 type QRCodeResponse struct {
 	ID                 uuid.UUID        `json:"id"`
-	UserID             int64            `json:"user_id"`
+	UserID             uuid.UUID            `json:"user_id"`
 	Token              uuid.UUID        `json:"token"`
 	QRCodeData         string           `json:"qr_code_data"`
 	QRCodeImageURL     *string          `json:"qr_code_image_url,omitempty"`

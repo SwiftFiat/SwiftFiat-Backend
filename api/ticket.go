@@ -292,7 +292,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 			// Store AI response in chat history
 			_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
 				TicketID:    ticketID,
-				SenderID:    0, // AI has no user ID
+				SenderID:    uuid.Nil, // AI has no user ID
 				SenderType:  "ai",
 				MessageText: aiResponse.Answer,
 			})
@@ -396,9 +396,9 @@ func (c *ChatSupport) getMyTickets(ctx *gin.Context) {
 
 type TicketResponse struct {
 	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
+	UserID              uuid.UUID  `json:"user_id"`
 	Status              string     `json:"status"`
-	AssignedTo          *int64     `json:"assigned_to"`
+	AssignedTo          *uuid.UUID `json:"assigned_to"`
 	EscalationReason    *string    `json:"escalation_reason"`
 	Priority            string     `json:"priority"`
 	Category            *string    `json:"category"`
@@ -414,7 +414,7 @@ func MapTicketToresponse(raw db.Ticket) TicketResponse {
 		ID:                  raw.ID,
 		UserID:              raw.UserID,
 		Status:              raw.Status,
-		AssignedTo:          &raw.AssignedTo.Int64,
+		AssignedTo:          &raw.AssignedTo.UUID,
 		EscalationReason:    &raw.EscalationReason.String,
 		Priority:            raw.Priority,
 		Category:            &raw.Category.String,
@@ -474,7 +474,7 @@ func (c *ChatSupport) requestEscalation(ctx *gin.Context) {
 	// Send system message
 	_, err = c.chatService.SendMessage(ctx, &chatsupport.SendMessageParams{
 		TicketID:    int64(ticketID),
-		SenderID:    0,
+		SenderID:    uuid.Nil,
 		SenderType:  "system",
 		MessageText: "A support agent will join your conversation shortly.",
 	})
@@ -533,9 +533,9 @@ func (c *ChatSupport) listTickets(ctx *gin.Context) {
 
 type ListAllTicketsRow struct {
 	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
+	UserID              uuid.UUID  `json:"user_id"`
 	Status              string     `json:"status"`
-	AssignedTo          *int64     `json:"assigned_to"`
+	AssignedTo          *uuid.UUID `json:"assigned_to"`
 	EscalationReason    *string    `json:"escalation_reason"`
 	Priority            string     `json:"priority"`
 	Category            *string    `json:"category"`
@@ -554,7 +554,7 @@ func MapListTicketToresponse(raw db.ListAllTicketsRow) ListAllTicketsRow {
 		ID:                  raw.ID,
 		UserID:              raw.UserID,
 		Status:              raw.Status,
-		AssignedTo:          &raw.AssignedTo.Int64,
+		AssignedTo:          &raw.AssignedTo.UUID,
 		EscalationReason:    &raw.EscalationReason.String,
 		Priority:            raw.Priority,
 		Category:            &raw.Category.String,
@@ -614,9 +614,9 @@ func (c *ChatSupport) getUnassignedTickets(ctx *gin.Context) {
 
 type ListUnassignedTicketsRow struct {
 	ID                  int64      `json:"id"`
-	UserID              int64      `json:"user_id"`
+	UserID              uuid.UUID      `json:"user_id"`
 	Status              string     `json:"status"`
-	AssignedTo          *int64     `json:"assigned_to"`
+	AssignedTo          *uuid.UUID     `json:"assigned_to"`
 	EscalationReason    *string    `json:"escalation_reason"`
 	Priority            string     `json:"priority"`
 	Category            *string    `json:"category"`
@@ -635,7 +635,7 @@ func MapListUnassignedTicketsRowToresponse(raw db.ListUnassignedTicketsRow) List
 		ID:                  raw.ID,
 		UserID:              raw.UserID,
 		Status:              raw.Status,
-		AssignedTo:          &raw.AssignedTo.Int64,
+		AssignedTo:          &raw.AssignedTo.UUID,
 		EscalationReason:    &raw.EscalationReason.String,
 		Priority:            raw.Priority,
 		Category:            &raw.Category.String,
@@ -706,7 +706,7 @@ func MapGetTicketUserWithDetailsToResponse(raw db.GetTicketWithUserDetailsRow) L
 		ID:                  raw.ID,
 		UserID:              raw.UserID,
 		Status:              raw.Status,
-		AssignedTo:          &raw.AssignedTo.Int64,
+		AssignedTo:          &raw.AssignedTo.UUID,
 		EscalationReason:    &raw.EscalationReason.String,
 		Priority:            raw.Priority,
 		Category:            &raw.Category.String,
@@ -823,7 +823,7 @@ func (c *ChatSupport) assignTicket(ctx *gin.Context) {
 	}
 
 	var req struct {
-		AdminID int64 `json:"admin_id" binding:"required"`
+		AdminID uuid.UUID `json:"admin_id" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -1140,7 +1140,7 @@ func MapListTicketsByAssignedAdminRowToResponse(raw db.ListTicketsByAssignedAdmi
 		ID:                  raw.ID,
 		UserID:              raw.UserID,
 		Status:              raw.Status,
-		AssignedTo:          &raw.AssignedTo.Int64,
+		AssignedTo:          &raw.AssignedTo.UUID,
 		EscalationReason:    &raw.EscalationReason.String,
 		Priority:            raw.Priority,
 		Category:            &raw.Category.String,
@@ -1202,7 +1202,7 @@ func (c *ChatSupport) createFAQ(ctx *gin.Context) {
 		Category:    sql.NullString{String: req.Category, Valid: req.Category != ""},
 		Tags:        req.Tags,
 		EmbeddingID: sql.NullString{String: embeddingID, Valid: true},
-		CreatedBy:   sql.NullInt64{Int64: activeUser.UserID, Valid: true},
+		CreatedBy:   uuid.NullUUID{UUID: activeUser.UserID, Valid: true},
 	})
 	if err != nil {
 		c.server.logger.Error(err.Error())
@@ -1237,7 +1237,7 @@ type FaqDocumentResponse struct {
 	IsActive     bool      `json:"is_active"`
 	ViewCount    int32     `json:"view_count"`
 	HelpfulCount int32     `json:"helpful_count"`
-	CreatedBy    *int64    `json:"created_by"`
+	CreatedBy    *uuid.UUID    `json:"created_by"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
@@ -1253,7 +1253,7 @@ func MapFaqDocumentToResponse(raw db.FaqDocument) FaqDocumentResponse {
 		IsActive:     raw.IsActive,
 		ViewCount:    raw.ViewCount,
 		HelpfulCount: raw.HelpfulCount,
-		CreatedBy:    &raw.CreatedBy.Int64,
+		CreatedBy:    &raw.CreatedBy.UUID,
 		CreatedAt:    raw.CreatedAt,
 		UpdatedAt:    raw.UpdatedAt,
 	}

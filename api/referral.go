@@ -3,7 +3,6 @@ package api
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -14,6 +13,7 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"github.com/sirupsen/logrus"
 )
@@ -51,6 +51,7 @@ func (r Referral) router(server *Server) {
 	serverGroupV1.PUT("/freeze/:user_id", r.server.authMiddleware.AuthenticatedMiddleware(), r.freeze)
 	serverGroupV1.PUT("/unfreeze/:user_id", r.server.authMiddleware.AuthenticatedMiddleware(), r.unfreeze)
 	serverGroupV1.POST("/withdraw", r.server.authMiddleware.AuthenticatedMiddleware(), r.withdraw)
+	serverGroupV1.GET("/transactions", r.server.authMiddleware.AuthenticatedMiddleware(), r.GetUserReferralTxs)
 }
 
 // testReferral godoc
@@ -609,6 +610,33 @@ func (r *Referral) withdraw(c *gin.Context) {
 	c.JSON(http.StatusOK, basemodels.NewSuccess("withdrawal completed successfully", tx))
 }
 
+func (r *Referral) GetUserReferralTxs(c *gin.Context) {
+	settings, err := r.server.queries.GetSystemSettings(c)
+	if err != nil {
+		r.server.logger.Error("Failed to get system settings", "error", err)
+		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get system settings"))
+		return
+	}
+	if !settings.RewardsEnabled.Bool {
+		c.JSON(http.StatusForbidden, basemodels.NewError("referral rewards are disabled"))
+		return
+	}
+
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(apistrings.UserNotFound))
+		return
+	}
+
+	txs, err := r.server.queries.GetUserReferralTxs(c, activeUser.UserID)
+	if err != nil {
+		c.JSON(500, basemodels.NewError("failed to get transactions, try again"))
+		return
+	}
+
+	c.JSON(200, basemodels.NewSuccess("", txs))
+}
+
 func (r *Referral) transactions(c *gin.Context) {
 	settings, err := r.server.queries.GetSystemSettings(c)
 	if err != nil {
@@ -668,13 +696,13 @@ func (r *Referral) freeze(c *gin.Context) {
 		return
 	}
 
-	userId, err := strconv.Atoi(c.Param("user_id"))
+	userId, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		c.JSON(400, basemodels.NewError("invalid user id"))
 		return
 	}
 
-	err = r.server.queries.FreezeReferralEarning(c, int32(userId))
+	err = r.server.queries.FreezeReferralEarning(c, userId)
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
 		return
@@ -708,13 +736,13 @@ func (r *Referral) unfreeze(c *gin.Context) {
 		return
 	}
 
-	userId, err := strconv.Atoi(c.Param("user_id"))
+	userId, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		c.JSON(400, basemodels.NewError("invalid user id"))
 		return
 	}
 
-	err = r.server.queries.UnFreezeReferralEarning(c, int32(userId))
+	err = r.server.queries.UnFreezeReferralEarning(c, userId)
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
 		return

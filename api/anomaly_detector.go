@@ -41,6 +41,7 @@ import (
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	redishelper "github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
+	"github.com/google/uuid"
 )
 
 // ── Tunables ──────────────────────────────────────────────────────────────────
@@ -95,7 +96,7 @@ const (
 type AnomalyEvent struct {
 	Kind        AnomalyKind     `json:"kind"`
 	Severity    AnomalySeverity `json:"severity"`
-	UserID      int64           `json:"user_id"`
+	UserID      uuid.UUID           `json:"user_id"`
 	IP          string          `json:"ip"`
 	Country     string          `json:"country,omitempty"`
 	Details     string          `json:"details"`
@@ -115,19 +116,19 @@ type LoginLocation struct {
 // ── AnomalyDetector ───────────────────────────────────────────────────────────
 
 type AnomalyDetector struct {
-	redis  *redis.RedisService
-	logger *logging.Logger
-	email  *service.Plunk
-	push   *service.PushNotificationService
-	notifr *service.Notification
-	mu     sync.Mutex // protects geo-lookup cache
+	redis    *redis.RedisService
+	logger   *logging.Logger
+	email    *service.Plunk
+	push     *service.PushNotificationService
+	notifr   *service.Notification
+	mu       sync.Mutex // protects geo-lookup cache
 	geoCache map[string]*geoResult
 }
 
 type geoResult struct {
-	Country string
-	Lat     float64
-	Lon     float64
+	Country  string
+	Lat      float64
+	Lon      float64
 	CachedAt time.Time
 }
 
@@ -178,7 +179,7 @@ func (ad *AnomalyDetector) OnSuccessfulLogin(
 // FireTokenFamilyKill is called by SessionManager when refresh reuse is confirmed.
 func (ad *AnomalyDetector) FireTokenFamilyKill(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	familyID string,
 	reason string,
 ) {
@@ -323,7 +324,7 @@ func (ad *AnomalyDetector) checkConcurrentIPBurst(ctx context.Context, user *db.
 
 // ── State maintenance ─────────────────────────────────────────────────────────
 
-func (ad *AnomalyDetector) updateLastLogin(ctx context.Context, userID int64, ip string, geo *geoResult) {
+func (ad *AnomalyDetector) updateLastLogin(ctx context.Context, userID uuid.UUID, ip string, geo *geoResult) {
 	loc := LoginLocation{
 		IP:        ip,
 		Timestamp: time.Now(),
@@ -337,7 +338,7 @@ func (ad *AnomalyDetector) updateLastLogin(ctx context.Context, userID int64, ip
 	ad.redis.Set(ctx, fmt.Sprintf("anomaly:last_login:%d", userID), string(raw), LastLoginTTL)
 }
 
-func (ad *AnomalyDetector) trackSessionIP(ctx context.Context, userID int64, ip string) {
+func (ad *AnomalyDetector) trackSessionIP(ctx context.Context, userID uuid.UUID, ip string) {
 	if isPrivateIP(ip) {
 		return
 	}
@@ -354,7 +355,7 @@ func (ad *AnomalyDetector) trackSessionIP(ctx context.Context, userID int64, ip 
 
 // ── Event emission ────────────────────────────────────────────────────────────
 
-func (ad *AnomalyDetector) emit(ctx context.Context, userID int64, event AnomalyEvent) {
+func (ad *AnomalyDetector) emit(ctx context.Context, userID uuid.UUID, event AnomalyEvent) {
 	// 1. Persist to Redis event log
 	raw, _ := json.Marshal(event)
 	key := fmt.Sprintf("anomaly:events:%d", userID)
@@ -382,7 +383,7 @@ func (ad *AnomalyDetector) emit(ctx context.Context, userID int64, event Anomaly
 		title := fmt.Sprintf("Security Alert: %s", event.Kind)
 		msg := event.Details
 		if ad.notifr != nil {
-			ad.notifr.CreateWithRecipients(bgCtx, nil, title, msg, "security", []int64{userID})
+			ad.notifr.CreateWithRecipients(bgCtx, nil, title, msg, "security", []uuid.UUID{userID})
 		}
 
 		// Push notification

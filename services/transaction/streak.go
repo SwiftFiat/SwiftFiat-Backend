@@ -10,7 +10,7 @@ import (
 // StreakUpdater interface defines methods for updating streaks
 // This allows loose coupling between transaction and streak services
 type StreakUpdater interface {
-	UpdateStreakOnTransaction(ctx context.Context, userID int64, transactionID uuid.UUID, transactionType string) error
+	UpdateStreakOnTransaction(ctx context.Context, userID uuid.UUID, transactionID uuid.UUID, transactionType string) error
 }
 
 // SetStreakUpdater sets the streak updater for the transaction service
@@ -24,7 +24,7 @@ func (s *TransactionService) SetStreakUpdater(updater StreakUpdater) {
 // This is called internally after transaction commit
 func (s *TransactionService) updateStreakAfterTransaction(
 	ctx context.Context,
-	userID int64,
+	userID uuid.UUID,
 	transactionID uuid.UUID,
 	transactionType TransactionType,
 ) {

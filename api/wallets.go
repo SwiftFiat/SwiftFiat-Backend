@@ -69,7 +69,7 @@ type UpdateWalletBalanceRequest struct {
 	WalletID  string  `json:"wallet_id" binding:"required"`
 	Amount    float64 `json:"amount" binding:"required"`
 	Currency  string  `json:"currency" binding:"required"`
-	UserID    int64   `json:"user_id" binding:"required"`
+	UserID    uuid.UUID   `json:"user_id" binding:"required"`
 	TwoFACode string  `json:"two_fa_code" binding:"required"`
 }
 
@@ -431,8 +431,8 @@ func (w *Wallet) getBeneficiaries(ctx *gin.Context) {
 		return
 	}
 
-	beneficiaries, err := w.server.queries.GetBeneficiariesByUserID(ctx, sql.NullInt64{
-		Int64: activeUser.UserID,
+	beneficiaries, err := w.server.queries.GetBeneficiariesByUserID(ctx, uuid.NullUUID{
+		UUID: activeUser.UserID,
 		Valid: true,
 	})
 	if err != nil {

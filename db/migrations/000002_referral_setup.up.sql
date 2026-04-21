@@ -50,12 +50,12 @@ CREATE TABLE IF NOT EXISTS "referral_entries" (
     
     -- The user who made the referral (owner of the referral key)
     -- SET NULL if the referrer is deleted
-    "referrer" INTEGER NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    "referrer" UUID NOT NULL REFERENCES users(id) ON DELETE SET NULL,
     
     -- The user who was referred (signed up using the key)
     -- UNIQUE ensures a user can only be referred once
     -- SET NULL if the referee is deleted
-    "referee" INTEGER UNIQUE NOT NULL REFERENCES users(id) ON DELETE SET NULL,
+    "referee" UUID UNIQUE NOT NULL REFERENCES users(id) ON DELETE SET NULL,
     
     -- Additional details about the referral
     -- Could include: status, reward info, campaign identifier, etc.

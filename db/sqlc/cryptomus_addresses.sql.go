@@ -83,7 +83,7 @@ WHERE LOWER(network) = LOWER($1) AND LOWER(currency) = LOWER($2) AND customer_id
 type GetCryptomusAddressByNetworkAndCurrencyAndCustomerIDParams struct {
 	Network    sql.NullString `json:"network"`
 	Currency   sql.NullString `json:"currency"`
-	CustomerID sql.NullInt64  `json:"customer_id"`
+	CustomerID uuid.NullUUID  `json:"customer_id"`
 }
 
 func (q *Queries) GetCryptomusAddressByNetworkAndCurrencyAndCustomerID(ctx context.Context, arg GetCryptomusAddressByNetworkAndCurrencyAndCustomerIDParams) (CryptomusAddress, error) {
@@ -208,7 +208,7 @@ WHERE customer_id = $1
 ORDER BY created_at DESC
 `
 
-func (q *Queries) ListCryptomusAddressesByCustomer(ctx context.Context, customerID sql.NullInt64) ([]CryptomusAddress, error) {
+func (q *Queries) ListCryptomusAddressesByCustomer(ctx context.Context, customerID uuid.NullUUID) ([]CryptomusAddress, error) {
 	rows, err := q.db.QueryContext(ctx, listCryptomusAddressesByCustomer, customerID)
 	if err != nil {
 		return nil, err
@@ -401,7 +401,7 @@ VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type UpsertCryptomusAddressParams struct {
-	CustomerID  sql.NullInt64  `json:"customer_id"`
+	CustomerID  uuid.NullUUID  `json:"customer_id"`
 	OrderID     string         `json:"order_id"`
 	WalletUuid  string         `json:"wallet_uuid"`
 	Uuid        string         `json:"uuid"`

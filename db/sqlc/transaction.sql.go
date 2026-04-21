@@ -539,7 +539,7 @@ INSERT INTO transactions (
 `
 
 type CreateTransactionParams struct {
-	UserID          int64          `json:"user_id"`
+	UserID          uuid.UUID      `json:"user_id"`
 	Type            string         `json:"type"`
 	Description     sql.NullString `json:"description"`
 	TransactionFlow string         `json:"transaction_flow"`
@@ -843,7 +843,7 @@ type GetCryptoTransactionsByStatusParams struct {
 
 type GetCryptoTransactionsByStatusRow struct {
 	ID             uuid.UUID      `json:"id"`
-	UserID         int64          `json:"user_id"`
+	UserID         uuid.UUID      `json:"user_id"`
 	Type           string         `json:"type"`
 	Status         string         `json:"status"`
 	Amount         string         `json:"amount"`
@@ -1160,7 +1160,7 @@ LIMIT 1
 
 type GetPendingCryptoTransactionByTransactionIDRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      string         `json:"transaction_flow"`
@@ -1403,7 +1403,7 @@ ORDER BY t.created_at DESC
 
 type GetPendingTransactionsByUserRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      string         `json:"transaction_flow"`
@@ -1429,7 +1429,7 @@ type GetPendingTransactionsByUserRow struct {
 	SentAmount           sql.NullString `json:"sent_amount"`
 }
 
-func (q *Queries) GetPendingTransactionsByUser(ctx context.Context, userID int64) ([]GetPendingTransactionsByUserRow, error) {
+func (q *Queries) GetPendingTransactionsByUser(ctx context.Context, userID uuid.UUID) ([]GetPendingTransactionsByUserRow, error) {
 	rows, err := q.db.QueryContext(ctx, getPendingTransactionsByUser, userID)
 	if err != nil {
 		return nil, err
@@ -1500,7 +1500,7 @@ ORDER BY t.created_at ASC
 
 type GetStalePendingTransactionsRow struct {
 	ID         uuid.UUID      `json:"id"`
-	UserID     int64          `json:"user_id"`
+	UserID     uuid.UUID      `json:"user_id"`
 	Status     string         `json:"status"`
 	CreatedAt  time.Time      `json:"created_at"`
 	UpdatedAt  time.Time      `json:"updated_at"`
@@ -1623,7 +1623,7 @@ FROM transactions
 WHERE user_id = $1 AND status = 'successful'
 `
 
-func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID int64) (int32, error) {
+func (q *Queries) GetTotalTransactionVolumeForUser(ctx context.Context, userID uuid.UUID) (int32, error) {
 	row := q.db.QueryRowContext(ctx, getTotalTransactionVolumeForUser, userID)
 	var total_volume int32
 	err := row.Scan(&total_volume)
@@ -1670,7 +1670,7 @@ WHERE t.id = $1 LIMIT 1
 
 type GetTransactionByIDRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	TransactionFlow      string         `json:"transaction_flow"`
@@ -2339,7 +2339,7 @@ type ListAllTransactionsWithUsersRow struct {
 	AmountUsd              string         `json:"amount_usd"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
@@ -2504,7 +2504,7 @@ type ListPendingCryptoTransactionsParams struct {
 
 type ListPendingCryptoTransactionsRow struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               int64          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	Type                 string         `json:"type"`
 	Description          sql.NullString `json:"description"`
 	Status               string         `json:"status"`
@@ -2639,7 +2639,7 @@ type ListTransactionsByTypeRow struct {
 	AmountUsd              string         `json:"amount_usd"`
 	TransactionStatus      string         `json:"transaction_status"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
@@ -2722,14 +2722,14 @@ type ListUserTransactionsRow struct {
 	Currency               string         `json:"currency"`
 	TransactionCreatedAt   time.Time      `json:"transaction_created_at"`
 	TransactionUpdatedAt   time.Time      `json:"transaction_updated_at"`
-	UserID                 int64          `json:"user_id"`
+	UserID                 uuid.UUID      `json:"user_id"`
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
 	UserPhoneNumber        string         `json:"user_phone_number"`
 }
 
-func (q *Queries) ListUserTransactions(ctx context.Context, userID int64) ([]ListUserTransactionsRow, error) {
+func (q *Queries) ListUserTransactions(ctx context.Context, userID uuid.UUID) ([]ListUserTransactionsRow, error) {
 	rows, err := q.db.QueryContext(ctx, listUserTransactions, userID)
 	if err != nil {
 		return nil, err

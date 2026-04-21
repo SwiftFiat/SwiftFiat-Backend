@@ -10,7 +10,7 @@ import (
 
 type WalletModel struct {
 	ID         uuid.UUID       `json:"id"`
-	CustomerID int64           `json:"customer_id"`
+	CustomerID uuid.UUID           `json:"customer_id"`
 	Type       string          `json:"type"`
 	Currency   string          `json:"currency"`
 	Balance    decimal.Decimal `json:"balance"`

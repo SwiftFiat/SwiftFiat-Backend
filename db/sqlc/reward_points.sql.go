@@ -82,7 +82,7 @@ RETURNING id, user_id, transaction_id, transaction_type, source_transaction_type
 `
 
 type AwardRewardPointsParams struct {
-	UserID                int64          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	PointsAmount          string         `json:"points_amount"`
 	TransactionID         uuid.NullUUID  `json:"transaction_id"`
 	SourceTransactionType sql.NullString `json:"source_transaction_type"`
@@ -137,14 +137,14 @@ WHERE id = $1
 `
 
 type CheckUserRewardBalanceSufficiencyParams struct {
-	ID            int64  `json:"id"`
-	RewardBalance string `json:"reward_balance"`
+	ID            uuid.UUID `json:"id"`
+	RewardBalance string    `json:"reward_balance"`
 }
 
 type CheckUserRewardBalanceSufficiencyRow struct {
-	ID                   int64  `json:"id"`
-	RewardBalance        string `json:"reward_balance"`
-	HasSufficientBalance bool   `json:"has_sufficient_balance"`
+	ID                   uuid.UUID `json:"id"`
+	RewardBalance        string    `json:"reward_balance"`
+	HasSufficientBalance bool      `json:"has_sufficient_balance"`
 }
 
 // Check if user has sufficient reward balance for redemption
@@ -162,7 +162,7 @@ WHERE user_id = $1
 `
 
 // Count total reward transactions for a user
-func (q *Queries) CountUserRewardTransactions(ctx context.Context, userID int64) (int64, error) {
+func (q *Queries) CountUserRewardTransactions(ctx context.Context, userID uuid.UUID) (int64, error) {
 	row := q.db.QueryRowContext(ctx, countUserRewardTransactions, userID)
 	var count int64
 	err := row.Scan(&count)
@@ -177,8 +177,8 @@ WHERE user_id = $1
 `
 
 type CountUserRewardTransactionsByTypeParams struct {
-	UserID          int64  `json:"user_id"`
-	TransactionType string `json:"transaction_type"`
+	UserID          uuid.UUID `json:"user_id"`
+	TransactionType string    `json:"transaction_type"`
 }
 
 // Count reward transactions by type
@@ -216,7 +216,7 @@ type CreateRewardConfigurationParams struct {
 	IsActive                bool           `json:"is_active"`
 	ValidFrom               time.Time      `json:"valid_from"`
 	ValidUntil              sql.NullTime   `json:"valid_until"`
-	CreatedBy               sql.NullInt32  `json:"created_by"`
+	CreatedBy               uuid.NullUUID  `json:"created_by"`
 }
 
 // ============================================================================
@@ -281,7 +281,7 @@ INSERT INTO reward_redemptions (
 
 type CreateRewardRedemptionParams struct {
 	RewardTransactionID      int64          `json:"reward_transaction_id"`
-	UserID                   int32          `json:"user_id"`
+	UserID                   uuid.UUID      `json:"user_id"`
 	BillPaymentTransactionID uuid.UUID      `json:"bill_payment_transaction_id"`
 	PointsRedeemed           string         `json:"points_redeemed"`
 	DiscountAmount           string         `json:"discount_amount"`
@@ -345,7 +345,7 @@ INSERT INTO reward_transactions (
 `
 
 type CreateRewardTransactionParams struct {
-	UserID                int64                 `json:"user_id"`
+	UserID                uuid.UUID             `json:"user_id"`
 	TransactionID         uuid.NullUUID         `json:"transaction_id"`
 	TransactionType       string                `json:"transaction_type"`
 	SourceTransactionType sql.NullString        `json:"source_transaction_type"`
@@ -437,8 +437,8 @@ WHERE id = $1
 `
 
 type DecrementUserRewardBalanceParams struct {
-	ID            int64  `json:"id"`
-	RewardBalance string `json:"reward_balance"`
+	ID            uuid.UUID `json:"id"`
+	RewardBalance string    `json:"reward_balance"`
 }
 
 // Decrement user reward balance (used internally when redeeming points)
@@ -627,8 +627,8 @@ LIMIT $2
 `
 
 type GetRecentRewardActivityParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
 }
 
 type GetRecentRewardActivityRow struct {
@@ -1107,7 +1107,7 @@ LIMIT $1
 `
 
 type GetTopUsersByRewardsEarnedRow struct {
-	ID                  int64          `json:"id"`
+	ID                  uuid.UUID      `json:"id"`
 	FirstName           sql.NullString `json:"first_name"`
 	LastName            sql.NullString `json:"last_name"`
 	Email               string         `json:"email"`
@@ -1232,7 +1232,7 @@ type GetUserRewardBalanceRow struct {
 // 2. USER: REWARD BALANCE & SUMMARY
 // ============================================================================
 // Get user's current reward balance and totals
-func (q *Queries) GetUserRewardBalance(ctx context.Context, id int64) (GetUserRewardBalanceRow, error) {
+func (q *Queries) GetUserRewardBalance(ctx context.Context, id uuid.UUID) (GetUserRewardBalanceRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserRewardBalance, id)
 	var i GetUserRewardBalanceRow
 	err := row.Scan(&i.RewardBalance, &i.TotalRewardEarned, &i.TotalRewardRedeemed)
@@ -1255,7 +1255,7 @@ GROUP BY u.id
 `
 
 type GetUserRewardSummaryRow struct {
-	UserID                  int64     `json:"user_id"`
+	UserID                  uuid.UUID `json:"user_id"`
 	CurrentBalance          string    `json:"current_balance"`
 	TotalEarned             string    `json:"total_earned"`
 	TotalRedeemed           string    `json:"total_redeemed"`
@@ -1265,7 +1265,7 @@ type GetUserRewardSummaryRow struct {
 }
 
 // Get comprehensive reward summary for a user
-func (q *Queries) GetUserRewardSummary(ctx context.Context, id int64) (GetUserRewardSummaryRow, error) {
+func (q *Queries) GetUserRewardSummary(ctx context.Context, id uuid.UUID) (GetUserRewardSummaryRow, error) {
 	row := q.db.QueryRowContext(ctx, getUserRewardSummary, id)
 	var i GetUserRewardSummaryRow
 	err := row.Scan(
@@ -1289,8 +1289,8 @@ WHERE id = $1
 `
 
 type IncrementUserRewardBalanceParams struct {
-	ID            int64  `json:"id"`
-	RewardBalance string `json:"reward_balance"`
+	ID            uuid.UUID `json:"id"`
+	RewardBalance string    `json:"reward_balance"`
 }
 
 // Increment user reward balance (used internally when awarding points)
@@ -1444,9 +1444,9 @@ LIMIT $2 OFFSET $3
 `
 
 type ListUserRewardRedemptionsParams struct {
-	UserID int32 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 // List all redemptions for a user
@@ -1494,9 +1494,9 @@ LIMIT $2 OFFSET $3
 `
 
 type ListUserRewardTransactionsParams struct {
-	UserID int64 `json:"user_id"`
-	Limit  int32 `json:"limit"`
-	Offset int32 `json:"offset"`
+	UserID uuid.UUID `json:"user_id"`
+	Limit  int32     `json:"limit"`
+	Offset int32     `json:"offset"`
 }
 
 // List all reward transactions for a user with pagination
@@ -1549,7 +1549,7 @@ LIMIT $4 OFFSET $5
 `
 
 type ListUserRewardTransactionsByDateRangeParams struct {
-	UserID      int64     `json:"user_id"`
+	UserID      uuid.UUID `json:"user_id"`
 	CreatedAt   time.Time `json:"created_at"`
 	CreatedAt_2 time.Time `json:"created_at_2"`
 	Limit       int32     `json:"limit"`
@@ -1611,10 +1611,10 @@ LIMIT $3 OFFSET $4
 `
 
 type ListUserRewardTransactionsByTypeParams struct {
-	UserID          int64  `json:"user_id"`
-	TransactionType string `json:"transaction_type"`
-	Limit           int32  `json:"limit"`
-	Offset          int32  `json:"offset"`
+	UserID          uuid.UUID `json:"user_id"`
+	TransactionType string    `json:"transaction_type"`
+	Limit           int32     `json:"limit"`
+	Offset          int32     `json:"offset"`
 }
 
 // List reward transactions filtered by type (earned/redeemed)
@@ -1673,7 +1673,7 @@ LIMIT $5 OFFSET $6
 `
 
 type ListUserRewardTransactionsByTypeAndDateRangeParams struct {
-	UserID          int64     `json:"user_id"`
+	UserID          uuid.UUID `json:"user_id"`
 	TransactionType string    `json:"transaction_type"`
 	CreatedAt       time.Time `json:"created_at"`
 	CreatedAt_2     time.Time `json:"created_at_2"`
@@ -1766,7 +1766,7 @@ RETURNING id, user_id, transaction_id, transaction_type, source_transaction_type
 `
 
 type RedeemRewardPointsSimpleParams struct {
-	UserID            int64          `json:"user_id"`
+	UserID            uuid.UUID      `json:"user_id"`
 	PointsAmount      string         `json:"points_amount"`
 	TransactionID     uuid.NullUUID  `json:"transaction_id"`
 	TransactionAmount sql.NullString `json:"transaction_amount"`
@@ -1907,8 +1907,8 @@ RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_pass
 `
 
 type UpdateUserRewardBalanceParams struct {
-	ID            int64  `json:"id"`
-	RewardBalance string `json:"reward_balance"`
+	ID            uuid.UUID `json:"id"`
+	RewardBalance string    `json:"reward_balance"`
 }
 
 // Manual update of user reward balance (for admin corrections)
@@ -1976,7 +1976,7 @@ GROUP BY u.id
 `
 
 type VerifyUserRewardBalanceRow struct {
-	ID                 int64       `json:"id"`
+	ID                 uuid.UUID   `json:"id"`
 	CurrentBalance     string      `json:"current_balance"`
 	CalculatedEarned   interface{} `json:"calculated_earned"`
 	CalculatedRedeemed interface{} `json:"calculated_redeemed"`
@@ -1989,7 +1989,7 @@ type VerifyUserRewardBalanceRow struct {
 // ============================================================================
 // Verify user's reward balance matches transaction history
 // Returns discrepancy if any
-func (q *Queries) VerifyUserRewardBalance(ctx context.Context, id int64) (VerifyUserRewardBalanceRow, error) {
+func (q *Queries) VerifyUserRewardBalance(ctx context.Context, id uuid.UUID) (VerifyUserRewardBalanceRow, error) {
 	row := q.db.QueryRowContext(ctx, verifyUserRewardBalance, id)
 	var i VerifyUserRewardBalanceRow
 	err := row.Scan(

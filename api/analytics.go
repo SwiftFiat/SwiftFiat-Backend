@@ -249,7 +249,7 @@ func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 
 type GetTransactionByIDRow struct {
 	ID                   uuid.UUID  `json:"id"`
-	UserID               *int64     `json:"user_id"`
+	UserID               *uuid.UUID     `json:"user_id"`
 	Type                 string     `json:"type"`
 	Description          *string    `json:"description"`
 	TransactionFlow      *string    `json:"transaction_flow"`
@@ -701,13 +701,14 @@ func (h *Analytics) GetUserWallets(c *gin.Context) {
 		return
 	}
 
-	ID := c.Param("id")
-	userID, err := strconv.Atoi(ID)
+	userID := c.Param("id")
+	customerID, err := uuid.Parse(userID)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
 		return
 	}
-	wallets, err := h.server.queries.GetWalletByCustomerID(c, int64(userID))
+
+	wallets, err := h.server.queries.GetWalletByCustomerID(c, customerID)
 	if err != nil {
 		h.server.logger.Error(fmt.Sprintf("error fetching wallets: %v", err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to get wallets"})
@@ -746,7 +747,7 @@ type AdminEditUserRequest struct {
 // @Router       /api/v1/analytics/edit-user/{id} [put]
 func (h *Analytics) AdminEditUser(c *gin.Context) {
 	id := c.Param("id")
-	userID, err := strconv.Atoi(id)
+	userID, err := uuid.Parse(id)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid user ID"})
 		return
@@ -764,7 +765,7 @@ func (h *Analytics) AdminEditUser(c *gin.Context) {
 	}
 
 	param := db.AdminUpdateUserParams{
-		ID:          int64(userID),
+		ID:          userID,
 		FirstName:   sql.NullString{String: req.FirstName, Valid: req.FirstName != ""},
 		LastName:    sql.NullString{String: req.LastName, Valid: req.LastName != ""},
 		Email:       req.Email,
@@ -1159,7 +1160,7 @@ func (h *Analytics) GetDailyTransactions(c *gin.Context) {
 type CreateNotif struct {
 	Title      string  `json:"title" binding:"required"`
 	Message    string  `json:"message" binding:"required"`
-	Recipients []int64 `json:"recipients"`
+	Recipients []uuid.UUID `json:"recipients"`
 }
 
 func (h *Analytics) createNotification(c *gin.Context) {
@@ -1328,13 +1329,13 @@ func (h Analytics) ToggleRapidRampForUser(c *gin.Context) {
 	}
 
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return
 	}
 
-	b, err := h.server.queries.ToggleRapidRamp(c, int64(id))
+	b, err := h.server.queries.ToggleRapidRamp(c, id)
 	if err != nil {
 		h.server.logger.Error(fmt.Sprintf("error toggling rapid ramp user: %v", err))
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to toggle rapid ramp user"))
@@ -1375,13 +1376,13 @@ func (h Analytics) Toggle2FAForUser(c *gin.Context) {
 	}
 
 	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
+	id, err := uuid.Parse(idStr)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user ID"))
 		return
 	}
 
-	user, err := h.server.queries.GetUserByID(c, int64(id))
+	user, err := h.server.queries.GetUserByID(c, id)
 	if err != nil {
 		h.server.logger.Error(err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred retrieving user"))
@@ -1394,7 +1395,7 @@ func (h Analytics) Toggle2FAForUser(c *gin.Context) {
 	if user.TwofaEnabled.Bool {
 		// Disable 2FA
 		_, err = h.server.queries.SetUserTwoFA(c, db.SetUserTwoFAParams{
-			ID:           int64(id),
+			ID:           id,
 			TwofaSecret:  sql.NullString{Valid: false},
 			TwofaEnabled: sql.NullBool{Bool: false, Valid: true},
 			UpdatedAt:    time.Now(),
@@ -1420,7 +1421,7 @@ func (h Analytics) Toggle2FAForUser(c *gin.Context) {
 		}
 
 		_, err = h.server.queries.SetUserTwoFA(c, db.SetUserTwoFAParams{
-			ID:           int64(id),
+			ID:           id,
 			TwofaSecret:  sql.NullString{String: key.Secret(), Valid: true},
 			TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
 			UpdatedAt:    time.Now(),

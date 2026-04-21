@@ -9,6 +9,7 @@ import (
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
 
@@ -93,7 +94,7 @@ func (s *Service) buildCreateParams(entry *LogEntry) (db.CreateAuditLogParams, e
 		EventType:     entry.EventType,
 		Severity:      db.AuditSeverity(entry.Severity),
 		ActorType:     string(entry.ActorType),
-		ActorID:       sql.NullInt64{Int64: *entry.ActorID, Valid: true},
+		ActorID:       uuid.NullUUID{UUID: *entry.ActorID, Valid: true},
 		EntityType:    entry.EntityType,
 		EntityID:      entry.EntityID,
 		Action:        string(entry.Action),
@@ -164,9 +165,9 @@ func (s *Service) GetAllAuditLogs(ctx context.Context, time1, time2 time.Time, l
 }
 
 // GetUserActivity retrieves activity timeline for a user
-func (s *Service) GetUserActivity(ctx context.Context, userID int64, startDate, endDate time.Time, limit, offset int32) ([]db.GetUserActivityTimelineRow, error) {
+func (s *Service) GetUserActivity(ctx context.Context, userID uuid.UUID, startDate, endDate time.Time, limit, offset int32) ([]db.GetUserActivityTimelineRow, error) {
 	params := db.GetUserActivityTimelineParams{
-		ActorID:     sql.NullInt64{Int64: userID, Valid: true},
+		ActorID:     uuid.NullUUID{UUID: userID, Valid: true},
 		CreatedAt:   startDate,
 		CreatedAt_2: endDate,
 		Limit:       limit,
@@ -208,7 +209,7 @@ func (s *Service) GetEntityHistory(ctx context.Context, entityType, entityID str
 			ID:          log.ID,
 			EventType:   log.EventType,
 			Action:      Action(log.Action),
-			ActorID:     &log.ActorID.Int64,
+			ActorID:     &log.ActorID.UUID,
 			ActorEmail:  &log.ActorEmail.String,
 			OldValues:   oldValues,
 			NewValues:   newValues,
@@ -268,7 +269,7 @@ func (s *Service) GetSuspiciousActivity(ctx context.Context, sinceDate time.Time
 		}
 
 		results[i] = SuspiciousActivity{
-			ActorID:    &act.ActorID.Int64,
+			ActorID:    &act.ActorID.UUID,
 			ActorEmail: &act.ActorEmail.String,
 			IPAddress:  &ipStr,
 			EventCount: act.EventCount,

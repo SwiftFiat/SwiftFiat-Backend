@@ -7,6 +7,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 const addNewReferralEntry = `-- name: AddNewReferralEntry :one
@@ -19,10 +21,10 @@ INSERT INTO referral_entries (
 `
 
 type AddNewReferralEntryParams struct {
-	ReferralKey    string `json:"referral_key"`
-	Referrer       int32  `json:"referrer"`
-	Referee        int32  `json:"referee"`
-	ReferralDetail string `json:"referral_detail"`
+	ReferralKey    string    `json:"referral_key"`
+	Referrer       uuid.UUID `json:"referrer"`
+	Referee        uuid.UUID `json:"referee"`
+	ReferralDetail string    `json:"referral_detail"`
 }
 
 func (q *Queries) AddNewReferralEntry(ctx context.Context, arg AddNewReferralEntryParams) (ReferralEntry, error) {
@@ -88,7 +90,7 @@ const getReferralEntryByReferee = `-- name: GetReferralEntryByReferee :one
 SELECT id, referral_key, referrer, referee, referral_detail, created_at, updated_at, deleted_at FROM referral_entries WHERE referee = $1
 `
 
-func (q *Queries) GetReferralEntryByReferee(ctx context.Context, referee int32) (ReferralEntry, error) {
+func (q *Queries) GetReferralEntryByReferee(ctx context.Context, referee uuid.UUID) (ReferralEntry, error) {
 	row := q.db.QueryRowContext(ctx, getReferralEntryByReferee, referee)
 	var i ReferralEntry
 	err := row.Scan(
@@ -108,7 +110,7 @@ const getReferralEntryByReferrer = `-- name: GetReferralEntryByReferrer :one
 SELECT id, referral_key, referrer, referee, referral_detail, created_at, updated_at, deleted_at FROM referral_entries WHERE referrer = $1
 `
 
-func (q *Queries) GetReferralEntryByReferrer(ctx context.Context, referrer int32) (ReferralEntry, error) {
+func (q *Queries) GetReferralEntryByReferrer(ctx context.Context, referrer uuid.UUID) (ReferralEntry, error) {
 	row := q.db.QueryRowContext(ctx, getReferralEntryByReferrer, referrer)
 	var i ReferralEntry
 	err := row.Scan(

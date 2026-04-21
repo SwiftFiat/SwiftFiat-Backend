@@ -10,7 +10,7 @@ import (
 
 type AddressUserResponse struct {
 	AddressID  uuid.UUID `json:"id"`
-	CustomerID ID        `json:"customer_id"`
+	CustomerID uuid.UUID       `json:"customer_id"`
 	Address    string    `json:"address"`
 	Chain      int64     `json:"chain"`
 	Coin       string    `json:"currency"`
@@ -20,7 +20,7 @@ type AddressUserResponse struct {
 	UpdatedAt  time.Time `json:"updated_at"`
 }
 
-func MapWalletAddressToAddressUserResponse(walletAddress *cryptocurrency.WalletAddress, customerID ID, balance string, status string, createdAt, updatedAt time.Time) *AddressUserResponse {
+func MapWalletAddressToAddressUserResponse(walletAddress *cryptocurrency.WalletAddress, customerID uuid.UUID, balance string, status string, createdAt, updatedAt time.Time) *AddressUserResponse {
 	return &AddressUserResponse{
 		AddressID:  uuid.MustParse(walletAddress.ID), // Assuming walletAddress.ID is a valid UUID
 		CustomerID: customerID,
@@ -37,7 +37,7 @@ func MapWalletAddressToAddressUserResponse(walletAddress *cryptocurrency.WalletA
 func MapExistingWalletAddressToAddressUserResponse(walletAddress *db.CryptoAddress) *AddressUserResponse {
 	return &AddressUserResponse{
 		AddressID:  walletAddress.ID,
-		CustomerID: ID(walletAddress.CustomerID.Int64),
+		CustomerID: walletAddress.CustomerID.UUID,
 		Address:    walletAddress.AddressID,
 		// Chain:      walletAddress.Chain,
 		Coin:      walletAddress.Coin,

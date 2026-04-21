@@ -428,7 +428,7 @@ func (v *Subscriptions) AdminUpdateSystemSetting(c *gin.Context) {
 	updated, err := v.server.queries.UpdateSystemSetting(c, db.UpdateSystemSettingParams{
 		SettingKey:   key,
 		SettingValue: req.Value,
-		UpdatedBy:    sql.NullInt64{Int64: activeUser.UserID, Valid: true},
+		UpdatedBy:    uuid.NullUUID{UUID: activeUser.UserID, Valid: true},
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
@@ -480,7 +480,7 @@ func (v *Subscriptions) AdminBulkUpdateSettings(c *gin.Context) {
 		result, err := v.server.queries.UpdateSystemSetting(c, db.UpdateSystemSettingParams{
 			SettingKey:   key,
 			SettingValue: value,
-			UpdatedBy:    sql.NullInt64{Int64: activeUser.UserID, Valid: true},
+			UpdatedBy:    uuid.NullUUID{UUID: activeUser.UserID, Valid: true},
 		})
 
 		if err != nil {
@@ -563,7 +563,7 @@ type UpdateMerchantRequest struct {
 
 type UserSubscriptionsByCardRow struct {
 	ID                      uuid.UUID      `json:"id"`
-	UserID                  int64          `json:"user_id"`
+	UserID                  uuid.UUID          `json:"user_id"`
 	CardID                  uuid.UUID      `json:"card_id"`
 	MerchantID              sql.NullInt64  `json:"merchant_id"`
 	MerchantName            string         `json:"merchant_name"`
@@ -1261,19 +1261,19 @@ func (h *Subscriptions) AdminGetAllSubscriptions(c *gin.Context) {
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/subscriptions/admin/users/{user_id} [get]
 func (v *Subscriptions) AdminGetUserSubscriptions(c *gin.Context) {
-	userID, err := strconv.Atoi(c.Param("user_id"))
+	userID, err := uuid.Parse(c.Param("user_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, basemodels.NewError("invalid user id"))
 		return
 	}
 
-	subscriptions, err := v.server.queries.GetUserSubscriptions(c, int64(userID))
+	subscriptions, err := v.server.queries.GetUserSubscriptions(c, userID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
-	summary, _ := v.Subscriptions.GetUserSubscriptionSummary(c, int64(userID))
+	summary, _ := v.Subscriptions.GetUserSubscriptionSummary(c, userID)
 
 	c.JSON(http.StatusOK, basemodels.NewSuccess("user subscriptions", gin.H{
 		"subscriptions": subscriptions,

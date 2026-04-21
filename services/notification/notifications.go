@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/google/uuid"
 )
 
 type Notification struct {
@@ -15,19 +16,19 @@ func NewNotificationService(store *db.Store) *Notification {
 	return &Notification{store}
 }
 
-func (n *Notification) Create(ctx context.Context, senderAdmin *int64, title, message, source string) (*db.Notification, error) {
-	var sender sql.NullInt64
+func (n *Notification) Create(ctx context.Context, senderAdmin *uuid.UUID, title, message, source string) (*db.Notification, error) {
+	var sender uuid.NullUUID
 	if senderAdmin != nil {
-		sender = sql.NullInt64{
-			Int64: *senderAdmin,
+		sender = uuid.NullUUID{
+			UUID: *senderAdmin,
 			Valid: true,
 		}
 	}
 	nots, err := n.store.CreateNotification(ctx, db.CreateNotificationParams{
 		SenderAdminID: sender,
-		Source: source,
-		Title: sql.NullString{String: title, Valid: true},
-		Message: message,
+		Source:        source,
+		Title:         sql.NullString{String: title, Valid: true},
+		Message:       message,
 	})
 
 	if err != nil {
@@ -36,7 +37,7 @@ func (n *Notification) Create(ctx context.Context, senderAdmin *int64, title, me
 	return &nots, nil
 }
 
-func(n *Notification) Get(ctx context.Context, nID int64) (*db.Notification, error) {
+func (n *Notification) Get(ctx context.Context, nID int64) (*db.Notification, error) {
 	not, err := n.store.GetNotificationByID(ctx, nID)
 	if err != nil {
 		return nil, err
@@ -47,7 +48,7 @@ func(n *Notification) Get(ctx context.Context, nID int64) (*db.Notification, err
 
 func (n *Notification) List(ctx context.Context, limit, offset int32) (*[]db.Notification, error) {
 	nots, err := n.store.ListNotifications(ctx, db.ListNotificationsParams{
-		Limit: limit,
+		Limit:  limit,
 		Offset: offset,
 	})
 	if err != nil {
@@ -56,10 +57,10 @@ func (n *Notification) List(ctx context.Context, limit, offset int32) (*[]db.Not
 	return &nots, nil
 }
 
-func (n *Notification) AddRecipent(ctx context.Context, userID, nID int64) error {
+func (n *Notification) AddRecipent(ctx context.Context, userID uuid.UUID, nID int64) error {
 	err := n.store.AddNotificationRecipient(ctx, db.AddNotificationRecipientParams{
 		NotificationID: nID,
-		UserID: userID,
+		UserID:         userID,
 	})
 
 	if err != nil {
@@ -70,7 +71,7 @@ func (n *Notification) AddRecipent(ctx context.Context, userID, nID int64) error
 func (n *Notification) AddBulkRecipients(ctx context.Context, nID int64, role string) error {
 	err := n.store.AddNotificationRecipientsBulk(ctx, db.AddNotificationRecipientsBulkParams{
 		NotificationID: nID,
-		Role:     role,
+		Role:           role,
 	})
 
 	if err != nil {
@@ -79,9 +80,9 @@ func (n *Notification) AddBulkRecipients(ctx context.Context, nID int64, role st
 	return nil
 }
 
-func (n *Notification) GetAllForUser(ctx context.Context, userID int64, limit, offset int32) (*[]db.GetUserNotificationsRow, error) {
+func (n *Notification) GetAllForUser(ctx context.Context, userID uuid.UUID, limit, offset int32) (*[]db.GetUserNotificationsRow, error) {
 	nots, err := n.store.GetUserNotifications(ctx, db.GetUserNotificationsParams{
-		Limit:     limit,
+		Limit:  limit,
 		Offset: offset,
 		UserID: userID,
 	})
@@ -92,8 +93,7 @@ func (n *Notification) GetAllForUser(ctx context.Context, userID int64, limit, o
 	return &nots, nil
 }
 
-
-func (n *Notification) CountUnreadForUser(ctx context.Context, userID int64) (*int64, error) {
+func (n *Notification) CountUnreadForUser(ctx context.Context, userID uuid.UUID) (*int64, error) {
 	count, err := n.store.GetUnreadNotificationCount(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -109,7 +109,7 @@ func (n *Notification) MarkAsRead(ctx context.Context, nID int64) error {
 	return nil
 }
 
-func (n *Notification) MarkAllAsRead(ctx context.Context, userID int64) error {
+func (n *Notification) MarkAllAsRead(ctx context.Context, userID uuid.UUID) error {
 	err := n.store.MarkAllNotificationsRead(ctx, userID)
 	if err != nil {
 		return err
@@ -128,9 +128,9 @@ func (n *Notification) MarkAllAsRead(ctx context.Context, userID int64) error {
 func (n *Notification) CreateAdminAlert(ctx context.Context, severity, title, message, source string) (*db.AdminAlert, error) {
 	alert, err := n.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
 		Severity: severity,
-		Title: title,
-		Message: message,
-		Source: sql.NullString{String: source, Valid: true},
+		Title:    title,
+		Message:  message,
+		Source:   sql.NullString{String: source, Valid: true},
 	})
 	if err != nil {
 		return nil, err
@@ -140,7 +140,7 @@ func (n *Notification) CreateAdminAlert(ctx context.Context, severity, title, me
 
 func (n *Notification) ListAdminAlerts(ctx context.Context, limit, offset int32) (*[]db.AdminAlert, error) {
 	alerts, err := n.store.ListAdminAlerts(ctx, db.ListAdminAlertsParams{
-		Limit: limit,
+		Limit:  limit,
 		Offset: offset,
 	})
 	if err != nil {
@@ -149,7 +149,7 @@ func (n *Notification) ListAdminAlerts(ctx context.Context, limit, offset int32)
 	return &alerts, nil
 }
 
-func(n *Notification) ListUnacknowledgedAdminAlerts(ctx context.Context) (*[]db.AdminAlert, error) {
+func (n *Notification) ListUnacknowledgedAdminAlerts(ctx context.Context) (*[]db.AdminAlert, error) {
 	alerts, err := n.store.ListUnacknowledgedAdminAlerts(ctx)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ func(n *Notification) ListUnacknowledgedAdminAlerts(ctx context.Context) (*[]db.
 	return &alerts, nil
 }
 
-func(n *Notification) AcknowledgeAdminAlert(ctx context.Context, nid int64) error {
+func (n *Notification) AcknowledgeAdminAlert(ctx context.Context, nid int64) error {
 	err := n.store.AcknowledgeAdminAlert(ctx, nid)
 	if err != nil {
 		return err
@@ -167,19 +167,19 @@ func(n *Notification) AcknowledgeAdminAlert(ctx context.Context, nid int64) erro
 
 func (n *Notification) CreateWithRecipients(
 	ctx context.Context,
-	senderAdmin *int64,
+	senderAdmin *uuid.UUID,
 	title, message, source string,
-	recipients []int64,
+	recipients []uuid.UUID,
 ) (*db.Notification, error) {
 
 	var createdNotif db.Notification
 
 	err := n.store.ExecTx(ctx, func(q *db.Queries) error {
 		// handle optional sender
-		var sender sql.NullInt64
+		var sender uuid.NullUUID
 		if senderAdmin != nil {
-			sender = sql.NullInt64{
-				Int64: *senderAdmin,
+			sender = uuid.NullUUID{
+				UUID: *senderAdmin,
 				Valid: true,
 			}
 		}

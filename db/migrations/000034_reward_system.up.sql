@@ -68,7 +68,7 @@ CREATE TABLE reward_configurations (
     valid_until TIMESTAMPTZ,
     
     -- Audit fields
-    created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    created_by UUID REFERENCES users(id) ON DELETE SET NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     
@@ -106,7 +106,7 @@ WHERE is_active = true;
 CREATE TABLE reward_transactions (
     id BIGSERIAL PRIMARY KEY, 
     -- User reference
-    user_id BIGSERIAL NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Related transaction reference (bill payment, etc.)
     transaction_id UUID REFERENCES transactions(id) ON DELETE SET NULL,
@@ -194,7 +194,7 @@ CREATE TABLE reward_redemptions (
     reward_transaction_id BIGINT NOT NULL REFERENCES reward_transactions(id) ON DELETE CASCADE,
     
     -- User who redeemed
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
     -- Bill payment transaction where points were redeemed
     bill_payment_transaction_id UUID NOT NULL REFERENCES transactions(id) ON DELETE CASCADE,
