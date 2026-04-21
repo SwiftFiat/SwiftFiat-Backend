@@ -17,6 +17,7 @@ type TicketService struct {
 	logger          *logging.Logger
 	notificationSvc *service.Notification
 	plunkSvc        *service.Plunk
+	push            *service.PushNotificationService
 }
 
 func NewTicketService(
@@ -24,12 +25,14 @@ func NewTicketService(
 	logger *logging.Logger,
 	notificationSvc *service.Notification,
 	plunkSvc *service.Plunk,
+	push *service.PushNotificationService,
 ) *TicketService {
 	return &TicketService{
 		store:           store,
 		logger:          logger,
 		notificationSvc: notificationSvc,
 		plunkSvc:        plunkSvc,
+		push:            push,
 	}
 }
 
@@ -365,6 +368,25 @@ func (s *TicketService) notifyAdminsNewTicket(ctx context.Context, ticket *db.Ti
 		return
 	}
 
+	// Create admin alert for new ticket
+	alertMessage := fmt.Sprintf("New ticket #%d from user %s %s", ticket.ID, user.FirstName.String, user.LastName.String)
+	if ticket.Category.Valid && ticket.Category.String != "" {
+		alertMessage += fmt.Sprintf(" - Category: %s", ticket.Category.String)
+	}
+	if ticket.Priority != "" {
+		alertMessage += fmt.Sprintf(" - Priority: %s", ticket.Priority)
+	}
+
+	_, err = s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		Severity: "info",
+		Title:    "New Support Ticket Created",
+		Message:  alertMessage,
+		Source:   sql.NullString{String: "TicketService", Valid: true},
+	})
+	if err != nil {
+		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
+	}
+
 	// Send in-app notifications to all available admins
 	for _, admin := range admins {
 		adminUser, err := s.store.GetUserByID(ctx, admin.UserID)
@@ -409,27 +431,23 @@ func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ti
 		return
 	}
 
-	_, err = s.notificationSvc.CreateWithRecipients(
-		ctx,
-		nil,
-		"Ticket Assigned",
-		fmt.Sprintf("Ticket #%d has been assigned to you", ticket.ID),
-		"system",
-		[]uuid.UUID{adminUser.ID},
-	)
+	_, err = s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		Severity: "info",
+		Title:    "Ticket Assigned",
+		Message:  fmt.Sprintf("Support admin %s %s have been assigned to ticket #%d", adminUser.FirstName.String, adminUser.LastName.String, ticket.ID),
+		Source:   sql.NullString{String: "TicketService", Valid: true},
+	})
 	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))
+		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
 	}
 }
 
 func (s *TicketService) notifyUserAssignment(ctx context.Context, ticket *db.Ticket) {
-	_, err := s.notificationSvc.CreateWithRecipients(
+	err := s.push.SendPushNotification(
 		ctx,
-		nil,
-		"Support Agent Assigned",
-		"A support agent has joined your conversation and will assist you shortly.",
-		"system",
-		[]uuid.UUID{ticket.UserID},
+		ticket.UserID,
+		"Your support ticket has been assigned",
+		fmt.Sprintf("Your ticket #%d has been assigned to a support agent. They will reach out to you shortly.", ticket.ID),
 	)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("failed to create notification: %v", err))

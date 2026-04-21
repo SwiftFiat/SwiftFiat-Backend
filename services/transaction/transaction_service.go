@@ -2662,6 +2662,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	airtimeDataTVPending, err := s.store.GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending airtime/data/tv: %v", err))
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title:    "Transaction Reconciliation Failure: VTPass Bills",
+			Message:  fmt.Sprintf("Failed to fetch pending airtime/data/tv transactions for reconciliation: %v", err),
+			Source:   sql.NullString{String: "BillReconciler", Valid: true},
+		})
 	} else {
 		for i := range airtimeDataTVPending {
 			allPendingMetadata = append(allPendingMetadata, &DataAirtimeMetadataAdapter{meta: &airtimeDataTVPending[i]})
@@ -2672,6 +2678,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	electricityPending, err := s.store.GetPendingElectricityPurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending electricity: %v", err))
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title:    "Transaction Reconciliation Failure: VTPass Electricity",
+			Message:  fmt.Sprintf("Failed to fetch pending electricity transactions for reconciliation: %v", err),
+			Source:   sql.NullString{String: "BillReconciler", Valid: true},
+		})
 	} else if err == nil {
 		for i := range electricityPending {
 			allPendingMetadata = append(allPendingMetadata, &ElectricityMetadataAdapter{meta: &electricityPending[i]})
@@ -2682,6 +2694,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	bankTransfersPending, err := s.store.GetPendingBankTransferMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending bank transfers: %v", err))
+		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+			Severity: CRITICALALERT,
+			Title:    "Transaction Reconciliation Failure: Nomba Bank Transfers",
+			Message:  fmt.Sprintf("Failed to fetch pending bank transfer transactions for reconciliation: %v", err),
+			Source:   sql.NullString{String: "BankTransferReconciler", Valid: true},
+		})
 	} else if err == nil {
 		for i := range bankTransfersPending {
 			allPendingMetadata = append(allPendingMetadata, &BankTransferMetadataAdapter{meta: &bankTransfersPending[i]})
@@ -2707,6 +2725,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			s.logger.Warn(fmt.Sprintf("reconciler: requestID %s reached max check count (3), marking as failed", requestID))
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure (max checks) %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Transaction Reconciliation Failure: Unable to Finalize",
+					Message:  fmt.Sprintf("Failed to finalize reconciliation for requestID %s (max check count exceeded): %v", requestID, err),
+					Source:   sql.NullString{String: "BillReconcilerFinalize", Valid: true},
+				})
 			}
 			_ = s.redis.Delete(ctx, checkKey)
 			continue
@@ -2717,6 +2741,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryAirtimeStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query airtime %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Provider Unavailable: VTPass Airtime Service",
+					Message:  fmt.Sprintf("Failed to query VTPass airtime status for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "VTPassAirtimeReconciler", Valid: true},
+				})
 				continue
 			}
 			providerStatus = res.Status
@@ -2725,6 +2755,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryDataStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query data %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Provider Unavailable: VTPass Data Service",
+					Message:  fmt.Sprintf("Failed to query VTPass data status for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "VTPassDataReconciler", Valid: true},
+				})
 				continue
 			}
 			providerStatus = res.Status
@@ -2733,6 +2769,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryTVStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query TV %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Provider Unavailable: VTPass TV Subscription Service",
+					Message:  fmt.Sprintf("Failed to query VTPass TV subscription status for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "VTPassTVReconciler", Valid: true},
+				})
 				continue
 			}
 			providerStatus = res.Status
@@ -2741,6 +2783,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryElectricityStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query electricity %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Provider Unavailable: VTPass Electricity Service",
+					Message:  fmt.Sprintf("Failed to query VTPass electricity status for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "VTPassElectricityReconciler", Valid: true},
+				})
 				continue
 			}
 			providerStatus = res.Status
@@ -2753,6 +2801,12 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.fiat.GetTransactionByMerchantRef(merchantTxRef)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query bank transfer %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Provider Unavailable: Nomba Bank Transfer Service",
+					Message:  fmt.Sprintf("Failed to query Nomba bank transfer status for merchantTxRef %s: %v", merchantTxRef, err),
+					Source:   sql.NullString{String: "NombaBankTransferReconciler", Valid: true},
+				})
 				continue
 			}
 			switch strings.ToLower(res.Status) {
@@ -2776,12 +2830,24 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		case "delivered":
 			if err = s.reconcileFinalizeBillSuccess(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize success %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Transaction Reconciliation Failure: Success Finalization Error",
+					Message:  fmt.Sprintf("Failed to finalize successful reconciliation for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "BillReconcilerFinalize", Valid: true},
+				})
 			} else {
 				_ = s.redis.Delete(ctx, checkKey)
 			}
 		case "failed":
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure %s: %v", requestID, err))
+				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+					Severity: CRITICALALERT,
+					Title:    "Transaction Reconciliation Failure: Failure Finalization Error",
+					Message:  fmt.Sprintf("Failed to finalize failed reconciliation for requestID %s: %v", requestID, err),
+					Source:   sql.NullString{String: "BillReconcilerFinalize", Valid: true},
+				})
 			} else {
 				_ = s.redis.Delete(ctx, checkKey)
 			}
@@ -3810,5 +3876,83 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		}, nil
 	default:
 		return nil, fmt.Errorf("unknown bank transfer status: %s", res.Status)
+	}
+}
+
+// CheckProviderHealth verifies if a provider is available by checking if it's initialized
+func (s *TransactionService) CheckProviderHealth(ctx context.Context, providerName string) error {
+	switch providerName {
+	case "vtpass":
+		// Test VTPass connectivity by fetching service categories
+		if s.billProvider == nil {
+			return fmt.Errorf("vtpass provider not configured")
+		}
+		_, err := s.billProvider.GetServiceCategories()
+		if err != nil {
+			return fmt.Errorf("vtpass provider health check failed: %w", err)
+		}
+	case "nomba":
+		// Test Nomba connectivity
+		if s.fiat == nil {
+			return fmt.Errorf("nomba provider not configured")
+		}
+		// We can't directly test Nomba without making a transaction, so just verify it exists
+	case "cryptomus":
+		// Cryptomus provider is managed differently, just verify the service is initialized
+		if s.currencyClient == nil {
+			return fmt.Errorf("cryptomus provider (via currency service) not configured")
+		}
+	default:
+		return fmt.Errorf("unknown provider: %s", providerName)
+	}
+	return nil
+}
+
+// MonitorProviderHealth periodically checks provider availability and alerts admins
+// Call this in a goroutine at application startup:
+// go transactionService.MonitorProviderHealth(ctx)
+func (s *TransactionService) MonitorProviderHealth(ctx context.Context) {
+	ticker := time.NewTicker(5 * time.Minute) // Check every 5 minutes
+	defer ticker.Stop()
+
+	providers := []string{"vtpass", "nomba", "cryptomus"}
+	unhealthyProviders := make(map[string]bool)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			for _, providerName := range providers {
+				err := s.CheckProviderHealth(ctx, providerName)
+				if err != nil {
+					// Provider is down
+					if !unhealthyProviders[providerName] {
+						// First time detecting this provider as down - create alert
+						unhealthyProviders[providerName] = true
+						s.logger.Warnf("Provider health check failed: %s - %v", providerName, err)
+						s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+							Severity: CRITICALALERT,
+							Title:    fmt.Sprintf("Provider Unavailable: %s", strings.ToUpper(providerName)),
+							Message:  fmt.Sprintf("The %s provider is currently unavailable. Error: %v", providerName, err),
+							Source:   sql.NullString{String: "ProviderHealthMonitor", Valid: true},
+						})
+					}
+				} else {
+					// Provider is healthy
+					if unhealthyProviders[providerName] {
+						// Provider recovered - alert admins about recovery
+						unhealthyProviders[providerName] = false
+						s.logger.Infof("Provider health check passed: %s", providerName)
+						s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+							Severity: INFOALERT,
+							Title:    fmt.Sprintf("Provider Recovered: %s", strings.ToUpper(providerName)),
+							Message:  fmt.Sprintf("The %s provider is now available and operational.", providerName),
+							Source:   sql.NullString{String: "ProviderHealthMonitor", Valid: true},
+						})
+					}
+				}
+			}
+		}
 	}
 }

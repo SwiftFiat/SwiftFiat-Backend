@@ -164,7 +164,7 @@ func (v *Vault) createGoal(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultCreated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Vault savings goal %s created by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s created by user %s", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]interface{}{
 		"id":             goal.ID,
@@ -762,7 +762,7 @@ func (v *Vault) deposit(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by user %s", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
 		"transaction_id": tx.ID,
@@ -913,7 +913,7 @@ func (v *Vault) adminDeposit(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsDeposited, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by admin %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Deposit of %s %s to vault %s initiated by admin %s", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
 		"transaction_id": tx.ID,
@@ -1055,7 +1055,7 @@ func (v *Vault) withdraw(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %s", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
 		"transaction_id": tx.ID,
@@ -1214,7 +1214,7 @@ func (v *Vault) adminWithdraw(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventSavingsWithdrawn, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %d", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Withdrawal of %s %s from vault %s initiated by user %s", amount.String(), goal.Currency, goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]any{
 		"transaction_id": tx.ID,
@@ -1553,7 +1553,7 @@ func (v *Vault) updateGoal(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultUpdated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Vault savings goal %s updated by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s updated by user %s", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]any{
 		"name":        goal.VaultName,
 		"description": goal.Description,
@@ -1642,7 +1642,7 @@ func (v *Vault) deleteGoal(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %s", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]any{
 		"id":             goal.ID,
 		"user_id":        goal.UserID,
@@ -1723,7 +1723,7 @@ func (v *Vault) adminDeleteGoal(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventVaultDeleted, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Vault savings goal %s deleted by user %s", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]any{
 		"id":             goal.ID,
 		"user_id":        goal.UserID,
@@ -1812,7 +1812,7 @@ func (v *Vault) updateRecurringRule(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventRecurringRuleUpdated, "vault", goal.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Recurring deposit rule for vault %s updated by user %d", goal.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Recurring deposit rule for vault %s updated by user %s", goal.ID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]interface{}{
 		"recurring_rule": goal.RecurringRule,
 	}
@@ -2194,7 +2194,7 @@ func (v *Vault) triggerSchedulerNow(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventSchedulerTriggered, "vault", "N/A", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Vault scheduler manually triggered by admin user %d", activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Vault scheduler manually triggered by admin user %s", activeUser.UserID)
 	auditLog.OldValues = nil
 	auditLog.NewValues = map[string]interface{}{
 		"triggered_at": time.Now(),
@@ -2549,7 +2549,7 @@ func (v *Vault) createYieldConfig(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigCreated, "vault", config.ID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Yield config %s created by user %d", config.ID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Yield config %s created by user %s", config.ID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]interface{}{
 		"id":                    config.ID,
 		"currency":              config.Currency,
@@ -2634,7 +2634,7 @@ func (v *Vault) updateYieldConfig(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigUpdated, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Yield config %s updated by user %d", configID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Yield config %s updated by user %s", configID.String(), activeUser.UserID)
 	auditLog.NewValues = map[string]any{
 		"apy_rate":              req.ApyRate,
 		"min_balance_for_yield": req.MinBalanceForYield,
@@ -2715,7 +2715,7 @@ func (v *Vault) deleteYieldConfig(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldConfigDeleted, "vault", configID.String(), activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Yield config %s deleted by user %d", configID.String(), activeUser.UserID)
+	auditLog.Description = fmt.Sprintf("Yield config %s deleted by user %s", configID.String(), activeUser.UserID)
 	auditLog.OldValues = map[string]any{
 		"apy_rate":              existingConfig.ApyRate,
 		"min_balance_for_yield": existingConfig.MinBalanceForYield,
@@ -2776,7 +2776,7 @@ func (v *Vault) processYieldsNow(ctx *gin.Context) {
 
 	// audit log
 	auditLog := audit.NewVaultLog(ctx, audit.EventYieldsProcessed, "vault", "", activeUser.Role, &activeUser.UserID, audit.SeverityInfo)
-	auditLog.Description = fmt.Sprintf("Yields processed by admin user %d: %d success, %d failure", activeUser.UserID, successCount, failureCount)
+	auditLog.Description = fmt.Sprintf("Yields processed by admin user %s: %d success, %d failure", activeUser.UserID, successCount, failureCount)
 	auditLog.NewValues = result
 	v.audit.Log(auditLog)
 

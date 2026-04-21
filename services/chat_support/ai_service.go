@@ -86,8 +86,8 @@ func (s *AIService) QueryAI(ctx context.Context, req *AIQueryRequest) (*AIQueryR
 	// e.g. "hi 👋", "hello there!", "hey team", etc.
 	if len(cleanMessage) > 0 && len(cleanMessage) <= 25 {
 		for phrase := range greetings {
-			if strings.HasPrefix(cleanMessage, phrase) {
-				remainder := strings.TrimSpace(strings.TrimPrefix(cleanMessage, phrase))
+			if after, ok :=strings.CutPrefix(cleanMessage, phrase); ok  {
+				remainder := strings.TrimSpace(after)
 				// If there's no remainder or it's just 1–2 short words, consider it a greeting.
 				if remainder == "" || len(strings.Fields(remainder)) <= 2 {
 					return &AIQueryResponse{

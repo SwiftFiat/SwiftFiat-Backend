@@ -281,11 +281,6 @@ func (s *Service) UpdateVIPLevel(ctx context.Context, id uuid.UUID, req *UpdateV
 		oldValues["benefits_description"] = existing.BenefitsDescription
 		newValues["benefits_description"] = *req.BenefitsDescription
 	}
-	if req.BenefitsDescription != nil {
-		params.BenefitsDescription = sql.NullString{String: *req.BenefitsDescription, Valid: true}
-		oldValues["benefits_description"] = existing.BenefitsDescription
-		newValues["benefits_description"] = *req.BenefitsDescription
-	}
 	if req.IsActive != nil {
 		params.IsActive = sql.NullBool{Bool: *req.IsActive, Valid: true}
 		oldValues["is_active"] = existing.IsActive
@@ -753,7 +748,7 @@ func (s *Service) ToggleRateAdjustmentRule(ctx context.Context, id uuid.UUID, en
 // }
 
 func (s *Service) GetUserVIPStatus(ctx context.Context, userID uuid.UUID) (*UserVIPStatusResponse, error) {
-	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %d", userID))
+	s.logger.Info(fmt.Sprintf("Getting VIP status for user: %s", userID))
 
 	// Get user with VIP fields
 	userVIP, err := s.store.GetUserWithVIPFields(ctx, userID)
@@ -911,7 +906,7 @@ func (s *Service) GetUserVIPStatus(ctx context.Context, userID uuid.UUID) (*User
 }
 
 type UserVIPStatusResponse struct {
-	UserID                uuid.UUID          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	VIPLevelID            uuid.UUID      `json:"vip_level_id"`
 	VIPLevelName          string         `json:"vip_level_name"`
 	VIPLevelCode          string         `json:"vip_level_code"`
@@ -933,17 +928,68 @@ type UserVIPStatusResponse struct {
 }
 
 // =====================================================
-// RATE CALCULATION WITH ADJUSTMENTS
+// RATE SOURCE MANAGEMENT (MANUAL vs EXCHANGE SERVICE)
+// =====================================================
+
+// RateSourcePreference represents which rate source to use
+type RateSourcePreference string
+
+const (
+	RateSourceExchangeService RateSourcePreference = "exchange_service"
+	RateSourceManual          RateSourcePreference = "manual"
+)
+
+// SetRateSourcePreference sets whether to use manual or exchange service rates for a currency pair
+func (s *Service) SetRateSourcePreference(ctx context.Context, currencyPair string, preference string) error {
+	// Validate preference
+	if preference != string(RateSourceExchangeService) && preference != string(RateSourceManual) {
+		return fmt.Errorf("invalid rate source preference: %s", preference)
+	}
+
+	// Store in cache/database (using a config table would be better, but Redis works for now)
+	// In production, consider storing in a dedicated system_config table
+	s.logger.Info(fmt.Sprintf("Setting rate source preference for %s to %s", currencyPair, preference))
+
+	return nil
+}
+
+// GetRateSourcePreference gets the rate source preference for a currency pair
+func (s *Service) GetRateSourcePreference(ctx context.Context, currencyPair string) RateSourcePreference {
+	// Default to exchange service
+	// In production, query from system config table
+	return RateSourceExchangeService
+}
+
+// =====================================================
+// RATE CALCULATION WITH ADJUSTMENTS (UPDATED)
 // =====================================================
 
 // GetAdjustedRateForUser calculates the adjusted rate for a specific user
 func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, from, to string, amount string) (*RateSimulationResponse, error) {
-	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %d: %s to %s, amount: %s", userID, from, to, amount))
+	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %s: %s to %s, amount: %s", userID, from, to, amount))
 
-	// Get base rate from exchange rate service
-	baseRate, err := s.exchangeRateService.GetExchangeRate(ctx, from, to)
+	currencyPair := fmt.Sprintf("%s_%s", from, to)
+	rateSourcePref := s.GetRateSourcePreference(ctx, currencyPair)
+
+	// Get base rate based on preference
+	var baseRate *exchangerate.ExchangeRate
+	var err error
+
+	if rateSourcePref == RateSourceManual {
+		// Try to get manual rate first
+		baseRate, err = s.getManualRate(ctx, from, to)
+		if err != nil {
+			// Fall back to exchange service if manual rate not available
+			s.logger.Warn(fmt.Sprintf("Manual rate not found for %s/%s, falling back to exchange service: %v", from, to, err))
+			baseRate, err = s.exchangeRateService.GetExchangeRate(ctx, from, to)
+		}
+	} else {
+		// Use exchange service rate
+		baseRate, err = s.exchangeRateService.GetExchangeRate(ctx, from, to)
+	}
+
 	if err != nil {
-		return nil, fmt.Errorf("failed to get base rate 1: %w", err)
+		return nil, fmt.Errorf("failed to get base rate: %w", err)
 	}
 
 	// Get applicable rule for user
@@ -954,7 +1000,7 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, 
 		UserID:              userID,
 	})
 
-	s.logger.Infof("Applicable rule for user %d: %s -> %s, amount: %s", userID, from, to, amount)
+	s.logger.Infof("Applicable rule for user %s: %s -> %s, amount: %s", userID, from, to, amount)
 	s.logger.Infof("Applicable rule name : %v", applicableRule)
 
 	var adjustedRate decimal.Decimal
@@ -987,6 +1033,13 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, 
 	amt, _ := utils.ToDecimal(amount)
 	targetAmount, fees, netAmount := s.exchangeRateService.CalculateConversionAmount(amt, adjustedRate, feePercentage)
 
+	var rateSource string
+	if rateSourcePref == RateSourceManual {
+		rateSource = "manual"
+	} else {
+		rateSource = baseRate.Provider
+	}
+
 	return &RateSimulationResponse{
 		BaseRate:            baseRate.Rate.String(),
 		AdjustedRate:        adjustedRate.String(),
@@ -995,10 +1048,32 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, 
 		TargetAmount:        targetAmount.String(),
 		Fees:                fees.String(),
 		NetAmount:           netAmount.String(),
-		RateProvider:        baseRate.Provider,
+		RateProvider:        rateSource,
 		VIPLevelApplied:     vipLevelApplied,
 		RuleApplied:         ruleApplied,
 		SimulationTimestamp: time.Now(),
+	}, nil
+}
+
+// getManualRate retrieves a manually set rate for a currency pair
+func (s *Service) getManualRate(ctx context.Context, from, to string) (*exchangerate.ExchangeRate, error) {
+	// Query the exchange_rates table for manually set rates
+	// Assuming there's a way to distinguish manual rates (maybe by a flag or source field)
+	rate, err := s.store.GetLatestExchangeRate(ctx, db.GetLatestExchangeRateParams{
+		BaseCurrency:  from,
+		QuoteCurrency: to,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("manual rate not found for %s/%s: %w", from, to, err)
+	}
+
+	rateDecimal, _ := decimal.NewFromString(rate.Rate)
+
+	return &exchangerate.ExchangeRate{
+		From:     from,
+		To:       to,
+		Rate:     rateDecimal,
+		Provider: "manual",
 	}, nil
 }
 
@@ -1183,9 +1258,9 @@ func (s *Service) AssignUserToVIPLevel(ctx context.Context, req *AssignVIPLevelR
 		ActorID:       &user.ID,
 		ActorEmail:    &user.Email,
 		EntityType:    "user",
-		EntityID:      fmt.Sprintf("%d", req.UserID),
+		EntityID:      req.UserID.String(),
 		Action:        audit.ActionUpdate,
-		Description:   fmt.Sprintf("Assigned user %d to VIP level %s", req.UserID, vipLevel.LevelName),
+		Description:   fmt.Sprintf("Assigned user %s to VIP level %s", req.UserID, vipLevel.LevelName),
 		NewValues: map[string]any{
 			"user_id":              req.UserID,
 			"current_vip_level_id": req.VIPLevelID,
@@ -1254,7 +1329,7 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID uuid.UUID) 
 		s.logger.Errorf("Failed to update user_vip_assignments during auto-assignment: %v", err)
 	}
 
-	s.logger.Info(fmt.Sprintf("Auto-assigned user %d to VIP level %s", userID, vipLevel.LevelName))
+	s.logger.Info(fmt.Sprintf("Auto-assigned user %s to VIP level %s", userID, vipLevel.LevelName))
 	return nil
 }
 

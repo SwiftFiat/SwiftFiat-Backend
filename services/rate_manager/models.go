@@ -1,7 +1,6 @@
 package ratemanager
 
 import (
-	"fmt"
 	"time"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
@@ -216,9 +215,8 @@ type RateSimulationResponse struct {
 type AssignmentType string
 
 const (
-	AssignmentTypeAutomatic   AssignmentType = "automatic"
-	AssignmentTypeManual      AssignmentType = "manual"
-	AssignmentTypePromotional AssignmentType = "promotional"
+	AssignmentTypeAutomatic AssignmentType = "automatic"
+	AssignmentTypeManual    AssignmentType = "manual"
 )
 
 type UserVIPAssignment struct {
@@ -237,7 +235,7 @@ type UserVIPAssignment struct {
 }
 
 type AssignVIPLevelRequest struct {
-	UserID     uuid.UUID      `json:"user_id" binding:"required"`
+	UserID     uuid.UUID  `json:"user_id" binding:"required"`
 	VIPLevelID uuid.UUID  `json:"vip_level_id" binding:"required"`
 	ExpiresAt  *time.Time `json:"expires_at,omitempty"`
 	Reason     *string    `json:"reason,omitempty"`
@@ -245,7 +243,7 @@ type AssignVIPLevelRequest struct {
 
 type UserVIPAssignmentResponse struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                uuid.UUID          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	UserEmail             string         `json:"user_email"`
 	UserName              string         `json:"user_name"`
 	VIPLevelID            uuid.UUID      `json:"vip_level_id"`
@@ -549,21 +547,4 @@ func toRateAdjustmentRuleResponse(rule *db.RateAdjustmentRule, appCount int64, t
 	}
 
 	return resp
-}
-
-func toUserVIPAssignmentResponse(assignment *db.UserVipAssignment, user *db.User, vipLevel *db.VipLevel) *UserVIPAssignmentResponse {
-	return &UserVIPAssignmentResponse{
-		ID:                    assignment.ID,
-		UserID:                assignment.UserID,
-		UserEmail:             user.Email,
-		UserName:              fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
-		VIPLevelID:            assignment.VipLevelID,
-		VIPLevelName:          vipLevel.LevelName,
-		VIPLevelCode:          vipLevel.LevelCode,
-		VIPLevelRank:          vipLevel.LevelRank,
-		AssignedAt:            assignment.AssignedAt,
-		AssignmentType:        AssignmentType(assignment.AssignmentType),
-		TotalConversionVolume: assignment.TotalConversionVolume,
-		IsActive:              assignment.IsActive,
-	}
 }

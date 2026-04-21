@@ -204,7 +204,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	}
 
 	// Batch Redis reads for device detection
-	lastDeviceKey := fmt.Sprintf("user_device:%d", dbUser.ID)
+	lastDeviceKey := fmt.Sprintf("user_device:%s", dbUser.ID)
 
 	pipe := a.server.redis.Pipeline()
 	lastDeviceCmd := pipe.Get(ctx, lastDeviceKey)
@@ -293,7 +293,7 @@ func (a *Auth) login(ctx *gin.Context) {
 			return
 		}
 
-		if setErr := a.server.redis.Set(ctx, fmt.Sprintf("tmp2fa:%s", tmpToken), fmt.Sprintf("%d", dbUser.ID), 5*time.Minute); setErr != nil {
+		if setErr := a.server.redis.Set(ctx, fmt.Sprintf("tmp2fa:%s", tmpToken), dbUser.ID.String(), 5*time.Minute); setErr != nil {
 			a.server.logger.Error(fmt.Sprintf("redis set tmp2fa error: %v", setErr))
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 			return
@@ -455,7 +455,7 @@ func (a *Auth) logFailedNotification(ctx context.Context, notifType, category st
 	// This would call a new SQLC query: CreateFailedNotification
 	// For now, just log it
 	a.server.logger.Error(fmt.Sprintf(
-		"[FAILED_NOTIFICATION] type=%s category=%s user_id=%d recipient=%s subject=%s error=%s",
+		"[FAILED_NOTIFICATION] type=%s category=%s user_id=%s recipient=%s subject=%s error=%s",
 		notifType, category, userID, recipient, subject, errorMsg))
 
 	// TODO: Implement actual DB insert
@@ -765,7 +765,7 @@ func (a *Auth) logout(ctx *gin.Context) {
 		}
 	} else {
 		// Fallback: delete legacy token key
-		tokenKey := fmt.Sprintf("user:%d", activeUser.UserID)
+		tokenKey := fmt.Sprintf("user:%s", activeUser.UserID)
 		if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
 			a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
 		}
@@ -802,7 +802,7 @@ func (a *Auth) logoutAll(ctx *gin.Context) {
 
 		errMsg := err.Error()
 		entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogoutAllDevices,
-			fmt.Sprintf("User %d logout-all failed", activeUser.UserID),
+			fmt.Sprintf("User %s logout-all failed", activeUser.UserID),
 			&activeUser.UserID, nil, activeUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
@@ -879,7 +879,7 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
-	a.server.redis.Set(ctx, fmt.Sprintf("user:%d", dbUser.ID), token, time.Hour*2400)
+	a.server.redis.Set(ctx, fmt.Sprintf("user:%s", dbUser.ID), token, time.Hour*2400)
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
 		Token: token,
@@ -1128,7 +1128,7 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	// Create referral
 	if _, err = a.userService.CreateUserReferral(ctx, newUser.ID, user.SwiftTag); err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("failed to create referral for user %d: %v", newUser.ID, err))
+		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("failed to create referral for user %s: %v", newUser.ID, err))
 		// Non-fatal, continue
 	}
 
@@ -1148,7 +1148,7 @@ func (a *Auth) register(ctx *gin.Context) {
 	// Store verification code and token
 	pipe := a.server.redis.Pipeline()
 	verificationKey := fmt.Sprintf("email_verification:%s", user.Email)
-	tokenKey := fmt.Sprintf("user:%d", newUser.ID)
+	tokenKey := fmt.Sprintf("user:%s", newUser.ID)
 	pipe.Set(ctx, verificationKey, verificationCode, 10*time.Minute)
 	pipe.Set(ctx, tokenKey, token, 72*time.Hour)
 	if _, err := pipe.Exec(ctx); err != nil {
@@ -1189,7 +1189,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", u.FirstName.String, tag)
 
 		if _, err := a.notifr.CreateWithRecipients(bgCtx, nil, title, message, "system", []uuid.UUID{u.ID}); err != nil {
-			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %d: %v", u.ID, err))
+			a.server.logger.Error(fmt.Sprintf("failed to create welcome notification for user %s: %v", u.ID, err))
 			// In-app notification failure is non-fatal but log it
 			a.logFailedNotification(bgCtx, "in_app", "marketing", u.ID, "", title, message, err.Error())
 		}
@@ -1529,7 +1529,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 	}
 
 	// Store token in Redis
-	tokenKey := fmt.Sprintf("user:%d", newUser.ID)
+	tokenKey := fmt.Sprintf("user:%s", newUser.ID)
 	if err := a.server.redis.Set(ctx, tokenKey, token, 72*time.Hour); err != nil {
 		a.server.logger.Error(fmt.Sprintf("redis set token error: %v", err))
 		// Continue - Redis is cache, not source of truth
@@ -1715,7 +1715,7 @@ func (a *Auth) resetPassword(ctx *gin.Context) {
 	_ = a.server.redis.Delete(ctx, redisKey)
 
 	// Clear user sessions from Redis
-	tokenKey := fmt.Sprintf("user:%d", dbUser.ID)
+	tokenKey := fmt.Sprintf("user:%s", dbUser.ID)
 	_ = a.server.redis.Delete(ctx, tokenKey)
 
 	// Log audit
@@ -1956,7 +1956,7 @@ func (a *Auth) verifyTransactionPin(ctx *gin.Context) {
 
 	// Verify provided pin against stored hashed pin
 	if err := utils.VerifyHashValue(req.Pin, dbUser.HashedPin.String); err != nil {
-		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %d: %v", dbUser.ID, err))
+		a.server.logger.Error(fmt.Sprintf("pin verification failed for user %s: %v", dbUser.ID, err))
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid pin"))
 		return
 	}
@@ -2093,7 +2093,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 		return
 	}
 
-	a.server.redis.Delete(ctx, fmt.Sprintf("user:%d", activeUser.UserID))
+	a.server.redis.Delete(ctx, fmt.Sprintf("user:%s", activeUser.UserID))
 
 	entry := audit.NewAuthenticationLog(ctx, audit.EventAccountDeleted, fmt.Sprintf("User %s deleted account", dbUser.Email), &dbUser.ID, &dbUser.Email, dbUser.Role, true, nil)
 	a.audit.Log(entry)

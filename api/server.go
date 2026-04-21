@@ -99,7 +99,7 @@ type Server struct {
 	marketInsightsService    *coindesk.MarketInsightsService
 	priceAlertSvc            *pricealert.PriceAlertService
 	priceAlertScheduler      *pricealert.AlertScheduler
-	sessionManager           *SessionManager // refresh-token + multi-device sessions
+	sessionManager           *SessionManager  // refresh-token + multi-device sessions
 	anomalyDetector          *AnomalyDetector // real-time auth threat signals
 }
 
@@ -275,7 +275,7 @@ func NewServer(envPath string) *Server {
 	chat := chatsupport.NewChatService(q, l)
 
 	// tickets
-	ticket := chatsupport.NewTicketService(q, l, ns, email)
+	ticket := chatsupport.NewTicketService(q, l, ns, email, pn)
 
 	// admin support
 	support := chatsupport.NewSupportAdminService(q, l)
@@ -303,7 +303,7 @@ func NewServer(envPath string) *Server {
 	if err := ValidateRedisSecurityConfig(context.Background(), r, l); err != nil {
 		log.Fatalf("Redis security check failed: %v", err)
 	}
- 
+
 	// Apply global rate limit to the entire engine
 	g.Use(GlobalRateLimit(r))
 	g.Use(RedisHealthMiddleware(r))
@@ -490,6 +490,12 @@ func (s *Server) Start() error {
 				s.logger.Error("bill reconciler error", "error", err)
 			}
 		}
+	}()
+
+	// Start provider health monitor
+	// Monitors the health of external providers (VTPass, Nomba, Cryptomus) and alerts admins when they become unavailable
+	go func() {
+		s.transactionService.MonitorProviderHealth(context.Background())
 	}()
 
 	err := s.router.Run(fmt.Sprintf(":%v", s.config.ServerPort))

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -26,6 +27,7 @@ func (c Currency) router(server *Server) {
 
 	serverGroupV1Admin := server.router.Group("/api/v1/currency")
 	serverGroupV1Admin.POST("set", c.server.authMiddleware.AuthenticatedMiddleware(), c.setPairRate)
+	serverGroupV1Admin.PUT("rate-source/toggle", c.server.authMiddleware.AuthenticatedMiddleware(), c.toggleRateSource)
 }
 
 func (c *Currency) setPairRate(ctx *gin.Context) {
@@ -34,7 +36,7 @@ func (c *Currency) setPairRate(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
-	if user.Role == models.ADMIN {
+	if user.Role == models.USER {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
@@ -61,6 +63,16 @@ func (c *Currency) setPairRate(ctx *gin.Context) {
 }
 
 func (c *Currency) getPairRate(ctx *gin.Context) {
+	user, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	if user.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
 	baseCurrency := ctx.Query("base")
 	quoteCurrency := ctx.Query("quote")
 
@@ -79,6 +91,15 @@ func (c *Currency) getPairRate(ctx *gin.Context) {
 }
 
 func (c *Currency) getAllRates(ctx *gin.Context) {
+	user, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	if user.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
 
 	rates, err := c.currencyService.GetAllExchangeRates(ctx)
 	if err != nil {
@@ -88,4 +109,71 @@ func (c *Currency) getAllRates(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("all rates fetched successfully", rates))
+}
+
+// toggleRateSource allows admin to toggle between manual rates and exchange service rates
+// godoc
+// @Summary Toggle Rate Source
+// @Description Switch between manual rates set by admin or rates from the exchange rate service
+// @Tags currency
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param request body object{currency_pair=string,rate_source=string} true "Toggle Request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/currency/rate-source/toggle [put]
+func (c *Currency) toggleRateSource(ctx *gin.Context) {
+	user, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+	if user.Role == models.USER {
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("only admins can toggle rate sources"))
+		return
+	}
+
+	request := struct {
+		CurrencyPair string `json:"currency_pair" binding:"required"`
+		RateSource   string `json:"rate_source" binding:"required"`
+	}{}
+
+	err = ctx.ShouldBindJSON(&request)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("currency_pair and rate_source are required"))
+		return
+	}
+
+	// Validate rate source
+	if request.RateSource != "manual" && request.RateSource != "exchange_service" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("rate_source must be 'manual' or 'exchange_service'"))
+		return
+	}
+
+	// Convert to proper type
+	var preference interface{} = request.RateSource
+	if request.RateSource == "manual" {
+		preference = "manual"
+	} else {
+		preference = "exchange_service"
+	}
+
+	// Set the preference
+	err = c.server.rateManager.SetRateSourcePreference(ctx, request.CurrencyPair, interface{}(preference).(string))
+	if err != nil {
+		c.server.logger.Error(err)
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to toggle rate source"))
+		return
+	}
+
+	response := map[string]interface{}{
+		"currency_pair": request.CurrencyPair,
+		"rate_source":   request.RateSource,
+		"message":       fmt.Sprintf("Rate source for %s switched to %s", request.CurrencyPair, request.RateSource),
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("rate source toggled successfully", response))
 }
