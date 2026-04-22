@@ -1,5 +1,10 @@
 package fiat
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // ── Auth ─────────────────────────────────────────────────────────────────────
 
 type NombaTokenRequest struct {
@@ -12,6 +17,35 @@ type NombaTokenData struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresIn    int64  `json:"expires_in"` // seconds
+}
+
+// UnmarshalJSON tolerates provider payload drift where `data` may be a string
+// instead of an object on failed auth responses.
+func (d *NombaTokenData) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		*d = NombaTokenData{}
+		return nil
+	}
+
+	if len(data) > 0 && data[0] == '"' {
+		var raw string
+		if err := json.Unmarshal(data, &raw); err != nil {
+			return err
+		}
+		if raw == "" {
+			*d = NombaTokenData{}
+			return nil
+		}
+		return fmt.Errorf("unexpected token data string: %q", raw)
+	}
+
+	type alias NombaTokenData
+	var parsed alias
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return err
+	}
+	*d = NombaTokenData(parsed)
+	return nil
 }
 
 type NombaTokenResponse = NombaResponse[NombaTokenData]

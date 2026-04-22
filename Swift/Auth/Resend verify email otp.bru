@@ -7,12 +7,16 @@ meta {
 post {
   url: {{BaseURl}}/auth/resend-email
   body: json
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiOWRkNThjMDQtNzg2Yi00ZDFmLThkNzktNTJjNDIwZjZiZjI4IiwidXNlcl9yb2xlIjoidXNlciIsInVzZXJfdmVyaWZpZWQiOmZhbHNlLCJlbWFpbCI6Imlrd2VjaGVnaHVAZ21haWwuY29tIiwidXNlcl90YWciOiIiLCJleHAiOjE3NzY4MDczMjR9.zXwA93F9FfcKZYzuNoMofmS2W928BAymbwB-2D24qn8
 }
 
 body:json {
   {
-    "email": ""
+    "email": "ikwecheghu@gmail.com"
   }
 }
 

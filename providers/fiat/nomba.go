@@ -142,6 +142,9 @@ func (p *NombaProvider) obtainTokenLocked() error {
 	if result.Code != "00" {
 		return fmt.Errorf("nomba: token issue failed: %s", result.Description)
 	}
+	if result.Data.AccessToken == "" {
+		return fmt.Errorf("nomba: token issue failed: empty access token in response")
+	}
 
 	p.storeTokens(result.Data)
 	return nil
@@ -186,6 +189,9 @@ func (p *NombaProvider) refreshTokenLocked() error {
 	}
 	if result.Code != "00" {
 		return fmt.Errorf("nomba: token refresh failed: %s", result.Description)
+	}
+	if result.Data.AccessToken == "" {
+		return fmt.Errorf("nomba: token refresh failed: empty access token in response")
 	}
 
 	p.storeTokens(result.Data)

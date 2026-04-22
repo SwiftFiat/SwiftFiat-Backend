@@ -68,6 +68,8 @@ func (a Auth) router(server *Server) {
 	auth.POST("register", a.register)
 	auth.POST("register-admin", a.registerAdmin)
 	auth.POST("resend-admin-otp", a.ResendAdminLoginOTP)
+	auth.POST("verify-email", a.verifyEmail)
+	auth.POST("resend-email", a.resendEmailVerification)
 
 	// ── Refresh token (no auth required — client presents refresh token) ──
 	serverGroupV1.POST("refresh", sm.HandleRefreshToken(server))
@@ -86,8 +88,6 @@ func (a Auth) router(server *Server) {
 	authed.GET("user", a.getUserID)
 	authed.DELETE("account", a.deleteAccount)
 	authed.POST("send-otp", a.SendOTPWithTwilio)
-	authed.POST("verify-email", a.verifyEmail)
-	authed.POST("resend-email", a.resendEmailVerification)
 	authed.POST("set-2fa", a.SetTwoFA)
 	authed.POST("logout", a.logout)
 	authed.POST("logout-all", a.logoutAll)
@@ -1288,7 +1288,32 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 		a.push.SendPushNotification(bgCtx, user.ID, "Email Verified", message)
 	}()
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", nil))
+	// Generate auth tokens
+	pair, err := a.server.sessionManager.CreateSession(ctx, utils.TokenObject{
+		UserID:   user.ID,
+		Verified: true,
+		Role:     user.Role,
+		UserTag:  user.UserTag.String,
+		Email:    user.Email,
+	}, ctx.ClientIP(), ctx.Request.UserAgent())
+	if err != nil {
+		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
+		return
+	}
+
+	userWT := models.UserWithToken{
+		User:  models.UserResponse{}.ToUserResponse(&user),
+		Token: pair.AccessToken,
+	}
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", gin.H{
+		"user":          userWT.User,
+		"access_token":  pair.AccessToken,
+		"refresh_token": pair.RefreshToken,
+		"expires_at":    pair.ExpiresAt,
+		"session_id":    pair.SessionID,
+	}))
 }
 
 // ResendEmailRequest is used for resending verification emails.
