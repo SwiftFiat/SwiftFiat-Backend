@@ -1794,6 +1794,7 @@ func (s *TransactionService) postBillSuccess(
 	pointsToUse decimal.Decimal,
 	redemptionApplied bool,
 	txType, serviceID, auditEvent string,
+	target, plan string,
 ) (pointsEarned float64) {
 	if redemptionApplied {
 		if err := s.CompleteRewardRedemption(
@@ -1832,13 +1833,20 @@ func (s *TransactionService) postBillSuccess(
 		s.logger.Error("Failed to update streak:", err)
 	}
 
-	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
-	// 	TotalTransactionVolume: sql.NullString{String: finalAmount.String(), Valid: true},
-	// 	ID:                     user.ID,
-	// })
-	// if err != nil {
-	// 	s.logger.Error(fmt.Sprintf("failed to update user transaction volume: %v", err))
-	// }
+	// Push Notification
+	go func() {
+		bgCtx := context.Background()
+		switch txType {
+		case string(Airtime):
+			_ = s.push.SuccessfulAirtimePurchase(bgCtx, user.ID, amount.IntPart(), target)
+		case string(Data):
+			_ = s.push.SuccessfulDataPurchase(bgCtx, user.ID, plan, target)
+		case string(TV):
+			_ = s.push.SuccessfulTvSub(bgCtx, user.ID, plan)
+		case string(Electricity):
+			_ = s.push.SuccessfulElectricityPurchase(bgCtx, user.ID, amount.IntPart(), target)
+		}
+	}()
 
 	return
 }
@@ -2059,7 +2067,8 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		// FIX [B3]: postBillSuccess handles single-assignment pointsEarned.
 		pointsEarned := s.postBillSuccess(
 			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
-			redemptionApplied, "airtime", req.ServiceID, audit.EventAirtimePurchase,
+			redemptionApplied, string(Airtime), req.ServiceID, audit.EventAirtimePurchase,
+			req.Phone, "",
 		)
 
 		if err = dbTx.Commit(); err != nil {
@@ -2076,10 +2085,6 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		}
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
-		}
-		if err = s.push.SuccessfulAirtimePurchase(ctx, user.ID, req.Amount, req.Phone); err != nil {
-			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
-			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
 		return s.buildAirtimeResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status), nil
 
@@ -2317,6 +2322,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		pointsEarned := s.postBillSuccess(
 			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
 			redemptionApplied, string(Data), req.ServiceID, audit.EventDataPurchase,
+			req.Phone, selectedVariation.Name,
 		)
 
 		if err = dbTx.Commit(); err != nil {
@@ -2333,10 +2339,6 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		}
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
-		}
-		if err = s.push.SuccessfulDataPurchase(ctx, user.ID, selectedVariation.Name, req.Phone); err != nil {
-			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
-			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
 		return s.buildDataResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status, selectedVariation.VariationCode), nil
 
@@ -2589,6 +2591,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		pointsEarned := s.postBillSuccess(
 			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
 			redemptionApplied, string(TV), req.ServiceID, audit.EventTVSubscriptionPurchase,
+			req.BillersCode, selectedVariation.VariationCode,
 		)
 
 		if err = dbTx.Commit(); err != nil {
@@ -2605,10 +2608,6 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		}
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "TV Subscription", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
-		}
-		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
-			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
-			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
 		return s.buildTVResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, btx.Status, selectedVariation.VariationCode), nil
 
@@ -3319,6 +3318,7 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		pointsEarned := s.postBillSuccess(
 			ctx, dbTx, user, txx, amount, finalAmount, pointsToUseDecimal,
 			redemptionApplied, string(Electricity), req.ServiceID, audit.EventElectricityPurchase,
+			req.BillersCode, "",
 		)
 
 		if err = dbTx.Commit(); err != nil {
@@ -3335,10 +3335,6 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		}
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Electricity Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
-		}
-		if err = s.push.SuccessfulTvSub(ctx, user.ID, selectedVariation.VariationCode); err != nil {
-			s.logger.Error(fmt.Sprintf("Push notification error: %v", err))
-			s.audit.Log(audit.WarningLog("Push Notification failed", err.Error()))
 		}
 		return s.buildElectricityResponse(txx, amount, finalAmount, pointsEarned, btx.Content.Transaction.Status, btx), nil
 
