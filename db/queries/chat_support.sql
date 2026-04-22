@@ -335,7 +335,7 @@ SELECT
     COUNT(*) FILTER (WHERE status = 'in_progress') as in_progress_tickets,
     COUNT(*) FILTER (WHERE status = 'resolved') as resolved_tickets,
     COUNT(*) FILTER (WHERE status = 'closed') as closed_tickets,
-    AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))) FILTER (WHERE resolved_at IS NOT NULL) as avg_resolution_time
+    COALESCE(AVG(EXTRACT(EPOCH FROM (resolved_at - created_at))) FILTER (WHERE resolved_at IS NOT NULL), 0)::FLOAT as avg_resolution_time
 FROM tickets
 WHERE created_at >= $1;
 

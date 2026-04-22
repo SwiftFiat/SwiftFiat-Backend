@@ -89,6 +89,7 @@ func (a Auth) router(server *Server) {
 	authed.DELETE("account", a.deleteAccount)
 	authed.POST("send-otp", a.SendOTPWithTwilio)
 	authed.POST("set-2fa", a.SetTwoFA)
+	authed.POST("toggle-2fa", a.ToggleTwoFA)
 	authed.POST("logout", a.logout)
 	authed.POST("logout-all", a.logoutAll)
 
@@ -472,7 +473,8 @@ func (a *Auth) logFailedNotification(ctx context.Context, notifType, category st
 }
 
 type TwoFARequest struct {
-	Enable bool `json:"enable"`
+	Enable bool   `json:"enable"`
+	Code   string `json:"code"`
 }
 
 type TwoFAResponse struct {
@@ -484,16 +486,12 @@ type TwoFAResponse struct {
 }
 
 // SetTwoFA godoc
-// @Summary Set Two-Factor Authentication (2FA) [UNTESTED]
-// @Description Enable or disable two-factor authentication for the authenticated user
-// @Description When enabling 2FA, an OTPAuthURL and Secret will be returned for setting up the authenticator app
+// @Summary Setup Two-Factor Authentication (2FA)
+// @Description Generate a 2FA secret and QR code for the authenticated user. This does not enable 2FA yet.
 // @Tags auth
-// @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param twoFARequest body TwoFARequest true "Two-Factor Authentication Request"
 // @Success 200 {object} basemodels.SuccessResponse{data=TwoFAResponse}
-// @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 403 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
@@ -503,13 +501,6 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	if err != nil {
 		a.server.logger.Error(err.Error())
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
-		return
-	}
-
-	var req TwoFARequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		a.server.logger.Error(err.Error())
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid request"))
 		return
 	}
 
@@ -536,67 +527,142 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 		return
 	}
 
+	key, err := totp.Generate(totp.GenerateOpts{
+		Issuer:      "SwiftFiat",
+		AccountName: user.Email,
+	})
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, apistrings.ServerError)
+		return
+	}
+
+	// Save secret but do not enable 2FA yet
+	_, err = a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
+		ID:           activeUser.UserID,
+		TwofaSecret:  sql.NullString{String: key.Secret(), Valid: true},
+		TwofaEnabled: sql.NullBool{Bool: false, Valid: true},
+		UpdatedAt:    time.Now(),
+	})
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred saving 2FA secret"))
+		return
+	}
+
+	img, err := key.Image(200, 200)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+		return
+	}
+
+	var buf bytes.Buffer
+	png.Encode(&buf, img)
+	encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
+
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA setup initiated", TwoFAResponse{
+		OTPAuthURL: key.URL(),
+		Secret:     key.Secret(),
+		QRCode:     "data:image/png;base64," + encoded,
+	}))
+}
+
+// ToggleTwoFA godoc
+// @Summary Toggle Two-Factor Authentication (2FA)
+// @Description Enable or disable 2FA. Enabling requires a valid code from the authenticator app.
+// @Tags auth
+// @Accept json
+// @Produce json
+// @Security BearerAuth
+// @Param twoFARequest body TwoFARequest true "Two-Factor Authentication Request"
+// @Success 200 {object} basemodels.SuccessResponse
+// @Failure 400 {object} basemodels.ErrorResponse
+// @Failure 401 {object} basemodels.ErrorResponse
+// @Failure 500 {object} basemodels.ErrorResponse
+// @Router /api/v1/auth/toggle-2fa [post]
+func (a *Auth) ToggleTwoFA(ctx *gin.Context) {
+	activeUser, err := utils.GetActiveUser(ctx)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
+		return
+	}
+
+	var req TwoFARequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please provide a valid request"))
+		return
+	}
+
+	user, err := a.server.queries.GetUserByID(ctx, activeUser.UserID)
+	if err != nil {
+		a.server.logger.Error(err.Error())
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred retrieving user"))
+		return
+	}
+
 	if req.Enable {
-		if user.TwofaEnabled.Bool && user.TwofaEnabled.Valid {
+		if user.TwofaEnabled.Bool {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError("2FA is already enabled"))
 			return
 		}
 
-		key, err := totp.Generate(totp.GenerateOpts{
-			Issuer:      "SwiftFiat",
-			AccountName: user.Email,
-		})
-		if err != nil {
-			a.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, apistrings.ServerError)
+		if user.TwofaSecret.String == "" {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("2FA secret not found. Please setup 2FA first."))
 			return
 		}
 
+		// Verify code
+		if req.Code == "" {
+			ctx.JSON(http.StatusBadRequest, basemodels.NewError("verification code is required to enable 2FA"))
+			return
+		}
+
+		valid := totp.Validate(req.Code, user.TwofaSecret.String)
+		if !valid {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid 2FA code"))
+			return
+		}
+
+		// Enable 2FA
 		_, err = a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
 			ID:           activeUser.UserID,
-			TwofaSecret:  sql.NullString{String: key.Secret(), Valid: true},
+			TwofaSecret:  user.TwofaSecret,
 			TwofaEnabled: sql.NullBool{Bool: true, Valid: true},
 			UpdatedAt:    time.Now(),
 		})
 		if err != nil {
 			a.server.logger.Error(err.Error())
-
-			// Log audit
-			errMsg := err.Error()
-			entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s enabled 2FA", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
-			a.audit.Log(entry)
-
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred enabling 2FA"))
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to enable 2FA"))
 			return
 		}
 
-		// Log 2FA setup attempt
 		// Log audit
 		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s enabled 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 		a.audit.Log(entry)
 
-		img, err := key.Image(200, 200)
-		if err != nil {
-			a.server.logger.Error(err.Error())
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
-			return
-		}
-
-		var buf bytes.Buffer
-		png.Encode(&buf, img)
-		encoded := base64.StdEncoding.EncodeToString(buf.Bytes())
-
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA enabled successfully", TwoFAResponse{
-			OTPAuthURL: key.URL(),
-			Secret:     key.Secret(),
-			QRCode:     "data:image/png;base64," + encoded,
-		}))
-
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA enabled successfully", nil))
 		return
 	}
 
 	// Disable 2FA
-	updatedUser, err := a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
+	if !user.TwofaEnabled.Bool {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("2FA is already disabled"))
+		return
+	}
+
+	// Optional: verify code before disabling
+	if req.Code != "" {
+		valid := totp.Validate(req.Code, user.TwofaSecret.String)
+		if !valid {
+			ctx.JSON(http.StatusUnauthorized, basemodels.NewError("invalid 2FA code"))
+			return
+		}
+	}
+
+	_, err = a.server.queries.SetUserTwoFA(ctx, db.SetUserTwoFAParams{
 		ID:           activeUser.UserID,
 		TwofaSecret:  sql.NullString{Valid: false},
 		TwofaEnabled: sql.NullBool{Bool: false, Valid: true},
@@ -604,13 +670,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	})
 	if err != nil {
 		a.server.logger.Error(err.Error())
-
-		// Log audit
-		errMsg := err.Error()
-		entry := audit.NewAuthenticationLog(ctx, audit.Event2FAEnabled, fmt.Sprintf("User %s disabled 2FA", user.Email), &user.ID, &user.Email, user.Role, false, &errMsg)
-		a.audit.Log(entry)
-
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred disabling 2FA"))
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to disable 2FA"))
 		return
 	}
 
@@ -618,7 +678,7 @@ func (a *Auth) SetTwoFA(ctx *gin.Context) {
 	entry := audit.NewAuthenticationLog(ctx, audit.Event2FADisabled, fmt.Sprintf("User %s disabled 2FA", user.Email), &user.ID, &user.Email, user.Role, true, nil)
 	a.audit.Log(entry)
 
-	ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA disabled successfully", models.UserResponse{}.ToUserResponse(&updatedUser)))
+	ctx.JSON(http.StatusOK, basemodels.NewSuccess("2FA disabled successfully", nil))
 }
 
 type VerifyTwoFARequest struct {

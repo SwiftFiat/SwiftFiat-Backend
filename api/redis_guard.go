@@ -96,7 +96,7 @@ func ValidateRedisSecurityConfig(ctx context.Context, r *redis.RedisService, l *
 	}
 
 	if !report.Passed {
-		return fmt.Errorf("Redis security validation failed: %s",
+		return fmt.Errorf("redis security validation failed: %s",
 			strings.Join(report.Errors, "; "))
 	}
 

@@ -1,0 +1,20 @@
+meta {
+  name: Support statistics
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{BaseURl}}/chat/admin/support/statistics
+  body: none
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

@@ -39,7 +39,6 @@ import (
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	redishelper "github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/google/uuid"
 )
@@ -116,7 +115,7 @@ type LoginLocation struct {
 // ── AnomalyDetector ───────────────────────────────────────────────────────────
 
 type AnomalyDetector struct {
-	redis    *redis.RedisService
+	redis    *redishelper.RedisService
 	logger   *logging.Logger
 	email    *service.Plunk
 	push     *service.PushNotificationService
@@ -133,7 +132,7 @@ type geoResult struct {
 }
 
 func NewAnomalyDetector(
-	r *redis.RedisService,
+	r *redishelper.RedisService,
 	l *logging.Logger,
 	email *service.Plunk,
 	push *service.PushNotificationService,

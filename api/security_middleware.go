@@ -30,7 +30,6 @@ import (
 	"time"
 
 	basemodels "github.com/SwiftFiat/SwiftFiat-Backend/models"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	redishelper "github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -70,7 +69,7 @@ var (
 // Sliding-window algorithm backed by a Redis sorted set.
 // All four operations execute in a single pipeline (one network RTT).
 
-func IPRateLimitMiddleware(r *redis.RedisService, tier rateLimitTier) gin.HandlerFunc {
+func IPRateLimitMiddleware(r *redishelper.RedisService, tier rateLimitTier) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		ip := realIP(ctx)
 		key := fmt.Sprintf("rl:%s:%s", tier.name, ip)
@@ -117,15 +116,15 @@ func IPRateLimitMiddleware(r *redis.RedisService, tier rateLimitTier) gin.Handle
 }
 
 // Tier shortcuts for wiring in server.go / auth router.
-func GlobalRateLimit(r *redis.RedisService) gin.HandlerFunc {
+func GlobalRateLimit(r *redishelper.RedisService) gin.HandlerFunc {
 	return IPRateLimitMiddleware(r, tierGlobal)
 }
 
-func AuthRateLimit(r *redis.RedisService) gin.HandlerFunc {
+func AuthRateLimit(r *redishelper.RedisService) gin.HandlerFunc {
 	return IPRateLimitMiddleware(r, tierAuth)
 }
 
-func SensitiveRateLimit(r *redis.RedisService) gin.HandlerFunc {
+func SensitiveRateLimit(r *redishelper.RedisService) gin.HandlerFunc {
 	return IPRateLimitMiddleware(r, tierSensitive)
 }
 
@@ -135,7 +134,7 @@ func SensitiveRateLimit(r *redis.RedisService) gin.HandlerFunc {
 // the DB when an account is in its 30-minute lockout window.
 // The body is read, peeked, then re-injected so the handler can read it again.
 
-func BruteForceMiddleware(r *redis.RedisService) gin.HandlerFunc {
+func BruteForceMiddleware(r *redishelper.RedisService) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		// Read + restore body
 		rawBody, err := io.ReadAll(ctx.Request.Body)
@@ -175,7 +174,7 @@ func BruteForceMiddleware(r *redis.RedisService) gin.HandlerFunc {
 // RecordFailedLogin increments the failed-attempt counter for email.
 // Returns (locked=true, attempts) when the account crosses the threshold.
 // Call from the login handler after every password mismatch.
-func RecordFailedLogin(ctx *gin.Context, r *redis.RedisService, email string) (locked bool, totalAttempts int) {
+func RecordFailedLogin(ctx *gin.Context, r *redishelper.RedisService, email string) (locked bool, totalAttempts int) {
 	failKey := failedLoginKey(email)
 	lockKey := accountLockKey(email)
 
@@ -202,7 +201,7 @@ func RecordFailedLogin(ctx *gin.Context, r *redis.RedisService, email string) (l
 
 // ClearFailedLogins resets the attempt counter and removes any lock for email.
 // Call from the login handler after a successful authentication.
-func ClearFailedLogins(ctx *gin.Context, r *redis.RedisService, email string) {
+func ClearFailedLogins(ctx *gin.Context, r *redishelper.RedisService, email string) {
 	pipe := r.Pipeline()
 	pipe.Del(ctx, failedLoginKey(email))
 	pipe.Del(ctx, accountLockKey(email))
@@ -210,7 +209,7 @@ func ClearFailedLogins(ctx *gin.Context, r *redis.RedisService, email string) {
 }
 
 // IsAccountLocked returns (true, remainingTTL) when the account lock key exists.
-func IsAccountLocked(ctx *gin.Context, r *redis.RedisService, email string) (bool, time.Duration) {
+func IsAccountLocked(ctx *gin.Context, r *redishelper.RedisService, email string) (bool, time.Duration) {
 	locked, err := r.Get(ctx, accountLockKey(email))
 	if err != nil || locked == "" {
 		return false, 0

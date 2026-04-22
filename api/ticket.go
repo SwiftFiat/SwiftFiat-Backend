@@ -1056,7 +1056,7 @@ func (c *ChatSupport) getStatistics(ctx *gin.Context) {
 		return
 	}
 
-	if activeUser.Role == models.USER {
+	if activeUser.Role == models.ADMIN {
 		ctx.JSON(http.StatusForbidden, basemodels.NewError("access denied"))
 		return
 	}

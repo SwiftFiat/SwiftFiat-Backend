@@ -1,0 +1,27 @@
+meta {
+  name: Toggle 2fa
+  type: http
+  seq: 18
+}
+
+post {
+  url: {{BaseURl}}/auth/toggle-2fa
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "enable": "true",
+    "code": ""
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
