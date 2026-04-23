@@ -211,7 +211,7 @@ func (c *CryptoAPI) createStaticWallet(ctx *gin.Context) {
 	// 2. Generate Deterministic Order ID
 	// We remove the timestamp to ensure that if the same user requests the same currency/network,
 	// Cryptomus returns the same address even if our local DB record is missing.
-	orderID := fmt.Sprintf("wallet_%d_%s_%s", activeUser.UserID, request.Network, request.Currency)
+	orderID := fmt.Sprintf("wallet_%s_%s_%s", activeUser.UserID, request.Network, request.Currency)
 
 	// Sanitize orderID to ensure it only contains alphabetic characters, numbers, underscores, and dashes
 	orderID = strings.ReplaceAll(orderID, " ", "_")
