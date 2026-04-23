@@ -119,6 +119,35 @@ func (q *Queries) GetLatestExchangeRate(ctx context.Context, arg GetLatestExchan
 	return i, err
 }
 
+const getLatestManualExchangeRate = `-- name: GetLatestManualExchangeRate :one
+SELECT id, base_currency, quote_currency, rate, effective_time, source, created_at FROM exchange_rates
+WHERE base_currency = $1 
+AND quote_currency = $2
+AND source = 'manual'
+ORDER BY effective_time DESC
+LIMIT 1
+`
+
+type GetLatestManualExchangeRateParams struct {
+	BaseCurrency  string `json:"base_currency"`
+	QuoteCurrency string `json:"quote_currency"`
+}
+
+func (q *Queries) GetLatestManualExchangeRate(ctx context.Context, arg GetLatestManualExchangeRateParams) (ExchangeRate, error) {
+	row := q.db.QueryRowContext(ctx, getLatestManualExchangeRate, arg.BaseCurrency, arg.QuoteCurrency)
+	var i ExchangeRate
+	err := row.Scan(
+		&i.ID,
+		&i.BaseCurrency,
+		&i.QuoteCurrency,
+		&i.Rate,
+		&i.EffectiveTime,
+		&i.Source,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const listExchangeRates = `-- name: ListExchangeRates :many
 SELECT id, base_currency, quote_currency, rate, effective_time, source, created_at FROM exchange_rates
 WHERE base_currency = $1 

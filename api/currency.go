@@ -36,7 +36,7 @@ func (c *Currency) setPairRate(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
-	if user.Role == models.USER {
+	if user.Role == models.ADMIN {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
@@ -131,7 +131,7 @@ func (c *Currency) toggleRateSource(ctx *gin.Context) {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("unauthorized"))
 		return
 	}
-	if user.Role == models.USER {
+	if user.Role == models.ADMIN {
 		ctx.JSON(http.StatusUnauthorized, basemodels.NewError("only admins can toggle rate sources"))
 		return
 	}

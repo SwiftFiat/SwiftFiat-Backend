@@ -16,6 +16,14 @@ AND quote_currency = $2
 ORDER BY effective_time DESC
 LIMIT 1;
 
+-- name: GetLatestManualExchangeRate :one
+SELECT * FROM exchange_rates
+WHERE base_currency = $1 
+AND quote_currency = $2
+AND source = 'manual'
+ORDER BY effective_time DESC
+LIMIT 1;
+
 -- name: GetExchangeRateAtTime :one
 SELECT * FROM exchange_rates
 WHERE base_currency = $1 

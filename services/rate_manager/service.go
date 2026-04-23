@@ -11,6 +11,7 @@ import (
 	exchangerate "github.com/SwiftFiat/SwiftFiat-Backend/services/exchange_rate"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/redis"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -22,6 +23,7 @@ type Service struct {
 	auditService        *audit.Service
 	logger              *logging.Logger
 	push                *service.PushNotificationService
+	redis               *redis.RedisService
 }
 
 func NewService(
@@ -31,6 +33,7 @@ func NewService(
 	auditService *audit.Service,
 	logger *logging.Logger,
 	push *service.PushNotificationService,
+	redis *redis.RedisService,
 ) *Service {
 	return &Service{
 		store:               store,
@@ -39,6 +42,7 @@ func NewService(
 		auditService: auditService,
 		logger:       logger,
 		push:         push,
+		redis:        redis,
 	}
 }
 
@@ -946,17 +950,30 @@ func (s *Service) SetRateSourcePreference(ctx context.Context, currencyPair stri
 		return fmt.Errorf("invalid rate source preference: %s", preference)
 	}
 
-	// Store in cache/database (using a config table would be better, but Redis works for now)
-	// In production, consider storing in a dedicated system_config table
+	// Store in Redis with key: rate_source_pref:{currency_pair}
+	// Use 0 expiration for permanent storage
+	rateSourceKey := fmt.Sprintf("rate_source_pref:%s", currencyPair)
 	s.logger.Info(fmt.Sprintf("Setting rate source preference for %s to %s", currencyPair, preference))
 
-	return nil
+	return s.redis.Set(ctx, rateSourceKey, preference, 0)
 }
 
 // GetRateSourcePreference gets the rate source preference for a currency pair
 func (s *Service) GetRateSourcePreference(ctx context.Context, currencyPair string) RateSourcePreference {
-	// Default to exchange service
-	// In production, query from system config table
+	// Try to get from Redis
+	rateSourceKey := fmt.Sprintf("rate_source_pref:%s", currencyPair)
+	preference, err := s.redis.Get(ctx, rateSourceKey)
+
+	if err != nil {
+		// Default to exchange service if not found or error
+		s.logger.Debugf("No rate source preference found for %s, defaulting to exchange service: %v", currencyPair, err)
+		return RateSourceExchangeService
+	}
+
+	if preference == string(RateSourceManual) {
+		return RateSourceManual
+	}
+
 	return RateSourceExchangeService
 }
 
@@ -968,7 +985,7 @@ func (s *Service) GetRateSourcePreference(ctx context.Context, currencyPair stri
 func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, from, to string, amount string) (*RateSimulationResponse, error) {
 	s.logger.Info(fmt.Sprintf("Calculating adjusted rate for user %s: %s to %s, amount: %s", userID, from, to, amount))
 
-	currencyPair := fmt.Sprintf("%s_%s", from, to)
+	currencyPair := fmt.Sprintf("%s/%s", from, to)
 	rateSourcePref := s.GetRateSourcePreference(ctx, currencyPair)
 
 	// Get base rate based on preference
@@ -1057,9 +1074,8 @@ func (s *Service) GetAdjustedRateForUser(ctx context.Context, userID uuid.UUID, 
 
 // getManualRate retrieves a manually set rate for a currency pair
 func (s *Service) getManualRate(ctx context.Context, from, to string) (*exchangerate.ExchangeRate, error) {
-	// Query the exchange_rates table for manually set rates
-	// Assuming there's a way to distinguish manual rates (maybe by a flag or source field)
-	rate, err := s.store.GetLatestExchangeRate(ctx, db.GetLatestExchangeRateParams{
+	// Query the exchange_rates table for manually set rates with source='manual'
+	rate, err := s.store.GetLatestManualExchangeRate(ctx, db.GetLatestManualExchangeRateParams{
 		BaseCurrency:  from,
 		QuoteCurrency: to,
 	})
