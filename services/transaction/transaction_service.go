@@ -2252,10 +2252,10 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		Amount:        amount.IntPart(),
 	})
 	if err != nil {
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		_, updateErr := s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID: txx.ID, Status: string(Pending),
 		})
-		if err != nil {
+		if updateErr != nil {
 			return nil, fmt.Errorf("failed to update tx record")
 		}
 		_ = dbTx.Commit()
@@ -2524,7 +2524,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		Amount:           amount.IntPart(),
 	})
 	if err != nil {
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		_, updateErr := s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
@@ -2534,6 +2534,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			Message:  fmt.Sprintf("VTPASS buy tv sub endpoint failed with error: %v", err.Error()),
 			Source:   sql.NullString{String: "HandleAirtime", Valid: true},
 		})
+		_ = updateErr // Use updateErr to avoid unused variable warning
 		return nil, fmt.Errorf("TV provider unreachable (pending reconciliation): %w", err)
 	}
 
@@ -3241,10 +3242,11 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		Amount:        req.Amount,
 	})
 	if err != nil {
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		_, updateErr := s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
+		_ = updateErr // Use updateErr to avoid unused variable warning
 		return nil, fmt.Errorf("electricity provider unreachable (pending reconciliation): %w", err)
 	}
 
