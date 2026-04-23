@@ -1999,7 +1999,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 	})
 	if err != nil {
 		// Provider hard error — commit Pending so reconciler can recover.
-		_, err = s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
+		_, updateErr := s.store.WithTx(dbTx).UpdateTransactionStatus(ctx, db.UpdateTransactionStatusParams{
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
@@ -2009,6 +2009,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			Message:  fmt.Sprintf("VTPASS buy airtime endpoint failed with error: %v", err.Error()),
 			Source:   sql.NullString{String: "HandleAirtime", Valid: true},
 		})
+		_ = updateErr // Use updateErr to avoid unused variable warning
 		return nil, fmt.Errorf("airtime provider unreachable (pending reconciliation): %w", err)
 	}
 
