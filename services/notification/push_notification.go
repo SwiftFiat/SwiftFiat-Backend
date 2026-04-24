@@ -114,8 +114,8 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		},
 		APNS: &messaging.APNSConfig{
 			Headers: map[string]string{
-				"apns-priority":  "1uuid.Nil", // High priority for immediate delivery.
-				"apns-push-type": "alert",     // Ensures a visible alert is displayed.
+				"apns-priority":  "10",    // High priority for immediate delivery (valid values: 10 or 1).
+				"apns-push-type": "alert", // Ensures a visible alert is displayed.
 			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
