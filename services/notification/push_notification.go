@@ -89,11 +89,8 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		return err
 	}
 
-	// Add data payload for better notification handling
-	data := map[string]string{
-		"title": info.Title,
-		"body":  info.Message,
-	}
+	// Add data payload for analytics and custom app handling (do NOT include title/body here)
+	data := map[string]string{}
 	if info.AnalyticsLabel != "" {
 		data["analytics_label"] = info.AnalyticsLabel
 	}
@@ -108,14 +105,17 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		Android: &messaging.AndroidConfig{
 			Priority: "high", // Ensures the message is delivered immediately.
 			Notification: &messaging.AndroidNotification{
+				Title: info.Title,
+				Body:  info.Message,
 				Color: "#f4bb44", // Notification icon color.
 				Sound: "default", // Plays the default sound.
 			},
 		},
 		APNS: &messaging.APNSConfig{
 			Headers: map[string]string{
-				"apns-priority":  "10",    // High priority for immediate delivery (valid values: 10 or 1).
-				"apns-push-type": "alert", // Ensures a visible alert is displayed.
+				"apns-priority":   "10",    // High priority for immediate delivery (valid values: 10 or 1).
+				"apns-push-type":  "alert", // Ensures a visible alert is displayed.
+				"apns-expiration": "3600",  // Message expires in 1 hour if not delivered.
 			},
 			Payload: &messaging.APNSPayload{
 				Aps: &messaging.Aps{
@@ -123,8 +123,7 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 						Title: info.Title,
 						Body:  info.Message,
 					},
-					Badge: &info.Badge, // Assuming `info.Badge` holds a badge count.
-					Sound: "default",   // Plays the default system sound.
+					Sound: "default", // Plays the default system sound.
 				},
 			},
 			FCMOptions: &messaging.APNSFCMOptions{
@@ -135,7 +134,6 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 			Notification: &messaging.WebpushNotification{
 				Title: info.Title,
 				Body:  info.Message,
-				Icon:  "https://example.com/icon.png", // Replace with a valid URL for web push icon.
 			},
 		},
 	}

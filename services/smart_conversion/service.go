@@ -55,6 +55,15 @@ func NewConversionService(
 func (s *ConversionService) CreateConversionRule(ctx context.Context, userID uuid.UUID, req *CreateConversionRuleRequest) (*ConversionRule, error) {
 	s.logger.Info(fmt.Sprintf("Creating conversion rule for user %d", userID))
 
+	kyc, err := s.store.Queries.GetKYCByUserID(ctx, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get KYC information: %w", err)
+	}
+
+	if kyc.Tier == "tier_1" {
+		go s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
 	// Validate currency pair
 	if err := s.exchangeRateService.ValidateCurrencyPair(req.SourceCurrency, req.TargetCurrency); err != nil {
 		return nil, exchangerate.ErrInvalidCurrencyPair
