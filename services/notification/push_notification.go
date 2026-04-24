@@ -220,7 +220,10 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 			ExpoToken string
 		}{}, nil
 	}
-	tokens, err := p.userService.GetUserPushTokens(ctx, userID)
+	// Use background context for database operations to avoid request context cancellations
+	// affecting background notification tasks
+	bgCtx := context.Background()
+	tokens, err := p.userService.GetUserPushTokens(bgCtx, userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error retrieving push tokens for user %d: %v", userID, err))
 		return nil, err
