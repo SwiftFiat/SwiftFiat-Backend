@@ -82,7 +82,9 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		return err
 	}
 
-	client, err := p.app.Messaging(ctx)
+	// Use background context for Firebase operations to avoid request context cancellations
+	bgCtx := context.Background()
+	client, err := p.app.Messaging(bgCtx)
 	if err != nil {
 		return err
 	}
@@ -138,9 +140,9 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		},
 	}
 
-	didSend, err := client.Send(ctx, &newMessage)
+	didSend, err := client.Send(bgCtx, &newMessage)
 	if err != nil {
-		p.handleTokenError(ctx, info.UserID, info.UserFCMToken, err)
+		p.handleTokenError(bgCtx, info.UserID, info.UserFCMToken, err)
 		return err
 	}
 
@@ -197,7 +199,9 @@ func (p *PushNotificationService) handleTokenError(ctx context.Context, userID u
 	if isInvalidFCM || isInvalidExpo {
 		p.logger.Warn(fmt.Sprintf("Removing invalid push token for user %d: %v", userID, err))
 		if p.userService != nil {
-			_ = p.userService.RemoveUserToken(ctx, userID, token)
+			// Use background context to avoid request context cancellations
+			bgCtx := context.Background()
+			_ = p.userService.RemoveUserToken(bgCtx, userID, token)
 		}
 	}
 }
