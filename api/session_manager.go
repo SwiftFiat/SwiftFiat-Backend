@@ -528,10 +528,10 @@ func clientFingerprint(ip, ua string) string {
 }
 
 // uaFingerprint hashes only the User-Agent (used for roaming-safe comparison).
-func uaFingerprint(ua string) string {
-	h := sha256.Sum256([]byte(ua))
-	return hex.EncodeToString(h[:])
-}
+// func uaFingerprint(ua string) string {
+// 	h := sha256.Sum256([]byte(ua))
+// 	return hex.EncodeToString(h[:])
+// }
 
 // fingerprintsCompatible returns true if the two fingerprints share the same
 // User-Agent component. IP is allowed to change (mobile, VPN roaming).

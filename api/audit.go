@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
@@ -457,68 +456,6 @@ func (h *AuditHandler) GetUserData(c *gin.Context) {
 // 		c.JSON(http.StatusBadRequest, basemodels.NewError("Invalid format. Use 'json' or 'csv'"))
 // 	}
 // }
-
-func (h *AuditHandler) exportCSV(c *gin.Context, logs []audit.LogResponse) {
-	w := c.Writer
-	w.Header().Set("Content-Type", "text/csv")
-	w.Header().Set("Content-Disposition", "attachment; filename=audit_logs.csv")
-
-	// Write CSV header
-	w.Write([]byte("ID,Timestamp,Category,Event Type,Severity,Actor ID,Actor Email,Entity Type,Entity ID,Action,Description,Success,IP Address\n"))
-
-	// Write data rows
-	for _, log := range logs {
-		actorID := ""
-		
-		actorEmail := ""
-		if log.ActorEmail != nil {
-			actorEmail = *log.ActorEmail
-		}
-
-		ipAddr := ""
-		if log.IPAddress != nil {
-			ipAddr = *log.IPAddress
-		}
-
-		row := []string{
-			strconv.FormatInt(log.ID, 10),
-			log.CreatedAt.Format(time.RFC3339),
-			string(log.EventCategory),
-			log.EventType,
-			string(log.Severity),
-			actorID,
-			actorEmail,
-			log.EntityType,
-			log.EntityID,
-			string(log.Action),
-			log.Description,
-			strconv.FormatBool(log.Success),
-			ipAddr,
-		}
-
-		for i, field := range row {
-			if i > 0 {
-				w.Write([]byte(","))
-			}
-			w.Write([]byte("\"" + field + "\""))
-		}
-		w.Write([]byte("\n"))
-	}
-}
-
-func (h *AuditHandler) exportJSON(c *gin.Context, logs []audit.LogResponse) {
-	w := c.Writer
-	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", "attachment; filename=audit_logs.json")
-
-	response := map[string]interface{}{
-		"exported_at": time.Now().Format(time.RFC3339),
-		"total_logs":  len(logs),
-		"logs":        logs,
-	}
-
-	json.NewEncoder(w).Encode(response)
-}
 
 // func (h *AuditHandler) SearchLogs(w http.ResponseWriter, r *http.Request) {
 // 	query := r.URL.Query()

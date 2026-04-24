@@ -397,7 +397,7 @@ func (a *Auth) login(ctx *gin.Context) {
 
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(dbUser),
-		Token: pair.AccessToken,
+		// Token: pair.AccessToken,
 	}
 
 	// Anomaly detection (non-blocking)
@@ -459,13 +459,12 @@ func (a *Auth) logFailedNotification(ctx context.Context, notifType, category st
 		"[FAILED_NOTIFICATION] type=%s category=%s user_id=%s recipient=%s subject=%s error=%s",
 		notifType, category, userID, recipient, subject, errorMsg))
 
-	// TODO: Implement actual DB insert
-	_, err := a.server.queries.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
-		Severity: transaction.CRITICALALERT,
-		Title:    "Notification Failure",
-		Message:  fmt.Sprintf("%s: %s", message, errorMsg),
-		Source:   sql.NullString{String: "Login", Valid: true},
-	})
+	_, err := a.notifr.CreateAdminAlert(ctx,
+		transaction.CRITICALALERT,
+		"Notification Failure",
+		fmt.Sprintf("%s: %s", message, errorMsg),
+		"Login",
+	)
 	if err != nil {
 		// Even this can fail - just log to stdout
 		a.server.logger.Error(fmt.Sprintf("failed to log failed notification: %v", err))
@@ -1364,7 +1363,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 
 	userWT := models.UserWithToken{
 		User:  models.UserResponse{}.ToUserResponse(&user),
-		Token: pair.AccessToken,
+		// Token: pair.AccessToken,
 	}
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", gin.H{

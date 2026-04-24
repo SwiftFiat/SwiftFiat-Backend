@@ -452,6 +452,19 @@ func (u *UserService) ToggleRapidRamp(ctx context.Context, userID uuid.UUID) (bo
 		return false, err
 	}
 
+	kyc, err := u.store.Queries.GetKYCByUserID(ctx, user.ID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, fmt.Errorf("Err_KYC_NOT_FOUND")
+		}
+		return false, fmt.Errorf("failed to fetch KYC: %w", err)
+	}
+
+	if kyc.Tier == "tier_1" {
+					// go u.pushService.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		return false, fmt.Errorf("Err_KYC_NEED_TIER_2")
+	}
+
 	x, err := u.store.GetRapidRampStatus(ctx, userID)
 	if err != nil {
 		return false, fmt.Errorf("failed to get rapid ramp status [ToggleRapidRamp]: %w", err)

@@ -1568,7 +1568,7 @@ func (q *Queries) GetTotalCryptoTransactionAmount(ctx context.Context) (GetTotal
 const getTotalInflowTransactions = `-- name: GetTotalInflowTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inflow
 FROM transactions
-WHERE transaction_flow = 'inflow'
+WHERE transaction_flow = 'inflow' AND status = 'successful'
 `
 
 func (q *Queries) GetTotalInflowTransactions(ctx context.Context) (int32, error) {
@@ -1581,7 +1581,7 @@ func (q *Queries) GetTotalInflowTransactions(ctx context.Context) (int32, error)
 const getTotalInplatformTransactions = `-- name: GetTotalInplatformTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inplatform
 FROM transactions
-WHERE transaction_flow = 'inplatform'
+WHERE transaction_flow = 'inplatform' AND status = 'successful'
 `
 
 func (q *Queries) GetTotalInplatformTransactions(ctx context.Context) (int32, error) {
@@ -1594,7 +1594,7 @@ func (q *Queries) GetTotalInplatformTransactions(ctx context.Context) (int32, er
 const getTotalOutflowTransactions = `-- name: GetTotalOutflowTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_outflow
 FROM transactions
-WHERE transaction_flow = 'outflow'
+WHERE transaction_flow = 'outflow'AND status = 'successful'
 `
 
 func (q *Queries) GetTotalOutflowTransactions(ctx context.Context) (int32, error) {

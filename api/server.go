@@ -197,7 +197,7 @@ func NewServer(envPath string) *Server {
 	ws := wallet.NewWalletService(q, l)
 
 	// in app notification service
-	ns := service.NewNotificationService(q)
+	ns := service.NewNotificationService(q, l, pn)
 
 	// vault yield service
 	ys := vaultsavings.NewYieldService(q, l, email, pn)

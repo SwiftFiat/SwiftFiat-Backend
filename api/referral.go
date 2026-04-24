@@ -33,7 +33,7 @@ func (r Referral) router(server *Server) {
 	r.repo = referral.NewReferralRepository(server.queries)
 	r.AmountEarnedPerReferral = decimal.NewFromFloat(1000.00) // TODO: make this configurable
 	r.logger = r.server.logger
-	r.notifyr = service.NewNotificationService(r.server.queries)
+	r.notifyr = service.NewNotificationService(r.server.queries, r.server.logger, r.server.pushNotification)
 	r.service = referral.NewReferralService(r.repo, r.logger, r.notifyr, r.server.pushNotification)
 	r.audit = r.server.auditService
 

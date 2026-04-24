@@ -36,6 +36,22 @@ func NewTicketService(
 	}
 }
 
+func (s *TicketService) createAdminAlert(ctx context.Context, params db.CreateAdminAlertParams) {
+	if s.notificationSvc == nil {
+		s.logger.Warn("notification service unavailable; skipping admin alert")
+		return
+	}
+
+	source := ""
+	if params.Source.Valid {
+		source = params.Source.String
+	}
+
+	if _, err := s.notificationSvc.CreateAdminAlert(ctx, params.Severity, params.Title, params.Message, source); err != nil {
+		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
+	}
+}
+
 // CreateTicket creates a new support ticket
 func (s *TicketService) CreateTicket(ctx context.Context, params *CreateTicketParams) (*db.Ticket, error) {
 	ticket, err := s.store.CreateTicket(ctx, db.CreateTicketParams{
@@ -377,15 +393,12 @@ func (s *TicketService) notifyAdminsNewTicket(ctx context.Context, ticket *db.Ti
 		alertMessage += fmt.Sprintf(" - Priority: %s", ticket.Priority)
 	}
 
-	_, err = s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+	s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 		Severity: "info",
 		Title:    "New Support Ticket Created",
 		Message:  alertMessage,
 		Source:   sql.NullString{String: "TicketService", Valid: true},
 	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
-	}
 
 	// Send in-app notifications to all available admins
 	for _, admin := range admins {
@@ -431,15 +444,12 @@ func (s *TicketService) notifyAgentAssignment(ctx context.Context, ticket *db.Ti
 		return
 	}
 
-	_, err = s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+	s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 		Severity: "info",
 		Title:    "Ticket Assigned",
 		Message:  fmt.Sprintf("Support admin %s %s have been assigned to ticket #%d", adminUser.FirstName.String, adminUser.LastName.String, ticket.ID),
 		Source:   sql.NullString{String: "TicketService", Valid: true},
 	})
-	if err != nil {
-		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
-	}
 }
 
 func (s *TicketService) notifyUserAssignment(ctx context.Context, ticket *db.Ticket) {

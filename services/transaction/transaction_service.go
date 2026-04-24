@@ -80,6 +80,22 @@ func NewTransactionService(
 	}
 }
 
+func (s *TransactionService) createAdminAlert(ctx context.Context, params db.CreateAdminAlertParams) {
+	if s.notifyr == nil {
+		s.logger.Warn("notification service unavailable; skipping admin alert")
+		return
+	}
+
+	source := ""
+	if params.Source.Valid {
+		source = params.Source.String
+	}
+
+	if _, err := s.notifyr.CreateAdminAlert(ctx, params.Severity, params.Title, params.Message, source); err != nil {
+		s.logger.Error(fmt.Sprintf("failed to create admin alert: %v", err))
+	}
+}
+
 func (s *TransactionService) CreatePendingCryptoTransaction(
 	ctx context.Context,
 	orderID string,
@@ -441,7 +457,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 
 	vip_rate, err := s.rateManager.GetAdjustedRateForUser(ctx, user.ID, coinSym, string(USD), coinAmount.String())
 	if err != nil {
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: WARNINGALERT,
 			Title:    "VIP RATE",
 			Message:  fmt.Sprintf("vip rates is failing with error: %v", err),
@@ -2003,7 +2019,7 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Buy Airtime Failing",
 			Message:  fmt.Sprintf("VTPASS buy airtime endpoint failed with error: %v", err.Error()),
@@ -2259,7 +2275,7 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 			return nil, fmt.Errorf("failed to update tx record")
 		}
 		_ = dbTx.Commit()
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Buy Data Failing",
 			Message:  fmt.Sprintf("VTPASS buy data endpoint failed with error: %v", err),
@@ -2528,7 +2544,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 			ID: txx.ID, Status: string(Pending),
 		})
 		_ = dbTx.Commit()
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Buy Tv Subscription Failing",
 			Message:  fmt.Sprintf("VTPASS buy tv sub endpoint failed with error: %v", err.Error()),
@@ -2663,7 +2679,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	airtimeDataTVPending, err := s.store.GetPendingDataAirtimePurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending airtime/data/tv: %v", err))
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Transaction Reconciliation Failure: VTPass Bills",
 			Message:  fmt.Sprintf("Failed to fetch pending airtime/data/tv transactions for reconciliation: %v", err),
@@ -2679,7 +2695,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	electricityPending, err := s.store.GetPendingElectricityPurchaseMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending electricity: %v", err))
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Transaction Reconciliation Failure: VTPass Electricity",
 			Message:  fmt.Sprintf("Failed to fetch pending electricity transactions for reconciliation: %v", err),
@@ -2695,7 +2711,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 	bankTransfersPending, err := s.store.GetPendingBankTransferMetadataOlderThan20Seconds(ctx)
 	if err != nil && !strings.Contains(err.Error(), "no rows in result set") {
 		s.logger.Error(fmt.Sprintf("reconciler: fetch pending bank transfers: %v", err))
-		s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+		s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 			Severity: CRITICALALERT,
 			Title:    "Transaction Reconciliation Failure: Nomba Bank Transfers",
 			Message:  fmt.Sprintf("Failed to fetch pending bank transfer transactions for reconciliation: %v", err),
@@ -2726,7 +2742,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			s.logger.Warn(fmt.Sprintf("reconciler: requestID %s reached max check count (3), marking as failed", requestID))
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure (max checks) %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Transaction Reconciliation Failure: Unable to Finalize",
 					Message:  fmt.Sprintf("Failed to finalize reconciliation for requestID %s (max check count exceeded): %v", requestID, err),
@@ -2742,7 +2758,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryAirtimeStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query airtime %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Provider Unavailable: VTPass Airtime Service",
 					Message:  fmt.Sprintf("Failed to query VTPass airtime status for requestID %s: %v", requestID, err),
@@ -2756,7 +2772,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryDataStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query data %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Provider Unavailable: VTPass Data Service",
 					Message:  fmt.Sprintf("Failed to query VTPass data status for requestID %s: %v", requestID, err),
@@ -2770,7 +2786,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryTVStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query TV %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Provider Unavailable: VTPass TV Subscription Service",
 					Message:  fmt.Sprintf("Failed to query VTPass TV subscription status for requestID %s: %v", requestID, err),
@@ -2784,7 +2800,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.billProvider.QueryElectricityStatus(requestID)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query electricity %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Provider Unavailable: VTPass Electricity Service",
 					Message:  fmt.Sprintf("Failed to query VTPass electricity status for requestID %s: %v", requestID, err),
@@ -2802,7 +2818,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 			res, err := s.fiat.GetTransactionByMerchantRef(merchantTxRef)
 			if err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: query bank transfer %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Provider Unavailable: Nomba Bank Transfer Service",
 					Message:  fmt.Sprintf("Failed to query Nomba bank transfer status for merchantTxRef %s: %v", merchantTxRef, err),
@@ -2831,7 +2847,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		case "delivered":
 			if err = s.reconcileFinalizeBillSuccess(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize success %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Transaction Reconciliation Failure: Success Finalization Error",
 					Message:  fmt.Sprintf("Failed to finalize successful reconciliation for requestID %s: %v", requestID, err),
@@ -2843,7 +2859,7 @@ func (s *TransactionService) ReconcilePendingBillTransactions(ctx context.Contex
 		case "failed":
 			if err = s.reconcileFinalizeBillFailure(ctx, meta); err != nil {
 				s.logger.Error(fmt.Sprintf("reconciler: finalize failure %s: %v", requestID, err))
-				s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+				s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 					Severity: CRITICALALERT,
 					Title:    "Transaction Reconciliation Failure: Failure Finalization Error",
 					Message:  fmt.Sprintf("Failed to finalize failed reconciliation for requestID %s: %v", requestID, err),
@@ -3930,7 +3946,7 @@ func (s *TransactionService) MonitorProviderHealth(ctx context.Context) {
 						// First time detecting this provider as down - create alert
 						unhealthyProviders[providerName] = true
 						s.logger.Warnf("Provider health check failed: %s - %v", providerName, err)
-						s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+						s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 							Severity: CRITICALALERT,
 							Title:    fmt.Sprintf("Provider Unavailable: %s", strings.ToUpper(providerName)),
 							Message:  fmt.Sprintf("The %s provider is currently unavailable. Error: %v", providerName, err),
@@ -3943,7 +3959,7 @@ func (s *TransactionService) MonitorProviderHealth(ctx context.Context) {
 						// Provider recovered - alert admins about recovery
 						unhealthyProviders[providerName] = false
 						s.logger.Infof("Provider health check passed: %s", providerName)
-						s.store.CreateAdminAlert(ctx, db.CreateAdminAlertParams{
+						s.createAdminAlert(ctx, db.CreateAdminAlertParams{
 							Severity: INFOALERT,
 							Title:    fmt.Sprintf("Provider Recovered: %s", strings.ToUpper(providerName)),
 							Message:  fmt.Sprintf("The %s provider is now available and operational.", providerName),

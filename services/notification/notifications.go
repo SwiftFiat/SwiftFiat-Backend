@@ -3,17 +3,26 @@ package service
 import (
 	"context"
 	"database/sql"
+	"fmt"
 
+	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/google/uuid"
 )
 
 type Notification struct {
-	store *db.Store
+	store  *db.Store
+	logger *logging.Logger
+	push   *PushNotificationService
 }
 
-func NewNotificationService(store *db.Store) *Notification {
-	return &Notification{store}
+func NewNotificationService(store *db.Store, logger *logging.Logger, push *PushNotificationService) *Notification {
+	return &Notification{
+		store:  store,
+		logger: logger,
+		push:   push,
+	}
 }
 
 func (n *Notification) Create(ctx context.Context, senderAdmin *uuid.UUID, title, message, source string) (*db.Notification, error) {
@@ -135,7 +144,42 @@ func (n *Notification) CreateAdminAlert(ctx context.Context, severity, title, me
 	if err != nil {
 		return nil, err
 	}
+
+	n.sendAdminAlertPush(context.Background(), title, message)
+
 	return &alert, nil
+}
+
+func (n *Notification) sendAdminAlertPush(ctx context.Context, title, message string) {
+	if n.push == nil {
+		if n.logger != nil {
+			n.logger.Warn("push notification service unavailable; skipping admin alert push")
+		}
+		return
+	}
+
+	sendToRole := func(role string) {
+		admins, err := n.store.ListAdmins(ctx, db.ListAdminsParams{
+			Role:   role,
+			Limit:  200,
+			Offset: 0,
+		})
+		if err != nil {
+			if n.logger != nil {
+				n.logger.Error(fmt.Sprintf("failed to fetch %s users for admin push alert: %v", role, err))
+			}
+			return
+		}
+
+		for _, admin := range admins {
+			if err := n.push.SendPushNotification(ctx, admin.ID, title, message); err != nil && n.logger != nil {
+				n.logger.Error(fmt.Sprintf("failed to send admin push alert to user %s: %v", admin.ID, err))
+			}
+		}
+	}
+
+	sendToRole(models.ADMIN)
+	sendToRole(models.SUPER_ADMIN)
 }
 
 func (n *Notification) ListAdminAlerts(ctx context.Context, limit, offset int32) (*[]db.AdminAlert, error) {

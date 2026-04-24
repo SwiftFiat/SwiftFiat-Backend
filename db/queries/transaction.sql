@@ -624,17 +624,17 @@ WHERE user_id = $1 AND status = 'successful';
 -- name: GetTotalOutflowTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_outflow
 FROM transactions
-WHERE transaction_flow = 'outflow';
+WHERE transaction_flow = 'outflow'AND status = 'successful';
 
 -- name: GetTotalInflowTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inflow
 FROM transactions
-WHERE transaction_flow = 'inflow';
+WHERE transaction_flow = 'inflow' AND status = 'successful';
 
 -- name: GetTotalInplatformTransactions :one
 SELECT CAST(COALESCE(SUM(amount_usd), 0) AS INTEGER) AS total_inplatform
 FROM transactions
-WHERE transaction_flow = 'inplatform';
+WHERE transaction_flow = 'inplatform' AND status = 'successful';
 
 -- name: ListUserTransactions :many
 SELECT
