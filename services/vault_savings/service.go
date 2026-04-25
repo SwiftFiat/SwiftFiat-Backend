@@ -790,7 +790,7 @@ type CreateVaultGoalRequest struct {
 
 type VaultSavingResponse struct {
 	ID                   uuid.UUID      `json:"id"`
-	UserID               uuid.UUID          `json:"user_id"`
+	UserID               uuid.UUID      `json:"user_id"`
 	VaultName            string         `json:"vault_name"`
 	Description          string         `json:"description"`
 	GoalAmount           string         `json:"goal_amount"`
@@ -857,7 +857,7 @@ func MapGetVaultGoalProgressRowToReponse(a *db.GetVaultGoalProgressRow) *GetVaul
 }
 
 type DepositRequest struct {
-	UserID         uuid.UUID     `json:"user_id"`
+	UserID         uuid.UUID `json:"user_id"`
 	VaultID        uuid.UUID `json:"vault_id"`
 	FromWalletID   uuid.UUID `json:"from_wallet_id" binding:"required"`
 	Amount         string    `json:"amount" binding:"required"`
@@ -868,7 +868,7 @@ type DepositRequest struct {
 
 type DepositResponse struct {
 	ID                    uuid.UUID      `json:"id"`
-	UserID                uuid.UUID          `json:"user_id"`
+	UserID                uuid.UUID      `json:"user_id"`
 	VaultID               uuid.UUID      `json:"vault_id"`
 	TransactionType       string         `json:"transaction_type"`
 	Amount                string         `json:"amount"`
@@ -914,7 +914,7 @@ func MapVaultTxToDepositResponse(d *db.VaultTransaction) *DepositResponse {
 }
 
 type WithdrawRequest struct {
-	UserID      uuid.UUID     `json:"user_id"`
+	UserID      uuid.UUID `json:"user_id"`
 	VaultID     uuid.UUID `json:"vault_id"`
 	ToWalletID  uuid.UUID `json:"to_wallet_id" binding:"required"`
 	Amount      string    `json:"amount" binding:"required"`
@@ -1278,7 +1278,6 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to update user streak: %v", err))
 	}
-	
 
 	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
 	// 	TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
@@ -1312,10 +1311,14 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 				}
 			} else {
 				if s.emailService != nil {
-					_ = s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), reference)
+					if err := s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), reference); err != nil {
+						s.logger.Error(fmt.Sprintf("Failed to send deposit success email: %v", err))
+					}
 				}
 				if s.pushService != nil {
-					_ = s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency)
+					if err := s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency); err != nil {
+						s.logger.Error(fmt.Sprintf("Failed to send deposit success push: %v", err))
+					}
 				}
 				if s.notifService != nil {
 					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
@@ -1488,7 +1491,6 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 	if err := s.streakScheduler.UpdateStreakOnTransaction(ctx, req.UserID, maintx.ID, "vault"); err != nil {
 		s.logger.Error(fmt.Sprintf("Failed to update user streak: %v", err))
 	}
-	
 
 	// err = s.store.UpdateUserTransactionVolume(ctx, db.UpdateUserTransactionVolumeParams{
 	// 	TotalTransactionVolume: sql.NullString{String: req.Amount, Valid: true},
