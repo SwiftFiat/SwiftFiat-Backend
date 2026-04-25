@@ -172,8 +172,30 @@ func (n *Notification) sendAdminAlertPush(ctx context.Context, title, message st
 		}
 
 		for _, admin := range admins {
-			if err := n.push.SendPushNotification(ctx, admin.ID, title, message); err != nil && n.logger != nil {
-				n.logger.Error(fmt.Sprintf("failed to send admin push alert to user %s: %v", admin.ID, err))
+			tokens, err := n.store.GetTokens(ctx, admin.ID)
+			if err != nil {
+				if n.logger != nil {
+					n.logger.Error(fmt.Sprintf("failed to fetch tokens for admin %s: %v", admin.ID, err))
+				}
+				continue
+			}
+
+			for _, token := range tokens {
+				if token.Provider != "WEB" {
+					continue
+				}
+
+				err = n.push.SendPush(ctx, &PushNotificationInfo{
+					UserID:       admin.ID,
+					Title:        title,
+					Message:      message,
+					Provider:     PushProviderFCM,
+					UserFCMToken: token.Token,
+					Badge:        1,
+				})
+				if err != nil && n.logger != nil {
+					n.logger.Error(fmt.Sprintf("failed to send web push admin alert to user %s: %v", admin.ID, err))
+				}
 			}
 		}
 	}

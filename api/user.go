@@ -333,12 +333,12 @@ func (u *User) freshChatID(ctx *gin.Context) {
 
 // pushToken godoc
 // @Summary Add Push Notification Token
-// @Description Add or update the authenticated user's push notification token (FCM or Expo)
+// @Description Add or update the authenticated user's push notification token (FCM, Expo, or Web)
 // @Tags user
 // @Accept json
 // @Produce json
 // @Security BearerAuth
-// @Param pushTokenRequest body object{fcm_token=string,expo_token=string,device_uuid=string} true "Push Token Request"
+// @Param pushTokenRequest body object{fcm_token=string,expo_token=string,web_token=string,device_uuid=string} true "Push Token Request"
 // @Success 200 {object} basemodels.SuccessResponse{data=models.UserTokenResponse}
 // @Failure 400 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
@@ -348,6 +348,7 @@ func (u *User) pushToken(ctx *gin.Context) {
 	request := struct {
 		FCMToken   string `json:"fcm_token"`
 		ExpoToken  string `json:"expo_token"`
+		WebToken   string `json:"web_token"`
 		DeviceUUID string `json:"device_uuid"`
 	}{}
 
@@ -364,8 +365,8 @@ func (u *User) pushToken(ctx *gin.Context) {
 		return
 	}
 
-	if request.FCMToken == "" && request.ExpoToken == "" {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a either a valid fcm_token or an expo_token key"))
+	if request.FCMToken == "" && request.ExpoToken == "" && request.WebToken == "" {
+		ctx.JSON(http.StatusBadRequest, basemodels.NewError("please enter a valid fcm_token, expo_token, or web_token"))
 		return
 	}
 
@@ -403,6 +404,17 @@ func (u *User) pushToken(ctx *gin.Context) {
 		u.audit.Log(logentry)
 
 		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user FCM Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
+		return
+	}
+
+	if request.WebToken != "" {
+		tokenValue, err := u.userService.AddUserWebToken(ctx, activeUser.UserID, request.WebToken, request.DeviceUUID)
+		if err != nil {
+			u.server.logger.Error(err.Error())
+			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
+			return
+		}
+		ctx.JSON(http.StatusOK, basemodels.NewSuccess("user Web Token upserted successfully", models.ToUserTokenResponse(tokenValue)))
 		return
 	}
 }

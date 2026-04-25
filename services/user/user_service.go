@@ -265,6 +265,21 @@ func (u *UserService) AddUserExpoToken(ctx context.Context, userID uuid.UUID, ex
 	return &tokenValue, err
 }
 
+func (u *UserService) AddUserWebToken(ctx context.Context, userID uuid.UUID, webToken string, deviceUUID string) (*db.UserToken, error) {
+	webToken = strings.TrimSpace(webToken)
+	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
+		Token:    webToken,
+		Provider: "WEB",
+		UserID:   userID,
+		DeviceUuid: sql.NullString{
+			String: deviceUUID,
+			Valid:  deviceUUID != "",
+		},
+	})
+
+	return &tokenValue, err
+}
+
 func (u *UserService) UserTagExists(ctx context.Context, newTag string) (bool, error) {
 
 	exists, err := u.store.CheckUserTag(ctx, sql.NullString{

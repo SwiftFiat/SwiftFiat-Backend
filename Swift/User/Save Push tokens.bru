@@ -1,0 +1,23 @@
+meta {
+  name: Save Push tokens
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{BaseURl}}/user/push-token
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "web_token": "YOUR_BROWSER_FCM_TOKEN",
+    "device_uuid": "admin-web-chrome"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}

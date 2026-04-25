@@ -140,7 +140,7 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 
 	didSend, err := client.Send(bgCtx, &newMessage)
 	if err != nil {
-		p.handleTokenError(bgCtx, info.UserID, info.UserFCMToken, err)
+		p.handleTokenError(info.UserID, info.UserFCMToken, err)
 		return err
 	}
 
@@ -163,13 +163,13 @@ func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNo
 
 	// Check errors
 	if err != nil {
-		p.handleTokenError(ctx, info.UserID, info.UserExpoToken, err)
+		p.handleTokenError(info.UserID, info.UserExpoToken, err)
 		return err
 	}
 
 	// Validate responses
 	if err := response.ValidateResponse(); err != nil {
-		p.handleTokenError(ctx, info.UserID, info.UserExpoToken, err)
+		p.handleTokenError(info.UserID, info.UserExpoToken, err)
 		return fmt.Errorf("failed: %v", response.PushMessage.To)
 	}
 
@@ -177,7 +177,7 @@ func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNo
 
 }
 
-func (p *PushNotificationService) handleTokenError(ctx context.Context, userID uuid.UUID, token string, err error) {
+func (p *PushNotificationService) handleTokenError(userID uuid.UUID, token string, err error) {
 	if err == nil || token == "" {
 		return
 	}
@@ -209,7 +209,7 @@ func (p *PushNotificationService) SetUserService(us *user_service.UserService) {
 	p.userService = us
 }
 
-func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID uuid.UUID) (*struct {
+func (p *PushNotificationService) getUserPushTokens(userID uuid.UUID) (*struct {
 	FCMToken  string
 	ExpoToken string
 }, error) {
@@ -265,7 +265,7 @@ func (p *PushNotificationService) getUserPushTokens(ctx context.Context, userID 
 func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, userID uuid.UUID, name string) error {
 	p.logger.Info(fmt.Sprintf("Attempting to send vault goal created push for user %d, goal name: %s", userID, name))
 
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -313,7 +313,7 @@ func (p *PushNotificationService) SendVaultGoalCreatedPush(ctx context.Context, 
 }
 
 func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, userID uuid.UUID, name string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -359,7 +359,7 @@ func (p *PushNotificationService) SendGoalCompletedPush(ctx context.Context, use
 }
 
 func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -405,7 +405,7 @@ func (p *PushNotificationService) SendDepositSuccessPush(ctx context.Context, us
 }
 
 func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -451,7 +451,7 @@ func (p *PushNotificationService) SendWithdrawalSuccessPush(ctx context.Context,
 }
 
 func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -497,7 +497,7 @@ func (p *PushNotificationService) SendRecurringDepositSuccessPush(ctx context.Co
 }
 
 func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Context, userID uuid.UUID, name, reason string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -543,7 +543,7 @@ func (p *PushNotificationService) SendRecurringDepositFailedPush(ctx context.Con
 }
 
 func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID uuid.UUID, name, amount, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -589,7 +589,7 @@ func (p *PushNotificationService) SendYieldCredited(ctx context.Context, userID 
 }
 
 func (p *PushNotificationService) SendRewardNotification(ctx context.Context, userID uuid.UUID, message, txType string, pointEarned int64) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -635,7 +635,7 @@ func (p *PushNotificationService) SendRewardNotification(ctx context.Context, us
 }
 
 func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, userID uuid.UUID, amount float64) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -681,7 +681,7 @@ func (p *PushNotificationService) RecieveWalletTransfer(ctx context.Context, use
 }
 
 func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID uuid.UUID, amount float64) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -727,7 +727,7 @@ func (p *PushNotificationService) SendWalletTransfer(ctx context.Context, userID
 }
 
 func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -773,7 +773,7 @@ func (p *PushNotificationService) AdminTerminateCardNotification(ctx context.Con
 }
 
 func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -819,7 +819,7 @@ func (p *PushNotificationService) AdminFreezeCardNotification(ctx context.Contex
 }
 
 func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Context, userID uuid.UUID, name string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -865,7 +865,7 @@ func (p *PushNotificationService) AdminUnfreezeCardNotification(ctx context.Cont
 }
 
 func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context, userID uuid.UUID, amount int64, phoneNumber string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -911,7 +911,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 }
 
 func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, userID uuid.UUID, plan string, phoneNumber string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -957,7 +957,7 @@ func (p *PushNotificationService) SuccessfulDataPurchase(ctx context.Context, us
 }
 
 func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID uuid.UUID, plan string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1003,7 +1003,7 @@ func (p *PushNotificationService) SuccessfulTvSub(ctx context.Context, userID uu
 }
 
 func (p *PushNotificationService) SuccessfulElectricityPurchase(ctx context.Context, userID uuid.UUID, amount int64, meterNumber string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1049,7 +1049,7 @@ func (p *PushNotificationService) SuccessfulElectricityPurchase(ctx context.Cont
 }
 
 func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userID uuid.UUID, amount string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1095,7 +1095,7 @@ func (p *PushNotificationService) ReferralBonusEarned(ctx context.Context, userI
 }
 
 func (p *PushNotificationService) NewReferral(ctx context.Context, userID uuid.UUID, userTag string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1141,7 +1141,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID uuid.U
 }
 
 func (p *PushNotificationService) CreditAlert(ctx context.Context, userID uuid.UUID, amount float64, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1187,7 +1187,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID uuid.U
 }
 
 func (p *PushNotificationService) DebitAlert(ctx context.Context, userID uuid.UUID, amount float64, currency string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1233,7 +1233,7 @@ func (p *PushNotificationService) DebitAlert(ctx context.Context, userID uuid.UU
 }
 
 func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, userID uuid.UUID, amount string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1279,7 +1279,7 @@ func (p *PushNotificationService) ConversionBonusEarned(ctx context.Context, use
 }
 
 func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Context, userID uuid.UUID) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1325,7 +1325,7 @@ func (p *PushNotificationService) SendKYCVerifiedPushNotification(ctx context.Co
 }
 
 func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Context, userID uuid.UUID, reason string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err
@@ -1371,7 +1371,7 @@ func (p *PushNotificationService) SendKYCRejectedPushNotification(ctx context.Co
 }
 
 func (p *PushNotificationService) SendPushNotification(ctx context.Context, userID uuid.UUID, title string, message string) error {
-	tokens, err := p.getUserPushTokens(ctx, userID)
+	tokens, err := p.getUserPushTokens(userID)
 	if err != nil {
 		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
 		return err

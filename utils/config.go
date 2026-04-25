@@ -256,6 +256,7 @@ func LoadCustomConfig(path string, val interface{}) error {
 	_ = v.BindEnv("NOMBA_CLIENT_ID")
 	_ = v.BindEnv("NOMBA_CLIENT_SECRET")
 	_ = v.BindEnv("NOMBA_ACCOUNT_ID")
+	_ = v.BindEnv("NOMBA_SUB_ACCOUNT_ID")
 
 	if err := v.Unmarshal(&val); err != nil {
 		return fmt.Errorf("unable to decode config: %w", err)

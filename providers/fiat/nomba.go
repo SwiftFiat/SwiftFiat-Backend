@@ -26,6 +26,7 @@ type FiatConfig struct {
 	NombaClientSecret   string `mapstructure:"NOMBA_CLIENT_SECRET"`
 	NombaAccountID      string `mapstructure:"NOMBA_ACCOUNT_ID"`
 	FiatProviderBaseUrl string `mapstructure:"NOMBA_BASE_URL"`
+	NombaSubAccountID   string `mapstructure:"NOMBA_SUB_ACCOUNT_ID"`
 }
 
 // ── Provider ──────────────────────────────────────────────────────────────────
@@ -393,7 +394,7 @@ func (p *NombaProvider) MakeTransfer(recipient, merchantTxRef, narration string,
 	if err != nil {
 		return nil, fmt.Errorf("nomba: parse base URL: %w", err)
 	}
-	base.Path += "v1/transfers/bank"
+	base.Path += "v2/transfers/bank/" + p.config.NombaSubAccountID
 
 	body := NombaBankTransferRequest{
 		Amount:        amount,
