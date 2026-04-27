@@ -1211,7 +1211,7 @@ func (h *Analytics) ListAdminAlerts(c *gin.Context) {
 		return
 	}
 
-	alerts, err := h.notif.ListAdminAlerts(c, 10, 0) // You can adjust the limit and offset as needed
+	alerts, err := h.notif.ListAdminAlerts(c, 190, 0) // You can adjust the limit and offset as needed
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
 		return
