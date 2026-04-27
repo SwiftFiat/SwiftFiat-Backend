@@ -89,45 +89,61 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 		return err
 	}
 
-	// Add data payload for analytics and custom app handling (do NOT include title/body here)
-	data := map[string]string{}
+	// Add data payload for analytics and custom app handling
+	data := map[string]string{
+		"title": info.Title,
+		"body":  info.Message,
+	}
 	if info.AnalyticsLabel != "" {
 		data["analytics_label"] = info.AnalyticsLabel
+	}
+
+	aps := &messaging.Aps{
+		Alert: &messaging.ApsAlert{
+			Title: info.Title,
+			Body:  info.Message,
+		},
+		Sound:          "default",
+		MutableContent: true,
+	}
+	if info.Badge > 0 {
+		aps.Badge = &info.Badge
 	}
 
 	newMessage := messaging.Message{
 		Token: info.UserFCMToken,
 		Data:  data,
 		Notification: &messaging.Notification{
-			Title: info.Title, // Assuming `info.Title` holds a more appropriate title.
+			Title: info.Title,
 			Body:  info.Message,
 		},
 		Android: &messaging.AndroidConfig{
-			Priority: "high", // Ensures the message is delivered immediately.
+			Priority: "high",
 			Notification: &messaging.AndroidNotification{
-				Title: info.Title,
-				Body:  info.Message,
-				Color: "#f4bb44", // Notification icon color.
-				Sound: "default", // Plays the default sound.
+				Title:                 info.Title,
+				Body:                  info.Message,
+				Color:                 "#f4bb44",
+				Sound:                 "default",
+				ChannelID:             "default",
+				DefaultSound:          true,
+				DefaultVibrateTimings: true,
+				DefaultLightSettings:  true,
+				Visibility:            messaging.VisibilityPublic,
+			},
+			FCMOptions: &messaging.AndroidFCMOptions{
+				AnalyticsLabel: info.AnalyticsLabel,
 			},
 		},
 		APNS: &messaging.APNSConfig{
 			Headers: map[string]string{
-				"apns-priority":   "10",    // High priority for immediate delivery (valid values: 10 or 1).
-				"apns-push-type":  "alert", // Ensures a visible alert is displayed.
-				"apns-expiration": "3600",  // Message expires in 1 hour if not delivered.
+				"apns-priority":  "10",
+				"apns-push-type": "alert",
 			},
 			Payload: &messaging.APNSPayload{
-				Aps: &messaging.Aps{
-					Alert: &messaging.ApsAlert{
-						Title: info.Title,
-						Body:  info.Message,
-					},
-					Sound: "default", // Plays the default system sound.
-				},
+				Aps: aps,
 			},
 			FCMOptions: &messaging.APNSFCMOptions{
-				AnalyticsLabel: info.AnalyticsLabel, // Optional: useful for tracking analytics.
+				AnalyticsLabel: info.AnalyticsLabel,
 			},
 		},
 		Webpush: &messaging.WebpushConfig{
@@ -877,7 +893,7 @@ func (p *PushNotificationService) SuccessfulAirtimePurchase(ctx context.Context,
 	}
 
 	Title := "Airtime Purchase Successful"
-	Message := fmt.Sprintf("Your airtime purchase of ₦%d from %s to %s was successful.", amount, "SWIIFT", phoneNumber)
+	Message := fmt.Sprintf("Your airtime purchase of %d from %s to %s was successful.", amount, "SWIIFT", phoneNumber)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1015,7 +1031,7 @@ func (p *PushNotificationService) SuccessfulElectricityPurchase(ctx context.Cont
 	}
 
 	Title := "Electricity Purchase Successful"
-	Message := fmt.Sprintf("Your electricity purchase of ₦%d for meter %s was successful.", amount, meterNumber)
+	Message := fmt.Sprintf("Your electricity purchase of %d for meter %s was successful.", amount, meterNumber)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1107,7 +1123,7 @@ func (p *PushNotificationService) NewReferral(ctx context.Context, userID uuid.U
 	}
 
 	Title := "New Referral Alert"
-	Message := fmt.Sprintf("🎉 %s just signed up using your referral code.", userTag)
+	Message := fmt.Sprintf("%s just signed up using your referral code.", userTag)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1153,7 +1169,7 @@ func (p *PushNotificationService) CreditAlert(ctx context.Context, userID uuid.U
 	}
 
 	Title := "Credit Alert"
-	Message := fmt.Sprintf("🎉 You have received $%.2f %s to your wallet.", amount, currency)
+	Message := fmt.Sprintf("You have received %.2f %s to your wallet.", amount, currency)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{
@@ -1199,7 +1215,7 @@ func (p *PushNotificationService) DebitAlert(ctx context.Context, userID uuid.UU
 	}
 
 	Title := "Debit Alert"
-	Message := fmt.Sprintf("⚠️ A debit of %.2f %s has been made from your wallet.", amount, currency)
+	Message := fmt.Sprintf("A debit of %.2f %s has been made from your wallet.", amount, currency)
 
 	if tokens.FCMToken != "" {
 		err = p.SendPush(ctx, &PushNotificationInfo{

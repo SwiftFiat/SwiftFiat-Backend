@@ -134,7 +134,6 @@ func NewServer(envPath string) *Server {
 	l := logging.NewLogger()
 	p := providers.NewProviderService()
 	pn := service.NewPushNotificationService(l)
-	email := service.NewPlunkService(c)
 
 	// Log Redis connection details (remove in production)
 	log.Printf("Connecting to Redis at %s:%s", c.RedisHost, c.RedisPort)
@@ -151,6 +150,7 @@ func NewServer(envPath string) *Server {
 	if err != nil {
 		panic(fmt.Sprintf("Could not initialize Redis: %v", err))
 	}
+	email := service.NewPlunkService(c, r)
 
 	// Set up KYC service
 	kp := kyc.NewKYCProvider()
@@ -194,7 +194,7 @@ func NewServer(envPath string) *Server {
 	ads := audit.NewService(q, 0)
 
 	// wallet
-	ws := wallet.NewWalletService(q, l)
+	ws := wallet.NewWalletServiceWithCache(q, l, r)
 
 	// in app notification service
 	ns := service.NewNotificationService(q, l, pn)

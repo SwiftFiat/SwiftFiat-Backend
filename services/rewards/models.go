@@ -25,7 +25,7 @@ type RewardConfigurationResponse struct {
 	IsActive                bool      `json:"is_active"`
 	ValidFrom               time.Time `json:"valid_from"`
 	ValidUntil              time.Time `json:"valid_until,omitempty"`
-	CreatedBy               uuid.UUID     `json:"created_by,omitempty"`
+	CreatedBy               uuid.UUID `json:"created_by,omitempty"`
 	CreatedAt               time.Time `json:"created_at"`
 	UpdatedAt               time.Time `json:"updated_at"`
 }
@@ -50,7 +50,7 @@ func MapRewardConfigToResponse(r *db.RewardConfiguration) *RewardConfigurationRe
 // CreateRewardConfigRequest represents the request to create reward configuration
 type CreateRewardConfigRequest struct {
 	ConfigName              string     `json:"config_name" binding:"required"`
-	RewardRate              float64     `json:"reward_rate" binding:"required,gt=0,lte=1"`
+	RewardRate              float64    `json:"reward_rate" binding:"required,gt=0,lte=1"`
 	TransactionType         string     `json:"transaction_type" binding:"required"`
 	MinTransactionAmount    string     `json:"min_transaction_amount" binding:"gte=0"`
 	MaxPointsPerTransaction *string    `json:"max_points_per_transaction,omitempty"`
@@ -66,7 +66,7 @@ type UpdateRewardConfigRequest struct {
 	TransactionType         string    `json:"transaction_type,omitempty"`
 	MinTransactionAmount    string    `json:"min_transaction_amount,omitempty" binding:"omitempty,gte=0"`
 	MaxPointsPerTransaction string    `json:"max_points_per_transaction,omitempty"`
-	IsActive                *bool      `json:"is_active,omitempty"`
+	IsActive                *bool     `json:"is_active,omitempty"`
 	ValidFrom               time.Time `json:"valid_from,omitempty"`
 	ValidUntil              time.Time `json:"valid_until,omitempty"`
 }
@@ -78,8 +78,8 @@ type UpdateRewardConfigRequest struct {
 // RewardTransaction represents a record of earned or redeemed points
 type RewardTransactionResponse struct {
 	ID                    int64          `json:"id"`
-	UserID                uuid.UUID          `json:"user_id"`
-	TransactionID         uuid.UUID          `json:"transaction_id,omitempty"`
+	UserID                uuid.UUID      `json:"user_id"`
+	TransactionID         uuid.UUID      `json:"transaction_id,omitempty"`
 	TransactionType       string         `json:"transaction_type"` // "earned" or "redeemed"
 	SourceTransactionType string         `json:"source_transaction_type,omitempty"`
 	TransactionAmount     string         `json:"transaction_amount,omitempty"`
@@ -118,7 +118,7 @@ func MapRewardTransactionToResponse(r *db.RewardTransaction) *RewardTransactionR
 type RewardRedemptionResponse struct {
 	ID                       int64     `json:"id"`
 	RewardTransactionID      int64     `json:"reward_transaction_id"`
-	UserID                   uuid.UUID     `json:"user_id"`
+	UserID                   uuid.UUID `json:"user_id"`
 	BillPaymentTransactionID uuid.UUID `json:"bill_payment_transaction_id"`
 	PointsRedeemed           string    `json:"points_redeemed"`
 	DiscountAmount           string    `json:"discount_amount"`
@@ -167,7 +167,7 @@ type RewardBalanceResponse struct {
 
 // RewardSummaryResponse represents comprehensive reward summary
 type RewardSummaryResponse struct {
-	UserID                  uuid.UUID     `json:"user_id"`
+	UserID                  uuid.UUID `json:"user_id"`
 	CurrentBalance          string    `json:"current_balance"`
 	TotalEarned             string    `json:"total_earned"`
 	TotalRedeemed           string    `json:"total_redeemed"`
@@ -380,9 +380,9 @@ func ValidateRewardRedemption(pointsToRedeem, availableBalance, billAmount float
 func FormatRewardMessage(transactionType string, points int64, serviceInfo string) string {
 	switch transactionType {
 	case RewardTransactionTypeEarned:
-		return fmt.Sprintf("🎉 You earned ₦%d in Reward Points for your %s!", points, serviceInfo)
+		return fmt.Sprintf("You earned %d in Reward Points for your %s!", points, serviceInfo)
 	case RewardTransactionTypeRedeemed:
-		return fmt.Sprintf("You redeemed ₦%d Reward Points for your %s", points, serviceInfo)
+		return fmt.Sprintf("You redeemed %d Reward Points for your %s", points, serviceInfo)
 	default:
 		return fmt.Sprintf("Reward Points transaction: ₦%d", points)
 	}

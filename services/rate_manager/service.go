@@ -1337,7 +1337,7 @@ func (s *Service) AutoAssignUserVIPLevel(ctx context.Context, userID uuid.UUID) 
 	_, err = s.store.AssignUserToVIPLevel(ctx, db.AssignUserToVIPLevelParams{
 		UserID:                userID,
 		VipLevelID:            vipLevel.ID,
-		AssignedBy:            uuid.NullUUID{UUID: uuid.Nil, Valid: true},
+		AssignedBy:            uuid.NullUUID{Valid: false},
 		AssignmentType:        string(AssignmentTypeAutomatic),
 		TotalConversionVolume: totalConversionVolume.String(),
 	})

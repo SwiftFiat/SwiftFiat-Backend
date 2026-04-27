@@ -40,12 +40,13 @@ type TrackingEvent struct {
 	TargetURL string `json:"target_url,omitempty"`
 }
 
-func NewPlunkService(config *utils.Config) *Plunk {
+func NewPlunkService(config *utils.Config, redis *redis.RedisService) *Plunk {
 	return &Plunk{
 		Config:     config,
 		HttpClient: &http.Client{},
+		Redis:      redis,
 	}
-} 
+}
 
 func (s *Plunk) makeRequest(method, endpoint string, body any) ([]byte, error) {
 	var reqBody io.Reader
@@ -494,9 +495,9 @@ func (s *Plunk) SendYieldCredited(ctx context.Context, user *db.User, name, amou
 
 func (s *Plunk) KycVerified(ctx context.Context, firstName, email string) error {
 	tplData := map[string]any{
-		"FirstName": firstName,
+		"FirstName":     firstName,
 		"DashboardLink": "",
-		"Year": time.Now().Year(),
+		"Year":          time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/kyc_verified.html", tplData)
@@ -521,8 +522,8 @@ func (s *Plunk) KycFailed(ctx context.Context, firstName, email, reason string) 
 	tplData := map[string]any{
 		"FirstName": firstName,
 		"RetryLink": "",
-		"Reason": reason,
-		"Year": time.Now().Year(),
+		"Reason":    reason,
+		"Year":      time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/kyc_failed.html", tplData)
@@ -545,12 +546,12 @@ func (s *Plunk) KycFailed(ctx context.Context, firstName, email, reason string) 
 
 func (s *Plunk) Login(ctx context.Context, firstName, email, deviceName, ipAddress, location, dateTime string) error {
 	tplData := map[string]any{
-		"FirstName": firstName,
+		"FirstName":  firstName,
 		"DeviceName": deviceName,
-		"IPAddress": ipAddress,
-		"Location": location,
-		"DateTime": dateTime,
-		"Year": time.Now().Year(),
+		"IPAddress":  ipAddress,
+		"Location":   location,
+		"DateTime":   dateTime,
+		"Year":       time.Now().Year(),
 	}
 
 	body, err := utils.RenderEmailTemplate("templates/login.html", tplData)
@@ -573,7 +574,7 @@ func (s *Plunk) Login(ctx context.Context, firstName, email, deviceName, ipAddre
 
 func (s *Plunk) Welcome(ctx context.Context, firstName, email string) error {
 	tplData := map[string]any{
-		"FirstName": firstName,
+		"FirstName":   firstName,
 		"CurrentYear": time.Now().Year(),
 	}
 
