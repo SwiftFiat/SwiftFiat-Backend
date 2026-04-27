@@ -536,13 +536,13 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 			s.logger.Errorf("Failed to disburse referral bonus: %v", refErr)
 		}
 		if referrerID != nil && referralBonus != nil {
-			go func() {
-				bgCtx := context.Background()
-				s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral Bonus Credit",
-					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
-					"system", []uuid.UUID{*referrerID})
-				s.push.ReferralBonusEarned(bgCtx, *referrerID, referralBonus.String())
-			}()
+			// go func() {
+			// bgCtx := context.Background()
+			s.notifyr.CreateWithRecipients(ctx, nil, "Referral Bonus Credit",
+				fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
+				"system", []uuid.UUID{*referrerID})
+			s.push.ReferralBonusEarned(ctx, *referrerID, referralBonus.String())
+			// }()
 		}
 	}
 
@@ -550,23 +550,23 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	if creditErr != nil {
 		s.logger.Errorf("failed to credit referrer for conversion: %v", creditErr)
 	} else {
-		go func() {
-			bgCtx := context.Background()
-			s.notifyr.CreateWithRecipients(bgCtx, nil, "Referral conversion Bonus Earned",
+		// go func() {
+			// bgCtx := context.Background()
+			s.notifyr.CreateWithRecipients(ctx, nil, "Referral conversion Bonus Earned",
 				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()),
 				"system", []uuid.UUID{*referrerID})
-			s.push.SendPushNotification(bgCtx, *referrerID, "Referral conversion Bonus Earned",
+			s.push.SendPushNotification(ctx, *referrerID, "Referral conversion Bonus Earned",
 				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
-		}()
+		// }()
 	}
 
 	// send notification
 	go func() {
-		bgCtx := context.Background()
-		s.notifyr.CreateWithRecipients(bgCtx, nil, "Conversion Completed",
+		// bgCtx := context.Background()
+		s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
 			"system", []uuid.UUID{params.userID})
-		s.push.SendPushNotification(bgCtx, params.userID, "Conversion Completed",
+		s.push.SendPushNotification(ctx, params.userID, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
 	}()
 

@@ -1022,27 +1022,27 @@ func (s *VaultService) CreateVaultGoal(ctx context.Context, req CreateVaultGoalR
 	}
 
 	// Send notifications (async, don't block on errors)
-	go func() {
-		bgCtx := context.Background()
+	// go func() {
+	// 	bgCtx := context.Background()
 
-		if s.notifService != nil {
-			if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName), "system", []uuid.UUID{userID}); err != nil {
-				s.logger.Error(fmt.Sprintf("Failed to create vault goal notification: %v", err))
-			}
+	if s.notifService != nil {
+		if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Vault savings created", fmt.Sprintf("You have created a %s:%s savings plan", vault.VaultType, vault.VaultName), "system", []uuid.UUID{userID}); err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to create vault goal notification: %v", err))
 		}
+	}
 
-		if s.emailService != nil {
-			if err := s.emailService.SendGoalCreatedEmail(bgCtx, &user, req.Name, req.Currency, req.TargetAmount); err != nil {
-				s.logger.Error(fmt.Sprintf("Failed to send goal created email: %v", err))
-			}
+	if s.emailService != nil {
+		if err := s.emailService.SendGoalCreatedEmail(ctx, &user, req.Name, req.Currency, req.TargetAmount); err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to send goal created email: %v", err))
 		}
+	}
 
-		if s.pushService != nil {
-			if err := s.pushService.SendVaultGoalCreatedPush(bgCtx, userID, req.Name); err != nil {
-				s.logger.Error(fmt.Sprintf("Failed to send goal created push: %v", err))
-			}
+	if s.pushService != nil {
+		if err := s.pushService.SendVaultGoalCreatedPush(ctx, userID, req.Name); err != nil {
+			s.logger.Error(fmt.Sprintf("Failed to send goal created push: %v", err))
 		}
-	}()
+	}
+	// }()
 
 	s.logger.Info(fmt.Sprintf("Successfully created vault goal %s for user %d", vault.ID, userID))
 	return MapVaultSavingToResponse(&vault), nil
@@ -1293,40 +1293,40 @@ func (s *VaultService) Deposit(ctx context.Context, req DepositRequest) (*db.Vau
 		s.logger.Error(fmt.Sprintf("Failed to get user for notifications: %v", err))
 	} else {
 		// Send notifications (async)
-		go func() {
-			bgCtx := context.Background()
+		// go func() {
+		// 	bgCtx := context.Background()
 
-			if goalReached {
-				daysToComplete := int(time.Since(vault.CreatedAt).Hours() / 24)
-				if s.emailService != nil {
-					_ = s.emailService.SendGoalCompletedEmail(bgCtx, &user, vault.VaultName, goalAmount.String(), vault.Currency, fmt.Sprintf("%d days", daysToComplete))
-				}
-				if s.pushService != nil {
-					_ = s.pushService.SendGoalCompletedPush(bgCtx, req.UserID, vault.VaultName)
-				}
-				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
-						s.logger.Error(fmt.Sprintf("Failed to create goal completed notification: %v", err))
-					}
-				}
-			} else {
-				if s.emailService != nil {
-					if err := s.emailService.SendDepositSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), reference); err != nil {
-						s.logger.Error(fmt.Sprintf("Failed to send deposit success email: %v", err))
-					}
-				}
-				if s.pushService != nil {
-					if err := s.pushService.SendDepositSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, req.Currency); err != nil {
-						s.logger.Error(fmt.Sprintf("Failed to send deposit success push: %v", err))
-					}
-				}
-				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
-						s.logger.Error(fmt.Sprintf("Failed to create deposit notification: %v", err))
-					}
+		if goalReached {
+			daysToComplete := int(time.Since(vault.CreatedAt).Hours() / 24)
+			if s.emailService != nil {
+				_ = s.emailService.SendGoalCompletedEmail(ctx, &user, vault.VaultName, goalAmount.String(), vault.Currency, fmt.Sprintf("%d days", daysToComplete))
+			}
+			if s.pushService != nil {
+				_ = s.pushService.SendGoalCompletedPush(ctx, req.UserID, vault.VaultName)
+			}
+			if s.notifService != nil {
+				if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Vault Goal Completed", fmt.Sprintf("Congratulations! You have completed your vault goal: %s", vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to create goal completed notification: %v", err))
 				}
 			}
-		}()
+		} else {
+			if s.emailService != nil {
+				if err := s.emailService.SendDepositSuccessEmail(ctx, &user, vault.VaultName, req.Amount, req.Currency, newVaultBalance.String(), reference); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to send deposit success email: %v", err))
+				}
+			}
+			if s.pushService != nil {
+				if err := s.pushService.SendDepositSuccessPush(ctx, req.UserID, vault.VaultName, req.Amount, req.Currency); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to send deposit success push: %v", err))
+				}
+			}
+			if s.notifService != nil {
+				if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Vault Deposit Successful", fmt.Sprintf("You have deposited %s %s to your vault: %s", req.Amount, req.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to create deposit notification: %v", err))
+				}
+			}
+		}
+		// }()
 	}
 	s.logger.Info(fmt.Sprintf("Successfully processed deposit: %s", vtx.ID))
 	return &vtx, nil
@@ -1506,25 +1506,25 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 		s.logger.Error(fmt.Sprintf("Failed to get user for notifications: %v", err))
 	} else {
 		// Send notifications (async)
-		go func() {
-			bgCtx := context.Background()
+		// go func() {
+		// 	bgCtx := context.Background()
 
-			if requires2FA && s.emailService != nil {
-				_ = s.emailService.SendWithdrawal2FARequiredEmail(bgCtx, &user, vtx.ID.String(), reference, req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"), req.ToWalletID.String())
-			} else {
-				if s.emailService != nil {
-					_ = s.emailService.SendWithdrawalSuccessEmail(bgCtx, &user, vault.VaultName, req.Amount, vault.Currency, reference)
-				}
-				if s.pushService != nil {
-					_ = s.pushService.SendWithdrawalSuccessPush(bgCtx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
-				}
-				if s.notifService != nil {
-					if _, err := s.notifService.CreateWithRecipients(bgCtx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
-						s.logger.Error(fmt.Sprintf("Failed to create withdrawal notification: %v", err))
-					}
+		if requires2FA && s.emailService != nil {
+			_ = s.emailService.SendWithdrawal2FARequiredEmail(ctx, &user, vtx.ID.String(), reference, req.Amount, vault.Currency, time.Now().Format("02 Jan 2006 15:04 MST"), req.ToWalletID.String())
+		} else {
+			if s.emailService != nil {
+				_ = s.emailService.SendWithdrawalSuccessEmail(ctx, &user, vault.VaultName, req.Amount, vault.Currency, reference)
+			}
+			if s.pushService != nil {
+				_ = s.pushService.SendWithdrawalSuccessPush(ctx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
+			}
+			if s.notifService != nil {
+				if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
+					s.logger.Error(fmt.Sprintf("Failed to create withdrawal notification: %v", err))
 				}
 			}
-		}()
+		}
+		// }()
 	}
 
 	s.logger.Info(fmt.Sprintf("Successfully processed withdrawal: %s", vtx.ID))
