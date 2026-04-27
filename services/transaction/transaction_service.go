@@ -822,6 +822,7 @@ func (s *TransactionService) processRapidRampInflow(
 		}()
 
 		s.logger.Warnf("Rapid ramp bank transfer failed: %v. Credited wallet instead.", originalErr)
+
 		return &TransactionResponse[CryptoMetadataResponse]{
 			ID:              ytx.ID,
 			Type:            ytx.Type,
@@ -937,6 +938,9 @@ func (s *TransactionService) processRapidRampInflow(
 		UserID: user.ID,
 		Amount: fiatAmount.String(),
 	})
+
+	s.push.SendPushNotification(ctx, user.ID, "Rapid Ramp Withdrawal",
+		fmt.Sprintf("%.2f %s has been sent to your bank account", fiatAmount.InexactFloat64(), "NGN"))
 
 	return &TransactionResponse[CryptoMetadataResponse]{
 		ID:              txx.ID,
