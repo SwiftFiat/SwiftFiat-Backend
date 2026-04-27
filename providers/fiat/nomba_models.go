@@ -107,30 +107,30 @@ type NombaTransferMeta struct {
 	MerchantTxRef       string `json:"merchantTxRef"`
 	APIClientID         string `json:"api_client_id"`
 	Currency            string `json:"currency"`
-	HooksEligible       string `json:"hooksEligible"`
+	HooksEligible       any    `json:"hooksEligible"`
 	BankingEntityID     string `json:"banking_entity_id"`
 	BankingEntityUserID string `json:"banking_entity_user_id"`
 	BankingEntityType   string `json:"banking_entity_type"`
-	SelfTransaction     string `json:"self_transaction"`
+	SelfTransaction     any    `json:"self_transaction"`
 	TransactionCategory string `json:"transactionCategory"`
 	AccountNumber       string `json:"accountNumber"`
 	BankName            string `json:"bankName"`
 	BankCode            string `json:"bankCode"`
 	SessionID           string `json:"sessionId"`
 	UserReferralCode    string `json:"user_referral_code"`
-	AmountCharged       string `json:"amount_charged"`
+	AmountCharged       any    `json:"amount_charged"`
 	PaymentVendor       string `json:"paymentVendor"`
-	WalletBalance       string `json:"wallet_balance"`
+	WalletBalance       any    `json:"wallet_balance"`
 	WalletCurrency      string `json:"wallet_currency"`
 	VendorReference     string `json:"paymentVendorReference"`
-	AgentCommission     string `json:"agent_commission"`
-	UseV2Fulfilment     string `json:"useV2Fulfilment"`
+	AgentCommission     any    `json:"agent_commission"`
+	UseV2Fulfilment     any    `json:"useV2Fulfilment"`
 }
 
 type NombaTransferData struct {
-	Amount           interface{}       `json:"amount"` // Can be string or float64
+	Amount           any               `json:"amount"` // Can be string or float64
 	Meta             NombaTransferMeta `json:"meta"`
-	Fee              interface{}       `json:"fee"` // Can be string or float64
+	Fee              any               `json:"fee"` // Can be string or float64
 	TimeCreated      string            `json:"timeCreated"`
 	ID               string            `json:"id"`
 	Type             string            `json:"type"`
