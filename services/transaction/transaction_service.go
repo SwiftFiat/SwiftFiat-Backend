@@ -2109,7 +2109,6 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Airtime Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-		s.push.SendPushNotification(ctx, user.ID, "Airtime Purchase", notificationMsg)
 		return s.buildAirtimeResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status), nil
 
 	default:
@@ -2364,7 +2363,6 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 		if _, err = s.notifyr.CreateWithRecipients(ctx, nil, "Data Purchase", notificationMsg, "system", []uuid.UUID{user.ID}); err != nil {
 			s.audit.Log(audit.WarningLog("InApp Notification failed", err.Error()))
 		}
-		s.push.SendPushNotification(ctx, user.ID, "Data Purchase", notificationMsg)
 		return s.buildDataResponse(txx, amount, finalAmount, pointsEarned, pointsUsed, req, btx.Status, selectedVariation.VariationCode), nil
 
 	default:
