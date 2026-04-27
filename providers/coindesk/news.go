@@ -18,7 +18,7 @@ import (
 
 const (
 	CoinDeskNewsAPI = "https://data-api.coindesk.com/news/v1/article/list"
-	PollInterval    = 3 * time.Hour // Check for new articles every 3 hours
+	PollInterval    = 2 * time.Minute // Check for new articles every 3 hours
 	CacheTTL        = 10 * time.Minute
 )
 
