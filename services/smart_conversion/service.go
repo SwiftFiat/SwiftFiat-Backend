@@ -61,7 +61,7 @@ func (s *ConversionService) CreateConversionRule(ctx context.Context, userID uui
 	}
 
 	if kyc.Tier == "tier_1" {
-		go s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		s.push.SendPushNotification(ctx, userID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 	// Validate currency pair
@@ -238,7 +238,7 @@ func (s *ConversionService) ExecuteManualConversion(ctx context.Context, req *Ma
 	}
 
 	if kyc.Tier == "tier_1" {
-		go s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
@@ -561,14 +561,14 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 	}
 
 	// send notification
-	go func() {
+	// go func() {
 		// bgCtx := context.Background()
 		s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
 			"system", []uuid.UUID{params.userID})
 		s.push.SendPushNotification(ctx, params.userID, "Conversion Completed",
 			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
-	}()
+	// }()
 
 	return &ManualConversionResponse{
 		SourceAmount: params.sourceAmount.InexactFloat64(),
