@@ -1860,13 +1860,13 @@ func (s *TransactionService) postBillSuccess(
 	// 	bgCtx := context.Background()
 		switch txType {
 		case string(Airtime):
-			_ = s.push.SuccessfulAirtimePurchase(ctx, user.ID, amount.IntPart(), target)
+			s.push.SendPushNotification(ctx, user.ID, "Successful Airtime Purchase", fmt.Sprintf("You have successfully purchased airtime of ₦%d to %s", amount.IntPart(), target))
 		case string(Data):
-			_ = s.push.SuccessfulDataPurchase(ctx, user.ID, plan, target)
+			s.push.SendPushNotification(ctx, user.ID, "Successful Data Purchase", fmt.Sprintf("You have successfully purchased data of %s on %s", plan, target))
 		case string(TV):
-			_ = s.push.SuccessfulTvSub(ctx, user.ID, plan)
+			s.push.SendPushNotification(ctx, user.ID, "Successful Tv Sub", fmt.Sprintf("You have successfully subscribed to TV of %s", plan))
 		case string(Electricity):
-			_ = s.push.SuccessfulElectricityPurchase(ctx, user.ID, amount.IntPart(), target)
+			s.push.SendPushNotification(ctx, user.ID, "Successful Electricity Purchase", fmt.Sprintf("You have successfully purchased electricity of ₦%d to %s", amount.IntPart(), target))
 		}
 	// }()
 

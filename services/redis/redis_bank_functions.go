@@ -10,13 +10,13 @@ import (
 // StoreBankResponseCollection stores the BankResponseCollection in Redis using hashes
 func (r *RedisService) StoreBankResponseCollection(ctx context.Context, key string, collection models.BankResponseCollection) error {
 	for _, bank := range collection {
-		// Create a unique key for each bank, e.g., using its slug
-		bankKey := fmt.Sprintf("%s:%s", key, bank.Slug)
+		// Create a unique key for each bank using the bank code (since slug may be empty)
+		bankKey := fmt.Sprintf("%s:%s", key, bank.Code)
 
 		// Store each field of the bank as a hash
 		err := r.client.HSet(ctx, bankKey, bank).Err()
 		if err != nil {
-			return fmt.Errorf("could not store bank %s in Redis: %w", bank.Slug, err)
+			return fmt.Errorf("could not store bank %s in Redis: %w", bank.Code, err)
 		}
 	}
 

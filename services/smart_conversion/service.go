@@ -551,23 +551,25 @@ func (s *ConversionService) executeConversion(ctx context.Context, params *conve
 		s.logger.Errorf("failed to credit referrer for conversion: %v", creditErr)
 	} else {
 		// go func() {
-			// bgCtx := context.Background()
-			s.notifyr.CreateWithRecipients(ctx, nil, "Referral conversion Bonus Earned",
-				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()),
-				"system", []uuid.UUID{*referrerID})
-			s.push.SendPushNotification(ctx, *referrerID, "Referral conversion Bonus Earned",
-				fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
+		// bgCtx := context.Background()
+		s.notifyr.CreateWithRecipients(ctx, nil, "Referral conversion Bonus Earned",
+			fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()),
+			"system", []uuid.UUID{*referrerID})
+		s.push.SendPushNotification(ctx, *referrerID, "Referral conversion Bonus Earned",
+			fmt.Sprintf("You have earned %s from a referral conversion", amountEarned.String()))
 		// }()
 	}
 
 	// send notification
 	// go func() {
-		// bgCtx := context.Background()
-		s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Completed",
-			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
-			"system", []uuid.UUID{params.userID})
-		s.push.SendPushNotification(ctx, params.userID, "Conversion Completed",
-			fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
+	// bgCtx := context.Background()
+	if s.push != nil {
+		s.push.SendPushNotification(ctx, params.userID, "Conversion Successful",
+			fmt.Sprintf("Your conversion of %s %s to %s %s is successful", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency))
+	}
+	s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Completed",
+		fmt.Sprintf("You have converted %s %s to %s %s", params.sourceAmount.String(), params.sourceCurrency, params.targetAmount.String(), params.targetCurrency),
+		"system", []uuid.UUID{params.userID})
 	// }()
 
 	return &ManualConversionResponse{

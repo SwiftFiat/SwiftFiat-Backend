@@ -1516,7 +1516,8 @@ func (s *VaultService) Withdraw(ctx context.Context, req WithdrawRequest) (*db.V
 				_ = s.emailService.SendWithdrawalSuccessEmail(ctx, &user, vault.VaultName, req.Amount, vault.Currency, reference)
 			}
 			if s.pushService != nil {
-				_ = s.pushService.SendWithdrawalSuccessPush(ctx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
+				// _ = s.pushService.SendWithdrawalSuccessPush(ctx, req.UserID, vault.VaultName, req.Amount, vault.Currency)
+				s.pushService.SendPushNotification(ctx, req.UserID, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName))
 			}
 			if s.notifService != nil {
 				if _, err := s.notifService.CreateWithRecipients(ctx, nil, "Vault Withdrawal Successful", fmt.Sprintf("You have withdrawn %s %s from your vault: %s", req.Amount, vault.Currency, vault.VaultName), "system", []uuid.UUID{req.UserID}); err != nil {
