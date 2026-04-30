@@ -124,10 +124,14 @@ func (q *Queries) UpdateToken(ctx context.Context, arg UpdateTokenParams) (UserT
 }
 
 const upsertToken = `-- name: UpsertToken :one
-INSERT INTO user_tokens (user_id, token, provider, device_uuid)
+INSERT INTO user_tokens (user_id, token, provider, device_uuid) 
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (user_id, device_uuid, provider)
-DO UPDATE SET token = EXCLUDED.token, updated_at = NOW()
+ON CONFLICT (token) DO UPDATE 
+SET 
+    token = EXCLUDED.token,
+    provider = EXCLUDED.provider,
+    device_uuid = EXCLUDED.device_uuid,
+    updated_at = NOW()
 RETURNING id, user_id, token, provider, device_uuid, created_at, updated_at
 `
 
