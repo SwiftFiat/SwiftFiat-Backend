@@ -41,7 +41,7 @@ func ToUserTokenResponse(token *db.UserToken) *UserTokenResponse {
 		UserID:     ID(token.ID),
 		PushToken:  token.Token,
 		Provider:   token.Provider,
-		DeviceUUID: token.DeviceUuid.String,
+		DeviceUUID: token.DeviceUuid,
 		CreatedAt:  token.CreatedAt,
 		UpdatedAt:  token.UpdatedAt,
 	}

@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	models "github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -374,6 +375,12 @@ func (u *User) pushToken(ctx *gin.Context) {
 		tokenValue, err := u.userService.AddUserFCMToken(ctx, activeUser.UserID, request.FCMToken, request.DeviceUUID)
 		if err != nil {
 			u.server.logger.Error(err.Error())
+			msg := err.Error()
+			if strings.Contains(msg, "device_uuid is required") ||
+				strings.Contains(msg, "not a valid FCM token shape") {
+				ctx.JSON(http.StatusBadRequest, basemodels.NewError(msg))
+				return
+			}
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred upserting token %v", err.Error())))
 			return
 		}

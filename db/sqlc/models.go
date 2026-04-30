@@ -1504,13 +1504,13 @@ type UserSubscriptionSummary struct {
 }
 
 type UserToken struct {
-	ID         int32          `json:"id"`
-	UserID     uuid.UUID      `json:"user_id"`
-	Token      string         `json:"token"`
-	Provider   string         `json:"provider"`
-	DeviceUuid sql.NullString `json:"device_uuid"`
-	CreatedAt  time.Time      `json:"created_at"`
-	UpdatedAt  time.Time      `json:"updated_at"`
+	ID         int32     `json:"id"`
+	UserID     uuid.UUID `json:"user_id"`
+	Token      string    `json:"token"`
+	Provider   string    `json:"provider"`
+	DeviceUuid string    `json:"device_uuid"`
+	CreatedAt  time.Time `json:"created_at"`
+	UpdatedAt  time.Time `json:"updated_at"`
 }
 
 // Tracks individual transaction volumes for VIP level evaluation

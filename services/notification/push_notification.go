@@ -211,11 +211,10 @@ func (p *PushNotificationService) handleTokenError(userID uuid.UUID, token strin
 		strings.Contains(errMsg, "InvalidToken")
 
 	if isInvalidFCM || isInvalidExpo {
-		p.logger.Warn(fmt.Sprintf("Removing invalid push token for user %d: %v", userID, err))
+		p.logger.Warn(fmt.Sprintf("Removing invalid push token globally: %v", err))
 		if p.userService != nil {
-			// Use background context to avoid request context cancellations
 			bgCtx := context.Background()
-			_ = p.userService.RemoveUserToken(bgCtx, userID, token)
+			_ = p.userService.RemoveTokenGlobal(bgCtx, token)
 		}
 	}
 }

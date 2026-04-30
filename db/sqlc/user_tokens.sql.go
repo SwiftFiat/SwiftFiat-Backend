@@ -7,10 +7,33 @@ package db
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/google/uuid"
 )
+
+const claimTokenForUser = `-- name: ClaimTokenForUser :exec
+DELETE FROM user_tokens
+WHERE token = $1
+  AND NOT (user_id = $2 AND device_uuid = $3 AND provider = $4)
+`
+
+type ClaimTokenForUserParams struct {
+	Token      string    `json:"token"`
+	UserID     uuid.UUID `json:"user_id"`
+	DeviceUuid string    `json:"device_uuid"`
+	Provider   string    `json:"provider"`
+}
+
+// Detach this token from any other (user, device) it might be bound to.
+func (q *Queries) ClaimTokenForUser(ctx context.Context, arg ClaimTokenForUserParams) error {
+	_, err := q.db.ExecContext(ctx, claimTokenForUser,
+		arg.Token,
+		arg.UserID,
+		arg.DeviceUuid,
+		arg.Provider,
+	)
+	return err
+}
 
 const getTokens = `-- name: GetTokens :many
 SELECT id, user_id, token, provider, device_uuid, created_at, updated_at FROM user_tokens WHERE user_id = $1 ORDER BY updated_at DESC
@@ -98,14 +121,40 @@ func (q *Queries) RemoveToken(ctx context.Context, arg RemoveTokenParams) error 
 	return err
 }
 
+const removeTokenByDevice = `-- name: RemoveTokenByDevice :exec
+DELETE FROM user_tokens
+WHERE user_id = $1 AND device_uuid = $2
+`
+
+type RemoveTokenByDeviceParams struct {
+	UserID     uuid.UUID `json:"user_id"`
+	DeviceUuid string    `json:"device_uuid"`
+}
+
+func (q *Queries) RemoveTokenByDevice(ctx context.Context, arg RemoveTokenByDeviceParams) error {
+	_, err := q.db.ExecContext(ctx, removeTokenByDevice, arg.UserID, arg.DeviceUuid)
+	return err
+}
+
+const removeTokenGlobal = `-- name: RemoveTokenGlobal :exec
+DELETE FROM user_tokens WHERE token = $1
+`
+
+// Used by handleTokenError — the token might not belong to the user we
+// thought we were sending to (Bug #1's legacy). Wipe it by token alone.
+func (q *Queries) RemoveTokenGlobal(ctx context.Context, token string) error {
+	_, err := q.db.ExecContext(ctx, removeTokenGlobal, token)
+	return err
+}
+
 const updateToken = `-- name: UpdateToken :one
 UPDATE user_tokens SET token = $1 WHERE user_id = $2 AND device_uuid = $3 RETURNING id, user_id, token, provider, device_uuid, created_at, updated_at
 `
 
 type UpdateTokenParams struct {
-	Token      string         `json:"token"`
-	UserID     uuid.UUID      `json:"user_id"`
-	DeviceUuid sql.NullString `json:"device_uuid"`
+	Token      string    `json:"token"`
+	UserID     uuid.UUID `json:"user_id"`
+	DeviceUuid string    `json:"device_uuid"`
 }
 
 func (q *Queries) UpdateToken(ctx context.Context, arg UpdateTokenParams) (UserToken, error) {
@@ -126,20 +175,17 @@ func (q *Queries) UpdateToken(ctx context.Context, arg UpdateTokenParams) (UserT
 const upsertToken = `-- name: UpsertToken :one
 INSERT INTO user_tokens (user_id, token, provider, device_uuid) 
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (token) DO UPDATE 
-SET 
-    token = EXCLUDED.token,
-    provider = EXCLUDED.provider,
-    device_uuid = EXCLUDED.device_uuid,
+ON CONFLICT (user_id, device_uuid, provider) DO UPDATE
+SET token      = EXCLUDED.token,
     updated_at = NOW()
 RETURNING id, user_id, token, provider, device_uuid, created_at, updated_at
 `
 
 type UpsertTokenParams struct {
-	UserID     uuid.UUID      `json:"user_id"`
-	Token      string         `json:"token"`
-	Provider   string         `json:"provider"`
-	DeviceUuid sql.NullString `json:"device_uuid"`
+	UserID     uuid.UUID `json:"user_id"`
+	Token      string    `json:"token"`
+	Provider   string    `json:"provider"`
+	DeviceUuid string    `json:"device_uuid"`
 }
 
 func (q *Queries) UpsertToken(ctx context.Context, arg UpsertTokenParams) (UserToken, error) {

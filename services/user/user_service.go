@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -221,20 +222,56 @@ func (u *UserService) UpdateUserFreshChatID(ctx context.Context, userID uuid.UUI
 	return &user, err
 }
 
-func (u *UserService) AddUserFCMToken(ctx context.Context, userID uuid.UUID, fcmToken string, deviceUUID string) (*db.UserToken, error) {
-	fcmToken = strings.TrimSpace(fcmToken)
-	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
-		Token:    fcmToken,
-		Provider: "FCM",
-		UserID:   userID,
-		DeviceUuid: sql.NullString{
-			String: deviceUUID,
-			Valid:  deviceUUID != "",
-		},
-	})
+// func (u *UserService) AddUserFCMToken(ctx context.Context, userID uuid.UUID, fcmToken string, deviceUUID string) (*db.UserToken, error) {
+// 	fcmToken = strings.TrimSpace(fcmToken)
+// 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
+// 		Token:    fcmToken,
+// 		Provider: "FCM",
+// 		UserID:   userID,
+// 		DeviceUuid: sql.NullString{
+// 			String: deviceUUID,
+// 			Valid:  deviceUUID != "",
+// 		},
+// 	})
 
-	return &tokenValue, err
+// 	return &tokenValue, err
+// }
+
+// AddUserFCMToken in user_service.go
+func (u *UserService) AddUserFCMToken(
+	ctx context.Context, userID uuid.UUID, fcmToken, deviceUUID string,
+) (*db.UserToken, error) {
+	fcmToken = strings.TrimSpace(fcmToken)
+	deviceUUID = strings.TrimSpace(deviceUUID)
+	if deviceUUID == "" {
+		return nil, fmt.Errorf("device_uuid is required") // reject silent collisions
+	}
+	// Cheap shape check — protects against the APNs-token-in-FCM-column bug
+	// you fixed previously.
+	if !fcmTokenShape.MatchString(fcmToken) {
+		return nil, fmt.Errorf("not a valid FCM token shape")
+	}
+
+	var out db.UserToken
+	err := u.store.ExecTx(ctx, func(q *db.Queries) error {
+		if err := q.ClaimTokenForUser(ctx, db.ClaimTokenForUserParams{
+			Token: fcmToken, UserID: userID,
+			DeviceUuid: deviceUUID,
+			Provider:   "FCM",
+		}); err != nil {
+			return err
+		}
+		t, err := q.UpsertToken(ctx, db.UpsertTokenParams{
+			UserID: userID, Token: fcmToken, Provider: "FCM",
+			DeviceUuid: deviceUUID,
+		})
+		out = t
+		return err
+	})
+	return &out, err
 }
+
+var fcmTokenShape = regexp.MustCompile(`^[A-Za-z0-9_-]+:APA91b[A-Za-z0-9_-]+$`)
 
 func (u *UserService) GetUserPushTokens(ctx context.Context, userID uuid.UUID) (*[]db.UserToken, error) {
 
@@ -250,31 +287,62 @@ func (u *UserService) RemoveUserToken(ctx context.Context, userID uuid.UUID, tok
 	})
 }
 
-func (u *UserService) AddUserExpoToken(ctx context.Context, userID uuid.UUID, expoToken string, deviceUUID string) (*db.UserToken, error) {
-	expoToken = strings.TrimSpace(expoToken)
-	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
-		Token:    expoToken,
-		Provider: "EXPO",
-		UserID:   userID,
-		DeviceUuid: sql.NullString{
-			String: deviceUUID,
-			Valid:  deviceUUID != "",
-		},
-	})
+// func (u *UserService) AddUserExpoToken(ctx context.Context, userID uuid.UUID, expoToken string, deviceUUID string) (*db.UserToken, error) {
+// 	expoToken = strings.TrimSpace(expoToken)
+// 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
+// 		Token:    expoToken,
+// 		Provider: "EXPO",
+// 		UserID:   userID,
+// 		DeviceUuid: deviceUUID,
+// 	})
 
-	return &tokenValue, err
+// 	return &tokenValue, err
+// }
+
+func (u *UserService) AddUserExpoToken(
+	ctx context.Context, userID uuid.UUID, expoToken, deviceUUID string,
+) (*db.UserToken, error) {
+	expoToken = strings.TrimSpace(expoToken)
+	deviceUUID = strings.TrimSpace(deviceUUID)
+	if deviceUUID == "" {
+		return nil, fmt.Errorf("device_uuid is required")
+	}
+	if !expoTokenShape.MatchString(expoToken) {
+		return nil, fmt.Errorf("not a valid Expo token shape")
+	}
+
+	var out db.UserToken
+	err := u.store.ExecTx(ctx, func(q *db.Queries) error {
+		if err := q.ClaimTokenForUser(ctx, db.ClaimTokenForUserParams{
+			Token: expoToken, UserID: userID,
+			DeviceUuid: deviceUUID, Provider: "EXPO",
+		}); err != nil {
+			return err
+		}
+		t, err := q.UpsertToken(ctx, db.UpsertTokenParams{
+			UserID: userID, Token: expoToken, Provider: "EXPO",
+			DeviceUuid: deviceUUID,
+		})
+		out = t
+		return err
+	})
+	return &out, err
 }
 
+// Expo tokens look like: ExponentPushToken[xxxxxxxxxxxxxxxxxxxxxx]
+var expoTokenShape = regexp.MustCompile(`^ExponentPushToken\[[A-Za-z0-9_-]+\]$`)
+
 func (u *UserService) AddUserWebToken(ctx context.Context, userID uuid.UUID, webToken string, deviceUUID string) (*db.UserToken, error) {
+	if deviceUUID == "" {
+		return nil, fmt.Errorf("device_uuid is required")
+	}
+	// no shape check for WEB
 	webToken = strings.TrimSpace(webToken)
 	tokenValue, err := u.store.UpsertToken(ctx, db.UpsertTokenParams{
-		Token:    webToken,
-		Provider: "WEB",
-		UserID:   userID,
-		DeviceUuid: sql.NullString{
-			String: deviceUUID,
-			Valid:  deviceUUID != "",
-		},
+		Token:      webToken,
+		Provider:   "WEB",
+		UserID:     userID,
+		DeviceUuid: deviceUUID,
 	})
 
 	return &tokenValue, err
@@ -476,7 +544,7 @@ func (u *UserService) ToggleRapidRamp(ctx context.Context, userID uuid.UUID) (bo
 	}
 
 	if kyc.Tier == "tier_1" {
-					// go u.pushService.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		// go u.pushService.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
 		return false, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
@@ -528,10 +596,21 @@ func (u *UserService) ToggleUserBiometric(ctx context.Context, userID uuid.UUID,
 
 	err = u.store.UpdateUserBiometric(ctx, db.UpdateUserBiometricParams{
 		Biometric: toggle,
-		ID: user.ID,
+		ID:        user.ID,
 	})
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (u *UserService) RemoveTokenByDevice(ctx context.Context, userID uuid.UUID, deviceUUID string) error {
+	return u.store.RemoveTokenByDevice(ctx, db.RemoveTokenByDeviceParams{
+		UserID:     userID,
+		DeviceUuid: deviceUUID,
+	})
+}
+
+func (u *UserService) RemoveTokenGlobal(ctx context.Context, token string) error {
+	return u.store.RemoveTokenGlobal(ctx, token)
 }

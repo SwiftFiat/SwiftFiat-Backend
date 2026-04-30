@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"image/png"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
@@ -396,7 +397,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	writePipe.Exec(ctx)
 
 	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(dbUser),
+		User: models.UserResponse{}.ToUserResponse(dbUser),
 		// Token: pair.AccessToken,
 	}
 
@@ -816,20 +817,50 @@ func (a *Auth) logout(ctx *gin.Context) {
 		return
 	}
 
-	// Revoke the specific session if session_id is available in context
+	// Optional body — older app versions log out with no body, and we still
+	// want their session revoked. Ignore bind errors deliberately.
+	var req struct {
+		DeviceUUID string `json:"device_uuid"`
+	}
+	_ = ctx.ShouldBindJSON(&req)
+	req.DeviceUUID = strings.TrimSpace(req.DeviceUUID)
+
+	// 1. Session / token revocation (unchanged)
 	sessionID, hasSID := ctx.Get("session_id")
 	if hasSID {
 		if sid, ok := sessionID.(string); ok && sid != "" {
 			_ = a.server.sessionManager.RevokeSession(ctx.Request.Context(), activeUser.UserID, sid)
 		}
 	} else {
-		// Fallback: delete legacy token key
 		tokenKey := fmt.Sprintf("user:%s", activeUser.UserID)
 		if err := a.server.redis.Delete(ctx, tokenKey); err != nil {
 			a.server.logger.Error(fmt.Sprintf("redis delete token error: %v", err))
 		}
 	}
 
+	// 2. Push token cleanup — best effort. Logout MUST NOT fail because of this:
+	//    the user has already moved on mentally, the client will clear local
+	//    state regardless, and the next login's ClaimTokenForUser will steal
+	//    any orphan row anyway. We just want to close the gap faster.
+	if req.DeviceUUID != "" {
+		go func(userID uuid.UUID, deviceUUID string) {
+			// Detached context — request will be done by the time the JSON
+			// is written, but the DB delete should still complete.
+			bgCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := a.userService.RemoveTokenByDevice(bgCtx, userID, deviceUUID); err != nil {
+				a.server.logger.Error(fmt.Sprintf(
+					"logout: remove push token failed user=%s device=%s: %v",
+					userID, deviceUUID, err))
+			}
+		}(activeUser.UserID, req.DeviceUUID)
+	} else {
+		a.server.logger.Warn(fmt.Sprintf(
+			"logout without device_uuid user=%s — push token not cleaned (older client?)",
+			activeUser.UserID))
+	}
+
+	// 3. Audit (unchanged)
 	entry := audit.NewAuthenticationLog(ctx, audit.EventUserLogout,
 		fmt.Sprintf("User %s logged out", activeUser.UserTag),
 		&activeUser.UserID, nil, activeUser.Role, true, nil)
@@ -1362,7 +1393,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	}
 
 	userWT := models.UserWithToken{
-		User:  models.UserResponse{}.ToUserResponse(&user),
+		User: models.UserResponse{}.ToUserResponse(&user),
 		// Token: pair.AccessToken,
 	}
 
