@@ -248,7 +248,7 @@ func (s *MarketInsightsService) checkForNewArticles(ctx context.Context) {
 	// Only send notification for the most recent article to avoid spam
 	if len(newArticles) > 0 {
 		latestArticle := newArticles[0]
-		// go s.notifyUsersOfArticle(ctx, latestArticle)
+		go s.notifyUsersOfArticle(ctx, latestArticle)
 
 		// Mark this article as notified
 		s.notifiedMux.Lock()

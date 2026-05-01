@@ -7,13 +7,17 @@ meta {
 post {
   url: {{BaseURl}}/user/push-token
   body: json
-  auth: inherit
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
 }
 
 body:json {
   {
-    "web_token": "YOUR_BROWSER_FCM_TOKEN",
-    "device_uuid": "admin-web-chrome"
+    "fcm_token": "fNNw0AchT4C7l7xOARCxlD:APA91bEzn6OQsAlbP-hhYE3rTcGgWKMxvBUpRAi4MSJ1Kcx4F_8rYvLUfhcdvIfyEC0QPqRjLn17fhistEfW4a56MrcGG0x1fCMo3yqop2WlHSPHod-KKik",
+    "device_uuid": "android-1777552148197-703324157"
   }
 }
 

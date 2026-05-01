@@ -556,7 +556,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 		},
 	}
 
-	s.push.SendPushNotification(ctx, user.ID, "Incoming Crypto Alert", fmt.Sprintf("You have received %.2f %s", coinAmount.InexactFloat64(), cryptoMeta.Coin))
+	s.sendTransactionPushNotification(ctx, user.ID, "Incoming Crypto Alert", fmt.Sprintf("You have received %.2f %s", coinAmount.InexactFloat64(), cryptoMeta.Coin), "crypto_inflow")
 
 	return resp, &user, usdAmount, "USD", nil
 }
@@ -591,7 +591,7 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 		fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()),
 		"system", []uuid.UUID{user.ID})
 
-	s.push.SendPushNotification(ctx, user.ID, "Wallet Credit Alert", fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()))
+	s.sendTransactionPushNotification(ctx, user.ID, "Wallet Credit Alert", fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()), "crypto_inflow")
 }
 
 // Helper function to build response from database transaction
@@ -604,6 +604,69 @@ func buildCryptoTransactionResponse(tx db.GetTransactionByIDRow) *TransactionRes
 		Status:          tx.Status,
 		CreatedAt:       tx.CreatedAt,
 		UpdatedAt:       tx.UpdatedAt,
+	}
+}
+
+// ── sendTransactionPushNotification ────────────────────────────────────────────
+// Sends push notifications using the reliable pattern from news.go.
+// Fetches user tokens from database and sends separate push requests for FCM and Expo providers.
+func (s *TransactionService) sendTransactionPushNotification(
+	ctx context.Context,
+	userID uuid.UUID,
+	title string,
+	message string,
+	analyticsLabel string,
+) {
+	// Fetch user tokens from database
+	tokens, err := s.store.GetTokens(ctx, userID)
+	if err != nil {
+		s.logger.Errorf("Failed to fetch user tokens for push notification: %v", err)
+		return
+	}
+
+	if len(tokens) == 0 {
+		return
+	}
+
+	// Extract FCM and Expo tokens
+	var fcmToken, expoToken string
+	for _, token := range tokens {
+		switch service.PushProvider(token.Provider) {
+		case service.PushProviderFCM:
+			fcmToken = token.Token
+		case service.PushProviderExpo:
+			expoToken = token.Token
+		}
+	}
+
+	// Send FCM notification if token exists
+	if fcmToken != "" {
+		err := s.push.SendPush(ctx, &service.PushNotificationInfo{
+			UserID:         userID,
+			Title:          title,
+			Message:        message,
+			Provider:       service.PushProviderFCM,
+			UserFCMToken:   fcmToken,
+			Badge:          1,
+			AnalyticsLabel: analyticsLabel,
+		})
+		if err != nil {
+			s.logger.Errorf("Error sending FCM push notification: %v", err)
+		}
+	}
+
+	// Send Expo notification if token exists
+	if expoToken != "" {
+		err := s.push.SendPush(ctx, &service.PushNotificationInfo{
+			UserID:        userID,
+			Title:         title,
+			Message:       message,
+			Provider:      service.PushProviderExpo,
+			UserExpoToken: expoToken,
+		})
+		if err != nil {
+			s.logger.Errorf("Error sending Expo push notification: %v", err)
+		}
 	}
 }
 
@@ -813,12 +876,12 @@ func (s *TransactionService) processRapidRampInflow(
 
 		// go func() {
 		// 	bgctx := context.Background()
-			s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
-				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"),
-				"system", []uuid.UUID{user.ID})
+		s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
+			fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"),
+			"system", []uuid.UUID{user.ID})
 
-			s.push.SendPushNotification(ctx, user.ID, "Wallet Credit Alert",
-				fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"))
+		s.sendTransactionPushNotification(ctx, user.ID, "Wallet Credit Alert",
+			fmt.Sprintf("Your Rapid Ramp transfer of %.2f %s has failed and your wallet has been credited with %.2f %s", netAmount.InexactFloat64(), "NGN", netAmount.InexactFloat64(), "NGN"), "rapid_ramp")
 		// }()
 
 		s.logger.Warnf("Rapid ramp bank transfer failed: %v. Credited wallet instead.", originalErr)
@@ -911,10 +974,10 @@ func (s *TransactionService) processRapidRampInflow(
 		if referrerID != nil && referralBonus != nil {
 			// go func() {
 			// 	bgCtx := context.Background()
-				s.notifyr.CreateWithRecipients(ctx, nil, "Referral Bonus Credit",
-					fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
-					"system", []uuid.UUID{*referrerID})
-				s.push.ReferralBonusEarned(ctx, *referrerID, referralBonus.String())
+			s.notifyr.CreateWithRecipients(ctx, nil, "Referral Bonus Credit",
+				fmt.Sprintf("You have received a referral bonus of %s", referralBonus.String()),
+				"system", []uuid.UUID{*referrerID})
+			s.push.ReferralBonusEarned(ctx, *referrerID, referralBonus.String())
 			// }()
 		}
 	}
@@ -927,10 +990,10 @@ func (s *TransactionService) processRapidRampInflow(
 	if refererID != nil && conversionBonus != nil {
 		// go func() {
 		// 	bgCtx := context.Background()
-			s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Bonus Credit",
-				fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
-				"system", []uuid.UUID{*refererID})
-			s.push.ConversionBonusEarned(ctx, *refererID, conversionBonus.String())
+		s.notifyr.CreateWithRecipients(ctx, nil, "Conversion Bonus Credit",
+			fmt.Sprintf("You have received a conversion bonus of %s", conversionBonus.String()),
+			"system", []uuid.UUID{*refererID})
+		s.push.ConversionBonusEarned(ctx, *refererID, conversionBonus.String())
 		// }()
 	}
 
@@ -939,8 +1002,8 @@ func (s *TransactionService) processRapidRampInflow(
 		Amount: fiatAmount.String(),
 	})
 
-	s.push.SendPushNotification(ctx, user.ID, "Rapid Ramp Withdrawal",
-		fmt.Sprintf("%.2f %s has been sent to your bank account", fiatAmount.InexactFloat64(), "NGN"))
+	s.sendTransactionPushNotification(ctx, user.ID, "Rapid Ramp Withdrawal",
+		fmt.Sprintf("%.2f %s has been sent to your bank account", fiatAmount.InexactFloat64(), "NGN"), "rapid_ramp")
 
 	return &TransactionResponse[CryptoMetadataResponse]{
 		ID:              txx.ID,
@@ -1858,16 +1921,16 @@ func (s *TransactionService) postBillSuccess(
 	// Push Notification
 	// go func() {
 	// 	bgCtx := context.Background()
-		switch txType {
-		case string(Airtime):
-			s.push.SendPushNotification(ctx, user.ID, "Successful Airtime Purchase", fmt.Sprintf("You have successfully purchased airtime of ₦%d to %s", amount.IntPart(), target))
-		case string(Data):
-			s.push.SendPushNotification(ctx, user.ID, "Successful Data Purchase", fmt.Sprintf("You have successfully purchased data of %s on %s", plan, target))
-		case string(TV):
-			s.push.SendPushNotification(ctx, user.ID, "Successful Tv Sub", fmt.Sprintf("You have successfully subscribed to TV of %s", plan))
-		case string(Electricity):
-			s.push.SendPushNotification(ctx, user.ID, "Successful Electricity Purchase", fmt.Sprintf("You have successfully purchased electricity of ₦%d to %s", amount.IntPart(), target))
-		}
+	switch txType {
+	case string(Airtime):
+		s.sendTransactionPushNotification(ctx, user.ID, "Successful Airtime Purchase", fmt.Sprintf("You have successfully purchased airtime of ₦%d to %s", amount.IntPart(), target), "bill_payment_airtime")
+	case string(Data):
+		s.sendTransactionPushNotification(ctx, user.ID, "Successful Data Purchase", fmt.Sprintf("You have successfully purchased data of %s on %s", plan, target), "bill_payment_data")
+	case string(TV):
+		s.sendTransactionPushNotification(ctx, user.ID, "Successful Tv Sub", fmt.Sprintf("You have successfully subscribed to TV of %s", plan), "bill_payment_tv")
+	case string(Electricity):
+		s.sendTransactionPushNotification(ctx, user.ID, "Successful Electricity Purchase", fmt.Sprintf("You have successfully purchased electricity of ₦%d to %s", amount.IntPart(), target), "bill_payment_electricity")
+	}
 	// }()
 
 	return
@@ -1937,12 +2000,12 @@ func (s *TransactionService) HandleAirtime(ctx context.Context, user *db.User, r
 	}
 
 	if kyc.Tier == "tier1" {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
 	}
 
 	if amount.GreaterThan(tier1MaxAmountForAirtime) {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_AIRTIME_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
@@ -2193,12 +2256,12 @@ func (s *TransactionService) HandleData(ctx context.Context, user *db.User, req 
 	}
 
 	if kyc.Tier == "tier1" {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
 	}
 
 	if amount.GreaterThan(tier1MaxAmountForData) {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_DATA_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
@@ -2465,12 +2528,12 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 	}
 
 	if kyc.Tier == "tier1" {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
 	}
 
 	if amount.GreaterThan(tier1MaxAmountForTV) {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
@@ -3187,12 +3250,12 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 	}
 
 	if kyc.Tier == "tier1" {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_1")
 	}
 
 	if amount.GreaterThan(tier1MaxAmountForTV) {
-		s.push.SendPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check")
+		s.sendTransactionPushNotification(ctx, user.ID, "Unlock more feature and remove account limits.", "Complete Tier 2 verification using your NIN, BVN, and a quick selfie check", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_TV_AMOUNT_EXCEEDED_FOR_TIER_1")
 	}
 
@@ -3410,7 +3473,7 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 	}
 
 	if kyc.Tier == "tier_1" {
-		s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		s.sendTransactionPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
@@ -3593,14 +3656,14 @@ func (s TransactionService) HandleWalletTransfer(ctx context.Context, user *db.U
 
 	// bgCtx := context.WithoutCancel(ctx)
 	// go func() {
-		message := fmt.Sprintf("A wallet debit transaction of %2.f %s has just been sent to %s. If this was not initiated by you, please contact SWIIFT immediately", amount.InexactFloat64(), req.Currency, recipientUser.UserTag.String)
-		message_2 := fmt.Sprintf("%2.f %s has been credited to your wallet from %s", amount.InexactFloat64(), req.Currency, user.UserTag.String)
+	message := fmt.Sprintf("A wallet debit transaction of %2.f %s has just been sent to %s. If this was not initiated by you, please contact SWIIFT immediately", amount.InexactFloat64(), req.Currency, recipientUser.UserTag.String)
+	message_2 := fmt.Sprintf("%2.f %s has been credited to your wallet from %s", amount.InexactFloat64(), req.Currency, user.UserTag.String)
 
-		s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Debit", message, "system", []uuid.UUID{user.ID})
-		s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit", message_2, "system", []uuid.UUID{recipientUser.ID})
+	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Debit", message, "system", []uuid.UUID{user.ID})
+	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit", message_2, "system", []uuid.UUID{recipientUser.ID})
 
-		s.push.CreditAlert(ctx, recipientUser.ID, amount.InexactFloat64(), req.Currency)
-		s.push.DebitAlert(ctx, user.ID, amount.InexactFloat64(), req.Currency)
+	s.push.CreditAlert(ctx, recipientUser.ID, amount.InexactFloat64(), req.Currency)
+	s.push.DebitAlert(ctx, user.ID, amount.InexactFloat64(), req.Currency)
 	// }()
 
 	return response, nil
@@ -3621,7 +3684,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 	}
 
 	if kyc.Tier == "tier_1" {
-		s.push.SendPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue")
+		s.sendTransactionPushNotification(ctx, user.ID, "Verification required.", "This feature requires Tier 2 verification. Complete identity verification to continue", "kyc_tier2_required")
 		return nil, fmt.Errorf("Err_KYC_NEED_TIER_2")
 	}
 
@@ -3879,7 +3942,7 @@ func (s TransactionService) HandleBankTransfer(ctx context.Context, user *db.Use
 		}
 
 		s.notifyr.CreateWithRecipients(ctx, nil, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "system", []uuid.UUID{user.ID})
-		s.push.SendPushNotification(ctx, user.ID, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()))
+		s.sendTransactionPushNotification(ctx, user.ID, "Successful Bank Transfer", fmt.Sprintf("Transfer of %2.f was successful", amount.InexactFloat64()), "bank_transfer")
 
 		return &BankTransferResponse{
 			Sender:         fmt.Sprintf("%s %s", user.FirstName.String, user.LastName.String),
