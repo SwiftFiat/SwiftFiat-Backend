@@ -473,7 +473,7 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		c.server.logger.Info("Processing paid status - completing transaction")
 
 		// Convert amount
-		amountDec, err := decimal.NewFromString(payload.MerchantAmount)
+		amountDec, err := decimal.NewFromString(payload.Amount)
 		if err != nil {
 			c.server.logger.Errorf("conversion error: %v", err)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
