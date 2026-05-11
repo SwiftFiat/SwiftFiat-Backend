@@ -145,7 +145,7 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 		r.server.logger.Error("Failed to track referral", logrus.Fields{
 			"error":         err,
 			"referral_code": request.ReferralCode,
-			"referrer_id":   activeUser.UserID,
+			"user_id":       activeUser.UserID,
 		})
 		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to track referral: "+err.Error()))
 		return
