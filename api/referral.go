@@ -145,7 +145,7 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 		r.server.logger.Error("Failed to track referral", logrus.Fields{
 			"error":         err,
 			"referral_code": request.ReferralCode,
-			"user_id":       activeUser.UserID,
+			"referrer_id":   activeUser.UserID,
 		})
 		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to track referral: "+err.Error()))
 		return
@@ -192,15 +192,20 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 	}
 	referrals, err := r.service.GetUserReferrals(ctx, activeUser.UserID)
 	if err != nil {
+		r.logger.Error("Failed to get user referrals", "error", err, "user_id", activeUser.UserID)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
 		return
 	}
 
 	var refsWithUser []ReferralWithUser
+	if referrals == nil {
+		referrals = []referral.Referral{} // Ensure empty slice instead of nil
+	}
+
 	for _, ref := range referrals {
 		user, err := r.server.queries.GetUserByID(ctx, ref.RefereeID)
 		if err != nil {
-			r.logger.Error(err)
+			r.logger.Error("Failed to get referee data", "error", err, "referee_id", ref.RefereeID)
 			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("failed to get referee data"))
 			return
 		}
@@ -209,6 +214,12 @@ func (r *Referral) GetUserReferrals(ctx *gin.Context) {
 			User:     user.FirstName.String,
 		})
 	}
+
+	// Initialize empty slice to prevent null in JSON response
+	if refsWithUser == nil {
+		refsWithUser = []ReferralWithUser{}
+	}
+
 	ctx.JSON(http.StatusOK, basemodels.SuccessResponse{
 		Status:  "success",
 		Message: "referrals retrieved successfully",

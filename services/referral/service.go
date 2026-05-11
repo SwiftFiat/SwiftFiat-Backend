@@ -33,56 +33,56 @@ func NewReferralService(repo *Repo, logger *logging.Logger, notifyr *service.Not
 	}
 }
 
-func (s *Service) TrackReferral(ctx context.Context, referralCode string, refereeID uuid.UUID, referralAmount decimal.Decimal) (*Referral, error) {
-	// Get the record of the referrer
-	referralRecord, err := s.repo.queries.GetReferralByReferralKey(ctx, referralCode)
+func (s *Service) TrackReferral(ctx context.Context, referralCode string, referrerID uuid.UUID, referralAmount decimal.Decimal) (*Referral, error) {
+	// Get the referee from the referral code provided
+	refereeRecord, err := s.repo.queries.GetUserByTag(ctx, sql.NullString{String: referralCode, Valid: true})
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			s.logger.Error(fmt.Errorf("invalid referral code: %s", referralCode))
 			return nil, errors.New("invalid referral code")
 		}
-		return nil, fmt.Errorf("an error occurred while fetching referral record: %w", err)
+		return nil, fmt.Errorf("an error occurred while fetching user record: %w", err)
 	}
 
-	referrerID := referralRecord.UserID
+	refereeID := refereeRecord.ID
 
-	// Step 2: Check if referee was already referred
+	// Check if referee was already referred
 	existing, err := s.repo.queries.GetReferralByRefereeID(ctx, refereeID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, fmt.Errorf("an error occurred while checking existing referral: %w", err)
 	}
 	if existing != (db.UserReferral{}) {
-		s.logger.Error(fmt.Errorf("referrer with id %d already exists", refereeID))
+		s.logger.Error(fmt.Errorf("referee with id %s already exists", refereeID))
 		return nil, errors.New("user already referred")
 	}
 
-	// Step 4: Create the referral
+	// Create the referral
 	referral, err := s.repo.CreateReferral(ctx, referrerID, refereeID, referralAmount, string(ReferralStatusPending))
 	if err != nil {
 		s.logger.Error(err)
 		return nil, fmt.Errorf("an error occurred while creating referral: %w", err)
 	}
 
-	referedUser, err := s.repo.queries.GetUserByID(ctx, referral.RefereeID)
+	refereeUser, err := s.repo.queries.GetUserByID(ctx, referral.RefereeID)
 	if err != nil {
-		s.logger.Errorf("failed to get user [TrackReferral]: %v", err)
+		s.logger.Errorf("failed to get referee user [TrackReferral]: %v", err)
 		s.notifyr.CreateWithRecipients(
 			ctx,
 			nil,
 			"SWIIFT Referral",
-			"A user registered using your referral code. You'll earn a referral bonus on their first conversion",
+			"You referred a user. You'll earn a referral bonus on their first conversion",
 			"system",
 			[]uuid.UUID{referrerID},
 		)
 		return nil, err
 	}
 
-	s.push.NewReferral(ctx, refereeID, referedUser.UserTag.String)
+	s.push.NewReferral(ctx, referrerID, refereeUser.UserTag.String)
 	s.notifyr.CreateWithRecipients(
 		ctx,
 		nil,
 		"SWIIFT Referral",
-		fmt.Sprintf("user %s registered using your referral code, You'll earn a referral bonus on their first conversion", referedUser.UserTag.String),
+		fmt.Sprintf("You successfully referred user %s. You'll earn a referral bonus on their first conversion", refereeUser.UserTag.String),
 		"system",
 		[]uuid.UUID{referrerID},
 	)
@@ -131,7 +131,7 @@ func (s *Service) Withdraw(ctx context.Context, amount decimal.Decimal, userID u
 	}
 
 	s.logger.Infof("Processing referral withdrawal for user %d, amount: %s", userID, amount.String())
-	err = s.repo.queries.ExecTx(ctx, func(q *db.Queries) (error) {
+	err = s.repo.queries.ExecTx(ctx, func(q *db.Queries) error {
 		t, err := q.GetTransactionByIdempotencyKey(ctx, key)
 		if err == nil {
 			transx = &t

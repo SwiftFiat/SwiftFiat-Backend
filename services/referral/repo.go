@@ -13,8 +13,8 @@ import (
 
 type Referral struct {
 	ID           int64           `json:"id"`
-	ReferrerID   uuid.UUID           `json:"referrer_id"`
-	RefereeID    uuid.UUID           `json:"referee_id"`
+	ReferrerID   uuid.UUID       `json:"referrer_id"`
+	RefereeID    uuid.UUID       `json:"referee_id"`
 	EarnedAmount decimal.Decimal `json:"earned_amount"`
 	CreatedAt    time.Time       `json:"created_at"`
 	Status       ReferralStatus  `json:"status"`
@@ -174,20 +174,31 @@ func (r *Repo) GetUserReferrals(ctx context.Context, userID uuid.UUID) ([]Referr
 		return nil, err
 	}
 
-	referrals := make([]Referral, len(dbReferrals))
-	for i, ref := range dbReferrals {
+	// Return empty slice instead of nil
+	if len(dbReferrals) == 0 {
+		return []Referral{}, nil
+	}
+
+	referrals := make([]Referral, 0, len(dbReferrals))
+	for _, ref := range dbReferrals {
+		// Handle potential NULL earned_amount
+		if ref.EarnedAmount == "" {
+			continue // Skip records with NULL earned_amount
+		}
+
 		amount, err := decimal.NewFromString(ref.EarnedAmount)
 		if err != nil {
-			return nil, err
+			// Log the error but don't fail entire request
+			continue
 		}
-		referrals[i] = Referral{
+		referrals = append(referrals, Referral{
 			ID:           int64(ref.ID),
 			ReferrerID:   ref.ReferrerID,
 			RefereeID:    ref.RefereeID,
 			EarnedAmount: amount,
-			Status: ReferralStatus(ref.Status),
+			Status:       ReferralStatus(ref.Status),
 			CreatedAt:    ref.CreatedAt,
-		}
+		})
 	}
 
 	return referrals, nil
@@ -220,7 +231,7 @@ func (r *Repo) GetReferralEarnings(ctx context.Context, userID uuid.UUID) (*db.R
 func (r *Repo) CreateReferralConfig(ctx context.Context, percentageEarned decimal.Decimal, referralAmount decimal.Decimal) (db.ReferralConfig, error) {
 	return r.queries.CreateReferralConfig(ctx, db.CreateReferralConfigParams{
 		ReferralPercentageEarnedPerConversion: percentageEarned.String(),
-		ReferralAmount:             referralAmount.String(),
+		ReferralAmount:                        referralAmount.String(),
 	})
 }
 

@@ -588,10 +588,10 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 	}
 
 	s.notifyr.CreateWithRecipients(ctx, nil, "Wallet Credit Alert",
-		fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()),
+		fmt.Sprintf("Your %s wallet has received %.2f USD", currency, amount.InexactFloat64()),
 		"system", []uuid.UUID{user.ID})
 
-	s.sendTransactionPushNotification(ctx, user.ID, "Wallet Credit Alert", fmt.Sprintf("Your %s address has received %.2f coins", currency, amount.InexactFloat64()), "crypto_inflow")
+	s.sendTransactionPushNotification(ctx, user.ID, "Wallet Credit Alert", fmt.Sprintf("Your %s wallet has received $%.2f", currency, amount.InexactFloat64()), "crypto_inflow")
 }
 
 // Helper function to build response from database transaction
