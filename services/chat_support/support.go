@@ -25,7 +25,7 @@ func NewSupportAdminService(
 		logger: logger,
 	}
 }
-
+ 
 // CreateSupportAdmin creates a support admin profile for a user
 func (s *SupportAdminService) CreateSupportAdmin(ctx context.Context, params *CreateSupportAdminParams) (*db.SupportAdmin, error) {
 	// Check if admin already exists

@@ -10,8 +10,11 @@ services:
       - "9000:9000"
     depends_on:
       - redis
+      - loki
     networks:
       - swiftfiat-network
+    environment:
+      - LOKI_URL=http://loki:3100/loki/api/v1/push
 
   redis:
     container_name: swiftfiat_redis
@@ -25,9 +28,44 @@ services:
     networks:
       - swiftfiat-network
 
+  loki:
+    container_name: swiftfiat_loki
+    image: grafana/loki:latest
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - loki_data:/loki
+    restart: unless-stopped
+    networks:
+      - swiftfiat-network
+
+  grafana:
+    container_name: swiftfiat_grafana
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./grafana-provisioning/datasources.yaml:/etc/grafana/provisioning/datasources/datasources.yaml
+      - grafana_data:/var/lib/grafana
+    restart: unless-stopped
+    networks:
+      - swiftfiat-network
+    depends_on:
+      - loki
+
 volumes:
   redis_data:
     name: swiftfiat_redis_data
+  loki_data:
+    name: swiftfiat_loki_data
+  grafana_data:
+    name: swiftfiat_grafana_data
 
 networks:
   swiftfiat-network:

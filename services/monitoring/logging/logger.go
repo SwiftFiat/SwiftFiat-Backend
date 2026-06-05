@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log/syslog"
+	"net/http"
 	"os"
 	"strings"
 	"time"
@@ -13,7 +13,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
-	logrusSyslog "github.com/sirupsen/logrus/hooks/syslog"
 )
 
 type Logger struct {
@@ -41,11 +40,14 @@ func NewLogger() *Logger {
 	log.SetFormatter(&logrus.JSONFormatter{PrettyPrint: true})
 	log.SetOutput(os.Stdout) // this enables logs to stdout (journalctl via vps)
 
-	hook, err := logrusSyslog.NewSyslogHook("udp", c.Papertrail, syslog.LOG_INFO, c.PapertrailAppName)
-	if err != nil {
-		log.Error("Unable to connect to Papertrail")
-	} else {
-		log.Hooks.Add(hook)
+	// Add Loki integration if configured
+	if c.LokiURL != "" {
+		lokiHook, err := NewLokiHook(c.LokiURL, c.Env)
+		if err != nil {
+			log.Error("Unable to connect to Loki: " + err.Error())
+		} else {
+			log.Hooks.Add(lokiHook)
+		}
 	}
 
 	return &Logger{
@@ -138,4 +140,92 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 
 		l.WithFields(fields).Info("Request-Response")
 	}
+}
+
+// LokiHook implements logrus hook interface for sending logs to Loki
+type LokiHook struct {
+	lokiURL string
+	env     string
+}
+
+// NewLokiHook creates a new Loki hook
+func NewLokiHook(lokiURL, env string) (*LokiHook, error) {
+	return &LokiHook{
+		lokiURL: lokiURL,
+		env:     env,
+	}, nil
+}
+
+// Levels defines the log levels this hook will be triggered for
+func (h *LokiHook) Levels() []logrus.Level {
+	return logrus.AllLevels
+}
+
+// Fire is called when a log event is fired
+func (h *LokiHook) Fire(entry *logrus.Entry) error {
+	logLine := fmt.Sprintf("[%s] %s: %s", entry.Level.String(), entry.Time.Format(time.RFC3339), entry.Message)
+
+	// Add entry fields to the log line
+	fieldsStr := ""
+	for k, v := range entry.Data {
+		fieldsStr += fmt.Sprintf(" %s=%v", k, v)
+	}
+	logLine += fieldsStr
+
+	// Build label map with environment and log level
+	labels := map[string]string{
+		"job":   "swiftfiat-api",
+		"env":   h.env,
+		"level": entry.Level.String(),
+	}
+
+	// Build stream for Loki
+	stream := map[string]interface{}{
+		"stream": labels,
+		"values": [][]string{
+			{
+				fmt.Sprintf("%d", entry.Time.UnixNano()),
+				logLine,
+			},
+		},
+	}
+
+	// Build request payload
+	payload := map[string]interface{}{
+		"streams": []interface{}{stream},
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	// Send to Loki asynchronously (non-blocking, errors are logged but don't fail the application)
+	go sendToLoki(h.lokiURL, jsonData)
+
+	return nil
+}
+
+// sendToLoki sends logs to Loki asynchronously via HTTP
+func sendToLoki(lokiURL string, payload []byte) {
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+	}
+
+	req, err := http.NewRequest("POST", lokiURL, bytes.NewBuffer(payload))
+	if err != nil {
+		return
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read response to ensure proper cleanup
+	io.ReadAll(resp.Body)
 }

@@ -27,8 +27,7 @@ type Config struct {
 	DBName                    string   `mapstructure:"DB_NAME"`
 	SSLMode                   string   `mapstructure:"SSLMODE"`
 	OTPSourceMail             string   `mapstructure:"OTP_SOURCE_MAIL"`
-	Papertrail                string   `mapstructure:"PAPERTRAIL"`
-	PapertrailAppName         string   `mapstructure:"PAPERTRAIL_APP_NAME"`
+	LokiURL                   string   `mapstructure:"LOKI_URL"`
 	RedisHost                 string   `mapstructure:"REDIS_HOST"`
 	RedisPort                 string   `mapstructure:"REDIS_PORT"`
 	RedisPassword             string   `mapstructure:"REDIS_PASSWORD"`
@@ -104,7 +103,7 @@ func LoadConfig(path string) (*Config, error) {
 	_ = v.BindEnv("DB_PORT")
 	_ = v.BindEnv("SSLMODE")
 	_ = v.BindEnv("DB_DRIVER")
-	_ = v.BindEnv("PAPERTRAIL")
+	_ = v.BindEnv("LOKI_URL")
 	_ = v.BindEnv("KYC_PROVIDER_NAME")
 	_ = v.BindEnv("DOJAH_KEY")
 	_ = v.BindEnv("DOJAH_APP_ID")

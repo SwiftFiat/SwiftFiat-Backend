@@ -14,6 +14,7 @@ import (
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
+	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
 )
@@ -31,17 +32,20 @@ var (
 )
 
 type ChatService struct {
-	store  *db.Store
-	logger *logging.Logger
+	store            *db.Store
+	logger           *logging.Logger
+	pushNotification *service.PushNotificationService
 }
 
 func NewChatService(
 	store *db.Store,
 	logger *logging.Logger,
+	pushNotification *service.PushNotificationService,
 ) *ChatService {
 	return &ChatService{
-		store:  store,
-		logger: logger,
+		store:            store,
+		logger:           logger,
+		pushNotification: pushNotification,
 	}
 }
 
@@ -129,6 +133,39 @@ func (s *ChatService) SendMessage(ctx context.Context, params *SendMessageParams
 		IsEdited:          message.IsEdited,
 		CreatedAt:         message.CreatedAt,
 	}
+
+	// Trigger push notifications
+	go func() {
+		if s.pushNotification == nil {
+			return
+		}
+
+		var recipientID uuid.UUID
+		var title string
+		var body string
+
+		switch params.SenderType {
+		case "user":
+			// Notify assigned admin
+			if ticket.AssignedTo.Valid {
+				recipientID = ticket.AssignedTo.UUID
+				title = "New Message from User"
+				body = params.MessageText
+			}
+		case "admin":
+			// Notify user
+			recipientID = ticket.UserID
+			title = "New Message from Support"
+			body = params.MessageText
+		}
+
+		if recipientID != uuid.Nil {
+			err := s.pushNotification.SendChatPushNotification(context.Background(), recipientID, title, body, params.TicketID)
+			if err != nil {
+				s.logger.Error(fmt.Sprintf("failed to send chat push notification: %v", err))
+			}
+		}
+	}()
 
 	return response, nil
 }

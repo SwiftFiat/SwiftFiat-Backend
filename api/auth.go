@@ -62,6 +62,7 @@ func (a Auth) router(server *Server) {
 	sensitive.POST("forgot-password", a.forgotPassword)
 	sensitive.POST("reset-password", a.resetPassword)
 	sensitive.POST("verify-2fa", a.verifyTwoFA)
+	sensitive.POST("send-phone-otp", a.SendOTPWithTwilio)
 	sensitive.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
 
 	// ── Auth-tier rate limit ──────────────────────────────────────────────
@@ -84,8 +85,8 @@ func (a Auth) router(server *Server) {
 	authed.POST("create-passcode", a.createPasscode)
 	authed.POST("create-pin", a.createPin)
 	authed.POST("verify-pin", a.verifyTransactionPin)
-	authed.PUT("update-pin", a.updateTransactionPin)
 	authed.GET("profile", a.profile)
+	authed.PUT("update-pin", a.updateTransactionPin)
 	authed.GET("user", a.getUserID)
 	authed.DELETE("account", a.deleteAccount)
 	authed.POST("send-otp", a.SendOTPWithTwilio)
@@ -93,6 +94,7 @@ func (a Auth) router(server *Server) {
 	authed.POST("toggle-2fa", a.ToggleTwoFA)
 	authed.POST("logout", a.logout)
 	authed.POST("logout-all", a.logoutAll)
+	authed.POST("verify-phone", a.VerifyOTPWithTwilio)
 
 	// Session management (device list + single-device revoke)
 	authed.GET("sessions", sm.HandleListSessions(server))
@@ -2268,40 +2270,40 @@ func (a *Auth) SendOTPWithTwilio(c *gin.Context) {
 // @Failure 401 {object} basemodels.ErrorResponse
 // @Failure 500 {object} basemodels.ErrorResponse
 // @Router /api/v1/auth/verify-otp [post]
-// func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
-// 	activeUser, err := utils.GetActiveUser(c)
-// 	if err != nil {
-// 		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
-// 		return
-// 	}
-// 	var req VerifyRequest
-// 	if err := c.ShouldBindJSON(&req); err != nil {
-// 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-// 		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
-// 		return
-// 	}
+func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
+	activeUser, err := utils.GetActiveUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, basemodels.NewError(err.Error()))
+		return
+	}
+	var req VerifyRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
+		return
+	}
 
-// 	p := service.Twilio{Config: a.server.config}
+	p := service.Twilio{Config: a.server.config}
 
-// 	verified, err := p.CheckVerificationCode(req.PhoneNumber, req.Code)
-// 	if err != nil || !verified {
-// 		a.server.logger.Log(logrus.ErrorLevel, err.Error())
-// 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid OTP"})
-// 		return
-// 	}
+	verified, err := p.CheckVerificationCode(req.PhoneNumber, req.Code)
+	if err != nil || !verified {
+		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid OTP"})
+		return
+	}
 
-// 	updateUserParam := db.UpdateUserVerificationParams{
-// 		Verified:  true,
-// 		UpdatedAt: time.Now(),
-// 		ID:        activeUser.UserID,
-// 	}
-// 	/// Update User verified status
-// 	newUser, err := a.server.queries.UpdateUserVerification(c, updateUserParam)
-// 	if err != nil {
-// 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred updating your Account %v", err.Error())))
-// 		return
-// 	}
+	updateUserParam := db.UpdateUserVerificationParams{
+		Verified:  true,
+		UpdatedAt: time.Now(),
+		ID:        activeUser.UserID,
+	}
+	/// Update User verified status
+	newUser, err := a.server.queries.UpdateUserVerification(c, updateUserParam)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred updating your Account %v", err.Error())))
+		return
+	}
 
-// 	a.notifr.CreateWithRecipients(c, int32(newUser.ID), "Account", "Your account is verified successfully")
-// 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
-// }
+	a.notifr.CreateWithRecipients(c, nil, "Account", "Your account is verified successfully", "system", []uuid.UUID{newUser.ID})
+	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
+}

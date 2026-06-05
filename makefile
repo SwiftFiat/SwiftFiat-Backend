@@ -61,6 +61,30 @@ s_up: #
 s_down: #
 	docker compose -f docker-compose.services.yml down
 
+# Start full stack - API with Loki and Grafana logging
+l_up: # loki-up: start API, Loki, Grafana, Redis
+	docker compose up -d
+
+# Stop and remove full stack with Loki and Grafana
+l_down: # loki-down: stop full stack
+	docker compose down
+
+# View logs from Loki and Grafana stack
+l_logs: # loki-logs: stream logs from full stack
+	docker compose logs -f
+
+# View only API logs from the stack
+l_logs_api: # loki-logs-api: stream API logs
+	docker compose logs -f swift-api
+
+# View only Grafana logs
+l_logs_grafana: # loki-logs-grafana: stream Grafana logs
+	docker compose logs -f grafana
+
+# View only Loki logs
+l_logs_loki: # loki-logs-loki: stream Loki logs
+	docker compose logs -f loki
+
 container_name ?= swiftfiat_postgres
 
 # Create a new PostgreSQL database

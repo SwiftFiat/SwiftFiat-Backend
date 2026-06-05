@@ -272,7 +272,7 @@ func NewServer(envPath string) *Server {
 	ai := chatsupport.NewAIService(q, l, c)
 
 	// chat service
-	chat := chatsupport.NewChatService(q, l)
+	chat := chatsupport.NewChatService(q, l, pn)
 
 	// tickets
 	ticket := chatsupport.NewTicketService(q, l, ns, email, pn)

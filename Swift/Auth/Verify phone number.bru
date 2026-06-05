@@ -1,0 +1,75 @@
+meta {
+  name: Verify phone number
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{BaseURl}}/auth/verify-phone
+  body: json
+  auth: bearer
+}
+
+auth:bearer {
+  token: {{token}}
+}
+
+body:json {
+  {
+    "phone_number": "+2347053386642",
+    "code": "488842"
+  }
+}
+
+settings {
+  encodeUrl: true
+  timeout: 0
+}
+
+example {
+  name: example
+  
+  request: {
+    url: {{BaseURl}}/auth/verify-phone
+    method: POST
+    mode: json
+    body:json: {
+      {
+        "phone_number": "+2347053386642",
+        "code": "488842"
+      }
+    }
+  }
+  
+  response: {
+    headers: {
+      access-control-allow-credentials: true
+      access-control-allow-headers: Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With
+      access-control-allow-methods: POST, OPTIONS, GET, PUT, DELETE, PATCH
+      access-control-allow-origin: *
+      content-type: application/json; charset=utf-8
+      x-ratelimit-limit: 200
+      x-ratelimit-remaining: 196
+      x-ratelimit-reset: 1780637383
+      x-ratelimit-window: 1m0s
+      date: Fri, 05 Jun 2026 05:28:44 GMT
+      content-length: 64
+    }
+  
+    status: {
+      code: 200
+      text: OK
+    }
+  
+    body: {
+      type: json
+      content: '''
+        {
+          "status": "",
+          "message": "OTP verified successfully",
+          "version": ""
+        }
+      '''
+    }
+  }
+}

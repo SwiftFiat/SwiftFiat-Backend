@@ -1,7 +1,5 @@
 package service
 
-/// We need to set up FCM for this project
-
 import (
 	"context"
 	"fmt"
@@ -156,7 +154,7 @@ func (p *PushNotificationService) SendPush(ctx context.Context, info *PushNotifi
 
 	didSend, err := client.Send(bgCtx, &newMessage)
 	if err != nil {
-		p.handleTokenError(info.UserID, info.UserFCMToken, err)
+		p.handleTokenError(info.UserFCMToken, err)
 		return err
 	}
 
@@ -179,13 +177,13 @@ func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNo
 
 	// Check errors
 	if err != nil {
-		p.handleTokenError(info.UserID, info.UserExpoToken, err)
+		p.handleTokenError(info.UserExpoToken, err)
 		return err
 	}
 
 	// Validate responses
 	if err := response.ValidateResponse(); err != nil {
-		p.handleTokenError(info.UserID, info.UserExpoToken, err)
+		p.handleTokenError(info.UserExpoToken, err)
 		return fmt.Errorf("failed: %v", response.PushMessage.To)
 	}
 
@@ -193,14 +191,14 @@ func (p *PushNotificationService) SendPushExpo(ctx context.Context, info *PushNo
 
 }
 
-func (p *PushNotificationService) handleTokenError(userID uuid.UUID, token string, err error) {
+func (p *PushNotificationService) handleTokenError(token string, err error) {
 	if err == nil || token == "" {
 		return
 	}
 
 	errMsg := err.Error()
 	// FCM specific errors
-	isInvalidFCM := messaging.IsRegistrationTokenNotRegistered(err) ||
+	isInvalidFCM := messaging.IsUnregistered(err) ||
 		messaging.IsInvalidArgument(err) ||
 		strings.Contains(errMsg, "registration token is not a valid FCM registration token") ||
 		strings.Contains(errMsg, "invalid-registration-token") ||
@@ -1420,6 +1418,50 @@ func (p *PushNotificationService) SendPushNotification(ctx context.Context, user
 			UserID:        userID,
 			Title:         Title,
 			Message:       Message,
+			Provider:      PushProviderExpo,
+			UserExpoToken: tokens.ExpoToken,
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending Expo push notification: %v", err))
+			return err
+		}
+	}
+	return nil
+}
+
+func (p *PushNotificationService) SendChatPushNotification(ctx context.Context, userID uuid.UUID, title, message string, ticketID int64) error {
+	tokens, err := p.getUserPushTokens(userID)
+	if err != nil {
+		p.logger.Error(fmt.Sprintf("Error getting user push tokens: %v", err))
+		return err
+	}
+
+	if userID == uuid.Nil || (tokens.FCMToken == "" && tokens.ExpoToken == "") {
+		p.logger.Info(fmt.Sprintf("No push tokens found for user %s", userID))
+		return nil
+	}
+
+	if tokens.FCMToken != "" {
+		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:         userID,
+			Title:          title,
+			Message:        message,
+			Provider:       PushProviderFCM,
+			UserFCMToken:   tokens.FCMToken,
+			Badge:          1,
+			AnalyticsLabel: fmt.Sprintf("chat_ticket_%d", ticketID),
+		})
+		if err != nil {
+			p.logger.Error(fmt.Sprintf("Error sending FCM push notification: %v", err))
+			return err
+		}
+	}
+
+	if tokens.ExpoToken != "" {
+		err = p.SendPush(ctx, &PushNotificationInfo{
+			UserID:        userID,
+			Title:         title,
+			Message:       message,
 			Provider:      PushProviderExpo,
 			UserExpoToken: tokens.ExpoToken,
 		})
