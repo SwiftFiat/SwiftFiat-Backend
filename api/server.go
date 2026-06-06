@@ -217,7 +217,7 @@ func NewServer(envPath string) *Server {
 	pn.SetUserService(us)
 
 	// bridgecard service (needs config and logger)
-	bridgecard := bridgecards.NewBridgeCardProvider(c, true, l)
+	bridgecard := bridgecards.NewBridgeCardProvider(c, false, l)
 
 	// subscriptons service
 	ss := subscriptions.NewService(q, l, bridgecard, pn)
