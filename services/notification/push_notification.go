@@ -55,7 +55,9 @@ func NewPushNotificationService(logger *logging.Logger) *PushNotificationService
 	}
 
 	opt := option.WithCredentialsFile(config.GoogleAppCredentials)
-	app, err := firebase.NewApp(context.Background(), nil, opt)
+	app, err := firebase.NewApp(context.Background(), &firebase.Config{
+		ProjectID: "swiftfiat",
+	}, opt)
 	if err != nil {
 		logger.Error(fmt.Sprintf("Error starting firebase App: %v", err))
 		return nil
