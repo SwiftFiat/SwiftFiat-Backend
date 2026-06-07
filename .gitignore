@@ -9,3 +9,4 @@ node_modules
 swiftfiat
 tmp*.json
 firebase-adminsdk*.json
+firebase.json
