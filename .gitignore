@@ -1,6 +1,7 @@
 .env
 SwiftFiat-Backend
-bin/*
+bin/
+tmp/
 *.env
 redis_data
 *.log

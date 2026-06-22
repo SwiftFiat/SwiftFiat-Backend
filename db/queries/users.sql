@@ -3,10 +3,9 @@ INSERT INTO users (
     first_name,
     last_name,
     email,
-    phone_number,
     hashed_password,
     role
-) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;
+) VALUES ($1, $2, $3, $4, $5) RETURNING *;
 
 -- name: UpdateUserTag :one
 UPDATE users SET user_tag = $1, updated_at = $2

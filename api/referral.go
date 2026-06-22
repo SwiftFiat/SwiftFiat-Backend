@@ -15,7 +15,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
 )
 
 type Referral struct {
@@ -142,11 +141,11 @@ func (r *Referral) Trackreferral(c *gin.Context) {
 
 	ref, err := r.service.TrackReferral(c, request.ReferralCode, activeUser.UserID, refAmount)
 	if err != nil {
-		r.server.logger.Error("Failed to track referral", logrus.Fields{
+		r.server.logger.WithFields(logging.Fields{
 			"error":         err,
 			"referral_code": request.ReferralCode,
 			"user_id":       activeUser.UserID,
-		})
+		}).Error("Failed to track referral")
 		c.JSON(http.StatusBadRequest, basemodels.NewError("failed to track referral: "+err.Error()))
 		return
 	}

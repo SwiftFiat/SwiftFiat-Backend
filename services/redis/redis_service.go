@@ -26,6 +26,10 @@ func NewRedisService(config *RedisConfig) (*RedisService, error) {
         host = host[8:] // Remove the "redis://" prefix
     }
 
+    if config.Password == "" {
+        return nil, fmt.Errorf("redis password is required for security")
+    }
+
     client := redis.NewClient(&redis.Options{
         Addr:     fmt.Sprintf("%s:%s", host, config.Port),
         Password: config.Password,

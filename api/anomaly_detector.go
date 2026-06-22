@@ -375,35 +375,35 @@ func (ad *AnomalyDetector) emit(ctx context.Context, userID uuid.UUID, event Ano
 		return
 	}
 
-	go func() {
-		bgCtx := context.Background()
+	// go func() {
+	// 	bgCtx := context.Background()
 
-		// In-app notification
-		title := fmt.Sprintf("Security Alert: %s", event.Kind)
-		msg := event.Details
-		if ad.notifr != nil {
-			ad.notifr.CreateWithRecipients(bgCtx, nil, title, msg, "security", []uuid.UUID{userID})
-		}
+	// 	// In-app notification
+	// 	title := fmt.Sprintf("Security Alert: %s", event.Kind)
+	// 	msg := event.Details
+	// 	if ad.notifr != nil {
+	// 		ad.notifr.CreateWithRecipients(bgCtx, nil, title, msg, "security", []uuid.UUID{userID})
+	// 	}
 
-		// Push notification
-		if ad.push != nil {
-			ad.push.SendPushNotification(bgCtx, userID, title, msg)
-		}
+	// 	// Push notification
+	// 	if ad.push != nil {
+	// 		ad.push.SendPushNotification(bgCtx, userID, title, msg)
+	// 	}
 
-		// Email for HIGH/CRITICAL
-		if event.Severity == SeverityHigh || event.Severity == SeverityCritical {
-			if ad.email != nil {
-				subject := fmt.Sprintf("[SwiftFiat Security] %s detected on your account", event.Kind)
-				body := fmt.Sprintf(
-					"<h2>Security Alert</h2><p>%s</p><p><b>Detected at:</b> %s</p><p><b>Action taken:</b> %s</p><p>If this was not you, please log in and change your password immediately.</p>",
-					event.Details,
-					event.DetectedAt.Format("2006-01-02 15:04:05 UTC"),
-					event.ActionTaken,
-				)
-				_ = ad.email.SendEmail(fmt.Sprintf("user_%d@placeholder", userID), subject, body)
-			}
-		}
-	}()
+	// 	// Email for HIGH/CRITICAL
+	// 	if event.Severity == SeverityHigh || event.Severity == SeverityCritical {
+	// 		if ad.email != nil {
+	// 			subject := fmt.Sprintf("[SwiftFiat Security] %s detected on your account", event.Kind)
+	// 			body := fmt.Sprintf(
+	// 				"<h2>Security Alert</h2><p>%s</p><p><b>Detected at:</b> %s</p><p><b>Action taken:</b> %s</p><p>If this was not you, please log in and change your password immediately.</p>",
+	// 				event.Details,
+	// 				event.DetectedAt.Format("2006-01-02 15:04:05 UTC"),
+	// 				event.ActionTaken,
+	// 			)
+	// 			_ = ad.email.SendEmail(fmt.Sprintf("user_%d@placeholder", userID), subject, body)
+	// 		}
+	// 	}
+	// }()
 }
 
 // ── Geo resolution ────────────────────────────────────────────────────────────

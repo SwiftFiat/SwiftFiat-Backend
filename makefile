@@ -1,12 +1,10 @@
+# Build the application binary
+build:
+	go build -o bin/api main.go
+
 # Start the server using AIR for automatic recompilation
 start:
-	air \
-		--build.cmd "go build -o bin/api" \
-		--build.bin "./bin/api" \
-		--build.exclude_dir "vendor" \
-		--build.include_ext "go" \
-		--build.kill_delay "0.5s" \
-		--build.poll "2s"
+	air
 
 # Start the server in debug mode with air and Delve
 debug:
@@ -116,37 +114,3 @@ db_down: # database-down: drop a database
 # Generate Go code from SQL using sqlc
 sqlc: # sqlc-generate
 	sqlc generate
-
-# Redocly documentation targets
-docs_port ?= 8081
-
-docs-preview: # start a local preview of the Redocly docs
-	npx redocly preview --project-dir . --port $(docs_port)
-
-docs-bundle: # bundle the OpenAPI into a single file at docs/bundle.yaml
-	npx redocly bundle ./docs/swagger.yaml --output docs/bundle.yaml
-
-docs-build: # build static HTML docs into docs/site
-	npx redocly build-docs ./docs/swagger.yaml --output docs/site/index.html
-
-docs-lint: # lint the OpenAPI with Redocly
-	npx redocly lint ./docs/swagger.yaml
-
-# Swagger helpers
-SWAGGER_FILE ?= docs/swagger.yaml
-SWAGGER_BUNDLE_OUTPUT ?= docs/swagger.bundle.yaml
-
-swagger-validate: # validate the Swagger/OpenAPI file using @apidevtools/swagger-cli
-	npx @apidevtools/swagger-cli validate $(SWAGGER_FILE)
-
-swagger-bundle: # bundle multi-file swagger into a single file using @apidevtools/swagger-cli
-	npx @apidevtools/swagger-cli bundle $(SWAGGER_FILE) -o $(SWAGGER_BUNDLE_OUTPUT)
-
-swagger-convert: # convert swagger 2.0 to OpenAPI 3 using swagger2openapi
-	npx swagger2openapi --yaml $(SWAGGER_FILE) -o docs/openapi3.yaml
-
-swagger-serve: # serve the swagger using official swagger-ui docker image (binds to 8080)
-	docker run --rm -p 8080:8080 -e SWAGGER_JSON=/tmp/swagger.json -v $$(pwd)/$(SWAGGER_FILE):/tmp/swagger.json swaggerapi/swagger-ui
-
-docs-generate: # generate swagger docs using swaggo/swag
-	swag init -g ./main.go -o ./docs

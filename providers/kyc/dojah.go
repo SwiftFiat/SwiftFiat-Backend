@@ -15,7 +15,6 @@ import (
 	dojahmodels "github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc/dojah_models"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
-	"github.com/sirupsen/logrus"
 )
 
 type DOJAHProvider struct {
@@ -99,7 +98,7 @@ func (p *DOJAHProvider) LookupBVN(bvn string) (*dojahmodels.BVNFullLookupEntity,
 	if err != nil {
 		logging.NewLogger().Error("Failed to read response body", err)
 	} else {
-		logFields := logrus.Fields{
+		logFields := logging.Fields{
 			"status_code": resp.StatusCode,
 			"url":         resp.Request.URL,
 			"headers":     resp.Header,
@@ -172,7 +171,7 @@ func (p *DOJAHProvider) ValidateBVN(bvn string) (*dojahmodels.BVNEntity, error) 
 	if err != nil {
 		logging.NewLogger().Error("Failed to read response body", err)
 	} else {
-		logFields := logrus.Fields{
+		logFields := logging.Fields{
 			"status_code": resp.StatusCode,
 			"url":         resp.Request.URL,
 			"headers":     resp.Header,
@@ -237,7 +236,7 @@ func (p *DOJAHProvider) ValidateNIN(request interface{}) (*dojahmodels.NINEntity
 	}
 
 	// Log request and response details
-	logFields := logrus.Fields{
+	logFields := logging.Fields{
 		"status_code": resp.StatusCode,
 		"url":         resp.Request.URL,
 		"method":      resp.Request.Method,
@@ -302,7 +301,7 @@ func (p *DOJAHProvider) AnalyzeUtilityBill(inputValue string, inputType string) 
 	}
 
 	// Log request and response details
-	logFields := logrus.Fields{
+	logFields := logging.Fields{
 		"status_code": resp.StatusCode,
 		"url":         resp.Request.URL,
 		"method":      resp.Request.Method,

@@ -1,53 +1,42 @@
 auth_enabled: false
 
-ingester:
-  chunk_idle_period: 3m
-  max_chunk_age: 1h
-  max_streams_per_user: 10000
-  chunk_retain_period: 1m
-  max_concurrent_flushes: 10
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
 
-limits_config:
-  enforce_metric_name: false
-  reject_old_samples: true
-  reject_old_samples_max_age: 168h
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
 
 schema_config:
   configs:
-    - from: 2020-01-01
-      store: boltdb-shipper
+    - from: 2020-10-24
+      store: tsdb
       object_store: filesystem
-      schema: v11
+      schema: v13
       index:
         prefix: index_
         period: 24h
 
-server:
-  http_listen_port: 3100
-  log_level: info
+limits_config:
+  allow_structured_metadata: true
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
 
-storage_config:
-  boltdb_shipper:
-    active_index_directory: /loki/boltdb-shipper-active
-    cache_location: /loki/boltdb-shipper-cache
-    shared_store: filesystem
-  filesystem:
-    directory: /loki/chunks
-
-chunk_store_config:
-  max_look_back_period: 0s
-
-table_manager:
-  retention_deletes_enabled: false
-  retention_period: 0s
-
-query_range:
-  align_queries_with_step: true
-  max_cache_freshness_per_query: 10m
-  cache_results: true
-  results_cache:
-    cache:
-      enable_fifocache: true
-      fifocache:
-        max_size_items: 1024
-        duration: 1h
+ruler:
+  alertmanager_url: http://localhost:9093

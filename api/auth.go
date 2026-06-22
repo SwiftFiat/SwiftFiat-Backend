@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/referral"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
 	"github.com/google/uuid"
@@ -27,7 +28,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 	"github.com/lib/pq"
-	"github.com/sirupsen/logrus"
 )
 
 // Auth TODO: Register all services to be accessible from SERVER
@@ -62,7 +62,6 @@ func (a Auth) router(server *Server) {
 	sensitive.POST("forgot-password", a.forgotPassword)
 	sensitive.POST("reset-password", a.resetPassword)
 	sensitive.POST("verify-2fa", a.verifyTwoFA)
-	sensitive.POST("send-phone-otp", a.SendOTPWithTwilio)
 	sensitive.POST("verify-admin-otp", a.VerifyAdminLoginOTP)
 
 	// ── Auth-tier rate limit ──────────────────────────────────────────────
@@ -95,6 +94,7 @@ func (a Auth) router(server *Server) {
 	authed.POST("logout", a.logout)
 	authed.POST("logout-all", a.logoutAll)
 	authed.POST("verify-phone", a.VerifyOTPWithTwilio)
+	authed.POST("send-phone-otp", a.SendOTPWithTwilio)
 
 	// Session management (device list + single-device revoke)
 	authed.GET("sessions", sm.HandleListSessions(server))
@@ -112,7 +112,7 @@ func (a *Auth) getUserID(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 		return
 	}
@@ -164,7 +164,8 @@ func (a *Auth) profile(ctx *gin.Context) {
 	}
 
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred retrieving the user %v", err.Error())))
+		a.server.logger.Error("error retrieving user", "error", err, "user_id", activeUser.UserID, "user_email", activeUser.Email, "caller", "profile")
+		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred, try again."))
 		return
 	}
 
@@ -188,7 +189,7 @@ func (a *Auth) login(ctx *gin.Context) {
 	user := new(models.UserLoginParams)
 
 	if err := ctx.ShouldBindJSON(user); err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error(), "caller", "login", "user_email", user.Email)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhoneEmailInput))
 		return
 	}
@@ -196,10 +197,11 @@ func (a *Auth) login(ctx *gin.Context) {
 	// Fetch user
 	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		a.server.logger.Error(err)
 		if err.Error() == user_service.ErrUserNotFound.Error() {
 			// Timing attack prevention
 			_ = utils.VerifyHashValue(user.Password, "$2a$10$CjwKljBvZBL1VZB7FZpE4eZzE4i9M7E3sVQxWnN0z6UQvD95z5o3G")
+			a.server.logger.Error("user not found", "error", err, "user_email", user.Email, "caller", "login")
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 			return
 		}
@@ -228,6 +230,7 @@ func (a *Auth) login(ctx *gin.Context) {
 				&dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 			a.audit.Log(entry)
 
+			a.server.logger.Error("account locked after too many failed login attempts", "error", errMsg, "user_id", dbUser.ID, "user_email", dbUser.Email, "caller", "login")
 			ctx.JSON(http.StatusTooManyRequests, basemodels.NewError(
 				"account locked for 30 minutes due to too many failed login attempts"))
 			return
@@ -252,10 +255,7 @@ func (a *Auth) login(ctx *gin.Context) {
 			&dbUser.ID, &dbUser.Email, dbUser.Role, false, &errMsg)
 		a.audit.Log(entry)
 
-		remaining := BruteForceMaxAttempts - attempts
-		if remaining < 0 {
-			remaining = 0
-		}
+		remaining := max(BruteForceMaxAttempts-attempts, 0)
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(
 			fmt.Sprintf("%s — %d attempt(s) remaining before 30-minute lockout",
 				apistrings.IncorrectEmailPass, remaining)))
@@ -388,7 +388,7 @@ func (a *Auth) login(ctx *gin.Context) {
 		Email:    dbUser.Email,
 	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
-		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		a.server.logger.Log(logging.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -780,7 +780,7 @@ func (a *Auth) verifyTwoFA(ctx *gin.Context) {
 		Email:    user.Email,
 	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
-		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		a.server.logger.Log(logging.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -947,7 +947,7 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 
 	dbUser, err := a.userService.FetchUserByEmail(ctx, req.Email)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		a.server.logger.Error(err)
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -967,7 +967,7 @@ func (a *Auth) VerifyAdminLoginOTP(ctx *gin.Context) {
 	})
 
 	if err != nil {
-		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		a.server.logger.Log(logging.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1005,7 +1005,7 @@ func (a *Auth) ResendAdminLoginOTP(ctx *gin.Context) {
 
 	dbUser, err := a.userService.FetchUserByEmail(ctx, req.Email)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		a.server.logger.Error(err)
 		if err.Error() == user_service.ErrUserNotFound.Error() {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 			return
@@ -1060,7 +1060,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 
 	dbUser, err := a.userService.FetchUserByEmail(ctx, user.Email)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		a.server.logger.Error(err)
 		if err.Error() == user_service.ErrUserNotFound.Error() {
 			ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 			return
@@ -1112,7 +1112,7 @@ func (a *Auth) loginWithPasscode(ctx *gin.Context) {
 		Email:    dbUser.Email,
 	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1172,14 +1172,10 @@ func (a *Auth) register(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidEmail))
 		return
 	}
-	if err = validate.Var(user.PhoneNumber, "e164"); err != nil {
-		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhone))
-		return
-	}
 
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1190,7 +1186,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		FirstName:   sql.NullString{String: user.FirstName, Valid: true},
 		LastName:    sql.NullString{String: user.LastName, Valid: true},
 		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
 		HashedPassword: sql.NullString{
 			Valid:  true,
 			String: hashedPassword,
@@ -1200,7 +1195,7 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	newUser, err := a.userService.CreateUserWithWalletsAndKYC(ctx, &arg)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err)
+		a.server.logger.Error(err)
 		if userErr, ok := err.(*user_service.UserError); ok {
 			if userErr.ErrorObj == user_service.ErrUserAlreadyExists {
 				ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserDetailsAlreadyCreated))
@@ -1220,7 +1215,7 @@ func (a *Auth) register(ctx *gin.Context) {
 
 	// Create referral
 	if _, err = a.userService.CreateUserReferral(ctx, newUser.ID, user.SwiftTag); err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("failed to create referral for user %s: %v", newUser.ID, err))
+		a.server.logger.Error(logging.ErrorLevel, fmt.Sprintf("failed to create referral for user %s: %v", newUser.ID, err))
 		// Non-fatal, continue
 	}
 
@@ -1232,7 +1227,7 @@ func (a *Auth) register(ctx *gin.Context) {
 		Email:    newUser.Email,
 	})
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, fmt.Sprintf("failed to create token: %v", err))
+		a.server.logger.Log(logging.ErrorLevel, fmt.Sprintf("failed to create token: %v", err))
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1366,7 +1361,6 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 	_, err = a.server.queries.UpdateKYCNINInfo(ctx, db.UpdateKYCNINInfoParams{
 		FullName:    sql.NullString{String: user.FirstName.String + " " + user.LastName.String, Valid: true},
 		ID:          kyc.ID,
-		PhoneNumber: sql.NullString{String: user.PhoneNumber, Valid: true},
 	})
 	if err != nil {
 		a.server.logger.Error(fmt.Sprintf("failed to update user %s tier to tier 1: %v", user.UserTag.String, err))
@@ -1389,7 +1383,7 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 		Email:    user.Email,
 	}, ctx.ClientIP(), ctx.Request.UserAgent())
 	if err != nil {
-		a.server.logger.Log(logrus.DebugLevel, err.Error())
+		a.server.logger.Log(logging.DebugLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1459,7 +1453,7 @@ func (a *Auth) resendEmailVerification(ctx *gin.Context) {
 	}
 	body, err := utils.RenderEmailTemplate("templates/otp_template_designed.html", tplData)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, err.Error())
+		a.server.logger.Error(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Server error"))
 		return
 	}
@@ -1468,7 +1462,7 @@ func (a *Auth) resendEmailVerification(ctx *gin.Context) {
 	email := service.Plunk{Config: a.server.config, HttpClient: &http.Client{Timeout: time.Second * 10}}
 	err = email.SendEmail(req.Email, subject, body)
 	if err != nil {
-		a.server.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
+		a.server.logger.Error(logging.ErrorLevel, fmt.Sprintf("Failed to send verification email: %v", err))
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to send verification email"))
 		return
 	}
@@ -1543,7 +1537,7 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 
 	hashedPassword, err := utils.GenerateHashValue(user.Password)
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -1576,7 +1570,6 @@ func (a *Auth) registerAdmin(ctx *gin.Context) {
 		FirstName:   sql.NullString{String: user.FirstName, Valid: true},
 		LastName:    sql.NullString{String: user.LastName, Valid: true},
 		Email:       user.Email,
-		PhoneNumber: user.PhoneNumber,
 		HashedPassword: sql.NullString{
 			Valid:  true,
 			String: hashedPassword,
@@ -1952,7 +1945,7 @@ func (a *Auth) createPasscode(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.UserNotFound))
 		return
 	} else if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -2017,7 +2010,7 @@ func (a *Auth) createPin(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError("user not found"))
 		return
 	} else if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusInternalServerError, basemodels.NewError(apistrings.ServerError))
 		return
 	}
@@ -2220,6 +2213,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 
 type OTPRequest struct {
 	PhoneNumber string `json:"phone_number" binding:"required"`
+	Channel     string `json:"channel"`
 }
 
 type VerifyRequest struct {
@@ -2229,7 +2223,7 @@ type VerifyRequest struct {
 
 // sendOTPWithTwilio godoc
 // @Summary Send OTP via Twilio
-// @Description Sends a One-Time Password (OTP) to the specified phone number using Twilio
+// @Description Sends a One-Time Password (OTP) to the specified phone number using Twilio. Channel can be 'sms' or 'whatsapp'.
 // @Tags auth
 // @Accept json
 // @Produce json
@@ -2241,16 +2235,22 @@ type VerifyRequest struct {
 func (a *Auth) SendOTPWithTwilio(c *gin.Context) {
 	var req OTPRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
+		return
+	}
+
+	validate := validator.New()
+	if err := validate.Var(req.PhoneNumber, "e164"); err != nil {
+		c.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidPhone))
 		return
 	}
 
 	p := service.Twilio{Config: a.server.config}
 
-	err := p.SendVerificationCode(req.PhoneNumber)
+	err := p.SendVerificationCode(req.PhoneNumber, req.Channel)
 	if err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		c.JSON(http.StatusInternalServerError, basemodels.NewError("failed to send OTP"))
 		return
 	}
@@ -2278,27 +2278,28 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	}
 	var req VerifyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		c.JSON(http.StatusBadRequest, basemodels.NewError("an error occurred, try again"))
 		return
 	}
+
+	// if 
 
 	p := service.Twilio{Config: a.server.config}
 
 	verified, err := p.CheckVerificationCode(req.PhoneNumber, req.Code)
 	if err != nil || !verified {
-		a.server.logger.Log(logrus.ErrorLevel, err.Error())
+		a.server.logger.Log(logging.ErrorLevel, err.Error())
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid OTP"})
 		return
 	}
 
-	updateUserParam := db.UpdateUserVerificationParams{
-		Verified:  true,
+	updateUserPhoneParam := db.UpdateUserPhoneParams{
 		UpdatedAt: time.Now(),
 		ID:        activeUser.UserID,
 	}
 	/// Update User verified status
-	newUser, err := a.server.queries.UpdateUserVerification(c, updateUserParam)
+	newUser, err := a.server.queries.UpdateUserPhone(c, updateUserPhoneParam)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, basemodels.NewError(fmt.Sprintf("an error occurred updating your Account %v", err.Error())))
 		return

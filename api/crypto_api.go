@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/apistrings"
 	"github.com/SwiftFiat/SwiftFiat-Backend/api/models"
@@ -15,7 +16,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/cryptocurrency"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
-	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	rapidramp "github.com/SwiftFiat/SwiftFiat-Backend/services/rapid_ramp"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/transaction"
@@ -36,6 +36,8 @@ type CryptoAPI struct {
 	qrcode             *rapidramp.QRCodeService
 	audit              *audit.Service
 	push               *service.PushNotificationService
+	webhookValidator   *CryptomusWebhookValidator
+	webhookAudit       *WebhookAuditService
 }
 
 func (c CryptoAPI) router(server *Server) {
@@ -47,6 +49,8 @@ func (c CryptoAPI) router(server *Server) {
 	c.qrcode = c.server.qrcodeService
 	c.audit = server.auditService
 	c.push = server.pushNotification
+	c.webhookValidator = NewCryptomusWebhookValidator()
+	c.webhookAudit = NewWebhookAuditService(c.server.queries)
 
 	// serverGroupV1 := server.router.Group("/auth")
 	serverGroupV1 := server.router.Group("/api/v1/crypto")
@@ -384,11 +388,44 @@ func (c *CryptoAPI) GenerateQRCode(ctx *gin.Context) {
 }
 
 func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
+	// Generate request ID for tracking
+	requestID := uuid.New().String()
+
+	// SECURITY: 1. Validate source IP
+	clientIP := GetClientIP(
+		ctx.Request.RemoteAddr,
+		ctx.GetHeader("X-Forwarded-For"),
+		ctx.GetHeader("X-Real-IP"),
+	)
+
+	if err := c.webhookValidator.ValidateSourceIP(clientIP); err != nil {
+		c.server.logger.Warn("webhook_ip_validation_failed",
+			"request_id", requestID,
+			"client_ip", clientIP,
+			"error", err)
+		// Return 200 to not retry, but don't process
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
+		return
+	}
+
+	// SECURITY: 2. Rate limit webhook requests
+	if err := c.webhookValidator.CheckRateLimit(ctx); err != nil {
+		c.server.logger.Warn("webhook_rate_limit_exceeded",
+			"request_id", requestID,
+			"error", err)
+		// Return 200 to prevent retries
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
+		return
+	}
+
 	// Read raw body for signature verification
 	rawBody, err := io.ReadAll(ctx.Request.Body)
 	if err != nil {
-		logging.NewLogger().Error("failed to read webhook body", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
+		c.server.logger.Error("webhook_read_body_failed",
+			"request_id", requestID,
+			"error", err)
+		// Return 200 but don't process
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
 	}
 
@@ -397,94 +434,193 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 	// Parse JSON payload
 	var payload cryptocurrency.WebhookPayload
 	if err := ctx.ShouldBindJSON(&payload); err != nil {
-		logging.NewLogger().Error("invalid webhook JSON payload", err)
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid JSON payload"})
+		c.server.logger.Error("webhook_parse_json_failed",
+			"request_id", requestID,
+			"error", err)
+		// Return 200 to prevent retries from invalid payloads
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
 	}
 
-	// Log incoming webhook
-	logging.NewLogger().Info("received webhook",
+	// SECURITY: 3. Validate webhook timestamp (prevent old replays)
+	// Note: Cryptomus includes timestamp in webhook, should be parsed here
+	// For now using current time, but should extract from webhook if available
+	// This prevents processing of very old webhooks
+
+	// SECURITY: 4. Track request to prevent duplicate processing
+	if err := c.webhookValidator.TrackWebhookRequest(payload.Sign, time.Now()); err != nil {
+		c.server.logger.Info("webhook_duplicate_detected",
+			"request_id", requestID,
+			"signature", payload.Sign,
+			"order_id", payload.OrderID)
+		// Return 200 OK - this is expected for retries
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
+		return
+	}
+
+	// Log incoming webhook (without sensitive data)
+	c.server.logger.Info("webhook_received",
+		"request_id", requestID,
 		"order_id", payload.OrderID,
-		"status", payload.Status)
+		"status", payload.Status,
+		"client_ip", clientIP)
 
 	provider, exists := c.server.provider.GetProvider(providers.Cryptomus)
 	if !exists {
-		c.server.logger.Error("failed to get provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("Failed to FIND Provider, please register Provider"))
+		c.server.logger.Error("webhook_provider_not_found",
+			"request_id", requestID)
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
 	}
 
 	cryptoProvider, ok := provider.(*cryptocurrency.CryptomusProvider)
 	if !ok {
-		c.server.logger.Error("failed to parse crypto provider")
-		ctx.JSON(http.StatusInternalServerError, basemodels.NewError("parsing crypto provider failed, please register Provider"))
+		c.server.logger.Error("webhook_provider_type_assertion_failed",
+			"request_id", requestID)
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
 	}
 
-	// Process webhook
-	res, err := cryptoProvider.ParseWebhook(rawBody, true)
+	// SECURITY: Signature verification (within ParseWebhook)
+	_, err = cryptoProvider.ParseWebhook(rawBody, true)
 	if err != nil {
-		c.server.logger.Error("process webhook error", err)
-		ctx.JSON(400, basemodels.NewError("error parsing webhook"))
+		c.server.logger.Error("webhook_signature_verification_failed",
+			"request_id", requestID,
+			"order_id", payload.OrderID,
+			"error", err)
+		// Return 200 but don't process - invalid signature
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
+	}
+
+	// AUDIT: Store webhook in database for replay capability and audit trail
+	webhookID, err := c.webhookAudit.StoreWebhook(ctx, payload.Sign, payload.OrderID, rawBody, clientIP)
+	if err != nil {
+		c.server.logger.Warn("webhook_storage_failed",
+			"request_id", requestID,
+			"order_id", payload.OrderID,
+			"error", err)
+		// Log the error but continue processing - we shouldn't fail the webhook due to storage issues
+		// The webhook validator's in-memory deduplication will still work
+	} else {
+		c.server.logger.Debug("webhook_stored",
+			"request_id", requestID,
+			"webhook_id", webhookID,
+			"order_id", payload.OrderID)
 	}
 
 	c.server.logger.Debugf("payload: %v", payload)
 	// If webhook from rapidramp qrcode, process differently
 	if strings.HasPrefix(payload.OrderID, "qr_") {
-		c.server.logger.Info("processed as rapid ramp...")
+		c.server.logger.Info("processed as rapid ramp...",
+			"request_id", requestID)
 		err := c.qrcode.ProcessCryptomusWebhook(ctx, &payload)
 		if err != nil {
 			c.server.logger.Errorf("ProcessCryptomusWebhook for qrcode error: %v", err)
 		}
+		ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 		return
 	}
 
-	// If orderid exist and transaction status is successful, do nothing.
+	// Check for duplicate/already processed transactions
 	t, err := c.server.queries.GetCryptoMetadatBySourceHash(ctx, sql.NullString{String: payload.Sign, Valid: true})
 	if err == nil {
 		tx, err := c.server.queries.GetTransactionByID(ctx, t.TransactionID)
 		if err == nil && transaction.TransactionStatus(tx.Status) == transaction.Success {
-			c.server.logger.Infof("transaction already successful for source_hash: %s, skipping processing", payload.Sign)
+			c.server.logger.Info("webhook_transaction_already_processed",
+				"request_id", requestID,
+				"order_id", payload.OrderID,
+				"source_hash", payload.Sign)
+			// Return success - this is expected behavior
+			ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 			return
 		}
 	} else if err != sql.ErrNoRows {
-		c.server.logger.Errorf("error retrieving crypto metadata: %v", err)
+		c.server.logger.Error("webhook_crypto_metadata_query_failed",
+			"request_id", requestID,
+			"error", err)
+		// Don't fail on DB errors, log and continue
 	}
 
+	// Process webhook based on status
 	switch payload.Status {
 	case "confirm_check", "process":
 		// Create pending transaction
-		c.server.logger.Info("Processing confirm_check status - creating pending transaction")
+		c.server.logger.Info("webhook_processing_confirm_check",
+			"request_id", requestID,
+			"order_id", payload.OrderID)
+
+		// Mark webhook as processing (if it was stored)
+		if webhookID != uuid.Nil {
+			_ = c.webhookAudit.MarkWebhookProcessing(ctx, webhookID)
+		}
+
 		err := c.handleConfirmCheck(ctx, payload)
 		if err != nil {
-			c.server.logger.Errorf("handleConfirmCheck error: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewCustomResponse("failed", "handleConfirmCheck error", err.Error()))
+			c.server.logger.Error("webhook_confirm_check_failed",
+				"request_id", requestID,
+				"order_id", payload.OrderID,
+				"error", err)
+			// Mark webhook as failed (if it was stored)
+			if webhookID != uuid.Nil {
+				_ = c.webhookAudit.MarkWebhookFailed(ctx, webhookID, err.Error())
+			}
+			// Return 200 to prevent retries, but don't process
+			ctx.JSON(http.StatusOK, gin.H{
+				"status": "received",
+				"note":   "error processing, will retry",
+			})
 			return
 		}
-		ctx.JSON(http.StatusOK, basemodels.NewSuccess("pending transaction created", gin.H{
-			"data":     res,
+		c.server.logger.Info("webhook_pending_transaction_created",
+			"request_id", requestID,
+			"order_id", payload.OrderID)
+		ctx.JSON(http.StatusOK, gin.H{
+			"status":   "received",
 			"order_id": payload.OrderID,
-			"status":   "pending_transaction_created",
-		}))
+			"message":  "pending_transaction_created",
+		})
 
 	case "paid":
 		// Stage 2: Complete transaction
-		c.server.logger.Info("Processing paid status - completing transaction")
+		c.server.logger.Info("webhook_processing_paid",
+			"request_id", requestID,
+			"order_id", payload.OrderID)
+
+		// Mark webhook as processing (if it was stored)
+		if webhookID != uuid.Nil {
+			_ = c.webhookAudit.MarkWebhookProcessing(ctx, webhookID)
+		}
 
 		// Convert amount
 		amountDec, err := decimal.NewFromString(payload.Amount)
 		if err != nil {
-			c.server.logger.Errorf("conversion error: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError(err.Error()))
+			c.server.logger.Error("webhook_amount_conversion_failed",
+				"request_id", requestID,
+				"order_id", payload.OrderID,
+				"amount", payload.Amount,
+				"error", err)
+			// Mark webhook as failed (if it was stored)
+			if webhookID != uuid.Nil {
+				_ = c.webhookAudit.MarkWebhookFailed(ctx, webhookID, err.Error())
+			}
+			ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 			return
 		}
 
 		// Parse transaction UUID
 		txid, err := uuid.Parse(payload.UUID)
 		if err != nil {
-			c.server.logger.Errorf("UUID conversion error: %v", err)
-			ctx.JSON(http.StatusInternalServerError, basemodels.NewError("an error occurred while processing webhook"))
+			c.server.logger.Error("webhook_uuid_parse_failed",
+				"request_id", requestID,
+				"order_id", payload.OrderID,
+				"uuid", payload.UUID,
+				"error", err)
+			// Mark webhook as failed (if it was stored)
+			if webhookID != uuid.Nil {
+				_ = c.webhookAudit.MarkWebhookFailed(ctx, webhookID, err.Error())
+			}
+			ctx.JSON(http.StatusOK, gin.H{"status": "received"})
 			return
 		}
 
@@ -501,31 +637,53 @@ func (c *CryptoAPI) HandleCryptomusWebhook(ctx *gin.Context) {
 		}
 
 		// Process the full transaction (creates or updates to successful)
-		_, err = c.transactionService.CreateAllCryptoINflowTXs(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
+		txResult, err := c.transactionService.CreateAllCryptoINflowTXs(ctx, payload.OrderID, cryptoTransaction, c.server.provider)
 		if err != nil {
-			c.server.logger.Error(fmt.Sprintf("transaction error occurred: %v", err))
+			c.server.logger.Error("webhook_transaction_creation_failed",
+				"request_id", requestID,
+				"order_id", payload.OrderID,
+				"error", err)
+			// Mark webhook as failed (if it was stored)
+			if webhookID != uuid.Nil {
+				_ = c.webhookAudit.MarkWebhookFailed(ctx, webhookID, err.Error())
+			}
 			ctx.JSON(http.StatusOK, gin.H{
-				"status":  "error",
-				"message": "Failed to process transaction",
-				"error":   err.Error(),
+				"status": "received",
+				"note":   "error processing, will retry",
 			})
 			return
 		}
 
+		// Mark webhook as processed with the transaction ID (if it was stored)
+		if webhookID != uuid.Nil {
+			if txResult != nil && txResult.ID != uuid.Nil {
+				_ = c.webhookAudit.MarkWebhookProcessed(ctx, webhookID, txResult.ID)
+			} else {
+				// Fallback: just mark as processed without transaction ID
+				_ = c.webhookAudit.MarkWebhookProcessed(ctx, webhookID, uuid.Nil)
+			}
+		}
+
+		c.server.logger.Info("webhook_transaction_completed",
+			"request_id", requestID,
+			"order_id", payload.OrderID,
+			"amount", amountDec.String())
 		ctx.JSON(http.StatusOK, gin.H{
-			"data":     res,
+			"status":   "received",
 			"order_id": payload.OrderID,
-			"status":   "transaction_completed",
+			"message":  "transaction_completed",
 		})
 
 	default:
 		// Handle other statuses (failed, cancelled, etc.)
-		c.server.logger.Warnf("Received unhandled webhook status: %s", res.Status)
+		c.server.logger.Warn("webhook_unhandled_status",
+			"request_id", requestID,
+			"order_id", payload.OrderID,
+			"status", payload.Status)
 		ctx.JSON(http.StatusOK, gin.H{
-			"data":     res,
+			"status":   "received",
 			"order_id": payload.OrderID,
-			"status":   res.Status,
-			"message":  "Status acknowledged but not processed",
+			"message":  "status acknowledged but not processed",
 		})
 	}
 }

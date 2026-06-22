@@ -11,10 +11,13 @@ services:
 
   redis:
     container_name: swiftfiat_redis
-    image: redis:alpine
+    image: redis:7-alpine
+    command: >
+      redis-server
+      --appendonly yes
+      --requirepass ${REDIS_PASSWORD}
     ports:
-      - '${REDIS_PORT}:${REDIS_PORT}'
-    command: redis-server --appendonly yes
+      - "${REDIS_PORT}:6379"
     volumes:
       - ./redis_data:/data
     restart: unless-stopped

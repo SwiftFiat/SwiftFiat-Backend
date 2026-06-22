@@ -13,10 +13,10 @@ type Twilio struct {
 	Config *utils.Config
 }
 
-func (t *Twilio) SendVerificationCode(phone string) error {
+func (t *Twilio) SendVerificationCode(phone string, channel string) error {
 	var client = twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: t.Config.TwilioKeySid,
-		Password: t.Config.TwilioKeySecret,
+		Username:   t.Config.TwilioKeySid,
+		Password:   t.Config.TwilioKeySecret,
 		AccountSid: t.Config.TWILIO_ACCOUNT_SID,
 	})
 
@@ -25,19 +25,20 @@ func (t *Twilio) SendVerificationCode(phone string) error {
 	log.Info("twilio password: ", t.Config.TwilioKeySecret)
 	log.Info("twilio verify service sid: ", t.Config.TWILIO_VERIFY_SERVICE_SID)
 	log.Info("req phone: ", phone)
+	log.Info("req channel: ", channel)
 
 	if t.Config.TWILIO_VERIFY_SERVICE_SID == "" {
 		log.Error("Twilio Verify Service SID is not set")
 		return errors.New("twilio Verify Service SID is not configured")
 	}
 
-	// channels := []string{"sms", "whatsapp", "call"}
+	if channel == "" {
+		channel = "sms"
+	}
+
 	params := &verify.CreateVerificationParams{}
 	params.SetTo(phone)
-	// for _, channel := range channels {
-	params.SetChannel("whatsapp")
-	// }
-	// params.SetChannel("sms")
+	params.SetChannel(channel)
 
 	_, err := client.VerifyV2.CreateVerification(t.Config.TWILIO_VERIFY_SERVICE_SID, params)
 	if err != nil {
@@ -50,8 +51,8 @@ func (t *Twilio) SendVerificationCode(phone string) error {
 
 func (t *Twilio) CheckVerificationCode(phone string, code string) (bool, error) {
 	var client = twilio.NewRestClientWithParams(twilio.ClientParams{
-		Username: t.Config.TwilioKeySid,
-		Password: t.Config.TwilioKeySecret,
+		Username:   t.Config.TwilioKeySid,
+		Password:   t.Config.TwilioKeySecret,
 		AccountSid: t.Config.TWILIO_ACCOUNT_SID,
 	})
 	params := &verify.CreateVerificationCheckParams{}

@@ -82,9 +82,11 @@ func ValidateRedisSecurityConfig(ctx context.Context, r *redis.RedisService, l *
 	// ── 3. Password / AUTH ────────────────────────────────────────────────
 	requirePass, _ := r.ConfigGet(ctx, "requirepass")
 	if requirePass == "" {
-		report.Warnings = append(report.Warnings,
+		report.Errors = append(report.Errors,
 			"Redis has no password set (requirepass is empty). "+
-				"Anyone with network access to the Redis port can read all session tokens.")
+				"Anyone with network access to the Redis port can read all session tokens. "+
+				"Set 'requirepass' in redis.conf and update REDIS_PASSWORD in .env")
+		report.Passed = false
 	}
 
 	// ── Emit results ──────────────────────────────────────────────────────

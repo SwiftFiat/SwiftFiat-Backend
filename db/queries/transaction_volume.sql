@@ -120,8 +120,8 @@ INSERT INTO user_transaction_Volumes (
 ) VALUES ($1, $2, $3, $4, NOW())
 ON CONFLICT (user_id, transaction_date)
 DO UPDATE SET
-    total_volume = user_transaction_volumes.total_volume + EXCLUDED.amount,
-    transaction_count = user_transaction_volumes.transaction_count + 1,
+    daily_volume = user_transaction_volumes.daily_volume + EXCLUDED.amount,
+    daily_count = user_transaction_volumes.daily_count + 1,
     updated_at = NOW();
 
 -- =====================================================

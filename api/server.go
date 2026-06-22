@@ -48,8 +48,6 @@ import (
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
-	swaggerFiles "github.com/swaggo/files"
-	ginSwagger "github.com/swaggo/gin-swagger"
 )
 
 // / If there's a better place to access this
@@ -394,9 +392,6 @@ func (s *Server) Start() error {
 		ctx.JSON(http.StatusOK, icons)
 	})
 
-	// Swagger documentation routes
-	s.router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-
 	/// Register Object Routers Below
 	Auth{}.router(s)
 	KYC{}.router(s)
@@ -430,14 +425,14 @@ func (s *Server) Start() error {
 	if s.vaultScheduler != nil {
 		if err := s.vaultScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start vault scheduler", err.Error(), "vault-scheduler")
 		}
 	}
 
 	if s.yieldScheduler != nil {
 		if err := s.yieldScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start vault savings yield scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start vault savings yield scheduler", err.Error(), "vault-savings-yield-scheduler")
 		}
 	}
 
@@ -445,7 +440,7 @@ func (s *Server) Start() error {
 	if s.qrcodeScheduler != nil {
 		if err := s.qrcodeScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start rapid ramp scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start rapid ramp scheduler", err.Error(), "rapid-ramp-scheduler")
 		}
 	}
 
@@ -453,7 +448,7 @@ func (s *Server) Start() error {
 	if s.smartConversionScheduler != nil {
 		if err := s.smartConversionScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start smart conversion scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start smart conversion scheduler", err.Error(), "smart-conversion-scheduler")
 		}
 	}
 
@@ -461,7 +456,7 @@ func (s *Server) Start() error {
 	if s.subscriptionScheduler != nil {
 		if err := s.subscriptionScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start subscription scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start subscription scheduler", err.Error(), "subscription-scheduler")
 		}
 	}
 
@@ -469,7 +464,7 @@ func (s *Server) Start() error {
 	if s.streakScheduler != nil {
 		if err := s.streakScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start streak scheduler", "error", err)
-			// TODO: Alert the team via email or slack
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start streak scheduler", err.Error(), "streak-scheduler")
 		}
 	}
 
@@ -477,6 +472,7 @@ func (s *Server) Start() error {
 	if s.priceAlertScheduler != nil {
 		if err := s.priceAlertScheduler.Start(); err != nil {
 			s.logger.Error("Failed to start price alert scheduler", "error", err)
+			s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to start price alert scheduler", err.Error(), "price-alert-scheduler")
 		}
 	}
 
@@ -488,6 +484,7 @@ func (s *Server) Start() error {
 		for range ticker.C {
 			if err := s.transactionService.ReconcilePendingBillTransactions(context.Background()); err != nil {
 				s.logger.Error("bill reconciler error", "error", err)
+				s.inAppnotificationService.CreateAdminAlert(context.Background(), "error", "Failed to reconcile pending bill transactions", err.Error(), "bill-reconciler")
 			}
 		}
 	}()

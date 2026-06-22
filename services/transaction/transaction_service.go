@@ -26,7 +26,6 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
 )
 
 type TransactionService struct {
@@ -532,7 +531,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 
 	err = s.streakUpdater.UpdateStreakOnTransaction(ctx, user.ID, txx.ID, txx.Type)
 	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to update streak: %v", err))
+		s.logger.Error(fmt.Sprintf("Failed to update streak: %v", err))
 	}
 
 	// FIX [C2c]: Response built AFTER metadata — Metadata field is now populated.
@@ -580,10 +579,10 @@ func (s *TransactionService) sendCryptoSuccessNotifications(
 
 	body, err := utils.RenderEmailTemplate("templates/cryptp_transaction.html", tplData)
 	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, err.Error())
+		s.logger.Error(err.Error())
 	} else {
 		if err = email.SendEmail(user.Email, "SwiftFiat - Successful Crypto Inflow Transaction", body); err != nil {
-			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send crypto email: %v", err))
+			s.logger.Error(fmt.Sprintf("Failed to send crypto email: %v", err))
 		}
 	}
 
@@ -969,7 +968,7 @@ func (s *TransactionService) processRapidRampInflow(
 	if !user.HasCompletedFirstConversion.Bool {
 		referrerID, referralBonus, err := CheckFirstConersionAndDisburseReferralBonus(ctx, s.store, dbTx, user.ID, txx.ID)
 		if err != nil {
-			s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to disburse referral bonus: %v", err))
+			s.logger.Error(fmt.Sprintf("Failed to disburse referral bonus: %v", err))
 		}
 		if referrerID != nil && referralBonus != nil {
 			// go func() {
@@ -984,7 +983,7 @@ func (s *TransactionService) processRapidRampInflow(
 
 	refererID, conversionBonus, err := CreditReferrerForConversion(ctx, s.store, dbTx, user.ID, fiatAmount)
 	if err != nil {
-		s.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
+		s.logger.Error(fmt.Sprintf("Failed to credit referrer for conversion: %v", err))
 	}
 	s.logger.Info(fmt.Sprintf("Conversion bonus process done. RefererID: %v, Bonus: %v", refererID, conversionBonus))
 	if refererID != nil && conversionBonus != nil {

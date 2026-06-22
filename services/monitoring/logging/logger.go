@@ -12,11 +12,25 @@ import (
 
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
+const (
+	DebugLevel = zapcore.DebugLevel
+	InfoLevel  = zapcore.InfoLevel
+	WarnLevel  = zapcore.WarnLevel
+	ErrorLevel = zapcore.ErrorLevel
+	PanicLevel = zapcore.PanicLevel
+	FatalLevel = zapcore.FatalLevel
+)
+
+type Fields map[string]any
+
 type Logger struct {
-	*logrus.Logger
+	*zap.SugaredLogger
+	lokiURL string
+	env     string
 }
 
 type responseBodyWriter struct {
@@ -35,23 +49,72 @@ func NewLogger() *Logger {
 		panic(fmt.Sprintf("Could not load config: %v", err))
 	}
 
-	log := logrus.New()
-	log.SetLevel(logrus.DebugLevel)
-	log.SetFormatter(&logrus.JSONFormatter{PrettyPrint: true})
-	log.SetOutput(os.Stdout) // this enables logs to stdout (journalctl via vps)
+	// Configure zap encoder
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.StacktraceKey = "" // Disable stacktrace for cleaner logs
 
-	// Add Loki integration if configured
+	// Create cores
+	consoleCore := zapcore.NewCore(
+		zapcore.NewJSONEncoder(encoderConfig),
+		zapcore.AddSync(os.Stdout),
+		zap.DebugLevel,
+	)
+
+	var core zapcore.Core
 	if c.LokiURL != "" {
-		lokiHook, err := NewLokiHook(c.LokiURL, c.Env)
-		if err != nil {
-			log.Error("Unable to connect to Loki: " + err.Error())
-		} else {
-			log.Hooks.Add(lokiHook)
+		lokiCore := &LokiCore{
+			lokiURL:      c.LokiURL,
+			env:          c.Env,
+			LevelEnabler: zap.DebugLevel,
+			enc:          zapcore.NewJSONEncoder(encoderConfig),
 		}
+		core = zapcore.NewTee(consoleCore, lokiCore)
+	} else {
+		core = consoleCore
 	}
 
+	logger := zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1))
+
 	return &Logger{
-		log,
+		SugaredLogger: logger.Sugar(),
+		lokiURL:       c.LokiURL,
+		env:           c.Env,
+	}
+}
+
+// WithFields provides compatibility with logrus.Fields
+func (l *Logger) WithFields(fields Fields) *Logger {
+	f := make([]interface{}, 0, len(fields)*2)
+	for k, v := range fields {
+		f = append(f, k, v)
+	}
+	return &Logger{
+		SugaredLogger: l.SugaredLogger.With(f...),
+		lokiURL:       l.lokiURL,
+		env:           l.env,
+	}
+}
+
+// Log provides compatibility with logrus.Log
+func (l *Logger) Log(level zapcore.Level, args ...any) {
+	switch level {
+	case zapcore.DebugLevel:
+		l.Debug(args...)
+	case zapcore.InfoLevel:
+		l.Info(args...)
+	case zapcore.WarnLevel:
+		l.Warn(args...)
+	case zapcore.ErrorLevel:
+		l.Error(args...)
+	case zapcore.DPanicLevel:
+		l.DPanic(args...)
+	case zapcore.PanicLevel:
+		l.Panic(args...)
+	case zapcore.FatalLevel:
+		l.Fatal(args...)
+	default:
+		l.Info(args...)
 	}
 }
 
@@ -72,7 +135,6 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 		isWebSocket := upgradeHeader == "websocket" || strings.Contains(connectionHeader, "upgrade")
 
 		// Create a custom response writer to capture the response body
-		// Skip for WebSockets as it interferes with the Hijack process
 		var w *responseBodyWriter
 		if !isWebSocket {
 			w = &responseBodyWriter{body: &bytes.Buffer{}, ResponseWriter: c.Writer}
@@ -88,122 +150,105 @@ func (l *Logger) LoggingMiddleWare() gin.HandlerFunc {
 
 		// For WebSockets, we don't capture the body
 		if isWebSocket {
-			fields := logrus.Fields{
-				"method":   c.Request.Method,
-				"path":     c.Request.URL.Path,
-				"status":   statusCode,
-				"duration": duration,
-				"type":     "websocket",
-			}
-			l.WithFields(fields).Info("WebSocket Connection")
+			l.Infow("WebSocket Connection",
+				"method", c.Request.Method,
+				"path", c.Request.URL.Path,
+				"status", statusCode,
+				"duration", duration,
+				"type", "websocket",
+			)
 			return
 		}
 
 		var requestJson any
 		var responseJson any
-		err := json.Unmarshal(requestBody, &requestJson)
-		if err != nil {
-			l.Log(logrus.DebugLevel, "error unmarshalling requestBody, request may not be JSON")
+		_ = json.Unmarshal(requestBody, &requestJson)
+		_ = json.Unmarshal(w.body.Bytes(), &responseJson)
+
+		// Prepare fields for structured logging
+		fields := []any{
+			"method", c.Request.Method,
+			"path", c.Request.URL.Path,
+			"status", statusCode,
+			"duration", duration,
 		}
 
-		err = json.Unmarshal(w.body.Bytes(), &responseJson)
-		if err != nil {
-			l.Log(logrus.DebugLevel, "error unmarshalling responseBody")
+		// Only log request body if it's small
+		if len(requestBody) > 0 && len(requestBody) < 250 {
+			fields = append(fields, "request", requestJson)
 		}
 
-		// var debug bool
-
-		// mode := gin.Mode()
-		// if mode == gin.DebugMode {
-		// 	debug = true
-		// } else {
-		// 	debug = false
-		// }
-
-		fields := logrus.Fields{
-			"method":   c.Request.Method,
-			"path":     c.Request.URL.Path,
-			"status":   statusCode,
-			"duration": duration,
-			// "response_body": responseJson,
-		}
-
-		// Only log request body if it's small to avoid polluting logs with large payloads
-		// that could impact log storage and make debugging more difficult
-		if len(requestBody) < 250 {
-			fields["request"] = requestJson
-		}
-
-		// if debug {
-		// 	fields["request_header"] = c.Request.Header
-		// }
-
-		l.WithFields(fields).Info("Request-Response")
+		l.Infow("Request-Response", fields...)
 	}
 }
 
-// LokiHook implements logrus hook interface for sending logs to Loki
-type LokiHook struct {
+// LokiCore implements zapcore.Core for sending logs to Loki
+type LokiCore struct {
+	zapcore.LevelEnabler
 	lokiURL string
 	env     string
+	enc     zapcore.Encoder
 }
 
-// NewLokiHook creates a new Loki hook
-func NewLokiHook(lokiURL, env string) (*LokiHook, error) {
-	return &LokiHook{
-		lokiURL: lokiURL,
-		env:     env,
-	}, nil
-}
-
-// Levels defines the log levels this hook will be triggered for
-func (h *LokiHook) Levels() []logrus.Level {
-	return logrus.AllLevels
-}
-
-// Fire is called when a log event is fired
-func (h *LokiHook) Fire(entry *logrus.Entry) error {
-	logLine := fmt.Sprintf("[%s] %s: %s", entry.Level.String(), entry.Time.Format(time.RFC3339), entry.Message)
-
-	// Add entry fields to the log line
-	fieldsStr := ""
-	for k, v := range entry.Data {
-		fieldsStr += fmt.Sprintf(" %s=%v", k, v)
+func (c *LokiCore) With(fields []zapcore.Field) zapcore.Core {
+	clone := *c
+	clone.enc = c.enc.Clone()
+	for _, f := range fields {
+		f.AddTo(clone.enc)
 	}
-	logLine += fieldsStr
+	return &clone
+}
 
-	// Build label map with environment and log level
+func (c *LokiCore) Check(ent zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if c.Enabled(ent.Level) {
+		return ce.AddCore(ent, c)
+	}
+	return ce
+}
+
+func (c *LokiCore) Write(ent zapcore.Entry, fields []zapcore.Field) error {
+	buf, err := c.enc.EncodeEntry(ent, fields)
+	if err != nil {
+		return err
+	}
+	logLine := buf.String()
+	buf.Free()
+
+	// Build label map
 	labels := map[string]string{
 		"job":   "swiftfiat-api",
-		"env":   h.env,
-		"level": entry.Level.String(),
+		"env":   c.env,
+		"level": ent.Level.String(),
 	}
 
 	// Build stream for Loki
-	stream := map[string]interface{}{
+	stream := map[string]any{
 		"stream": labels,
 		"values": [][]string{
 			{
-				fmt.Sprintf("%d", entry.Time.UnixNano()),
+				fmt.Sprintf("%d", ent.Time.UnixNano()),
 				logLine,
 			},
 		},
 	}
 
 	// Build request payload
-	payload := map[string]interface{}{
-		"streams": []interface{}{stream},
+	payload := map[string]any{
+		"streams": []any{stream},
 	}
 
-	// Marshal to JSON
 	jsonData, err := json.Marshal(payload)
 	if err != nil {
 		return err
 	}
 
-	// Send to Loki asynchronously (non-blocking, errors are logged but don't fail the application)
-	go sendToLoki(h.lokiURL, jsonData)
+	// Send to Loki asynchronously
+	go sendToLoki(c.lokiURL, jsonData)
 
+	return nil
+}
+
+func (c *LokiCore) Sync() error {
 	return nil
 }
 
@@ -225,7 +270,5 @@ func sendToLoki(lokiURL string, payload []byte) {
 		return
 	}
 	defer resp.Body.Close()
-
-	// Read response to ensure proper cleanup
-	io.ReadAll(resp.Body)
+	_, _ = io.ReadAll(resp.Body)
 }

@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
-	"github.com/sirupsen/logrus"
 
 	db "github.com/SwiftFiat/SwiftFiat-Backend/db/sqlc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
@@ -29,7 +28,7 @@ type GiftcardService struct {
 	logger *logging.Logger
 	redis  *redis.RedisService
 	config *utils.Config
-	push *service.PushNotificationService
+	push   *service.PushNotificationService
 	/// We may need to inject the provider service here
 	/// since it's getting used in all of the functions
 }
@@ -40,7 +39,7 @@ func NewGiftcardServiceWithCache(store *db.Store, logger *logging.Logger, redis 
 		logger: logger,
 		redis:  redis,
 		config: config,
-		push: push,
+		push:   push,
 	}
 }
 
@@ -460,19 +459,19 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 
 	serviceTransactionID, err := strconv.ParseInt(tInfo.Metadata.ServiceTransactionID, 10, 64)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to parse ServiceTransactionID: %v", err))
+		g.logger.Error(fmt.Sprintf("Failed to parse ServiceTransactionID: %v", err))
 		return nil, fmt.Errorf("failed to parse ServiceTransactionID: %s", err)
 	}
 	cardinfo, err := g.GetCardInfo(prov, serviceTransactionID)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get card info: %v", err))
+		g.logger.Error(fmt.Sprintf("Failed to get card info: %v", err))
 		return nil, fmt.Errorf("failed to get card info: %s", err)
 	}
 
 	// Get redeem instructions
 	instruction, err := reloadlyProvider.GetReedemInsrtructionByProductID(productID)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to get redeem instructions: %v", err))
+		g.logger.Error(fmt.Sprintf("Failed to get redeem instructions: %v", err))
 		return nil, fmt.Errorf("failed to get redeem instructions: %s", err)
 	}
 
@@ -491,7 +490,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	}
 	body, err := utils.RenderEmailTemplate("templates/giftcard_template.html", tplData)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, err.Error())
+		g.logger.Error(err.Error())
 		return nil, err
 	}
 
@@ -500,7 +499,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 	// g.logger.Info(fmt.Sprintf("Plunk send: apikey=%q, secretkey=%q, baseurl=%q", g.config.PlunkApiKey, g.config.PlunkSecretKey, g.config.PlunkBaseUrl))
 	err = email.SendEmail(userInfo.Email, subject, body)
 	if err != nil {
-		g.logger.Error(logrus.ErrorLevel, fmt.Sprintf("Failed to send giftcard purchase email: %v", err))
+		g.logger.Error(fmt.Sprintf("Failed to send giftcard purchase email: %v", err))
 	}
 
 	// g.logger.Info("transaction (gitftcard purchase) completed successfully", tInfo)

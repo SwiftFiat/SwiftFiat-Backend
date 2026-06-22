@@ -19,11 +19,11 @@ import (
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers"
 	"github.com/SwiftFiat/SwiftFiat-Backend/providers/kyc"
 	"github.com/SwiftFiat/SwiftFiat-Backend/services/audit"
+	"github.com/SwiftFiat/SwiftFiat-Backend/services/monitoring/logging"
 	service "github.com/SwiftFiat/SwiftFiat-Backend/services/notification"
 	"github.com/SwiftFiat/SwiftFiat-Backend/utils"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 type KYC struct {
@@ -197,7 +197,7 @@ func (k *KYC) validateBVN(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		k.server.logger.Log(logrus.ErrorLevel, err.Error())
+		k.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidBVNInput))
 		return
 	}
@@ -376,7 +376,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 
 	err := ctx.ShouldBindJSON(&request)
 	if err != nil {
-		k.server.logger.Log(logrus.ErrorLevel, err.Error())
+		k.server.logger.Log(logging.ErrorLevel, err.Error())
 		ctx.JSON(http.StatusBadRequest, basemodels.NewError(apistrings.InvalidNINInput))
 		return
 	}
@@ -436,7 +436,7 @@ func (k *KYC) validateNIN(ctx *gin.Context) {
 		return
 	}
 
-	k.server.logger.Log(logrus.InfoLevel, "NIN Verification Data: ", verificationData)
+	k.server.logger.Log(logging.InfoLevel, "NIN Verification Data: ", verificationData)
 
 	// Validate selfie match
 	if !verificationData.SelfieVerification.Match {
