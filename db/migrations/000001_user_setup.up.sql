@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS "users" (
     "hashed_pin" VARCHAR(256),       -- Numeric PIN for specific actions
 
     -- Secondary contact identifier
-    "phone_number" VARCHAR(50) UNIQUE NOT NULL,
+    "phone_number" VARCHAR(50) UNIQUE,
 
     -- User role for authorization
     -- Suggested values: 'user', 'admin', 'staff'
