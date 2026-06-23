@@ -1400,7 +1400,7 @@ type User struct {
 	HashedPassword               sql.NullString `json:"hashed_password"`
 	HashedPasscode               sql.NullString `json:"hashed_passcode"`
 	HashedPin                    sql.NullString `json:"hashed_pin"`
-	PhoneNumber                  string         `json:"phone_number"`
+	PhoneNumber                  sql.NullString `json:"phone_number"`
 	Role                         string         `json:"role"`
 	Verified                     bool           `json:"verified"`
 	Biometric                    bool           `json:"biometric"`
@@ -1733,7 +1733,7 @@ type VwVipDistribution struct {
 type VwVipUpgradeCandidate struct {
 	UserID                 uuid.UUID      `json:"user_id"`
 	Email                  string         `json:"email"`
-	PhoneNumber            string         `json:"phone_number"`
+	PhoneNumber            sql.NullString `json:"phone_number"`
 	CurrentVipLevelName    sql.NullString `json:"current_vip_level_name"`
 	CurrentVipLevelRank    sql.NullInt32  `json:"current_vip_level_rank"`
 	TotalTransactionVolume string         `json:"total_transaction_volume"`

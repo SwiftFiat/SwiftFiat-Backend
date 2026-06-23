@@ -85,7 +85,7 @@ type AdminUpdateUserParams struct {
 	FirstName   sql.NullString `json:"first_name"`
 	LastName    sql.NullString `json:"last_name"`
 	Email       string         `json:"email"`
-	PhoneNumber string         `json:"phone_number"`
+	PhoneNumber sql.NullString `json:"phone_number"`
 	Role        string         `json:"role"`
 }
 
@@ -314,7 +314,7 @@ RETURNING id, avatar_url, avatar_blob, first_name, last_name, email, hashed_pass
 `
 
 type DeleteUserParams struct {
-	PhoneNumber string         `json:"phone_number"`
+	PhoneNumber sql.NullString `json:"phone_number"`
 	Email       string         `json:"email"`
 	FirstName   sql.NullString `json:"first_name"`
 	ID          uuid.UUID      `json:"id"`
@@ -654,7 +654,7 @@ const getUserByPhone = `-- name: GetUserByPhone :one
 SELECT id, avatar_url, avatar_blob, first_name, last_name, email, hashed_password, hashed_passcode, hashed_pin, phone_number, role, verified, biometric, is_kyc_verified, bridgecard_verification_status, bridgecard_cardholder_id, is_rapid_ramp_on, has_completed_first_conversion, first_conversion_id, first_conversion_at, frozen, frozen_reason, frozen_at, created_at, updated_at, deleted_at, has_wallets, user_tag, fresh_chat_id, is_active, twofa_secret, twofa_enabled, reward_balance, total_reward_earned, total_reward_redeemed, total_conversion_volume, total_transaction_volume, current_vip_level_id FROM users WHERE phone_number = $1 and deleted_at is null
 `
 
-func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber string) (User, error) {
+func (q *Queries) GetUserByPhone(ctx context.Context, phoneNumber sql.NullString) (User, error) {
 	row := q.db.QueryRowContext(ctx, getUserByPhone, phoneNumber)
 	var i User
 	err := row.Scan(
@@ -1648,9 +1648,9 @@ WHERE id = $3 RETURNING id, avatar_url, avatar_blob, first_name, last_name, emai
 `
 
 type UpdateUserPhoneParams struct {
-	PhoneNumber string    `json:"phone_number"`
-	UpdatedAt   time.Time `json:"updated_at"`
-	ID          uuid.UUID `json:"id"`
+	PhoneNumber sql.NullString `json:"phone_number"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	ID          uuid.UUID      `json:"id"`
 }
 
 func (q *Queries) UpdateUserPhone(ctx context.Context, arg UpdateUserPhoneParams) (User, error) {

@@ -365,7 +365,7 @@ func (u *UserService) UserTagExists(ctx context.Context, newTag string) (bool, e
 func (u *UserService) UpdateUserPhoneNumber(ctx context.Context, userID uuid.UUID, phoneNumber string) (*db.User, error) {
 
 	user, err := u.store.UpdateUserPhone(ctx, db.UpdateUserPhoneParams{
-		PhoneNumber: phoneNumber,
+		PhoneNumber: sql.NullString{String: phoneNumber, Valid: true},
 		UpdatedAt:   time.Now(),
 		ID:          userID,
 	})

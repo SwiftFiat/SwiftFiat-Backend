@@ -964,7 +964,7 @@ func (u *User) DeleteUser(c *gin.Context) {
 	}
 
 	param := db.DeleteUserParams{
-		PhoneNumber: req.PhoneNumber,
+		PhoneNumber: sql.NullString{String: req.PhoneNumber, Valid: true},
 		Email:       req.Email,
 		FirstName:   sql.NullString{String: req.FirstName, Valid: true},
 		ID:          userID,

@@ -783,7 +783,7 @@ type GetTicketWithUserDetailsRow struct {
 	FirstName           sql.NullString `json:"first_name"`
 	LastName            sql.NullString `json:"last_name"`
 	Email               string         `json:"email"`
-	PhoneNumber         string         `json:"phone_number"`
+	PhoneNumber         sql.NullString `json:"phone_number"`
 }
 
 func (q *Queries) GetTicketWithUserDetails(ctx context.Context, id int64) (GetTicketWithUserDetailsRow, error) {

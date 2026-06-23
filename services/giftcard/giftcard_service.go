@@ -430,7 +430,7 @@ func (g *GiftcardService) BuyGiftCard(prov *providers.ProviderService, trans *tr
 		RecipientEmail:   userInfo.Email,
 		RecipientPhoneDetails: reloadlymodels.RecipientPhoneDetails{
 			CountryCode: "US",
-			PhoneNumber: userInfo.PhoneNumber,
+			PhoneNumber: userInfo.PhoneNumber.String,
 		},
 	}
 

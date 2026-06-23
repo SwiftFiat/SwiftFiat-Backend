@@ -2343,7 +2343,7 @@ type ListAllTransactionsWithUsersRow struct {
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
-	UserPhoneNumber        string         `json:"user_phone_number"`
+	UserPhoneNumber        sql.NullString `json:"user_phone_number"`
 }
 
 // Metadata joins (kept if needed for filtering / enrichment)
@@ -2643,7 +2643,7 @@ type ListTransactionsByTypeRow struct {
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
-	UserPhoneNumber        string         `json:"user_phone_number"`
+	UserPhoneNumber        sql.NullString `json:"user_phone_number"`
 }
 
 func (q *Queries) ListTransactionsByType(ctx context.Context, type_ string) ([]ListTransactionsByTypeRow, error) {
@@ -2726,7 +2726,7 @@ type ListUserTransactionsRow struct {
 	UserFirstName          sql.NullString `json:"user_first_name"`
 	UserLastName           sql.NullString `json:"user_last_name"`
 	UserEmail              string         `json:"user_email"`
-	UserPhoneNumber        string         `json:"user_phone_number"`
+	UserPhoneNumber        sql.NullString `json:"user_phone_number"`
 }
 
 func (q *Queries) ListUserTransactions(ctx context.Context, userID uuid.UUID) ([]ListUserTransactionsRow, error) {

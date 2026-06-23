@@ -179,7 +179,7 @@ type GetKYCByStatusRow struct {
 	Email_2            string                `json:"email_2"`
 	FirstName          sql.NullString        `json:"first_name"`
 	LastName           sql.NullString        `json:"last_name"`
-	UserPhone          string                `json:"user_phone"`
+	UserPhone          sql.NullString        `json:"user_phone"`
 }
 
 func (q *Queries) GetKYCByStatus(ctx context.Context, arg GetKYCByStatusParams) ([]GetKYCByStatusRow, error) {
@@ -415,7 +415,7 @@ type GetKYCWithUserDetailsRow struct {
 	Email_2            string                `json:"email_2"`
 	FirstName          sql.NullString        `json:"first_name"`
 	LastName           sql.NullString        `json:"last_name"`
-	UserPhone          string                `json:"user_phone"`
+	UserPhone          sql.NullString        `json:"user_phone"`
 	UserVerified       bool                  `json:"user_verified"`
 	IsKycVerified      bool                  `json:"is_kyc_verified"`
 	UserCreatedAt      time.Time             `json:"user_created_at"`
@@ -665,7 +665,7 @@ type ListAllKYCRow struct {
 	Email_2            string                `json:"email_2"`
 	FirstName          sql.NullString        `json:"first_name"`
 	LastName           sql.NullString        `json:"last_name"`
-	UserPhone          string                `json:"user_phone"`
+	UserPhone          sql.NullString        `json:"user_phone"`
 }
 
 func (q *Queries) ListAllKYC(ctx context.Context, arg ListAllKYCParams) ([]ListAllKYCRow, error) {

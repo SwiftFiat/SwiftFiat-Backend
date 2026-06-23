@@ -2579,7 +2579,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		Type:          string(TV),
 		AmountPaid:    finalAmount.String(),
 		PointsEarned:  sql.NullString{String: pointsToUseDecimal.String(), Valid: true},
-		PhoneNumber:   user.PhoneNumber,
+		PhoneNumber:   user.PhoneNumber.String,
 		Plan:          sql.NullString{String: selectedVariation.VariationCode, Valid: true},
 		Reference:     req.IdempotencyKey,
 		Status:        string(Pending),
@@ -2603,7 +2603,7 @@ func (s *TransactionService) HandleTvSubscription(ctx context.Context, user *db.
 		BillersCode:      req.BillersCode,
 		VariationCode:    req.VariationCode,
 		SubscriptionType: req.SubscriptionType,
-		Phone:            user.PhoneNumber,
+		Phone:            user.PhoneNumber.String,
 		RequestID:        purchaseRequestID,
 		Amount:           amount.IntPart(),
 	})
@@ -3321,7 +3321,7 @@ func (s *TransactionService) HandleBuyElectricity(ctx context.Context, user *db.
 		ServiceID:     req.ServiceID,
 		BillersCode:   req.BillersCode,
 		VariationCode: req.VariationCode,
-		Phone:         user.PhoneNumber,
+		Phone:         user.PhoneNumber.String,
 		RequestID:     purchaseRequestID,
 		Amount:        req.Amount,
 	})

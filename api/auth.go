@@ -2191,7 +2191,7 @@ func (a *Auth) deleteAccount(ctx *gin.Context) {
 
 	_, err = a.server.queries.DeleteUser(context.Background(), db.DeleteUserParams{
 		ID:          activeUser.UserID,
-		PhoneNumber: dbUser.PhoneNumber + "DELETED",
+		PhoneNumber: sql.NullString{String: dbUser.PhoneNumber.String + "DELETED", Valid: dbUser.PhoneNumber.Valid},
 		Email:       dbUser.Email + "DELETED",
 		FirstName: sql.NullString{
 			String: dbUser.FirstName.String + "DELETED",

@@ -249,7 +249,7 @@ func (h *Analytics) UpdateSystemSettings(c *gin.Context) {
 
 type GetTransactionByIDRow struct {
 	ID                   uuid.UUID  `json:"id"`
-	UserID               *uuid.UUID     `json:"user_id"`
+	UserID               *uuid.UUID `json:"user_id"`
 	Type                 string     `json:"type"`
 	Description          *string    `json:"description"`
 	TransactionFlow      *string    `json:"transaction_flow"`
@@ -769,7 +769,7 @@ func (h *Analytics) AdminEditUser(c *gin.Context) {
 		FirstName:   sql.NullString{String: req.FirstName, Valid: req.FirstName != ""},
 		LastName:    sql.NullString{String: req.LastName, Valid: req.LastName != ""},
 		Email:       req.Email,
-		PhoneNumber: req.Phone,
+		PhoneNumber: sql.NullString{String: req.Phone, Valid: req.Phone != ""},
 		Role:        req.Role,
 	}
 
@@ -1158,8 +1158,8 @@ func (h *Analytics) GetDailyTransactions(c *gin.Context) {
 }
 
 type CreateNotif struct {
-	Title      string  `json:"title" binding:"required"`
-	Message    string  `json:"message" binding:"required"`
+	Title      string      `json:"title" binding:"required"`
+	Message    string      `json:"message" binding:"required"`
 	Recipients []uuid.UUID `json:"recipients"`
 }
 
