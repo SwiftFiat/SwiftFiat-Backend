@@ -2297,6 +2297,7 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 	updateUserPhoneParam := db.UpdateUserPhoneParams{
 		UpdatedAt: time.Now(),
 		ID:        activeUser.UserID,
+		PhoneNumber: sql.NullString{String: req.PhoneNumber, Valid: true},
 	}
 	/// Update User verified status
 	newUser, err := a.server.queries.UpdateUserPhone(c, updateUserPhoneParam)
