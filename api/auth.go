@@ -2306,6 +2306,9 @@ func (a *Auth) VerifyOTPWithTwilio(c *gin.Context) {
 		return
 	}
 
-	a.notifr.CreateWithRecipients(c, nil, "Account", "Your account is verified successfully", "system", []uuid.UUID{newUser.ID})
+	entry := audit.NewAuthenticationLog(c, audit.EventPhoneVerified, fmt.Sprintf("User %s verified phone number", activeUser.Email), &activeUser.UserID, &activeUser.Email, activeUser.Role, true, nil)
+	a.audit.Log(entry)
+
+	a.notifr.CreateWithRecipients(c, nil, "Account", "Your phone number is verified successfully", "system", []uuid.UUID{newUser.ID})
 	c.JSON(http.StatusOK, basemodels.CustomResponse{Message: "OTP verified successfully"})
 }

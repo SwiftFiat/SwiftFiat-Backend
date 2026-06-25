@@ -231,6 +231,15 @@ const (
 	EventReferralWithdrawal = "referral.withdrawal"
 
 	EventGetKYC = "kyc.view"
+	EventBVNVerified = "user.bvn_verified"
+	EventBVNVerificationFailed = "user.bvn_verification_failed"
+	EventBVNVerificationPending = "user.bvn_verification_pending"
+	EventBVNVerificationError = "user.bvn_verification_error"
+	EventNINVerified = "user.nin_verified"
+	EventNINVerificationFailed = "user.nin_verification_failed"
+	EventNINVerificationPending = "user.nin_verification_pending"
+	EventNINVerificationError = "user.nin_verification_error"
+	EventUtilityBillVerified = "user.utility_bill_verified"
 
 	EventBiometricToggle = "user.biometric_toggle"
 )
