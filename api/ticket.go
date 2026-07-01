@@ -65,19 +65,8 @@ func (c ChatSupport) router(server *Server) {
 	}
 }
 
-// sendMessage godoc
-// @Summary Send a chat message
-// @Description Send a message in a support conversation (AI or human)
-// @Tags chat
-// @Accept multipart/form-data
-// @Produce json
-// @Security BearerAuth
-// @Param text formData string true "Message text"
-// @Param attachment formData file false "Image attachment (max 500KB)"
-// @Success 200 {object} basemodels.SuccessResponse{data=object{message=chatsupport.ChatMessageResponse,ai_response=chatsupport.AIQueryResponse,ticket_id=int64,escalated=bool}}
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/chat/message [post]
+
+// sendMessage Sends a message in a support conversation (AI or human)
 func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {
@@ -309,17 +298,7 @@ func (c *ChatSupport) sendMessage(ctx *gin.Context) {
 	}))
 }
 
-// getMessages godoc
-// @Summary Get conversation history
-// @Description Retrieve all messages for a specific ticket
-// @Tags chat
-// @Produce json
-// @Security BearerAuth
-// @Param ticketId path string true "Ticket ID"
-// @Success 200 {object} basemodels.SuccessResponse{data=[]chatsupport.ChatMessageResponse}
-// @Failure 400 {object} basemodels.ErrorResponse
-// @Failure 500 {object} basemodels.ErrorResponse
-// @Router /api/v1/chat/ticket/{ticketId}/messages [get]
+// getMessages retrieves the conversation history for a specific ticket
 func (c *ChatSupport) getMessages(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {

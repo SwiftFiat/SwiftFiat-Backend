@@ -26,12 +26,14 @@ type Analytics struct {
 	server *Server
 	audit  *audit.Service
 	notif  *service.Notification
+	push  *service.PushNotificationService
 }
 
 func (h Analytics) router(server *Server) {
 	h.server = server
 	h.audit = server.auditService
 	h.notif = server.inAppnotificationService
+	h.push = server.pushNotification
 
 	serverGroupV1 := server.router.Group("/api/v1/analytics")
 	serverGroupV1.GET("/transactions", h.server.authMiddleware.AuthenticatedMiddleware(), h.ListAllTransactions)
@@ -1199,6 +1201,14 @@ func (h *Analytics) createNotification(c *gin.Context) {
 	if err != nil {
 		c.JSON(500, basemodels.NewError(err.Error()))
 		return
+	}
+
+	// send push notification to all recipients
+	for _, recipientID := range recipients {
+		err = h.push.SendPushNotification(c, recipientID, req.Title, req.Message)
+		if err != nil {
+			h.server.logger.Error(fmt.Sprintf("failed to send push notification to user %s: %v", recipientID, err))
+		}
 	}
 
 	c.JSON(200, basemodels.NewSuccess("Notification sent", nil))
