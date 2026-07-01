@@ -232,6 +232,15 @@ func (p *CryptomusProvider) TestCryptomusWebhook(request *TestWebhookRequest) (*
 	}
 	defer res.Body.Close()
 
+	if res.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf(
+			"unexpected status code: %d \nURL: %s \nResponse Body: %s",
+			res.StatusCode,
+			res.Request.URL,
+			res.Body,
+		)
+	}
+
 	response := &TestWebhookResponse{}
 	if err = json.NewDecoder(res.Body).Decode(response); err != nil {
 		return nil, err

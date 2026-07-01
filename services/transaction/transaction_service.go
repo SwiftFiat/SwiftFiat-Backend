@@ -347,7 +347,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(
 				return nil, fmt.Errorf("fetching exchange rate: %w", err)
 			}
 
-			finalAmount := tx.AmountInSatoshis.Mul(rate)
+			finalAmount := tx.AmountInSatoshis.Mul(rate).Add(decimal.NewFromFloat(0.02))
 
 			if err = s.UpdateCryptoTransactionToPaid(ctx, dbTx, pendingTx.ID, rate, finalAmount); err != nil {
 				return nil, fmt.Errorf("upgrading pending transaction: %w", err)
@@ -380,7 +380,7 @@ func (s *TransactionService) CreateAllCryptoINflowTXs(
 			TransactionHash: sql.NullString{String: tx.SourceHash, Valid: tx.SourceHash != ""},
 			Amount: sql.NullString{
 				String: tx.AmountInSatoshis.StringFixed(10),
-				Valid:  !tx.AmountInSatoshis.IsZero(),
+				Valid:  true,
 			},
 		}); err != nil {
 			return nil, fmt.Errorf("creating transaction trail: %w", err)
@@ -468,7 +468,7 @@ func (s *TransactionService) createNewSuccessfulCryptoTransaction(
 
 	s.logger.Infof("======================rate is %2.f", rate.InexactFloat64())
 
-	usdAmount := coinAmount.Mul(rate)
+	usdAmount := coinAmount.Mul(rate).Add(decimal.NewFromFloat(0.02))
 
 	destWallet, err := qtx.GetWalletByCurrencyForUpdate(ctx, db.GetWalletByCurrencyForUpdateParams{
 		CustomerID: walletAddress.CustomerID.UUID,

@@ -827,17 +827,7 @@ func (c *CryptoAPI) GetImages(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Images fetched successfully", images))
 }
 
-// TestCryptomusWebhookEndpoint godoc
-// @Summary      Test Cryptomus Webhook Endpoint
-// @Description  Triggers a test webhook to verify the Cryptomus webhook endpoint functionality.
-// @Tags         Crypto
-// @Accept       json
-// @Produce      json
-// @Param        body  body      cryptocurrency.TestWebhookRequest  true  "Test Webhook Request"
-// @Success      200   {object}  basemodels.SuccessResponse
-// @Failure      400   {object}  basemodels.ErrorResponse
-// @Failure      500   {object}  basemodels.ErrorResponse
-// @Router       /api/v1/crypto/test-webhook [post]
+// TestCryptomusWebhookEndpoint tests the Cryptomus webhook endpoint by sending a test request to the configured webhook URL.
 func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	var req cryptocurrency.TestWebhookRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -887,17 +877,7 @@ func (c *CryptoAPI) TestCryptomusWebhookEndpoint(ctx *gin.Context) {
 	})
 }
 
-// ResendWebhook godoc
-// @Summary      Resend Cryptomus Webhook
-// @Description  Resends a previously sent webhook notification using the Cryptomus provider.
-// @Tags         Crypto
-// @Accept       json
-// @Produce      json
-// @Param        body  body      cryptocurrency.ResendWebhookRequest  true  "Resend Webhook Request"
-// @Success      200   {object}  basemodels.SuccessResponse
-// @Failure      400   {object}  basemodels.ErrorResponse
-// @Failure      500   {object}  basemodels.ErrorResponse
-// @Router       /api/v1/crypto/resend-webhook [post]
+// ResendWebhook resends a webhook for a specific order using the Cryptomus provider.
 func (c *CryptoAPI) ResendWebhook(ctx *gin.Context) {
 	var req cryptocurrency.ResendWebhookRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -939,17 +919,7 @@ func (c *CryptoAPI) ResendWebhook(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
 }
 
-// GetPaymentInfo godoc
-// @Summary      Get Payment Info
-// @Description  Retrieves payment information for a specific order using the Cryptomus provider.
-// @Tags         Crypto
-// @Accept       json
-// @Produce      json
-// @Param        body  body      cryptocurrency.PaymentInfoRequest  true  "Payment Info Request"
-// @Success      200   {object}  basemodels.SuccessResponse
-// @Failure      400   {object}  basemodels.ErrorResponse
-// @Failure      500   {object}  basemodels.ErrorResponse
-// @Router       /api/v1/crypto/payment-info [post]
+// GetPaymentInfo gets payment information for a specific order using the Cryptomus provider.
 func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 	var req cryptocurrency.PaymentInfoRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -992,19 +962,7 @@ func (c *CryptoAPI) GetPaymentInfo(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Webhook resent successfully", res))
 }
 
-// createStablecoinFundingAddress godoc
-// @Summary      Create Stablecoin Funding Address
-// @Description  Creates a stablecoin funding address for the authenticated user using the Cryptomus provider.
-// @Description  Supported stablecoins are USDT and USDC.
-// @Tags         Crypto
-// @Accept       json
-// @Produce      json
-// @Param        body  body      CreateStaticWalletRequest  true  "Stablecoin Funding Address Request"
-// @Success      200   {object}  basemodels.SuccessResponse
-// @Failure      400   {object}  basemodels.ErrorResponse
-// @Failure      401   {object}  basemodels.ErrorResponse
-// @Failure      500   {object}  basemodels.ErrorResponse
-// @Router       /api/v1/crypto/create-stablecoin-wallet [post]
+// createStablecoinFundingAddress creates a stablecoin funding address for the active user using the Cryptomus provider.
 func (c *CryptoAPI) createStablecoinFundingAddress(ctx *gin.Context) {
 	activeUser, err := utils.GetActiveUser(ctx)
 	if err != nil {

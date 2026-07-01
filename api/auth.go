@@ -1265,13 +1265,6 @@ func (a *Auth) register(ctx *gin.Context) {
 		defer func() { recover() }()
 		bgCtx := context.Background()
 
-		if err := a.server.emailService.Welcome(bgCtx, u.FirstName.String, u.Email); err != nil {
-			a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send welcome email: %v", err))
-			// Log to failed_notifications
-			a.logFailedNotification(bgCtx, "email", "critical", u.ID, u.Email,
-				"Welcome Email", "", err.Error())
-		}
-
 		title := "Welcome to SwiftFiat"
 		message := fmt.Sprintf("Hello %s, welcome to Swiift. Your referral code is %s. Invite your friends and earn rewards", u.FirstName.String, tag)
 
@@ -1392,6 +1385,17 @@ func (a *Auth) verifyEmail(ctx *gin.Context) {
 		User: models.UserResponse{}.ToUserResponse(&user),
 		// Token: pair.AccessToken,
 	}
+
+	// send welcome email after 60seconds delay
+	go func() {
+		time.Sleep(60 * time.Second)
+		if err := a.server.emailService.Welcome(ctx, user.FirstName.String, user.Email); err != nil {
+			a.server.logger.Error(fmt.Sprintf("CRITICAL: failed to send welcome email: %v", err))
+			// Log to failed_notifications
+			a.logFailedNotification(ctx, "email", "critical", user.ID, user.Email,
+				"Welcome Email", "Welcome to SwiftFiat!", err.Error())
+		}
+	}()
 
 	ctx.JSON(http.StatusOK, basemodels.NewSuccess("Email verified successfully", gin.H{
 		"user":          userWT.User,
